@@ -59,21 +59,25 @@ function status(now: number) {
 /** A runtime answering the calls the editor makes while connected; @p features is its CANopen list. */
 function fakeRuntime(features: string[]): Server {
   const dir = mkdtempSync(join(tmpdir(), 'openplc-e2e-cert-'))
-  execFileSync('openssl', [
-    'req',
-    '-x509',
-    '-newkey',
-    'rsa:2048',
-    '-nodes',
-    '-subj',
-    '/CN=localhost',
-    '-days',
-    '1',
-    '-keyout',
-    join(dir, 'key.pem'),
-    '-out',
-    join(dir, 'cert.pem'),
-  ])
+  execFileSync(
+    'openssl',
+    [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-subj',
+      '/CN=localhost',
+      '-days',
+      '1',
+      '-keyout',
+      join(dir, 'key.pem'),
+      '-out',
+      join(dir, 'cert.pem'),
+    ],
+    { stdio: 'ignore' },
+  )
   const server = createServer(
     { key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) },
     (req, res) => {
