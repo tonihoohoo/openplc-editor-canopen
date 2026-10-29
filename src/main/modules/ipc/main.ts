@@ -79,6 +79,7 @@ import type { CompileProgramIpcArgs } from '@root/middleware/adapters/editor/com
 import type { CompileLibraryIpcArgs } from '@root/middleware/adapters/editor/compiler-adapter'
 import { RuntimeLogEntry } from '@root/middleware/shared/ports'
 import type { AITelemetryEventName } from '@root/middleware/shared/ports/ai-port'
+import type { CanopenRuntimeFetch } from '@root/middleware/shared/ports/canopen-status'
 import type { DeviceLicenseReport, DeviceLicenseRequest } from '@root/middleware/shared/ports/device-port'
 import type { EdgeSignInOutcome, EdgeUserRead } from '@root/middleware/shared/ports/edge-account-port'
 import type { EditSessionBeat, EditSessionOpened } from '@root/middleware/shared/ports/edit-session-port'
@@ -1061,6 +1062,10 @@ class MainProcessBridge implements MainIpcModule {
     this.registerHandle('ethercat:test', this.handleEtherCATTest)
     this.registerHandle('ethercat:validate', this.handleEtherCATValidate)
     this.registerHandle('ethercat:get-runtime-status', this.handleEtherCATGetRuntimeStatus)
+
+    // ===================== CANOPEN =====================
+    this.registerHandle('canopen:get-capabilities', this.handleCanopenGet('/api/capabilities'))
+    this.registerHandle('canopen:get-status', this.handleCanopenGet('/api/canopen/status'))
 
     // ===================== ESI REPOSITORY =====================
     this.registerHandle('esi:parse', this.handleESIParse)
@@ -3319,6 +3324,15 @@ class MainProcessBridge implements MainIpcModule {
       return { success: false, error: String(error) }
     }
   }
+
+  /** An authenticated GET whose JSON body goes back verbatim; the shared code validates it. */
+  handleCanopenGet =
+    (endpoint: string) =>
+    async (_event: IpcMainInvokeEvent, ipAddress: string): Promise<CanopenRuntimeFetch> => {
+      const parseBody = (data: string): unknown => JSON.parse(data)
+      const result = await this.makeRuntimeApiRequest(ipAddress, endpoint, parseBody)
+      return result.success ? { success: true, body: result.data } : { success: false, error: result.error }
+    }
 
   handleEtherCATGetRuntimeStatus = async (
     _event: IpcMainInvokeEvent,

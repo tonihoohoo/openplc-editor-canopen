@@ -13,6 +13,7 @@ import {
   type PdoDirection,
   pdoParameterState,
   placeholderAddress,
+  receiveTimeoutWarning,
   toCanopenDataType,
   transmissionChoices,
   type TransmissionMode,
@@ -103,12 +104,13 @@ type PdoCardProps = {
   eds: CanopenEdsInfo
   nodeId: number
   syncOn: boolean
+  syncPeriodUs: number | null
   onChange: (pdo: CanopenPdo) => void
   /** Returns an error message to refuse the alias, or null after it is accepted. */
   onAliasChange: (entry: CanopenEntry, alias: string) => string | null
 }
 
-const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, onChange, onAliasChange }: PdoCardProps) => {
+const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, syncPeriodUs, onChange, onAliasChange }: PdoCardProps) => {
   const isInput = direction === 'input'
   const title = `${isInput ? 'TPDO' : 'RPDO'} ${pdo.number}`
   const bits = pdoBits(pdo)
@@ -183,6 +185,19 @@ const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, onChange, onAliasChange 
               className='w-[140px]'
               onCommit={(inhibitTime) => onChange({ ...pdo, inhibitTime })}
             />
+            {pdo.enabled ? (
+              <NumberField
+                label='Receive timeout (ms)'
+                value={pdo.receiveTimeoutMs}
+                min={0}
+                max={65535}
+                objectRef={objectRef(0x1400 + pdo.number - 1, 5)}
+                hint='Master RPDO event timer; 0 for none'
+                warning={receiveTimeoutWarning(pdo, syncPeriodUs) ?? undefined}
+                className='w-[150px]'
+                onCommit={(receiveTimeoutMs) => onChange({ ...pdo, receiveTimeoutMs })}
+              />
+            ) : null}
           </>
         ) : null}
       </div>
@@ -287,11 +302,22 @@ type PdoSectionProps = {
   nodeId: number
   /** The network sends SYNC. */
   syncOn: boolean
+  /** The SYNC period, or null when unknown or off. */
+  syncPeriodUs: number | null
   onChange: (pdo: CanopenPdo) => void
   onAliasChange: (entry: CanopenEntry, alias: string) => string | null
 }
 
-const PdoSection = ({ pdos, direction, eds, nodeId, syncOn, onChange, onAliasChange }: PdoSectionProps) => {
+const PdoSection = ({
+  pdos,
+  direction,
+  eds,
+  nodeId,
+  syncOn,
+  syncPeriodUs,
+  onChange,
+  onAliasChange,
+}: PdoSectionProps) => {
   if (pdos.length === 0) {
     return (
       <p className={cn(hintClassName, 'p-2')}>
@@ -316,6 +342,7 @@ const PdoSection = ({ pdos, direction, eds, nodeId, syncOn, onChange, onAliasCha
           eds={eds}
           nodeId={nodeId}
           syncOn={syncOn}
+          syncPeriodUs={syncPeriodUs}
           onChange={onChange}
           onAliasChange={onAliasChange}
         />

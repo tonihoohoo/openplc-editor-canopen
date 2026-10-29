@@ -1,6 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { toast } from '@root/frontend/components/_features/[app]/toast/use-toast'
 import { useAliasRegistry } from '@root/frontend/hooks/use-alias-registry'
+import { useCanopenStatus } from '@root/frontend/hooks/use-canopen-status'
 import { useOpenPLCStore, useOpenPLCStoreApi } from '@root/frontend/store'
 import { cn } from '@root/frontend/utils/cn'
 import type {
@@ -30,6 +31,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { NetworkSettings } from './network-settings'
 import { NodeList } from './node-list'
 import { NodePanel } from './node-panel'
+import { BusStatusLine } from './status-view'
 import { hintClassName } from './styles'
 
 type EditorTab = 'nodes' | 'network'
@@ -62,6 +64,7 @@ const CanopenEditor = () => {
   const registry = useAliasRegistry()
 
   const deviceName = editor.type === 'plc-remote-device' ? editor.meta.name : ''
+  const live = useCanopenStatus(deviceName)
   const device = useMemo(() => remoteDevices?.find((d) => d.name === deviceName), [remoteDevices, deviceName])
   const config = useMemo(() => device?.canopenConfig ?? defaultCanopenConfig(), [device])
 
@@ -155,6 +158,7 @@ const CanopenEditor = () => {
           {config.network.bitrate > 0 ? `, ${config.network.bitrate / 1000} kbit/s` : ''}, master node ID{' '}
           {config.network.masterNodeId}, {config.nodes.length} node{config.nodes.length === 1 ? '' : 's'}
         </p>
+        {live ? <BusStatusLine live={live} /> : null}
       </div>
 
       {problems.length > 0 ? (
@@ -187,6 +191,7 @@ const CanopenEditor = () => {
           <NodeList
             nodes={config.nodes}
             selectedId={selected?.id ?? null}
+            live={live}
             onSelect={setSelectedId}
             onImport={importEds}
             onImportError={(fileName, message) =>
@@ -202,6 +207,8 @@ const CanopenEditor = () => {
               masterNodeId={config.network.masterNodeId}
               syncOn={config.network.syncMode !== 'none'}
               masterHeartbeatMs={config.network.heartbeatProducerMs}
+              syncPeriodUs={config.network.syncMode === 'period' ? config.network.syncPeriodUs : null}
+              live={live}
               sdoWarnings={sdoWarnings}
               onChange={(update) => commit((c) => updateNode(c, selected.id, update))}
               onNodeIdChange={(nodeId) => commit((c) => updateNode(c, selected.id, (n) => withNodeId(n, nodeId)))}

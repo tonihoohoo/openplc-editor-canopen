@@ -5,6 +5,7 @@ import { createStoreWrapper, createTestStore } from '@root/frontend/store/testin
 import { getMemoryState } from '@root/frontend/utils/toast'
 import { defaultCanopenConfig } from '@root/middleware/shared/utils/canopen'
 import { GENERIC_IO_EDS } from '@root/middleware/shared/utils/canopen/__tests__/fixtures/helpers'
+import { portsWithRuntime } from '@root/middleware/shared/utils/canopen/__tests__/fixtures/status'
 
 import { CanopenEditor } from '..'
 
@@ -88,7 +89,7 @@ describe('CanopenEditor', () => {
   beforeEach(() => {
     store = createTestStore()
     seed()
-    render(<CanopenEditor />, { wrapper: createStoreWrapper(store) })
+    render(<CanopenEditor />, { wrapper: createStoreWrapper(store, portsWithRuntime()) })
   })
 
   it('shows what a new network still needs', () => {

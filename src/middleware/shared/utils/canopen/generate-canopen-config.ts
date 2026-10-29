@@ -12,7 +12,7 @@ import { findObject } from './eds-parser'
 import { canWatchMaster, DEFAULT_BUS_PRIORITY, hasErrorBehaviour, type PdoDirection, pdoObjectIndices } from './model'
 import { encodeCanopenValue, toHex } from './sdo-value'
 
-export const CANOPEN_CONFIG_VERSION = 1
+export const CANOPEN_CONFIG_VERSION = 2
 
 interface SdoOut {
   index: number
@@ -23,6 +23,7 @@ interface SdoOut {
 interface PdoOut {
   number: number
   cob_id: number
+  receive_timeout_ms?: number
   entries: Array<{ index: number; subindex: number; type: string; location: string }>
 }
 
@@ -107,10 +108,11 @@ export function nodeConfigurationSdos(node: CanopenNode, masterNodeId: number): 
   return out
 }
 
-function pdosOut(pdos: CanopenPdo[]): PdoOut[] {
+function pdosOut(pdos: CanopenPdo[], direction: PdoDirection): PdoOut[] {
   return pdos.filter(pdoActive).map((pdo) => ({
     number: pdo.number,
     cob_id: pdo.cobId,
+    ...(direction === 'input' && pdo.receiveTimeoutMs > 0 ? { receive_timeout_ms: pdo.receiveTimeoutMs } : {}),
     entries: pdo.entries.map((e) => ({
       index: e.index,
       subindex: e.subIndex,
@@ -154,8 +156,8 @@ export function generateCanopenConfig(remoteDevices: readonly PLCRemoteDevice[] 
           on_loss: node.onLoss,
           ...(node.state.iecLocation ? { state_location: node.state.iecLocation } : {}),
           sdo: nodeConfigurationSdos(node, network?.masterNodeId ?? 127),
-          tpdos: pdosOut(node.tpdos),
-          rpdos: pdosOut(node.rpdos),
+          tpdos: pdosOut(node.tpdos, 'input'),
+          rpdos: pdosOut(node.rpdos, 'output'),
         })),
       }
     })

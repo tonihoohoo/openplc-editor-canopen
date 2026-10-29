@@ -167,6 +167,7 @@ export function defaultPdos(
       transmissionType: supportedTransmissionType(defaultInt(eds, comm, 2, nodeId) ?? 255),
       eventTimerMs: direction === 'input' ? (defaultInt(eds, comm, 5, nodeId) ?? 0) : 0,
       inhibitTime: direction === 'input' ? (defaultInt(eds, comm, 3, nodeId) ?? 0) : 0,
+      receiveTimeoutMs: 0,
       entries: [],
     }
     const count = defaultInt(eds, map, 0, nodeId) ?? 0

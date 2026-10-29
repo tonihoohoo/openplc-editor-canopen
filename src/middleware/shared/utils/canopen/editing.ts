@@ -4,7 +4,7 @@
  * offered as startup SDOs, object search and list moves. Pure.
  */
 
-import type { CanopenEdsInfo, CanopenNode, CanopenObject } from '../../ports/canopen-types'
+import type { CanopenEdsInfo, CanopenNode, CanopenObject, CanopenPdo } from '../../ports/canopen-types'
 import { objectRef, toCanopenDataType } from './data-types'
 import { findObject, parseEdsInteger } from './eds-parser'
 import { isWritableObject, pdoActive, watchesMaster } from './generate-canopen-config'
@@ -208,4 +208,22 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
   const [item] = out.splice(from, 1)
   out.splice(to, 0, item)
   return out
+}
+
+/**
+ * Why a TPDO's receive timeout would report the PDO late between two regular frames, or null.
+ * `syncPeriodUs` is the network's SYNC period, or null when the master sends no SYNC.
+ */
+export function receiveTimeoutWarning(pdo: CanopenPdo, syncPeriodUs: number | null): string | null {
+  const timeout = pdo.receiveTimeoutMs
+  if (timeout <= 0) return null
+  if (pdo.eventTimerMs > 0 && timeout < pdo.eventTimerMs)
+    return `Shorter than the event timer (${pdo.eventTimerMs} ms): the PDO would be reported late between two regular frames`
+  const type = pdo.transmissionType
+  if (syncPeriodUs !== null && syncPeriodUs > 0 && type >= 1 && type <= 240) {
+    const twoFramesMs = (2 * type * syncPeriodUs) / 1000
+    if (timeout < twoFramesMs)
+      return `Shorter than two SYNC intervals of this PDO (${twoFramesMs} ms): it would be reported late between two regular frames`
+  }
+  return null
 }

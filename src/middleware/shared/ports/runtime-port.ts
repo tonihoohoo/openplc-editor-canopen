@@ -38,6 +38,7 @@
  */
 
 import type { PluginCommandOutcome } from '../../../backend/shared/utils/vpp/screen-actions'
+import type { CanopenRuntimeFetch } from './canopen-status'
 import type {
   EtherCATRuntimeStatusResponse,
   EtherCATScanRequest,
@@ -507,6 +508,14 @@ export interface RuntimePort {
 
   /** Get EtherCAT runtime status (plugin state, slave status, cycle metrics). */
   getEthercatRuntimeStatus?(): Promise<{ success: boolean; data?: EtherCATRuntimeStatusResponse; error?: string }>
+
+  // --- CANopen ---
+
+  /** `GET /api/capabilities` with the session token, body verbatim; read with `canopenFeatures`. */
+  getCanopenCapabilities?(): Promise<CanopenRuntimeFetch>
+
+  /** `GET /api/canopen/status`, body verbatim; read with `parseCanopenStatus`. */
+  getCanopenStatus?(): Promise<CanopenRuntimeFetch>
 
   // --- stored source project ---
 
