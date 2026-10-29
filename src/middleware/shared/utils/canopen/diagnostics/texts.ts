@@ -3,9 +3,11 @@
 import type {
   CanopenBusState,
   CanopenEvent,
+  CanopenNetworkStatus,
   CanopenNodeState,
   CanopenNodeStatus,
   CanopenProblem,
+  CanopenResetOutcome,
 } from '../../../ports/canopen-status'
 import { emcyText, hex, sdoAbortText } from './codes'
 
@@ -117,6 +119,29 @@ export function problemText(problem: CanopenProblem): string {
   }
 }
 
+const RESET_OUTCOMES: Record<CanopenResetOutcome, string> = {
+  done: 'The master reset the link after a bus-off.',
+  not_permitted: 'The link is bus-off and the runtime is not permitted to reset it; reset it by hand.',
+  failed: 'The link is bus-off and the master could not reset it.',
+}
+
+/** What a reset of a bus-off link came to. */
+export function resetText(outcome: CanopenResetOutcome | undefined): string {
+  return RESET_OUTCOMES[outcome ?? 'done']
+}
+
+/** The bus status parts about link resets: the count, and while bus-off a reset that did not happen. */
+export function linkResetParts(network: Pick<CanopenNetworkStatus, 'bus' | 'events'>): string[] {
+  const parts: string[] = []
+  const resets = network.bus.link_resets ?? 0
+  if (resets > 0) parts.push(resets === 1 ? 'link reset once' : `link reset ${resets} times`)
+  const last = network.events.find((e) => e.kind === 'bus_reset')
+  if (network.bus.state === 'bus_off' && last?.outcome === 'not_permitted')
+    parts.push('the runtime may not reset the link, reset it by hand')
+  else if (network.bus.state === 'bus_off' && last?.outcome === 'failed') parts.push('resetting the link failed')
+  return parts
+}
+
 /** What an event says, without its time and node. */
 export function eventText(event: CanopenEvent): string {
   const pdo = `TPDO ${event.pdo ?? 0}${event.cob_id !== undefined ? ` (COB-ID ${hex(event.cob_id, 3)})` : ''}`
@@ -143,6 +168,8 @@ export function eventText(event: CanopenEvent): string {
       return `${pdo}: ${emcyText(event.code ?? 0)}.`
     case 'bus_state':
       return `Bus ${busStateLabel(event.bus_state ?? 'unknown').toLowerCase()}.`
+    case 'bus_reset':
+      return resetText(event.outcome)
     default: {
       const unreachable: never = event.kind
       return unreachable

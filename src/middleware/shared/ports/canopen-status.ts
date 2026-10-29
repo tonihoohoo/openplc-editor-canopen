@@ -68,6 +68,9 @@ export const CanopenNodeStatusSchema = z.object({
   late_pdos: z.array(LatePdoSchema),
 })
 
+/** What came of the master's reset of a bus-off link. */
+export const CanopenResetOutcomeSchema = z.enum(['done', 'not_permitted', 'failed'])
+
 export const CanopenEventSchema = z.object({
   time: z.number(),
   node: count.optional(),
@@ -83,6 +86,7 @@ export const CanopenEventSchema = z.object({
     'pdo_back',
     'pdo_length',
     'bus_state',
+    'bus_reset',
   ]),
   problem: CanopenProblemSchema.nullable().optional(),
   code: count.optional(),
@@ -90,6 +94,7 @@ export const CanopenEventSchema = z.object({
   pdo: count.optional(),
   cob_id: count.optional(),
   bus_state: CanopenBusStateSchema.optional(),
+  outcome: CanopenResetOutcomeSchema.optional(),
 })
 
 export const CanopenBusStatusSchema = z.object({
@@ -101,6 +106,7 @@ export const CanopenBusStatusSchema = z.object({
   tx_frames: count.optional(),
   rx_dropped: count.optional(),
   load_percent: z.number().optional(),
+  link_resets: count.optional(),
 })
 
 export const CanopenNetworkStatusSchema = z.object({
@@ -126,6 +132,7 @@ export type CanopenNodeState = z.infer<typeof CanopenNodeStateSchema>
 export type CanopenBusState = z.infer<typeof CanopenBusStateSchema>
 export type CanopenProblem = z.infer<typeof CanopenProblemSchema>
 export type CanopenNodeStatus = z.infer<typeof CanopenNodeStatusSchema>
+export type CanopenResetOutcome = z.infer<typeof CanopenResetOutcomeSchema>
 export type CanopenEvent = z.infer<typeof CanopenEventSchema>
 export type CanopenBusStatus = z.infer<typeof CanopenBusStatusSchema>
 export type CanopenNetworkStatus = z.infer<typeof CanopenNetworkStatusSchema>

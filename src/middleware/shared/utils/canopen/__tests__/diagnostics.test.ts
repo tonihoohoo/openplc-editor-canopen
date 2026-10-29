@@ -1,4 +1,9 @@
-import { type CanopenEvent, canopenFeatures, parseCanopenStatus } from '../../../ports/canopen-status'
+import {
+  type CanopenBusState,
+  type CanopenEvent,
+  canopenFeatures,
+  parseCanopenStatus,
+} from '../../../ports/canopen-status'
 import {
   busStateBad,
   busStateLabel,
@@ -7,6 +12,7 @@ import {
   errorRegisterBits,
   eventText,
   hex,
+  linkResetParts,
   nmtStateLabel,
   nodeDot,
   nodeStateLabel,
@@ -99,6 +105,26 @@ describe('CANopen status texts', () => {
     expect(at({ kind: 'pdo_back', pdo: 1 })).toBe('TPDO 1 received again.')
     expect(at({ kind: 'pdo_length', pdo: 2, code: 0x8210 })).toContain('length error')
     expect(at({ kind: 'bus_state', bus_state: 'error_passive' })).toBe('Bus error passive.')
+    expect(at({ kind: 'bus_reset', outcome: 'done' })).toBe('The master reset the link after a bus-off.')
+    expect(at({ kind: 'bus_reset', outcome: 'not_permitted' })).toContain('reset it by hand')
+    expect(at({ kind: 'bus_reset', outcome: 'failed' })).toContain('could not reset it')
+  })
+
+  it('describes link resets in the bus status', () => {
+    const net = (state: CanopenBusState, link_resets: number | undefined, events: CanopenEvent[] = []) =>
+      linkResetParts({ bus: { state, link_resets }, events })
+    expect(net('error_active', undefined)).toEqual([])
+    expect(net('error_active', 0)).toEqual([])
+    expect(net('error_active', 1)).toEqual(['link reset once'])
+    expect(net('error_active', 3)).toEqual(['link reset 3 times'])
+    const refused: CanopenEvent = { time: 0, kind: 'bus_reset', outcome: 'not_permitted' }
+    expect(net('bus_off', 0, [refused])).toEqual(['the runtime may not reset the link, reset it by hand'])
+    expect(net('error_active', 0, [refused])).toEqual([])
+    expect(net('bus_off', 1, [{ time: 0, kind: 'bus_reset', outcome: 'failed' }])).toEqual([
+      'link reset once',
+      'resetting the link failed',
+    ])
+    expect(net('bus_off', 1, [{ time: 0, kind: 'bus_reset', outcome: 'done' }])).toEqual(['link reset once'])
   })
 })
 
