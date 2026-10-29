@@ -10,6 +10,8 @@ export {
 export { allocateAddresses, channelKey } from './allocate'
 export {
   activeKindsFor,
+  canopenConsumerId,
+  canopenMemoryKey,
   ethercatConsumerId,
   ethercatMemoryKey,
   ethercatModuleMemoryKey,

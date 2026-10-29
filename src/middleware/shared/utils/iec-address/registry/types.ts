@@ -52,7 +52,7 @@ export interface RegistryChannel {
 
 /** Well-known consumer kinds. Left open (`string`) so future producers can
  *  register without changing the core. */
-export type ConsumerKind = 'pin-mapping' | 'vpp-io' | 'modbus-tcp-remote' | 'ethercat' | (string & {})
+export type ConsumerKind = 'pin-mapping' | 'vpp-io' | 'modbus-tcp-remote' | 'ethercat' | 'canopen' | (string & {})
 
 export interface RegistryConsumer {
   id: string

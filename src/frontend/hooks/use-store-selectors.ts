@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 
 import type { DevicePin, IoMappingEntry, VendorIoMapping } from '../../middleware/shared/ports/types'
+import { nodeEntries as canopenNodeEntries } from '../../middleware/shared/utils/canopen'
 import { useOpenPLCStore } from '../store'
 
 type RemoteDeviceIOPoint = {
@@ -114,6 +115,21 @@ const remoteDeviceSelectors = {
                 alias: mapping.alias,
               })
             }
+          }
+        }
+        // CANopen PDO entries and node states
+        for (const node of device.canopenConfig?.nodes ?? []) {
+          for (const entry of canopenNodeEntries(node)) {
+            if (!entry.alias) continue
+            ioPoints.push({
+              deviceName: device.name,
+              ioGroupName: node.name,
+              ioPointId: entry.channelId,
+              ioPointName: entry.name,
+              ioPointType: 'canopen',
+              iecLocation: entry.iecLocation,
+              alias: entry.alias,
+            })
           }
         }
       }

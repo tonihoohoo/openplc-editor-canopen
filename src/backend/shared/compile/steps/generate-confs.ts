@@ -35,6 +35,7 @@
 // DOM dependencies).  Same legacy-tree path the editor's compiler-
 // module.ts uses; flagged as an organisational smell (`backend-shared
 // → frontend`) but functional, see the build-pipeline refactor plan.
+import { generateCanopenConfig, validateCanopenProject } from '@root/middleware/shared/utils/canopen'
 import { validateEthercatProject } from '@root/middleware/shared/utils/ethercat'
 
 import { getErrorMessage } from '../../../../frontend/utils/get-error-message'
@@ -109,6 +110,8 @@ export interface GenerateConfsOutput {
   ethercat: string | null
   ethercatBusconfig: string | null
   ethercatIomapping: string | null
+  /** conf/canopen.json, validated before return; null without a CANopen device. */
+  canopen?: string | null
 }
 
 /**
@@ -184,5 +187,12 @@ export function generateRuntimeConfs(input: GenerateConfsInput): GenerateConfsOu
     throw new Error(`EtherCAT configuration is invalid: ${ethercatErrors.join('; ')}`)
   }
 
-  return { modbusSlave, modbusMaster, s7Comm, opcUa, ethercat, ethercatBusconfig, ethercatIomapping }
+  // CANopen: same gate as EtherCAT, the build stops on any error.
+  const canopenErrors = validateCanopenProject(remoteDevices)
+  if (canopenErrors.length > 0) {
+    throw new Error(`CANopen configuration is invalid: ${canopenErrors.join('; ')}`)
+  }
+  const canopen = generateCanopenConfig(remoteDevices)
+
+  return { modbusSlave, modbusMaster, s7Comm, opcUa, ethercat, ethercatBusconfig, ethercatIomapping, canopen }
 }

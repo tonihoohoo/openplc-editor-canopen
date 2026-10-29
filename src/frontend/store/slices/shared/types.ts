@@ -136,7 +136,10 @@ export type ServerActions = {
 }
 
 export type RemoteDeviceActions = {
-  create: (args: { name: string; protocol: 'modbus-tcp' | 'ethernet-ip' | 'ethercat' | 'profinet' }) => SharedResponse
+  create: (args: {
+    name: string
+    protocol: 'modbus-tcp' | 'ethernet-ip' | 'ethercat' | 'profinet' | 'canopen'
+  }) => SharedResponse
   deleteRequest: (name: string) => void
   delete: (name: string) => SharedResponse
   rename: (oldName: string, newName: string) => SharedResponse

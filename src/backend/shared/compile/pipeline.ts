@@ -818,6 +818,7 @@ async function runCompilePipelineInner(
         ethercat: confs.ethercat,
         ethercatBusconfig: confs.ethercatBusconfig,
         ethercatIomapping: confs.ethercatIomapping,
+        canopen: confs.canopen,
       },
     })
     emit({

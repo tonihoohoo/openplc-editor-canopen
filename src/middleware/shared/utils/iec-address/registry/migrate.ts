@@ -18,7 +18,7 @@
  */
 
 import type { AddressProducerCapabilities } from '../../target-capabilities/types'
-import type { PoolInputs } from '../address-pool'
+import { canopenPoolEntries, type PoolInputs } from '../address-pool'
 import { parseAddress } from './address-space'
 import { recalculate } from './registry'
 import type {
@@ -55,6 +55,7 @@ export function activeKindsFor(caps: AddressProducerCapabilities): Set<string> {
   if (caps.vppIo) kinds.add('vpp-io')
   if (caps.modbusTcpRemote) kinds.add('modbus-tcp-remote')
   if (caps.ethercat) kinds.add('ethercat')
+  if (caps.ethercat) kinds.add('canopen')
   return kinds
 }
 
@@ -63,6 +64,8 @@ export function activeKindsFor(caps: AddressProducerCapabilities): Set<string> {
 export const modbusConsumerId = (deviceName: string, groupId: string): string => `modbus:${deviceName}:${groupId}`
 export const ethercatConsumerId = (deviceName: string, slaveName: string): string =>
   `ethercat:${deviceName}:${slaveName}`
+
+export const canopenConsumerId = (deviceName: string, nodeName: string): string => `canopen:${deviceName}:${nodeName}`
 
 /* Session alias-memory key builders. The key is the stable *semantic*
  * identity of a channel — it must be identical at the migration site and at
@@ -74,6 +77,8 @@ export const modbusMemoryKey = (deviceName: string, groupId: string, pointId: st
   `modbus:${deviceName}:${groupId}:${pointId}`
 export const ethercatMemoryKey = (deviceName: string, slaveName: string, channelId: string): string =>
   `ethercat:${deviceName}:${slaveName}:${channelId}`
+export const canopenMemoryKey = (deviceName: string, nodeName: string, channelId: string): string =>
+  `canopen:${deviceName}:${nodeName}:${channelId}`
 /** Memory key for a channel that belongs to a module plugged into a modular
  *  coupler, carrying the module's slot id so the key stays stable across
  *  slave reorderings and across channelId reuse between coupler and module. */
@@ -222,6 +227,33 @@ export function migrateToRegistry(inputs: PoolInputs): IecAddressRegistry {
           id: ethercatConsumerId(deviceName, slaveName),
           kind: 'ethercat',
           label: `${deviceName} / ${slaveName}`,
+          order: order++,
+          channels,
+        })
+      }
+    }
+  }
+
+  // 5. CANopen: one consumer per node (its state, then its PDO entries).
+  for (const device of inputs.remoteDevices ?? []) {
+    const deviceName = device.deviceName || device.name || 'device'
+    for (const node of device.canopenConfig?.nodes ?? []) {
+      const nodeName = node.name || 'node'
+      const channels: RegistryChannel[] = []
+      for (const entry of canopenPoolEntries(node)) {
+        const channel = seedChannel(
+          entry.channelId,
+          entry.iecLocation,
+          entry.alias,
+          canopenMemoryKey(deviceName, nodeName, entry.channelId),
+        )
+        if (channel) channels.push(channel)
+      }
+      if (channels.length > 0) {
+        consumers.push({
+          id: canopenConsumerId(deviceName, nodeName),
+          kind: 'canopen',
+          label: `${deviceName} / ${nodeName}`,
           order: order++,
           channels,
         })

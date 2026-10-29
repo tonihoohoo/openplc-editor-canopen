@@ -1,3 +1,4 @@
+import type { CanopenConfig } from '../../../../middleware/shared/ports/canopen-types'
 import type { RawProjectFile } from '../../../../middleware/shared/ports/project-port'
 import type {
   EthercatConfig,
@@ -413,6 +414,11 @@ export type ProjectActions = {
   importIOGroups: (deviceName: string, groups: ModbusIOGroup[], options?: { replace?: boolean }) => ProjectResponse
   updateIOPointAlias: (deviceName: string, groupId: string, pointId: string, alias: string) => ProjectResponse
   updateEthercatConfig: (deviceName: string, ethercatConfig: EthercatConfig) => ProjectResponse
+  /**
+   * Replaces a CANopen device's configuration. An entry's address is only a seed for its class;
+   * the central recalculation places it, and an alias renamed here follows into bound variables.
+   */
+  updateCanopenConfig: (deviceName: string, canopenConfig: CanopenConfig) => ProjectResponse
 }
 
 // ---------------------------------------------------------------------------

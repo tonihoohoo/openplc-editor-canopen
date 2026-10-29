@@ -190,7 +190,7 @@ export type EditorModel = EditorModelBase &
         type: 'plc-remote-device'
         meta: {
           name: string
-          protocol: 'modbus-tcp' | 'ethernet-ip' | 'ethercat' | 'profinet'
+          protocol: 'modbus-tcp' | 'ethernet-ip' | 'ethercat' | 'profinet' | 'canopen'
         }
       }
     | {

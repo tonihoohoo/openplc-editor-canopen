@@ -686,7 +686,7 @@ const ModbusTcpConfigSchema = z.object({
 })
 type ModbusTcpConfig = z.infer<typeof ModbusTcpConfigSchema>
 
-const PLCRemoteDeviceProtocolSchema = z.enum(['modbus-tcp', 'ethernet-ip', 'ethercat', 'profinet'])
+const PLCRemoteDeviceProtocolSchema = z.enum(['modbus-tcp', 'ethernet-ip', 'ethercat', 'profinet', 'canopen'])
 type PLCRemoteDeviceProtocol = z.infer<typeof PLCRemoteDeviceProtocolSchema>
 
 // ---- EtherCAT Configuration Schemas ----
@@ -923,11 +923,115 @@ const EthercatConfigSchema = z.object({
 })
 type EthercatConfig = z.infer<typeof EthercatConfigSchema>
 
+// ---- CANopen Configuration Schemas (ports/canopen-types.ts) ----
+
+const CanopenDataTypeSchema = z.enum([
+  'BOOLEAN',
+  'INTEGER8',
+  'INTEGER16',
+  'INTEGER32',
+  'INTEGER64',
+  'UNSIGNED8',
+  'UNSIGNED16',
+  'UNSIGNED32',
+  'UNSIGNED64',
+  'REAL32',
+  'REAL64',
+])
+
+const CanopenObjectSchema = z.object({
+  index: z.number().int().min(0).max(0xffff),
+  subIndex: z.number().int().min(0).max(0xff),
+  name: z.string(),
+  dataType: z.string(),
+  access: z.enum(['ro', 'wo', 'rw', 'rwr', 'rww', 'const']),
+  pdoMapping: z.boolean(),
+  defaultValue: z.string().optional(),
+})
+
+const CanopenEdsInfoSchema = z.object({
+  fileName: z.string(),
+  vendorName: z.string(),
+  productName: z.string(),
+  deviceType: z.number().int().min(0),
+  vendorId: z.number().int().min(0),
+  productCode: z.number().int().min(0),
+  revision: z.number().int().min(0),
+  rxPdoCount: z.number().int().min(0),
+  txPdoCount: z.number().int().min(0),
+  objects: z.array(CanopenObjectSchema),
+})
+
+const CanopenEntrySchema = z.object({
+  channelId: z.string(),
+  index: z.number().int().min(0).max(0xffff),
+  subIndex: z.number().int().min(0).max(0xff),
+  name: z.string(),
+  dataType: CanopenDataTypeSchema,
+  iecLocation: z.string(),
+  alias: z.string().optional(),
+})
+
+const CanopenPdoSchema = z.object({
+  number: z.number().int().min(1).max(512),
+  cobId: z.number().int().min(0).max(0x7ff),
+  enabled: z.boolean(),
+  fixedMapping: z.boolean(),
+  transmissionType: z.number().int().min(0).max(255),
+  eventTimerMs: z.number().int().min(0).max(65535),
+  inhibitTime: z.number().int().min(0).max(65535),
+  entries: z.array(CanopenEntrySchema),
+})
+
+const CanopenSdoSchema = z.object({
+  id: z.string(),
+  index: z.number().int().min(0).max(0xffff),
+  subIndex: z.number().int().min(0).max(0xff),
+  dataType: CanopenDataTypeSchema,
+  value: z.string(),
+})
+
+const CanopenNodeSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  nodeId: z.number().int().min(1).max(127),
+  eds: CanopenEdsInfoSchema,
+  checkVendorId: z.boolean(),
+  checkProductCode: z.boolean(),
+  checkRevision: z.boolean(),
+  supervision: z.enum(['none', 'heartbeat']),
+  heartbeatConsumerMs: z.number().int().min(0).max(65535),
+  heartbeatProducerMs: z.number().int().min(0).max(65535),
+  onLoss: z.enum(['hold', 'zero']),
+  state: CanopenEntrySchema,
+  tpdos: z.array(CanopenPdoSchema),
+  rpdos: z.array(CanopenPdoSchema),
+  sdos: z.array(CanopenSdoSchema),
+})
+
+const CanopenNetworkSettingsSchema = z.object({
+  interface: z.string(),
+  bitrate: z.number().int().min(0),
+  masterNodeId: z.number().int().min(1).max(127),
+  syncMode: z.enum(['none', 'period', 'plc_cycle']),
+  syncPeriodUs: z.number().int().min(0),
+  heartbeatProducerMs: z.number().int().min(0).max(65535),
+  sdoTimeoutMs: z.number().int().min(1).max(60000),
+  onPlcStop: z.enum(['pre_operational', 'stopped', 'none']),
+})
+
+const CanopenConfigSchema = z.object({
+  network: CanopenNetworkSettingsSchema,
+  nodes: z.array(CanopenNodeSchema),
+})
+type CanopenConfigData = z.infer<typeof CanopenConfigSchema>
+
 const PLCRemoteDeviceSchema = z.object({
   name: z.string(),
   protocol: PLCRemoteDeviceProtocolSchema,
   modbusTcpConfig: ModbusTcpConfigSchema.optional(),
   ethercatConfig: EthercatConfigSchema.optional(),
+  canopenConfig: CanopenConfigSchema.optional(),
 })
 type PLCRemoteDevice = z.infer<typeof PLCRemoteDeviceSchema>
 
@@ -1059,6 +1163,7 @@ type PLCProject = z.infer<typeof PLCProjectSchema>
 export {
   baseTypeSchema,
   bodySchema,
+  CanopenConfigSchema,
   ConfiguredEtherCATDeviceSchema,
   EthercatConfigSchema,
   EtherCATMasterConfigSchema,
@@ -1124,6 +1229,7 @@ export {
 export type {
   BaseType,
   BodySchema,
+  CanopenConfigData,
   EthercatConfig,
   EtherCATMasterConfig,
   ModbusErrorHandling,
