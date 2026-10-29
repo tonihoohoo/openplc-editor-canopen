@@ -12,7 +12,7 @@ import { compareVersions } from './version-order'
 
 export type { UpdateService } from './update-service'
 
-const RELEASES_API = 'https://api.github.com/repos/Autonomy-Logic/openplc-editor/releases'
+const RELEASES_API = 'https://api.github.com/repos/tonihoohoo/openplc-editor-canopen/releases'
 const STALL_TIMEOUT_MS = 30_000
 
 const GitHubRelease = z.object({

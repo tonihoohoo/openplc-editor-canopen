@@ -37,6 +37,18 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
 
 Problems that would stop the build are listed at the top of the editor as they appear.
 
+## Installing a release and the runtime check
+
+This fork's releases are on its GitHub Releases page (`v<upstream version>-canopen.<N>`); installing one
+replaces an installed OpenPLC Editor, and the update notice then offers newer releases of the fork. The
+runtime's **Change version** dialog lists the runtime fork's releases. How releases are made is in
+[canopen-releases.md](canopen-releases.md).
+
+Before uploading a project with a CANopen device, the editor reads `canopen.configVersions` from the
+runtime's `/api/capabilities`. A runtime without the CANopen plugin, or one that does not read the
+project's `canopen.json` version, is refused with a message naming both versions, because it would
+accept the upload and ignore the CANopen configuration. Projects without a CANopen device are not checked.
+
 ## Addresses
 
 Entries take addresses from the central registry (`docs/iec-address-registry.md`): the consumer

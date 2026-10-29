@@ -395,7 +395,29 @@ describe('createEditorCompilerPlatformPort', () => {
     // This stub answers every endpoint with a `/api/version` body, so
     // `/api/capabilities` yields no usable `runtimeVersion` and the probe
     // falls back — the exact shape of a runtime predating the endpoint.
-    expect(result).toEqual({ ok: true, version: '4.1.2', minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      ok: true,
+      version: '4.1.2',
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
+  })
+
+  it('checkRuntimeVersion passes the CANopen config versions from /api/capabilities through', async () => {
+    const makeRuntimeApiRequest = jest.fn(async () => ({
+      success: true as const,
+      data: { runtimeVersion: 'v4.3.1-canopen.1', canopen: { configVersions: [1] } },
+    })) as unknown as EditorCompilerPlatformPortContext['mainProcessBridge']['makeRuntimeApiRequest']
+    const port = createEditorCompilerPlatformPort(
+      makeHandlers(),
+      makeContext({ mainProcessBridge: { makeRuntimeApiRequest, makeRuntimeApiUpload: jest.fn() } }),
+    )
+    const result = await port.checkRuntimeVersion(
+      { context: { kind: 'editor-https', ip: '10.0.0.1', jwt: 'token' } },
+      () => undefined,
+    )
+    expect(result.canopenConfigVersions).toEqual([1])
   })
 
   it('checkRuntimeVersion reads the editor floor from /api/capabilities when the device serves it', async () => {
@@ -413,7 +435,13 @@ describe('createEditorCompilerPlatformPort', () => {
       { context: { kind: 'editor-https', ip: '10.0.0.1', jwt: 'token' } },
       () => undefined,
     )
-    expect(result).toEqual({ ok: true, version: 'v4.2.0', minEditorVersion: '4.2.1', supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      ok: true,
+      version: 'v4.2.0',
+      minEditorVersion: '4.2.1',
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
   })
 
   it('checkRuntimeVersion falls back to /api/version when capabilities 404s', async () => {
@@ -430,7 +458,13 @@ describe('createEditorCompilerPlatformPort', () => {
       { context: { kind: 'editor-https', ip: '10.0.0.1', jwt: 'token' } },
       log,
     )
-    expect(result).toEqual({ ok: true, version: 'v4.1.7', minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      ok: true,
+      version: 'v4.1.7',
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     // The 404 is the normal answer from every deployed runtime — it must not
     // nag the user on every upload.
     expect(log).not.toHaveBeenCalled()
@@ -450,7 +484,13 @@ describe('createEditorCompilerPlatformPort', () => {
       { context: { kind: 'editor-https', ip: '10.0.0.1', jwt: 'token' } },
       log,
     )
-    expect(result).toEqual({ ok: true, version: null, minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      ok: true,
+      version: null,
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).toHaveBeenCalledWith(expect.stringContaining('Could not reach runtime'), 'warning')
   })
 
@@ -467,7 +507,13 @@ describe('createEditorCompilerPlatformPort', () => {
       { context: { kind: 'editor-https', ip: '10.0.0.1', jwt: 'token' } },
       log,
     )
-    expect(result).toEqual({ ok: true, version: null, minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      ok: true,
+      version: null,
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).toHaveBeenCalledWith(expect.stringContaining('probe blew up'), 'warning')
   })
 

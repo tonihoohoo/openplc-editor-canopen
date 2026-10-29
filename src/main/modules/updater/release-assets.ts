@@ -14,7 +14,7 @@ export interface Release {
 }
 
 /** Where every installer is published; anything else in a release response is not downloaded. */
-export const RELEASE_DOWNLOAD_PREFIX = 'https://github.com/Autonomy-Logic/openplc-editor/releases/download/'
+export const RELEASE_DOWNLOAD_PREFIX = 'https://github.com/tonihoohoo/openplc-editor-canopen/releases/download/'
 
 type InstallerTarget = 'windows' | 'windows-arm' | 'mac-intel' | 'mac-arm' | 'linux' | 'linux-arm'
 

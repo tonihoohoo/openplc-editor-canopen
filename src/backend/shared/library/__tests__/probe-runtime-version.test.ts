@@ -16,7 +16,12 @@ describe('probeRuntimeVersion', () => {
       fetchVersion: async () => ({ success: true, body: { version: '4.1.2' } }),
       log,
     })
-    expect(result).toEqual({ version: '4.1.2', minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: '4.1.2',
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).not.toHaveBeenCalled()
   })
 
@@ -26,7 +31,12 @@ describe('probeRuntimeVersion', () => {
       fetchVersion: async () => ({ success: true, body: { version: '4.0.5' } }),
       log,
     })
-    expect(result).toEqual({ version: '4.0.5', minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: '4.0.5',
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
   })
 
   it('returns version=null and logs a warning when the transport fails', async () => {
@@ -35,7 +45,12 @@ describe('probeRuntimeVersion', () => {
       fetchVersion: async () => ({ success: false, error: 'ECONNREFUSED' }),
       log,
     })
-    expect(result).toEqual({ version: null, minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: null,
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).toHaveBeenCalledWith(expect.stringContaining('Could not reach runtime: ECONNREFUSED'), 'warning')
   })
 
@@ -47,7 +62,12 @@ describe('probeRuntimeVersion', () => {
       },
       log,
     })
-    expect(result).toEqual({ version: null, minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: null,
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining('Runtime version probe failed: orchestrator HTTP down'),
       'warning',
@@ -63,7 +83,12 @@ describe('probeRuntimeVersion', () => {
       },
       log,
     })
-    expect(result).toEqual({ version: null, minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: null,
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).toHaveBeenCalledWith(expect.stringContaining('plain string failure'), 'warning')
   })
 
@@ -73,7 +98,12 @@ describe('probeRuntimeVersion', () => {
       fetchVersion: async () => ({ success: true, body: { otherField: 'noise' } }),
       log,
     })
-    expect(result).toEqual({ version: null, minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: null,
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).not.toHaveBeenCalled()
   })
 
@@ -83,7 +113,12 @@ describe('probeRuntimeVersion', () => {
       fetchVersion: async () => ({ success: true, body: { version: 4 } }),
       log,
     })
-    expect(result).toEqual({ version: null, minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: null,
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
   })
 
   it('returns version=null when the body is null', async () => {
@@ -92,7 +127,12 @@ describe('probeRuntimeVersion', () => {
       fetchVersion: async () => ({ success: true, body: null }),
       log,
     })
-    expect(result).toEqual({ version: null, minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: null,
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
   })
 
   it('returns version=null when the body is a primitive (not an object)', async () => {
@@ -101,7 +141,12 @@ describe('probeRuntimeVersion', () => {
       fetchVersion: async () => ({ success: true, body: 'a string' }),
       log,
     })
-    expect(result).toEqual({ version: null, minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: null,
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
   })
 })
 
@@ -127,7 +172,12 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       fetchVersion,
       log,
     })
-    expect(result).toEqual({ version: 'v4.2.0', minEditorVersion: '4.2.1', supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: 'v4.2.0',
+      minEditorVersion: '4.2.1',
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     // One round-trip, not two: the capabilities answer is complete.
     expect(fetchVersion).not.toHaveBeenCalled()
     expect(log).not.toHaveBeenCalled()
@@ -145,7 +195,12 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
         fetchVersion: versionMustNotBeCalled(),
         log,
       })
-      expect(result).toEqual({ version: 'v4.2.0', minEditorVersion, supportsProjectSnapshot: false })
+      expect(result).toEqual({
+        version: 'v4.2.0',
+        minEditorVersion,
+        supportsProjectSnapshot: false,
+        canopenConfigVersions: null,
+      })
       expect(log).not.toHaveBeenCalled()
     },
   )
@@ -165,7 +220,12 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       fetchVersion: versionMustNotBeCalled(),
       log,
     })
-    expect(result).toEqual({ version: 'v4.2.0', minEditorVersion: 'garbage', supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: 'v4.2.0',
+      minEditorVersion: 'garbage',
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).toHaveBeenCalledWith(expect.stringContaining('unreadable minEditorVersion ("garbage")'), 'warning')
     expect(log).toHaveBeenCalledWith(expect.stringContaining('not being enforced'), 'warning')
   })
@@ -177,7 +237,12 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       fetchVersion: versionMustNotBeCalled(),
       log,
     })
-    expect(result).toEqual({ version: 'v4.2.0', minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: 'v4.2.0',
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
   })
 
   it('ignores a non-string minEditorVersion rather than passing it to a comparison', async () => {
@@ -190,7 +255,12 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       fetchVersion: versionMustNotBeCalled(),
       log,
     })
-    expect(result).toEqual({ version: 'v4.2.0', minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: 'v4.2.0',
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
   })
 
   // The single most important case: this is every runtime currently
@@ -214,7 +284,12 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       fetchVersion: async () => ({ success: true, body: { version: 'v4.1.7' } }),
       log,
     })
-    expect(result).toEqual({ version: 'v4.1.7', minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: 'v4.1.7',
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).not.toHaveBeenCalled()
   })
 
@@ -228,7 +303,12 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       fetchVersion: async () => ({ success: true, body: { version: 'v4.1.7' } }),
       log,
     })
-    expect(result).toEqual({ version: 'v4.1.7', minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: 'v4.1.7',
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).not.toHaveBeenCalled()
   })
 
@@ -241,7 +321,12 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       fetchVersion: async () => ({ success: true, body: { version: 'v4.1.7' } }),
       log,
     })
-    expect(result).toEqual({ version: 'v4.1.7', minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: 'v4.1.7',
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).not.toHaveBeenCalled()
   })
 
@@ -261,7 +346,12 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       fetchVersion: async () => ({ success: true, body: { version: 'v4.1.7' } }),
       log,
     })
-    expect(result).toEqual({ version: 'v4.1.7', minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: 'v4.1.7',
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
   })
 
   it('behaves exactly as before when no capabilities transport is wired', async () => {
@@ -272,7 +362,12 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       fetchVersion: async () => ({ success: true, body: { version: '4.1.2' } }),
       log,
     })
-    expect(result).toEqual({ version: '4.1.2', minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: '4.1.2',
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
   })
 
   it('still warns about an unreachable device when the fallback also fails', async () => {
@@ -282,7 +377,12 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       fetchVersion: async () => ({ success: false, error: 'ECONNREFUSED' }),
       log,
     })
-    expect(result).toEqual({ version: null, minEditorVersion: null, supportsProjectSnapshot: false })
+    expect(result).toEqual({
+      version: null,
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+    })
     expect(log).toHaveBeenCalledWith(expect.stringContaining('Could not reach runtime: ECONNREFUSED'), 'warning')
   })
 })
@@ -351,5 +451,39 @@ describe('supportsProjectSnapshot', () => {
 
     expect(result.version).toBe('4.0.9')
     expect(result.supportsProjectSnapshot).toBe(false)
+  })
+})
+
+describe('canopenConfigVersions', () => {
+  const probe = (body: unknown) =>
+    probeRuntimeVersion({
+      fetchCapabilities: async () => ({ success: true, body }),
+      fetchVersion: async () => ({ success: true, body: { version: '4.3.1' } }),
+      log: jest.fn(),
+    })
+
+  it('reads the versions the runtime lists', async () => {
+    const result = await probe({ runtimeVersion: 'v4.3.1-canopen.1', canopen: { configVersions: [1, 2] } })
+    expect(result.canopenConfigVersions).toEqual([1, 2])
+  })
+
+  it('is null when the runtime has no CANopen entry', async () => {
+    expect((await probe({ runtimeVersion: 'v4.3.1' })).canopenConfigVersions).toBeNull()
+  })
+
+  it('drops values that are not positive integers, and is null when none remain', async () => {
+    const mixed = await probe({ runtimeVersion: 'v4.3.1', canopen: { configVersions: [1, '2', 0, 1.5] } })
+    expect(mixed.canopenConfigVersions).toEqual([1])
+    const junk = await probe({ runtimeVersion: 'v4.3.1', canopen: { configVersions: 'all' } })
+    expect(junk.canopenConfigVersions).toBeNull()
+  })
+
+  it('is null for a runtime with no capabilities endpoint', async () => {
+    const result = await probeRuntimeVersion({
+      fetchCapabilities: async () => ({ success: false, error: '401' }),
+      fetchVersion: async () => ({ success: true, body: { version: '4.3.1' } }),
+      log: jest.fn(),
+    })
+    expect(result.canopenConfigVersions).toBeNull()
   })
 })
