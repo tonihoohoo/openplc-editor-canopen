@@ -32,6 +32,7 @@ import type {
   RuntimeV4Bundle,
 } from '../../../middleware/shared/ports/compiler-platform-port'
 import type { StructuredCompileError } from '../../../middleware/shared/ports/types'
+import { CANOPEN_CONFIG_VERSION, describeCanopenRuntimeMismatch } from '../../../middleware/shared/utils/canopen'
 import { composeRuntimeV4Bundle } from '../../../middleware/shared/utils/library/compose-runtime-v4-bundle'
 import { resolveModbusServerProfile } from '../../../middleware/shared/utils/modbus-server-profile'
 import {
@@ -969,6 +970,17 @@ async function runCompilePipelineInner(
           deviceLabel: deviceContext.kind === 'editor-https' ? deviceContext.ip : undefined,
         }),
       )
+    }
+
+    // A CANopen project needs a runtime whose plugin reads its canopen.json; any other runtime
+    // accepts the upload and ignores the configuration without a word.
+    if (confs.canopen) {
+      const canopenMismatch = describeCanopenRuntimeMismatch({
+        configVersion: CANOPEN_CONFIG_VERSION,
+        runtimeConfigVersions: versionCheck.canopenConfigVersions,
+        runtimeVersion: versionCheck.version,
+      })
+      if (canopenMismatch !== null) return bailError(emit, 'runtime-version', canopenMismatch)
     }
 
     // Persistent storage was configured, but this runtime has no built-in store

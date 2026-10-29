@@ -48,6 +48,9 @@ npm run test:e2e     # End-to-end tests (Playwright, builds the app first)
 
 ## Releasing a New Version
 
+> This fork does not use the release flow below: its releases are tagged `v<upstream version>-canopen.<N>`
+> and published by the **CANopen release** workflow, see [docs/canopen-releases.md](docs/canopen-releases.md).
+
 The project uses GitHub Actions to automatically build and release new versions for all supported platforms (macOS, Windows, and Linux) in both x64 and ARM64 architectures.
 
 ### Creating a Release

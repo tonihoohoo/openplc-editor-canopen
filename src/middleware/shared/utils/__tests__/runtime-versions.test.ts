@@ -65,6 +65,23 @@ describe('listRuntimeVersions', () => {
     expect(result.versions[1].prerelease).toBe(true)
   })
 
+  it('lists the CANopen fork releases newest first, from the fork', async () => {
+    const fetchMock = respondWith(tags('v4.3.1-canopen.1', 'v4.3.2-canopen.1', 'v4.3.1-canopen.10', 'v4.3.1-canopen.2'))
+    stubFetch(fetchMock)
+
+    const result = await listRuntimeVersions()
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.versions.map((v) => v.tag)).toEqual([
+      'v4.3.2-canopen.1',
+      'v4.3.1-canopen.10',
+      'v4.3.1-canopen.2',
+      'v4.3.1-canopen.1',
+    ])
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/repos/tonihoohoo/openplc-runtime-canopen/tags')
+  })
+
   it('keeps only release tags', async () => {
     // A tag that is not a release has no published image behind it, so
     // offering it would produce a failed pull and a confusing message.

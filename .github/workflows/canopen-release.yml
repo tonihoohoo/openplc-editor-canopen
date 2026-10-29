@@ -1,0 +1,268 @@
+name: CANopen release
+
+# Publishes a release of this fork (docs/canopen-releases.md): six unsigned installers and their
+# sha256 sums on a GitHub Release. Started by a v<x.y.z>-canopen.<N> tag on canopen, or by hand
+# on canopen, where the next N is picked and the tag created here. A pull request that changes
+# the release files runs it as a dry run: built, nothing published.
+
+on:
+  push:
+    tags: ['v*-canopen.*']
+  pull_request:
+    paths:
+      - '.github/workflows/canopen-release.yml'
+      - '.github/scripts/canopen_release.py'
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: 'Release notes (Markdown), shown above the list of changes'
+        required: false
+        type: string
+      version:
+        description: 'Tag to create, e.g. v4.3.3-canopen.2 (empty: the next one)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Build only: no tag, no release'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canopen-release-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22.x'
+  DRY_RUN: ${{ inputs.dry_run == true || github.event_name == 'pull_request' }}
+
+jobs:
+  prepare:
+    name: Resolve the release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      version: ${{ steps.version.outputs.version }}
+      create_tag: ${{ steps.resolve.outputs.create_tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      # canopen only takes pull requests whose required checks passed, so being on it is the gate.
+      - name: Tag, commit and checks
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ inputs.notes }}
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          git fetch --quiet --tags origin canopen main
+          dry=; if [ "$DRY_RUN" = "true" ]; then dry=--dry-run; fi
+          python3 .github/scripts/canopen_release.py resolve $dry \
+            --base-file package.json --event "$GITHUB_EVENT_NAME" --ref-name "$GITHUB_REF_NAME" \
+            --version "$VERSION_INPUT" --product "OpenPLC Editor" --notes "$NOTES" \
+            --note "Installing this editor replaces an installed OpenPLC Editor. The installers are not signed: on macOS allow the app once in System Settings, Privacy and Security (Open Anyway); on Windows choose More info, Run anyway. Check a download against SHA256SUMS.txt." \
+            --notes-out "$RUNNER_TEMP/release-notes.md"
+          cat "$RUNNER_TEMP/release-notes.md"
+
+      - name: Version
+        id: version
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Banned words in the notes
+        env:
+          BANNED_WORDS: ${{ secrets.BANNED_WORDS }}
+        run: python3 .github/scripts/check-banned-words.py --require-list --message-file "$RUNNER_TEMP/release-notes.md"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/release-notes.md
+
+  installer:
+    name: Installer (${{ matrix.name }})
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-x64
+            runner: macos-latest
+            cache: macOS
+          - name: macos-arm64
+            runner: macos-latest
+            cache: macOS
+          - name: windows-x64
+            runner: windows-2022
+            cache: Windows-x64
+          - name: windows-arm64
+            runner: windows-2022
+            cache: Windows-arm64
+          - name: linux-x64
+            runner: ubuntu-22.04
+            cache: Linux-x64
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+            cache: Linux-arm64
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache tool binaries
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: resources/bin
+          key: binaries-${{ matrix.cache }}-${{ hashFiles('binary-versions.json') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download binaries
+        if: startsWith(matrix.name, 'macos') || startsWith(matrix.name, 'windows')
+        run: npx ts-node scripts/download-binaries.ts --arch ${{ endsWith(matrix.name, 'arm64') && 'arm64' || 'x64' }}
+
+      # The installers and the About dialog show the tag. Only this checkout is changed.
+      - name: Stamp the version
+        run: |
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          (cd release/app && npm version "$VERSION" --no-git-tag-version --allow-same-version)
+          file=src/frontend/data/constants/app-version.ts
+          sed -i.bak "s/^export const APP_VERSION = '.*'/export const APP_VERSION = '$VERSION'/" "$file" && rm "$file.bak"
+          grep -q "APP_VERSION = '$VERSION'" "$file"
+
+      - name: Build
+        run: BUILD_DATE="$(date +%Y-%m-%d)" npm run build
+
+      # No signing identity, so electron-builder skips signing and CI=false makes scripts/notarize.js
+      # skip; the app is then signed ad hoc, which Apple silicon needs to run it at all.
+      - name: Package (macOS)
+        if: startsWith(matrix.name, 'macos')
+        env:
+          CI: 'false'
+          ARCH: ${{ endsWith(matrix.name, 'arm64') && 'arm64' || 'x64' }}
+        run: |
+          npx electron-builder --mac --"$ARCH" --publish never
+          for app in release/build/mac*/"OpenPLC Editor.app"; do
+            codesign --force --deep --sign - "$app"
+            codesign --verify --deep --strict "$app"
+          done
+          brew install create-dmg
+          chmod +x ./create_dmg.sh
+          ./create_dmg.sh "$VERSION"
+          mkdir -p out && mv OpenPLC_Editor_*.dmg out/
+
+      - name: Package (Windows)
+        if: startsWith(matrix.name, 'windows')
+        env:
+          CI: 'true'
+        run: |
+          if [ "${{ matrix.name }}" = windows-arm64 ]; then
+            npx electron-builder --win --arm64 --publish never
+            for f in release/build/*.exe; do mv "$f" "${f%.exe}-ARM64.exe"; done
+          else
+            npx electron-builder --win --x64 --publish never
+          fi
+          mkdir -p out && mv release/build/*.exe out/
+
+      - name: Package (Linux)
+        if: startsWith(matrix.name, 'linux')
+        env:
+          CI: 'true'
+        run: |
+          if [ "${{ matrix.name }}" = linux-arm64 ]; then
+            npx electron-builder --linux AppImage --arm64 --publish never
+            for f in release/build/*.AppImage; do mv "$f" "${f%.AppImage}-ARM64.AppImage"; done
+          else
+            npx electron-builder --linux AppImage --x64 --publish never
+          fi
+          mkdir -p out && mv release/build/*.AppImage out/
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: installer-${{ matrix.name }}
+          path: out/*
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    name: Publish the release
+    needs: [prepare, installer]
+    if: inputs.dry_run != true && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: installer-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/installers
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}
+
+      - name: Check the installers
+        working-directory: ${{ runner.temp }}/installers
+        run: |
+          ls -l
+          # Editors 4.1.0 to 4.3.2 would install a latest*.yml without asking.
+          if ls latest*.yml >/dev/null 2>&1; then echo "::error::latest*.yml must never be published"; exit 1; fi
+          for pattern in '*-ARM.dmg' '*.dmg' '*-ARM64.exe' '*.exe' '*-ARM64.AppImage' '*.AppImage'; do
+            compgen -G "$pattern" >/dev/null || { echo "::error::no installer matches $pattern"; exit 1; }
+          done
+          [ "$(ls | wc -l)" -eq 6 ] || { echo "::error::expected six installers"; exit 1; }
+          sha256sum * > "$RUNNER_TEMP/SHA256SUMS.txt"
+          cat "$RUNNER_TEMP/SHA256SUMS.txt"
+
+      # Created only now, when the installers exist, so a failed build leaves no tag behind.
+      - name: Create the tag
+        if: needs.prepare.outputs.create_tag == 'true'
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          git tag "$TAG" "$SHA"
+          git push origin "refs/tags/$TAG"
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "OpenPLC Editor $VERSION (CANopen fork)" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            "$RUNNER_TEMP"/installers/* "$RUNNER_TEMP/SHA256SUMS.txt"

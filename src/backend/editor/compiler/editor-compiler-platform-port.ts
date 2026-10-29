@@ -621,12 +621,12 @@ export function createEditorCompilerPlatformPort(
         if (!result.success) return { success: false as const, error: result.error }
         return { success: true as const, body: result.data }
       }
-      const { version, minEditorVersion, supportsProjectSnapshot } = await probeRuntimeVersion({
+      const probe = await probeRuntimeVersion({
         fetchCapabilities: () => getJson('/api/capabilities'),
         fetchVersion: () => getJson('/api/version'),
         log,
       })
-      return { ok: true, version, minEditorVersion, supportsProjectSnapshot }
+      return { ok: true, ...probe }
     },
 
     /**

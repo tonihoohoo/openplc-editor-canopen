@@ -14,7 +14,7 @@ import {
 } from '../update-service'
 
 const SHA = 'a'.repeat(64)
-const BASE = 'https://github.com/Autonomy-Logic/openplc-editor/releases/download/v4.3.3/'
+const BASE = 'https://github.com/tonihoohoo/openplc-editor-canopen/releases/download/v4.3.3/'
 
 /** `null` for an asset GitHub gave no digest. */
 function asset(name: string, digest: string | null = `sha256:${SHA}`): ReleaseAsset {
@@ -223,6 +223,20 @@ describe('automatic check', () => {
     const rc = setup({ currentVersion: '4.3.3-rc.1', latest: release('4.3.3-rc.2') })
     await rc.service.checkNow()
     expect(rc.fetchLatestRelease).toHaveBeenCalledWith(true)
+  })
+
+  it('offers a newer fork release to a fork build, asking for prereleases too', async () => {
+    const h = setup({ currentVersion: '4.3.3-canopen.1', latest: release('4.3.3-canopen.2') })
+    h.service.start()
+    h.runTimers()
+    await settle()
+    expect(h.fetchLatestRelease).toHaveBeenCalledWith(true)
+    expect(h.service.getStatus()).toEqual({ state: 'available', version: '4.3.3-canopen.2' })
+  })
+
+  it('downloads installers only from the fork', () => {
+    expect(RELEASES_URL).toBe('https://github.com/tonihoohoo/openplc-editor-canopen/releases/latest')
+    expect(BASE.startsWith('https://github.com/tonihoohoo/openplc-editor-canopen/releases/download/')).toBe(true)
   })
 
   it('the toggle is stored for the next launch', () => {

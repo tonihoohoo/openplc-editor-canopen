@@ -296,6 +296,11 @@ export interface CheckRuntimeVersionResult {
    * advertises this value — the editor is what compares and refuses.
    */
   minEditorVersion?: string | null
+  /**
+   * The `canopen.json` format versions the runtime's CANopen plugin accepts, from `canopen` at
+   * `GET /api/capabilities`. `null` or absent: the runtime reports no CANopen support.
+   */
+  canopenConfigVersions?: number[] | null
 }
 
 /**

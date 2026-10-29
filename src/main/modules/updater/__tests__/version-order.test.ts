@@ -14,6 +14,9 @@ describe('compareVersions', () => {
     ['4.3.3-beta.1', '4.3.3-rc.1', -1],
     ['4.3.3-rc', '4.3.3-rc.1', -1],
     ['4.3.3+build.5', '4.3.3', 0],
+    ['4.3.3-canopen.2', '4.3.3-canopen.1', 1],
+    ['4.3.3-canopen.10', '4.3.3-canopen.9', 1],
+    ['4.3.4-canopen.1', '4.3.3-canopen.9', 1],
   ])('%s vs %s is %i', (a, b, expected) => {
     expect(compareVersions(a, b)).toBe(expected)
   })

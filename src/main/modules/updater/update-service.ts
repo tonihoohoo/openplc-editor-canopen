@@ -60,7 +60,7 @@ export interface UpdateServiceDeps {
   log(level: 'info' | 'warn' | 'error', message: string): void
 }
 
-export const RELEASES_URL = 'https://github.com/Autonomy-Logic/openplc-editor/releases/latest'
+export const RELEASES_URL = 'https://github.com/tonihoohoo/openplc-editor-canopen/releases/latest'
 /**
  * The one automatic check per launch runs this long after start, so it never
  * competes with the editor opening. There is no periodic check: an editor left

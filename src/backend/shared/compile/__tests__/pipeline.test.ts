@@ -1061,6 +1061,68 @@ describe('runCompilePipeline — runtime v4 path', () => {
     expect(port.uploadRuntimeV4).toHaveBeenCalledTimes(1)
   })
 
+  // A runtime without the CANopen plugin accepts the upload and ignores conf/canopen.json.
+  const withCanopenConf = () =>
+    mockedConfs.mockImplementationOnce(() => ({
+      modbusSlave: '',
+      modbusMaster: '',
+      s7Comm: '',
+      opcUa: null,
+      ethercat: '',
+      ethercatBusconfig: null,
+      ethercatIomapping: null,
+      canopen: '{"version": 1, "networks": []}',
+    }))
+
+  it('refuses a CANopen project when the runtime reports no CANopen support', async () => {
+    withCanopenConf()
+    const port = makePort({ checkRuntimeVersion: jest.fn().mockResolvedValue({ ok: true, version: 'v4.3.1' }) })
+    const { events, emit } = captureEvents()
+    const result = await runCompilePipeline(v4Args(), port, emit)
+
+    expect(result.success).toBe(false)
+    expect(port.uploadRuntimeV4).not.toHaveBeenCalled()
+    expect(events.some((e) => /has no CANopen support/.test(e.message))).toBe(true)
+  })
+
+  it('refuses a CANopen project when the runtime reads another config version', async () => {
+    withCanopenConf()
+    const port = makePort({
+      checkRuntimeVersion: jest
+        .fn()
+        .mockResolvedValue({ ok: true, version: 'v4.3.1-canopen.1', canopenConfigVersions: [99] }),
+    })
+    const { events, emit } = captureEvents()
+    const result = await runCompilePipeline(v4Args(), port, emit)
+
+    expect(result.success).toBe(false)
+    expect(port.uploadRuntimeV4).not.toHaveBeenCalled()
+    expect(events.some((e) => /reads CANopen configuration version 99/.test(e.message))).toBe(true)
+  })
+
+  it('uploads a CANopen project to a runtime that reads its config version', async () => {
+    withCanopenConf()
+    const port = makePort({
+      checkRuntimeVersion: jest
+        .fn()
+        .mockResolvedValue({ ok: true, version: 'v4.3.1-canopen.1', canopenConfigVersions: [1] }),
+    })
+    const { emit } = captureEvents()
+    const result = await runCompilePipeline(v4Args(), port, emit)
+
+    expect(result.success).toBe(true)
+    expect(port.uploadRuntimeV4).toHaveBeenCalledTimes(1)
+  })
+
+  it('uploads a project without a CANopen device to a runtime without CANopen', async () => {
+    const port = makePort({ checkRuntimeVersion: jest.fn().mockResolvedValue({ ok: true, version: 'v4.3.1' }) })
+    const { emit } = captureEvents()
+    const result = await runCompilePipeline(v4Args(), port, emit)
+
+    expect(result.success).toBe(true)
+    expect(port.uploadRuntimeV4).toHaveBeenCalledTimes(1)
+  })
+
   it('compileOnly on v4 returns success without invoking checkRuntimeVersion or uploadRuntimeV4', async () => {
     const port = makePort()
     const { emit } = captureEvents()

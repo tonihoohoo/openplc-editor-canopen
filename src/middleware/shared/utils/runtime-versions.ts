@@ -14,7 +14,7 @@
  * at it.
  */
 
-const TAGS_URL = 'https://api.github.com/repos/Autonomy-Logic/openplc-runtime/tags?per_page=100'
+const TAGS_URL = 'https://api.github.com/repos/tonihoohoo/openplc-runtime-canopen/tags?per_page=100'
 
 /** How long a fetched list stays fresh. Releases are not minutes apart. */
 const CACHE_TTL_MS = 10 * 60 * 1000
@@ -63,7 +63,29 @@ function compareVersions(a: string, b: string): number {
   if (!leftPre && rightPre) return -1
   if (leftPre && !rightPre) return 1
   if (!leftPre && !rightPre) return 0
-  return rightPre < leftPre ? -1 : 1
+  return comparePrerelease(rightPre, leftPre)
+}
+
+/** Semver pre-release order: dot-separated identifiers, numeric ones compared as numbers. */
+function comparePrerelease(a: string, b: string): number {
+  const left = a.split('.')
+  const right = b.split('.')
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+    if (left[i] === undefined) return -1
+    if (right[i] === undefined) return 1
+    const leftNum = /^\d+$/.test(left[i]) ? Number(left[i]) : null
+    const rightNum = /^\d+$/.test(right[i]) ? Number(right[i]) : null
+    if (leftNum !== null && rightNum !== null) {
+      if (leftNum !== rightNum) return leftNum - rightNum
+    } else if (leftNum !== null) {
+      return -1
+    } else if (rightNum !== null) {
+      return 1
+    } else if (left[i] !== right[i]) {
+      return left[i] < right[i] ? -1 : 1
+    }
+  }
+  return 0
 }
 
 /**

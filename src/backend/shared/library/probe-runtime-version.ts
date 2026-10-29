@@ -110,6 +110,11 @@ export interface ProbeRuntimeVersionResult {
    * user to wonder later why the project cannot be retrieved.
    */
   supportsProjectSnapshot: boolean
+  /**
+   * The `canopen.json` format versions the runtime's CANopen plugin accepts, from `canopen` at
+   * `GET /api/capabilities`, or `null` when the runtime reports no CANopen support.
+   */
+  canopenConfigVersions: number[] | null
 }
 
 /**
@@ -130,18 +135,19 @@ export async function probeRuntimeVersion(opts: ProbeRuntimeVersionOptions): Pro
     const result = await opts.fetchVersion()
     if (!result.success) {
       opts.log(`Could not reach runtime: ${result.error}`, 'warning')
-      return { version: null, minEditorVersion: null, supportsProjectSnapshot: false }
+      return { version: null, minEditorVersion: null, supportsProjectSnapshot: false, canopenConfigVersions: null }
     }
     return {
       version: extractVersionFromBody(result.body),
       minEditorVersion: null,
       // `/api/version` predates the capability, so there is nothing to read.
       supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     opts.log(`Runtime version probe failed: ${message}`, 'warning')
-    return { version: null, minEditorVersion: null, supportsProjectSnapshot: false }
+    return { version: null, minEditorVersion: null, supportsProjectSnapshot: false, canopenConfigVersions: null }
   }
 }
 
@@ -187,6 +193,7 @@ async function tryFetchCapabilities(opts: ProbeRuntimeVersionOptions): Promise<P
       minEditorVersion,
       // Absent or non-boolean means no: a runtime that stores snapshots says so.
       supportsProjectSnapshot: extractBooleanField(result.body, 'projectSnapshot') === true,
+      canopenConfigVersions: extractCanopenConfigVersions(result.body),
     }
   } catch {
     return null
@@ -219,6 +226,20 @@ function extractBooleanField(body: unknown, field: string): boolean | null {
   if (typeof body !== 'object' || body === null) return null
   const value = (body as Record<string, unknown>)[field]
   return typeof value === 'boolean' ? value : null
+}
+
+/**
+ * `canopen.configVersions` off the capabilities body: the positive integers listed there, or null
+ * when the entry is absent or lists none.
+ */
+function extractCanopenConfigVersions(body: unknown): number[] | null {
+  if (typeof body !== 'object' || body === null) return null
+  const canopen = (body as Record<string, unknown>)['canopen']
+  if (typeof canopen !== 'object' || canopen === null) return null
+  const versions = (canopen as Record<string, unknown>)['configVersions']
+  if (!Array.isArray(versions)) return null
+  const valid = versions.filter((v): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0)
+  return valid.length > 0 ? valid : null
 }
 
 function extractStringField(body: unknown, field: string): string | null {
