@@ -36,6 +36,7 @@ type NumberFieldProps = FieldHintProps & {
   hex?: boolean
   hexWidth?: number
   disabled?: boolean
+  hideLabel?: boolean
   className?: string
 }
 
@@ -55,6 +56,7 @@ const NumberField = ({
   hex = false,
   hexWidth = 3,
   disabled,
+  hideLabel,
   className,
 }: NumberFieldProps) => {
   const [text, setText] = useState(formatNumber(value, hex, hexWidth))
@@ -78,7 +80,7 @@ const NumberField = ({
 
   return (
     <label className={cn('flex flex-col gap-1', className)}>
-      <span className={labelClassName}>{label}</span>
+      {hideLabel ? null : <span className={labelClassName}>{label}</span>}
       <input
         type='text'
         inputMode={hex ? 'text' : 'numeric'}

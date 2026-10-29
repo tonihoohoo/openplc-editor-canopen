@@ -57,7 +57,7 @@ const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, disabled }: Ob
           align='start'
           sideOffset={4}
           collisionPadding={8}
-          className='z-50 flex max-h-[min(360px,var(--radix-popover-content-available-height))] w-[min(520px,90vw)] flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white drop-shadow-lg dark:border-neutral-800 dark:bg-neutral-950'
+          className='z-50 flex max-h-[min(360px,var(--radix-popover-content-available-height))] w-[min(680px,90vw)] flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white drop-shadow-lg dark:border-neutral-800 dark:bg-neutral-950'
         >
           <DropdownSearchInput
             autoFocus
@@ -94,7 +94,7 @@ const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, disabled }: Ob
                   >
                     <span className='flex w-full items-baseline gap-2 text-xs text-neutral-850 dark:text-neutral-300'>
                       <span className='shrink-0 font-mono'>{ref}</span>
-                      <span className='min-w-0 flex-1 truncate'>{objectLabel(object)}</span>
+                      <span className='min-w-0 flex-1 [overflow-wrap:anywhere]'>{objectLabel(object)}</span>
                       <span className='shrink-0 text-[10px] text-neutral-500'>{object.dataType}</span>
                     </span>
                     {disabledReason ? <span className={hintClassName}>{disabledReason}</span> : null}

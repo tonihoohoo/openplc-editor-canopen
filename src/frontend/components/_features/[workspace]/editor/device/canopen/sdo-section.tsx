@@ -93,139 +93,6 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
         Written in this order each time the node boots, after the PDO and heartbeat settings. They are not stored in the
         node&apos;s non-volatile memory.
       </p>
-      <table className='w-full table-fixed text-left text-xs'>
-        <thead className='text-neutral-500 dark:text-neutral-400'>
-          <tr>
-            <th className='w-[24px] py-1' />
-            <th className='w-[90px] py-1 font-medium'>Index</th>
-            <th className='w-[64px] py-1 font-medium'>Sub-index</th>
-            <th className='py-1 font-medium'>Name</th>
-            <th className='w-[120px] py-1 font-medium'>Type</th>
-            <th className='w-[170px] py-1 font-medium'>Value</th>
-            <th className='w-[84px] py-1' />
-          </tr>
-        </thead>
-        <SortableBody ids={node.sdos.map((s) => s.id)} onMove={move} className='text-neutral-850 dark:text-neutral-300'>
-          {node.sdos.length === 0 ? (
-            <tr>
-              <td colSpan={7} className={cn(hintClassName, 'py-2')}>
-                No startup SDOs.
-              </td>
-            </tr>
-          ) : null}
-          {node.sdos.map((sdo, i) => {
-            const ref = objectRef(sdo.index, sdo.subIndex)
-            const object = findObject(node.eds, sdo.index, sdo.subIndex)
-            const typeFromEds = edsType(object) !== undefined
-            const encoded = encodeCanopenValue(sdo.dataType, sdo.value)
-            const warning = warnings.get(sdo.id)
-            return (
-              <SortableRow
-                key={sdo.id}
-                id={sdo.id}
-                name={`SDO ${ref}`}
-                className='border-t border-neutral-100 align-top dark:border-neutral-800'
-                testId='canopen-sdo-row'
-              >
-                <td className='py-1 pr-2'>
-                  <NumberField
-                    label='Index'
-                    value={sdo.index}
-                    min={0x1000}
-                    max={0xffff}
-                    hex
-                    hexWidth={4}
-                    onCommit={(index) => update(sdo.id, { index })}
-                  />
-                </td>
-                <td className='py-1 pr-2'>
-                  <NumberField
-                    label='Sub-index'
-                    value={sdo.subIndex}
-                    min={0}
-                    max={0xff}
-                    hex
-                    hexWidth={2}
-                    onCommit={(subIndex) => update(sdo.id, { subIndex })}
-                  />
-                </td>
-                <td className='py-1 pr-2'>
-                  <span className='flex flex-col gap-1'>
-                    <span className='text-xs font-medium text-neutral-700 dark:text-neutral-300'>Name</span>
-                    <span
-                      className={cn('flex h-[30px] items-center truncate', !object && 'italic text-neutral-500')}
-                      title={object ? objectLabel(object) : undefined}
-                    >
-                      {object ? objectLabel(object) : 'Not in the EDS'}
-                    </span>
-                  </span>
-                </td>
-                <td className='py-1 pr-2'>
-                  {typeFromEds ? (
-                    <span className='flex flex-col gap-1'>
-                      <span className='text-xs font-medium text-neutral-700 dark:text-neutral-300'>Type</span>
-                      <span className='flex h-[30px] items-center' title='Data type from the EDS'>
-                        {sdo.dataType}
-                      </span>
-                    </span>
-                  ) : (
-                    <SelectField
-                      label='Type'
-                      value={sdo.dataType}
-                      options={TYPE_OPTIONS}
-                      onChange={(dataType) => update(sdo.id, { dataType })}
-                    />
-                  )}
-                </td>
-                <td className='py-1 pr-2'>
-                  {sdo.dataType === 'BOOLEAN' ? (
-                    <SelectField
-                      label='Value'
-                      value={encoded.ok && encoded.bytes[0] === 1 ? '1' : '0'}
-                      options={BOOLEAN_OPTIONS}
-                      hint={valueHint(object)}
-                      onChange={(value) => update(sdo.id, { value })}
-                    />
-                  ) : (
-                    <TextField
-                      label='Value'
-                      value={sdo.value}
-                      hint={valueHint(object)}
-                      onCommit={(value) => {
-                        update(sdo.id, { value })
-                        return null
-                      }}
-                    />
-                  )}
-                  {NEVER_WRITTEN_INDICES.has(sdo.index) ? (
-                    <span className='text-[10px] text-red-600 dark:text-red-400'>
-                      The master never writes 0x1010 or 0x1011.
-                    </span>
-                  ) : !encoded.ok ? (
-                    <span className='text-[10px] text-red-600 dark:text-red-400'>{encoded.message}</span>
-                  ) : warning ? (
-                    <span className='text-[10px] text-amber-600 dark:text-amber-400'>{warning}</span>
-                  ) : null}
-                </td>
-                <td className='py-1 pt-6'>
-                  <div className='flex items-center justify-end'>
-                    <MoveButtons name={`SDO ${ref}`} index={i} count={node.sdos.length} onMove={move} />
-                    <button
-                      type='button'
-                      aria-label={`Remove SDO ${ref}`}
-                      title='Remove SDO'
-                      onClick={() => onChange(node.sdos.filter((s) => s.id !== sdo.id))}
-                      className={iconButtonClassName}
-                    >
-                      <TrashIcon className='h-4 w-4' />
-                    </button>
-                  </div>
-                </td>
-              </SortableRow>
-            )
-          })}
-        </SortableBody>
-      </table>
       <div className='flex flex-wrap items-center gap-2'>
         <ObjectPicker
           label='Add an SDO for an object of the device'
@@ -254,6 +121,140 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
           Add by index
         </button>
       </div>
+      <table className='w-full table-fixed text-left text-xs'>
+        <thead className='text-neutral-500 dark:text-neutral-400'>
+          <tr>
+            <th className='w-[24px] py-1' />
+            <th className='w-[90px] py-1 font-medium'>Index</th>
+            <th className='w-[80px] whitespace-nowrap py-1 font-medium'>Sub-index</th>
+            <th className='py-1 font-medium'>Name</th>
+            <th className='w-[110px] py-1 font-medium'>Type</th>
+            <th className='w-[170px] py-1 font-medium'>Value</th>
+            <th className='w-[76px] py-1' />
+          </tr>
+        </thead>
+        <SortableBody ids={node.sdos.map((s) => s.id)} onMove={move} className='text-neutral-850 dark:text-neutral-300'>
+          {node.sdos.length === 0 ? (
+            <tr>
+              <td colSpan={7} className={cn(hintClassName, 'py-2')}>
+                No startup SDOs.
+              </td>
+            </tr>
+          ) : null}
+          {node.sdos.map((sdo, i) => {
+            const ref = objectRef(sdo.index, sdo.subIndex)
+            const object = findObject(node.eds, sdo.index, sdo.subIndex)
+            const typeFromEds = edsType(object) !== undefined
+            const encoded = encodeCanopenValue(sdo.dataType, sdo.value)
+            const warning = warnings.get(sdo.id)
+            return (
+              <SortableRow
+                key={sdo.id}
+                id={sdo.id}
+                name={`SDO ${ref}`}
+                className='border-t border-neutral-100 align-top dark:border-neutral-800'
+                testId='canopen-sdo-row'
+              >
+                <td className='py-1 pr-2'>
+                  <NumberField
+                    label='Index'
+                    hideLabel
+                    value={sdo.index}
+                    min={0x1000}
+                    max={0xffff}
+                    hex
+                    hexWidth={4}
+                    onCommit={(index) => update(sdo.id, { index })}
+                  />
+                </td>
+                <td className='py-1 pr-2'>
+                  <NumberField
+                    label='Sub-index'
+                    hideLabel
+                    value={sdo.subIndex}
+                    min={0}
+                    max={0xff}
+                    hex
+                    hexWidth={2}
+                    onCommit={(subIndex) => update(sdo.id, { subIndex })}
+                  />
+                </td>
+                <td className='py-1 pr-2'>
+                  <span
+                    className={cn(
+                      'flex min-h-[30px] items-center [overflow-wrap:anywhere]',
+                      !object && 'italic text-neutral-500',
+                    )}
+                  >
+                    {object ? objectLabel(object) : 'Not in the EDS'}
+                  </span>
+                </td>
+                <td className='py-1 pr-2'>
+                  {typeFromEds ? (
+                    <span className='flex h-[30px] items-center' title='Data type from the EDS'>
+                      {sdo.dataType}
+                    </span>
+                  ) : (
+                    <SelectField
+                      label='Type'
+                      hideLabel
+                      value={sdo.dataType}
+                      options={TYPE_OPTIONS}
+                      onChange={(dataType) => update(sdo.id, { dataType })}
+                    />
+                  )}
+                </td>
+                <td className='py-1 pr-2'>
+                  {sdo.dataType === 'BOOLEAN' ? (
+                    <SelectField
+                      label='Value'
+                      hideLabel
+                      value={encoded.ok && encoded.bytes[0] === 1 ? '1' : '0'}
+                      options={BOOLEAN_OPTIONS}
+                      hint={valueHint(object)}
+                      onChange={(value) => update(sdo.id, { value })}
+                    />
+                  ) : (
+                    <TextField
+                      label='Value'
+                      hideLabel
+                      value={sdo.value}
+                      hint={valueHint(object)}
+                      onCommit={(value) => {
+                        update(sdo.id, { value })
+                        return null
+                      }}
+                    />
+                  )}
+                  {NEVER_WRITTEN_INDICES.has(sdo.index) ? (
+                    <span className='text-[10px] text-red-600 dark:text-red-400'>
+                      The master never writes 0x1010 or 0x1011.
+                    </span>
+                  ) : !encoded.ok ? (
+                    <span className='text-[10px] text-red-600 dark:text-red-400'>{encoded.message}</span>
+                  ) : warning ? (
+                    <span className='text-[10px] text-amber-600 dark:text-amber-400'>{warning}</span>
+                  ) : null}
+                </td>
+                <td className='py-1'>
+                  <div className='flex h-[30px] items-center justify-end'>
+                    <MoveButtons name={`SDO ${ref}`} index={i} count={node.sdos.length} onMove={move} />
+                    <button
+                      type='button'
+                      aria-label={`Remove SDO ${ref}`}
+                      title='Remove SDO'
+                      onClick={() => onChange(node.sdos.filter((s) => s.id !== sdo.id))}
+                      className={iconButtonClassName}
+                    >
+                      <TrashIcon className='h-4 w-4' />
+                    </button>
+                  </div>
+                </td>
+              </SortableRow>
+            )
+          })}
+        </SortableBody>
+      </table>
     </div>
   )
 }

@@ -61,7 +61,7 @@ const SortableRow = ({ id, name, disabled, className, testId, children }: Sortab
             type='button'
             aria-label={`Drag ${name}`}
             title='Drag to reorder'
-            className='mt-1 cursor-grab touch-none rounded p-0.5 text-neutral-400 hover:text-neutral-700 active:cursor-grabbing dark:hover:text-neutral-200'
+            className='mt-[6px] cursor-grab touch-none rounded p-0.5 text-neutral-400 hover:text-neutral-700 active:cursor-grabbing dark:hover:text-neutral-200'
             {...attributes}
             {...listeners}
           >
