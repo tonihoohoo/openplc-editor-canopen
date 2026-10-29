@@ -187,16 +187,25 @@ const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, onChange, onAliasChange 
         <p className={hintClassName}>The device fixes this PDO&apos;s mapping, so its entries cannot be changed.</p>
       ) : null}
 
+      {pdo.fixedMapping ? null : (
+        <ObjectPicker
+          label={`Add an object to ${title}`}
+          items={candidates.map((object) => ({ object, disabledReason: cannotMap(pdo, object) }))}
+          emptyText='The device has no objects to map here.'
+          onPick={addEntry}
+        />
+      )}
+
       <table className='w-full table-fixed text-left text-xs'>
         <thead className='text-neutral-500 dark:text-neutral-400'>
           <tr>
             <th className='w-[24px] py-1' />
-            <th className='w-[90px] py-1 font-medium'>Object</th>
+            <th className='w-[80px] py-1 font-medium'>Object</th>
             <th className='py-1 font-medium'>Name</th>
             <th className='w-[100px] py-1 font-medium'>Type</th>
             <th className='w-[90px] py-1 font-medium'>Address</th>
-            <th className='w-[180px] py-1 font-medium'>Alias</th>
-            <th className='w-[84px] py-1' />
+            <th className='w-[150px] py-1 font-medium'>Alias</th>
+            <th className='w-[76px] py-1' />
           </tr>
         </thead>
         <SortableBody
@@ -220,9 +229,7 @@ const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, onChange, onAliasChange 
               className='border-t border-neutral-100 dark:border-neutral-800'
             >
               <td className='py-1 font-mono'>{objectRef(entry.index, entry.subIndex)}</td>
-              <td className='truncate py-1' title={entry.name}>
-                {entry.name}
-              </td>
+              <td className='py-1 pr-2 [overflow-wrap:anywhere]'>{entry.name}</td>
               <td className='py-1'>{entry.dataType}</td>
               <td className='py-1 font-mono'>{entry.iecLocation || '-'}</td>
               <td className='py-1 pr-2'>
@@ -259,15 +266,6 @@ const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, onChange, onAliasChange 
           ))}
         </SortableBody>
       </table>
-
-      {pdo.fixedMapping ? null : (
-        <ObjectPicker
-          label={`Add an object to ${title}`}
-          items={candidates.map((object) => ({ object, disabledReason: cannotMap(pdo, object) }))}
-          emptyText='The device has no objects to map here.'
-          onPick={addEntry}
-        />
-      )}
     </div>
   )
 }
