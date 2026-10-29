@@ -88,6 +88,12 @@ describe('composeRuntimeV4Bundle', () => {
     expect('conf/ethercat.json' in files).toBe(false)
     expect('conf/ethercat_busconfig.json' in files).toBe(false)
     expect('conf/ethercat_iomapping.json' in files).toBe(false)
+    expect('conf/canopen.json' in files).toBe(false)
+  })
+
+  it('writes conf/canopen.json when given', () => {
+    const files = composeRuntimeV4Bundle(baseInput({ confs: { ...baseInput().confs, canopen: '{"version":1}' } }))
+    expect(files['conf/canopen.json']).toBe('{"version":1}')
   })
 
   it('writes each conf/*.json that is provided', () => {

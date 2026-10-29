@@ -72,6 +72,11 @@ import {
 import { generateModbusSlaveConfig } from '../../../../frontend/utils/modbus/generate-modbus-slave-config'
 import { generateOpcUaConfig, OpcUaConfigError } from '../../../../frontend/utils/opcua'
 import { generateS7CommConfig } from '../../../../frontend/utils/s7comm'
+import {
+  canopenDevice,
+  configWith,
+  genericNode,
+} from '../../../../middleware/shared/utils/canopen/__tests__/fixtures/helpers'
 import { generateRuntimeConfs, type GenerateConfsInput } from '../steps/generate-confs'
 
 const mockedModbusSlave = generateModbusSlaveConfig as jest.MockedFunction<typeof generateModbusSlaveConfig>
@@ -125,6 +130,7 @@ describe('generateRuntimeConfs — happy path', () => {
       ethercat: '{"ethercat":{}}',
       ethercatBusconfig: null,
       ethercatIomapping: null,
+      canopen: null,
     })
   })
 
@@ -174,6 +180,7 @@ describe('generateRuntimeConfs — happy path', () => {
       ethercat: '',
       ethercatBusconfig: null,
       ethercatIomapping: null,
+      canopen: null,
     })
   })
 })
@@ -372,5 +379,22 @@ describe('generateRuntimeConfs — ordering invariants', () => {
     // ordering — saves wasted work on bad OPC-UA projects).
     expect(callOrder.indexOf('opcua')).toBeLessThan(callOrder.indexOf('ethercat-gen'))
     expect(callOrder.indexOf('ethercat-gen')).toBeLessThan(callOrder.indexOf('ethercat-validate'))
+  })
+})
+
+describe('generateRuntimeConfs — CANopen', () => {
+  it('writes conf/canopen.json for a CANopen device', () => {
+    const result = generateRuntimeConfs(
+      makeInput({ remoteDevices: [canopenDevice('CANopen_1', configWith(genericNode(2)))] }),
+    )
+    expect(JSON.parse(result.canopen ?? '')).toMatchObject({ version: 1, networks: [{ name: 'CANopen_1' }] })
+  })
+
+  it('refuses an invalid CANopen network with every problem', () => {
+    const config = configWith()
+    config.network.interface = ''
+    expect(() => generateRuntimeConfs(makeInput({ remoteDevices: [canopenDevice('net', config)] }))).toThrow(
+      'CANopen configuration is invalid: CANopen "net": no CAN interface; CANopen "net": no nodes',
+    )
   })
 })

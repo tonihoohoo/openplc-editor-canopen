@@ -49,7 +49,7 @@ type CreateServerFormProps = {
 
 type CreateRemoteDeviceFormProps = {
   name: string
-  protocol: 'modbus-tcp' | 'ethernet-ip' | 'ethercat' | 'profinet'
+  protocol: 'modbus-tcp' | 'ethernet-ip' | 'ethercat' | 'profinet' | 'canopen'
 }
 
 const ServerProtocolSources = [
@@ -64,6 +64,7 @@ const RemoteDeviceProtocolSources = [
   { value: 'ethernet-ip', label: 'EtherNet/IP', disabled: true },
   { value: 'ethercat', label: 'EtherCAT', disabled: false },
   { value: 'profinet', label: 'PROFINET', disabled: true },
+  { value: 'canopen', label: 'CANopen', disabled: false },
 ] as const
 
 {
@@ -170,6 +171,10 @@ const ElementCard = (props: ElementCardProps): ReactNode => {
       (protocol.value === 'opcua' && !targetCaps.opcuaServer)
     return unsupported ? { ...protocol, disabled: true } : protocol
   })
+  // The CANopen master runs where the EtherCAT master does: on a runtime target.
+  const remoteDeviceProtocolOptions = RemoteDeviceProtocolSources.map((protocol) =>
+    protocol.value === 'canopen' && !targetCaps.ethercat ? { ...protocol, disabled: true } : protocol,
+  )
 
   const handleCreatePou: SubmitHandler<CreatePouFormProps> = (data) => {
     const pouWasCreated = create(data)
@@ -715,7 +720,7 @@ const ElementCard = (props: ElementCardProps): ReactNode => {
                                   align='center'
                                   side='bottom'
                                 >
-                                  {RemoteDeviceProtocolSources.map((protocol) => {
+                                  {remoteDeviceProtocolOptions.map((protocol) => {
                                     return (
                                       <SelectItem
                                         key={protocol.value}

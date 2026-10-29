@@ -93,6 +93,8 @@ export interface ComposeRuntimeV4BundleInput {
     ethercat: string | null
     ethercatBusconfig: string | null
     ethercatIomapping: string | null
+    /** From `generateCanopenConfig`, validated by `generateRuntimeConfs`; absent or null skips the file. */
+    canopen?: string | null
   }
 }
 
@@ -149,6 +151,7 @@ export function composeRuntimeV4Bundle(input: ComposeRuntimeV4BundleInput): Reco
   if (input.confs.ethercat !== null) files['conf/ethercat.json'] = input.confs.ethercat
   if (input.confs.ethercatBusconfig) files['conf/ethercat_busconfig.json'] = input.confs.ethercatBusconfig
   if (input.confs.ethercatIomapping) files['conf/ethercat_iomapping.json'] = input.confs.ethercatIomapping
+  if (input.confs.canopen) files['conf/canopen.json'] = input.confs.canopen
 
   return files
 }

@@ -134,6 +134,7 @@ export function validateAliasName(alias: string): { ok: true } | { ok: false; re
  *   - `vpp-io` ref="slot-2:O3"              → "VPP slot 2 channel O3"
  *   - `modbus-tcp-remote` ref="d1:point17"  → "Modbus device d1 point point17"
  *   - `ethercat` ref="bus0:slave2:ch5"      → "EtherCAT bus0 slave2 channel ch5"
+ *   - `canopen` ref="net0:io1:ch3"          → "CANopen net0 node io1 entry ch3"
  *
  * Unknown formats fall back to a verbatim `${kind} ${ref}` rendering
  * so future producer kinds at least show something useful before this
@@ -164,6 +165,12 @@ export function describeSource(source: SourceRef): string {
       const parts = source.ref.split(':')
       if (parts.length === 3) return `EtherCAT ${parts[0]} slave ${parts[1]} channel ${parts[2]}`
       return `EtherCAT (${source.ref})`
+    }
+    case 'canopen': {
+      // ref shape "<deviceName>:<nodeName>:<channelId>" — see address-pool.ts.
+      const parts = source.ref.split(':')
+      if (parts.length === 3) return `CANopen ${parts[0]} node ${parts[1]} entry ${parts[2]}`
+      return `CANopen (${source.ref})`
     }
     default:
       // Exhaustive-fallback.  TypeScript narrows `source` to `never`

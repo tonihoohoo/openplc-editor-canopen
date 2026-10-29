@@ -12,6 +12,7 @@ import type {
   S7CommPlcIdentity,
   S7CommServerSettings,
 } from '../../../../middleware/shared/ports/types'
+import { defaultCanopenConfig, nodeEntries as canopenNodeEntries } from '../../../../middleware/shared/utils/canopen'
 import {
   type AddressPool,
   buildAddressPool,
@@ -25,6 +26,7 @@ import { planAliasNormalization } from '../../../../middleware/shared/utils/iec-
 import {
   activeKindsFor,
   buildAliasIndex,
+  canopenConsumerId,
   channelKey,
   ethercatConsumerId,
   type IecAddressRegistry,
@@ -301,7 +303,7 @@ type ProjectGetState = () => ProjectSliceRoot
  *  (hardware addresses), so pins are treated as constraints (seeded + kept
  *  pinned) that VPP / Modbus / EtherCAT allocate around; pins join in their
  *  own commit. */
-const ALLOCATED_KINDS: ReadonlySet<string> = new Set(['vpp-io', 'modbus-tcp-remote', 'ethercat'])
+const ALLOCATED_KINDS: ReadonlySet<string> = new Set(['vpp-io', 'modbus-tcp-remote', 'ethercat', 'canopen'])
 
 /** IO-mapping (VPP) entry shape the recalc reads/writes. */
 type VppMappingEntry = {
@@ -587,6 +589,26 @@ function applyEthercatAddresses(
           if (info.address) mapping.iecLocation = info.address
           mapping.alias = info.alias
         }
+      }
+    }
+  }
+}
+
+/** Write the registry's addresses + aliases back onto the CANopen nodes' entries. Runs inside `produce`. */
+function applyCanopenAddresses(
+  remoteDevices: ProjectSlice['project']['data']['remoteDevices'],
+  index: ReadonlyMap<string, { address?: string; alias: string }>,
+): void {
+  if (!remoteDevices) return
+  for (const device of remoteDevices) {
+    const deviceRef = device.name || 'device'
+    for (const node of device.canopenConfig?.nodes ?? []) {
+      const consumerId = canopenConsumerId(deviceRef, node.name || 'node')
+      for (const entry of canopenNodeEntries(node)) {
+        const info = index.get(channelKey(consumerId, entry.channelId))
+        if (!info) continue
+        if (info.address) entry.iecLocation = info.address
+        entry.alias = info.alias
       }
     }
   }
@@ -2348,6 +2370,9 @@ const createProjectSlice: StateCreator<ProjectSliceRoot, [], [], ProjectSlice> =
           if (device.protocol === 'modbus-tcp' && !device.modbusTcpConfig) {
             device.modbusTcpConfig = { host: '127.0.0.1', port: 502, slaveId: 1, timeout: 1000, ioGroups: [] }
           }
+          if (device.protocol === 'canopen' && !device.canopenConfig) {
+            device.canopenConfig = defaultCanopenConfig()
+          }
           slice.project.data.remoteDevices.push(device)
 
           // EtherCAT bus is driven by a dedicated thread inside the
@@ -2544,6 +2569,7 @@ const createProjectSlice: StateCreator<ProjectSliceRoot, [], [], ProjectSlice> =
         produce((slice: ProjectSlice) => {
           applyModbusAddresses(slice.project.data.remoteDevices, index)
           applyEthercatAddresses(slice.project.data.remoteDevices, index)
+          applyCanopenAddresses(slice.project.data.remoteDevices, index)
         }),
       )
       return ok()
@@ -2771,6 +2797,41 @@ const createProjectSlice: StateCreator<ProjectSliceRoot, [], [], ProjectSlice> =
         }
         // Channel-mapping changes go through the central registry so EtherCAT
         // addresses are packed alongside VPP/Modbus.
+        getState().projectActions.recalculateIecAddresses()
+      }
+      return response
+    },
+    updateCanopenConfig: (deviceName, canopenConfig) => {
+      const prevDevice = getState().project.data.remoteDevices?.find((d) => d.name === deviceName)
+      const prevAlias = new Map<string, string>()
+      for (const node of prevDevice?.canopenConfig?.nodes ?? []) {
+        for (const entry of canopenNodeEntries(node)) {
+          if (entry.alias) prevAlias.set(`${node.id}:${entry.channelId}`, entry.alias)
+        }
+      }
+
+      let response = ok()
+      setState(
+        produce((slice: ProjectSlice) => {
+          const device = slice.project.data.remoteDevices?.find((d) => d.name === deviceName)
+          if (!device) {
+            response = { ok: false, message: 'Remote device not found' }
+            return
+          }
+          if (device.protocol !== 'canopen') {
+            response = { ok: false, message: 'Device is not a CANopen device' }
+            return
+          }
+          device.canopenConfig = canopenConfig
+        }),
+      )
+      if (response.ok) {
+        for (const node of canopenConfig.nodes) {
+          for (const entry of canopenNodeEntries(node)) {
+            const old = prevAlias.get(`${node.id}:${entry.channelId}`)
+            if (old && old !== (entry.alias ?? '')) getState().projectActions.renameAlias(old, entry.alias ?? '')
+          }
+        }
         getState().projectActions.recalculateIecAddresses()
       }
       return response

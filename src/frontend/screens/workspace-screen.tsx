@@ -19,6 +19,7 @@ import { BranchMergeView } from '../components/_features/[workspace]/branches/br
 import { CommitHistoryView } from '../components/_features/[workspace]/commit-history'
 import { DataTypeEditor } from '../components/_features/[workspace]/data-type'
 import { DeviceEditor } from '../components/_features/[workspace]/editor/device'
+import { CanopenEditor } from '../components/_features/[workspace]/editor/device/canopen'
 import {
   EtherCATDeviceEditor,
   EtherCATEditor,
@@ -614,9 +615,12 @@ const WorkspaceScreen = () => {
                         {editor['type'] === 'plc-remote-device' && editor.meta.protocol === 'ethercat' && (
                           <EtherCATEditor />
                         )}
-                        {editor['type'] === 'plc-remote-device' && editor.meta.protocol !== 'ethercat' && (
-                          <RemoteDeviceEditor />
+                        {editor['type'] === 'plc-remote-device' && editor.meta.protocol === 'canopen' && (
+                          <CanopenEditor />
                         )}
+                        {editor['type'] === 'plc-remote-device' &&
+                          editor.meta.protocol !== 'ethercat' &&
+                          editor.meta.protocol !== 'canopen' && <RemoteDeviceEditor />}
                         {editor['type'] === 'plc-server' && editor.meta.protocol === 'modbus-tcp' && (
                           <ModbusServerEditor />
                         )}

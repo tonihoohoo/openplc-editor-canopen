@@ -31,6 +31,7 @@
  *   2. VPP I/O claims next (per-slot, in slot order).
  *   3. Modbus TCP remote-device I/O points (per-device, per-group).
  *   4. EtherCAT channel mappings (per-device, in scan order).
+ *   5. CANopen PDO entries and node states (per-device, per-node).
  *
  * The order matters when two producers happen to claim the same
  * address: only the first wins, and the second is reported as a
@@ -42,7 +43,7 @@
 import type { AddressProducerCapabilities } from '../target-capabilities'
 
 /** Which kind of source attached this claim. */
-export type SourceKind = 'pin-mapping' | 'vpp-io' | 'modbus-tcp-remote' | 'ethercat'
+export type SourceKind = 'pin-mapping' | 'vpp-io' | 'modbus-tcp-remote' | 'ethercat' | 'canopen'
 
 /** Stable, human-readable pointer back to the source. Used by the
  *  alias registry to attribute aliases and by diagnostics to explain
@@ -145,6 +146,15 @@ export interface PoolRemoteDeviceInput {
       }>
     }>
   }
+  /** CANopen nodes; each entry claims under "<devRef>:<nodeName>:<channelId>". */
+  canopenConfig?: {
+    nodes?: Array<{
+      name?: string
+      state?: { channelId: string; iecLocation: string; alias?: string }
+      tpdos?: Array<{ entries?: Array<{ channelId: string; iecLocation: string; alias?: string }> }>
+      rpdos?: Array<{ entries?: Array<{ channelId: string; iecLocation: string; alias?: string }> }>
+    }>
+  }
 }
 
 export interface PoolInputs {
@@ -190,6 +200,18 @@ function compareClaimedAddress(a: ClaimedAddress, b: ClaimedAddress): number {
   if (!pb) return -1
   if (pa.index !== pb.index) return pa.index - pb.index
   return (pa.bit ?? 0) - (pb.bit ?? 0)
+}
+
+type PoolCanopenNode = NonNullable<NonNullable<PoolRemoteDeviceInput['canopenConfig']>['nodes']>[number]
+
+/** A CANopen node's address-holding entries: its state, then its PDO entries. */
+export function canopenPoolEntries(
+  node: PoolCanopenNode,
+): Array<{ channelId: string; iecLocation: string; alias?: string }> {
+  return [
+    ...(node.state ? [node.state] : []),
+    ...[...(node.tpdos ?? []), ...(node.rpdos ?? [])].flatMap((pdo) => pdo.entries ?? []),
+  ]
 }
 
 /* ------------------------------------------------------------------
@@ -282,6 +304,22 @@ export function buildAddressPool(
               mapping.alias,
             )
           }
+        }
+      }
+    }
+  }
+
+  // 5. CANopen node states and PDO entries, active where EtherCAT is (runtime v4 fieldbus masters).
+  if (caps.ethercat && inputs.remoteDevices && ignore !== 'canopen') {
+    for (const dev of inputs.remoteDevices) {
+      const devRef = dev.deviceName || dev.name || 'unknown-device'
+      for (const node of dev.canopenConfig?.nodes ?? []) {
+        for (const entry of canopenPoolEntries(node)) {
+          claim(
+            entry.iecLocation,
+            { kind: 'canopen', ref: `${devRef}:${node.name || 'node'}:${entry.channelId}` },
+            entry.alias,
+          )
         }
       }
     }
