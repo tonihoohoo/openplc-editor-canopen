@@ -40,20 +40,28 @@ type SortableRowProps = {
   /** Name of the row's item, for the handle's and buttons' accessible names. */
   name: string
   disabled?: boolean
+  /** Briefly marks a row that was just added. */
+  highlight?: boolean
   className?: string
   testId?: string
   children: ReactNode
 }
 
 /** A table row with a drag handle in its first cell. */
-const SortableRow = ({ id, name, disabled, className, testId, children }: SortableRowProps) => {
+const SortableRow = ({ id, name, disabled, highlight, className, testId, children }: SortableRowProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
   return (
     <tr
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn(className, isDragging && 'relative z-10 bg-neutral-50 dark:bg-neutral-900')}
+      className={cn(
+        className,
+        'transition-colors duration-700',
+        highlight && 'bg-green-50 dark:bg-green-900/20',
+        isDragging && 'relative z-10 bg-neutral-50 dark:bg-neutral-900',
+      )}
       data-testid={testId}
+      data-highlight={highlight ? 'true' : undefined}
     >
       <td className='py-1 pr-1 align-top'>
         {disabled ? null : (
