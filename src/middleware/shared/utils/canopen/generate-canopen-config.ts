@@ -1,18 +1,40 @@
 /**
  * conf/canopen.json for the runtime's canopen plugin (format in the runtime's docs/CANOPEN.md):
- * one network per CANopen device, with each node's configuration SDOs (heartbeat producer, PDO
- * communication and mapping parameters, the user's startup SDOs, then watching the master's
- * heartbeat) resolved from its EDS.
+ * one network per CANopen device, with each node's configuration SDOs (supervision, emergency,
+ * SYNC window and TIME objects, PDO communication and mapping parameters, the user's startup SDOs,
+ * then the heartbeats it watches) resolved from its EDS. A node that is not initialized gets none.
  */
 
-import type { CanopenEdsInfo, CanopenNode, CanopenOnCommError, CanopenPdo } from '../../ports/canopen-types'
+import type {
+  CanopenEdsInfo,
+  CanopenNetworkSettings,
+  CanopenNode,
+  CanopenOnCommError,
+  CanopenPdo,
+} from '../../ports/canopen-types'
 import type { PLCRemoteDevice } from '../../ports/types'
 import { canopenTypeBits } from './data-types'
 import { findObject } from './eds-parser'
-import { canWatchMaster, DEFAULT_BUS_PRIORITY, hasErrorBehaviour, type PdoDirection, pdoObjectIndices } from './model'
+import {
+  canBeGuarded,
+  canProduceHeartbeat,
+  canReceiveTime,
+  canSetEmcy,
+  canWatchMaster,
+  DEFAULT_BOOT_TIMEOUT_MS,
+  DEFAULT_BUS_PRIORITY,
+  defaultEmcyCobId,
+  defaultNetworkSettings,
+  edsDefault,
+  effectiveGuarding,
+  hasErrorBehaviour,
+  hasSyncWindow,
+  type PdoDirection,
+  pdoObjectIndices,
+} from './model'
 import { encodeCanopenValue, toHex } from './sdo-value'
 
-export const CANOPEN_CONFIG_VERSION = 2
+export const CANOPEN_CONFIG_VERSION = 3
 
 interface SdoOut {
   index: number
@@ -88,24 +110,66 @@ export function watchesMaster(node: CanopenNode): boolean {
   return node.watchMaster.enabled && canWatchMaster(node.eds)
 }
 
+/** The emergency setting the node's EDS gives it (0x1014), as written to it. */
+function edsEmcyValue(node: CanopenNode): number {
+  return (edsDefault(node.eds, 0x1014, 0, node.nodeId) ?? defaultEmcyCobId(node.nodeId)) >>> 0
+}
+
+/** The node's 0x1014 value for its emergency setting (bit 31: no emergency). */
+function emcyValue(node: CanopenNode): number {
+  return (node.emcy.cobId | (node.emcy.enabled ? 0 : 0x80000000)) >>> 0
+}
+
+/** Whether the node receives the network's TIME object. */
+export function receivesTime(node: CanopenNode, network: CanopenNetworkSettings): boolean {
+  return node.receiveTime && network.time.enabled && canReceiveTime(node.eds)
+}
+
 /** The node's configuration SDOs, in the order the master writes them. */
-export function nodeConfigurationSdos(node: CanopenNode, masterNodeId: number): SdoOut[] {
+export function nodeConfigurationSdos(node: CanopenNode, network: CanopenNetworkSettings): SdoOut[] {
   const out: SdoOut[] = []
-  if (node.supervision === 'heartbeat' && writable(node, 0x1017, 0))
+  if (!node.configure) return out
+  if (node.supervision === 'heartbeat' && canProduceHeartbeat(node.eds))
     out.push({ index: 0x1017, subindex: 0, data: le(node.heartbeatProducerMs, 2) })
+  if (node.supervision === 'guarding' && canBeGuarded(node.eds)) {
+    // A node that produces heartbeats is not guarded (CiA 301).
+    if (canProduceHeartbeat(node.eds)) out.push({ index: 0x1017, subindex: 0, data: le(0, 2) })
+    if (writable(node, 0x100c, 0)) out.push({ index: 0x100c, subindex: 0, data: le(node.guardTimeMs, 2) })
+    if (writable(node, 0x100d, 0)) out.push({ index: 0x100d, subindex: 0, data: le(node.lifeTimeFactor, 1) })
+  }
+  if (canSetEmcy(node.eds) && emcyValue(node) !== edsEmcyValue(node))
+    out.push({ index: 0x1014, subindex: 0, data: le(emcyValue(node), 4) })
+  if (network.syncWindowUs > 0 && hasSyncWindow(node.eds))
+    out.push({ index: 0x1007, subindex: 0, data: le(network.syncWindowUs, 4) })
+  if (receivesTime(node, network))
+    out.push({ index: 0x1012, subindex: 0, data: le((network.time.cobId | 0x80000000) >>> 0, 4) })
   for (const pdo of node.tpdos) out.push(...pdoSdos(node, pdo, 'input'))
   for (const pdo of node.rpdos) out.push(...pdoSdos(node, pdo, 'output'))
   for (const sdo of node.sdos) {
     const encoded = encodeCanopenValue(sdo.dataType, sdo.value)
     if (encoded.ok) out.push({ index: sdo.index, subindex: sdo.subIndex, data: toHex(encoded.bytes) })
   }
+  let consumerSub = 1
   if (watchesMaster(node)) {
-    const entry = ((masterNodeId << 16) | node.watchMaster.consumerMs) >>> 0
-    out.push({ index: 0x1016, subindex: 1, data: le(entry, 4) })
-    if (hasErrorBehaviour(node.eds))
-      out.push({ index: 0x1029, subindex: 1, data: le(ON_ERROR_CODE[node.watchMaster.onError], 1) })
+    const entry = ((network.masterNodeId << 16) | node.watchMaster.consumerMs) >>> 0
+    out.push({ index: 0x1016, subindex: consumerSub++, data: le(entry, 4) })
   }
+  for (const c of node.heartbeatConsumers) {
+    const entry = ((c.producerNodeId << 16) | c.consumerMs) >>> 0
+    out.push({ index: 0x1016, subindex: consumerSub++, data: le(entry, 4) })
+  }
+  if (watchesMaster(node) && hasErrorBehaviour(node.eds))
+    out.push({ index: 0x1029, subindex: 1, data: le(ON_ERROR_CODE[node.watchMaster.onError], 1) })
   return out
+}
+
+function supervisionOut(node: CanopenNode): Record<string, string | number> {
+  if (node.supervision === 'heartbeat') return { type: 'heartbeat', consumer_ms: node.heartbeatConsumerMs }
+  if (node.supervision === 'guarding') {
+    const g = effectiveGuarding(node)
+    return { type: 'guarding', guard_time_ms: g.guardTimeMs, life_time_factor: g.lifeTimeFactor }
+  }
+  return { type: 'none' }
 }
 
 function pdosOut(pdos: CanopenPdo[], direction: PdoDirection): PdoOut[] {
@@ -127,7 +191,8 @@ export function generateCanopenConfig(remoteDevices: readonly PLCRemoteDevice[] 
   const networks = (remoteDevices ?? [])
     .filter((d) => d.protocol === 'canopen' && d.canopenConfig)
     .map((d) => {
-      const { network, nodes } = d.canopenConfig ?? { network: undefined, nodes: [] }
+      const { network: given, nodes } = d.canopenConfig ?? { network: undefined, nodes: [] }
+      const network = given ?? defaultNetworkSettings()
       return {
         name: d.name,
         interface: network?.interface ?? '',
@@ -141,21 +206,25 @@ export function generateCanopenConfig(remoteDevices: readonly PLCRemoteDevice[] 
             : { mode: network?.syncMode ?? 'none' },
         on_plc_stop: network?.onPlcStop ?? 'pre_operational',
         priority: network?.priority ?? DEFAULT_BUS_PRIORITY,
+        boot_timeout_ms: network.bootTimeoutMs ?? DEFAULT_BOOT_TIMEOUT_MS,
+        on_node_error: network.onNodeError ?? 'restart',
+        time: network.time?.enabled ? { cob_id: network.time.cobId, period_ms: network.time.periodMs } : null,
         nodes: nodes.map((node) => ({
           node_id: node.nodeId,
           name: node.name,
+          optional: node.optional,
+          configure: node.configure,
+          restore_defaults: node.configure ? node.restoreDefaults : 0,
+          emcy: { enabled: node.emcy.enabled, cob_id: node.emcy.cobId },
           identity: {
             vendor_id: node.checkVendorId ? node.eds.vendorId : 0,
             product_code: node.checkProductCode ? node.eds.productCode : 0,
             revision: node.checkRevision ? node.eds.revision : 0,
           },
-          supervision:
-            node.supervision === 'heartbeat'
-              ? { type: 'heartbeat', consumer_ms: node.heartbeatConsumerMs }
-              : { type: 'none' },
+          supervision: supervisionOut(node),
           on_loss: node.onLoss,
           ...(node.state.iecLocation ? { state_location: node.state.iecLocation } : {}),
-          sdo: nodeConfigurationSdos(node, network?.masterNodeId ?? 127),
+          sdo: nodeConfigurationSdos(node, network),
           tpdos: pdosOut(node.tpdos, 'input'),
           rpdos: pdosOut(node.rpdos, 'output'),
         })),

@@ -1,10 +1,6 @@
 import type { CanopenConfig } from '../../../ports/canopen-types'
-import {
-  canopenSdoWarnings,
-  reservedCobId,
-  validateCanopenProject,
-  watchMasterProblem,
-} from '../validate-canopen-config'
+import { reservedCobId } from '../check-fix'
+import { canopenSdoWarnings, validateCanopenProject, watchMasterProblem } from '../validate-canopen-config'
 import { canopenDevice, configWith, genericNode } from './fixtures/helpers'
 
 const errorsOf = (config: CanopenConfig): string[] => validateCanopenProject([canopenDevice('net', config)])
@@ -81,10 +77,14 @@ describe('validateCanopenProject', () => {
     node.sdos = [
       { id: 'a', index: 0x1010, subIndex: 1, dataType: 'UNSIGNED32', value: '0x65766173' },
       { id: 'b', index: 0x2100, subIndex: 0, dataType: 'UNSIGNED8', value: '300' },
+      { id: 'c', index: 0x1011, subIndex: 1, dataType: 'UNSIGNED32', value: '0x64616F6C' },
     ]
     const errors = errorsOf(configWith(node))
     expect(errors).toContain(
-      'CANopen "net" node 2 (io2) startup SDO 0x1010:1: the master never writes 0x1010 (store) or 0x1011 (restore defaults)',
+      'CANopen "net" node 2 (io2) startup SDO 0x1010:1: the master never writes 0x1010 (store parameters)',
+    )
+    expect(errors).toContain(
+      'CANopen "net" node 2 (io2) startup SDO 0x1011:1: 0x1011 is written only by the node\'s "Restore defaults" setting',
     )
     expect(errors.some((e) => e.includes('0x2100:0: 300 is out of range'))).toBe(true)
   })

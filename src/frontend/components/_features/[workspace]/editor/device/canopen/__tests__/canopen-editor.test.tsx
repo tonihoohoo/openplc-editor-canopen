@@ -87,6 +87,7 @@ const toastTitles = () => getMemoryState().toasts.map((t) => String(t.title))
 
 describe('CanopenEditor', () => {
   beforeEach(() => {
+    localStorage.clear()
     store = createTestStore()
     seed()
     render(<CanopenEditor />, { wrapper: createStoreWrapper(store, portsWithRuntime()) })
@@ -280,6 +281,8 @@ describe('CanopenEditor', () => {
     await importEds()
     const watch = await screen.findByLabelText<HTMLInputElement>('Watch the master')
     expect(watch.checked).toBe(true)
+    expect(screen.queryByLabelText('When the master is gone')).toBeNull()
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
     expect(screen.getByLabelText('When the master is gone')).toBeTruthy()
     const timeout = screen.getByLabelText('Master timeout (ms)')
     fireEvent.change(timeout, { target: { value: '50' } })
@@ -315,5 +318,60 @@ describe('CanopenEditor', () => {
     fireEvent.change(priority, { target: { value: '80' } })
     fireEvent.blur(priority)
     expect(config()?.network.priority).toBe(80)
+  })
+  it('keeps expert settings out of the basic view unless they are changed', async () => {
+    await importEds()
+    await screen.findByLabelText('Optional node')
+    expect(screen.queryByLabelText('No initialization')).toBeNull()
+    expect(screen.queryByText('Identity check at boot')).toBeNull()
+    const expert = screen.getByRole('switch', { name: 'Expert view' })
+    fireEvent.click(expert)
+    expect(localStorage.getItem('openplc:canopen-expert-view')).toBe('on')
+    fireEvent.click(screen.getByLabelText('No initialization'))
+    expect(config()?.nodes[0].configure).toBe(false)
+    expect(screen.getByLabelText<HTMLInputElement>('Node heartbeat (ms)').disabled).toBe(true)
+    fireEvent.click(expert)
+    expect(screen.getByLabelText<HTMLInputElement>('No initialization').checked).toBe(true)
+    expect(screen.getAllByText('expert').length).toBeGreaterThan(0)
+  })
+
+  it('makes a node optional and offers node guarding only when the device has it', async () => {
+    await importEds()
+    fireEvent.click(await screen.findByLabelText('Optional node'))
+    expect(config()?.nodes[0].optional).toBe(true)
+    const guarding = within(screen.getByLabelText('Supervision')).getByRole('option', { name: /Node guarding/ })
+    expect(guarding).toHaveProperty('disabled', true)
+  })
+
+  it('fixes a problem with its button and all of them with Fix all', async () => {
+    await importEds()
+    await waitFor(() => expect(config()?.nodes).toHaveLength(1))
+    const timeout = screen.getByLabelText('Timeout (ms)')
+    fireEvent.change(timeout, { target: { value: '100' } })
+    fireEvent.blur(timeout)
+    const checks = screen.getByRole('status', { name: 'Network checks' })
+    expect(checks.textContent).toContain('the heartbeat timeout (100 ms) must be longer')
+    fireEvent.click(within(checks).getByRole('button', { name: /^Set to 150 ms/ }))
+    expect(config()?.nodes[0].heartbeatConsumerMs).toBe(150)
+    expect(screen.queryByRole('status', { name: 'Network checks' })).toBeNull()
+  })
+
+  it('edits the startup, TIME and new node settings of the network', () => {
+    openTab('Network')
+    const boot = screen.getByLabelText('Boot-up timeout (ms)')
+    fireEvent.change(boot, { target: { value: '5000' } })
+    fireEvent.blur(boot)
+    fireEvent.change(screen.getByLabelText('On node error'), { target: { value: 'stop' } })
+    fireEvent.click(screen.getByLabelText('Send TIME'))
+    const period = screen.getByLabelText('TIME period (ms)')
+    fireEvent.change(period, { target: { value: '500' } })
+    fireEvent.blur(period)
+    fireEvent.change(screen.getAllByLabelText('Supervision')[0], { target: { value: 'none' } })
+    expect(config()?.network).toMatchObject({
+      bootTimeoutMs: 5000,
+      onNodeError: 'stop',
+      time: { enabled: true, periodMs: 500 },
+      newNodeDefaults: { supervision: 'none' },
+    })
   })
 })

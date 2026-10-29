@@ -67,7 +67,7 @@ test('a node added from an EDS file builds into conf/canopen.json', async () => 
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 2,
+      version: 3,
       networks: [
         {
           interface: 'can0',

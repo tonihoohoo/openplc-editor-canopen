@@ -8,7 +8,7 @@ describe('receive timeout', () => {
     node.tpdos[0] = { ...node.tpdos[0], receiveTimeoutMs: 250 }
     const json: unknown = JSON.parse(generateCanopenConfig([canopenDevice('CANopen_1', configWith(node))]) ?? '')
     expect(json).toMatchObject({
-      version: 2,
+      version: 3,
       networks: [{ nodes: [{ tpdos: [{ number: 1, receive_timeout_ms: 250 }] }] }],
     })
     const text = generateCanopenConfig([canopenDevice('CANopen_1', configWith(genericNode(2)))]) ?? ''

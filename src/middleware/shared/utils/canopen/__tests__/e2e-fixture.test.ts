@@ -23,7 +23,7 @@ const FIXTURE = join(
 )
 
 describe('the end-to-end CANopen project', () => {
-  it('loads, validates and maps node 2 to the addresses its program uses', () => {
+  it('loads, validates and maps node 2 to the addresses its program uses, with optional node 9', () => {
     const device = PLCRemoteDeviceSchema.parse(JSON.parse(readFileSync(FIXTURE, 'utf8')))
     expect(validateCanopenProject([device])).toEqual([])
     const conf: unknown = JSON.parse(generateCanopenConfig([device]) ?? '')
@@ -38,6 +38,7 @@ describe('the end-to-end CANopen project', () => {
               tpdos: [{ entries: [{ location: '%IB1' }, { location: '%IW0' }] }],
               rpdos: [{ entries: [{ location: '%QB0' }] }],
             },
+            { node_id: 9, optional: true, state_location: '%IB2', tpdos: [], rpdos: [] },
           ],
         },
       ],

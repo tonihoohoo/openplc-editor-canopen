@@ -6,6 +6,7 @@
 
 import type { CanopenNode, CanopenPdo } from '../../ports/canopen-types'
 import type { PLCRemoteDevice } from '../../ports/types'
+import { checkCanopenNetwork, checkText, reservedCobId } from './check-fix'
 import { CANOPEN_BITRATES, iecPrefixFor } from './data-types'
 import { findObject } from './eds-parser'
 import { pdoActive, watchesMaster } from './generate-canopen-config'
@@ -21,20 +22,14 @@ import { encodeCanopenValue } from './sdo-value'
 
 const hex = (v: number, width: number): string => `0x${v.toString(16).toUpperCase().padStart(width, '0')}`
 
-/** What a COB-ID is reserved for, or null. */
-export function reservedCobId(id: number): string | null {
-  if (id === 0x000) return 'NMT'
-  if (id === 0x080) return 'SYNC'
-  if (id >= 0x081 && id <= 0x0ff) return 'EMCY'
-  if (id === 0x100) return 'TIME'
-  if ((id >= 0x581 && id <= 0x5ff) || (id >= 0x601 && id <= 0x67f)) return 'SDO'
-  if (id >= 0x701 && id <= 0x77f) return 'heartbeat'
-  if (id === 0x7e4 || id === 0x7e5) return 'LSS'
-  return null
-}
-
-/** Errors that stop the build. */
-export function validateCanopenProject(remoteDevices: readonly PLCRemoteDevice[] | undefined): string[] {
+/**
+ * Errors that stop the build. `cycleUs` is the PLC cycle (see `plcCycleUs`), used to check a SYNC
+ * window against SYNC once per PLC cycle; timings off the cycle are warnings and do not stop it.
+ */
+export function validateCanopenProject(
+  remoteDevices: readonly PLCRemoteDevice[] | undefined,
+  cycleUs: number | null = null,
+): string[] {
   const errors: string[] = []
   const interfaces = new Map<string, string>()
   const inputs = new Map<string, string>()
@@ -55,9 +50,15 @@ export function validateCanopenProject(remoteDevices: readonly PLCRemoteDevice[]
       errors.push(`${net}: real-time priority ${network.priority} is outside ${MIN_BUS_PRIORITY} - ${MAX_BUS_PRIORITY}`)
     if (nodes.length === 0) errors.push(`${net}: no nodes`)
 
+    for (const p of checkCanopenNetwork(device.canopenConfig, cycleUs))
+      if (p.level === 'error') errors.push(p.where ? `${net} ${checkText(p)}` : `${net}: ${p.text}`)
+    if (network.bootTimeoutMs < 100 || network.bootTimeoutMs > 60000)
+      errors.push(`${net}: the boot-up timeout must be 100 - 60000 ms`)
+    if (network.time.enabled && (network.time.periodMs < 10 || network.time.periodMs > 65535))
+      errors.push(`${net}: the TIME period must be 10 - 65535 ms`)
+
     const ids = new Map<number, string>()
     const names = new Set<string>()
-    const cobIds = new Map<number, string>()
     for (const node of nodes) {
       const label = `${net} node ${node.nodeId} (${node.name})`
       if (node.nodeId === network.masterNodeId) errors.push(`${label}: has the master's node ID`)
@@ -80,9 +81,6 @@ export function validateCanopenProject(remoteDevices: readonly PLCRemoteDevice[]
             errors.push(`${where}: transmission type ${pdo.transmissionType} is reserved`)
           const reserved = reservedCobId(pdo.cobId)
           if (reserved) errors.push(`${where}: COB-ID ${hex(pdo.cobId, 3)} is reserved for ${reserved}`)
-          const user = cobIds.get(pdo.cobId)
-          if (user) errors.push(`${where} and ${user} use the same COB-ID ${hex(pdo.cobId, 3)}`)
-          else cobIds.set(pdo.cobId, where)
           for (const e of pdo.entries) {
             const prefix = iecPrefixFor(e.dataType, direction)
             if (!e.iecLocation.startsWith(prefix)) {
@@ -100,13 +98,15 @@ export function validateCanopenProject(remoteDevices: readonly PLCRemoteDevice[]
       checkPdos(node.tpdos, 'input')
       checkPdos(node.rpdos, 'output')
 
-      const watch = watchMasterProblem(node, network.heartbeatProducerMs)
+      const watch = node.configure ? watchMasterProblem(node, network.heartbeatProducerMs) : null
       if (watch) errors.push(`${label}: ${watch}`)
 
       for (const sdo of node.sdos) {
         const where = `${label} startup SDO ${hex(sdo.index, 4)}:${sdo.subIndex}`
-        if (sdo.index === 0x1010 || sdo.index === 0x1011)
-          errors.push(`${where}: the master never writes 0x1010 (store) or 0x1011 (restore defaults)`)
+        if (sdo.index === 0x1010) errors.push(`${where}: the master never writes 0x1010 (store parameters)`)
+        else if (sdo.index === 0x1011)
+          errors.push(`${where}: 0x1011 is written only by the node's "Restore defaults" setting`)
+        if (!node.configure) continue
         const encoded = encodeCanopenValue(sdo.dataType, sdo.value)
         if (!encoded.ok) errors.push(`${where}: ${encoded.message}`)
       }

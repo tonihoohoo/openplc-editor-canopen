@@ -120,6 +120,11 @@ export const NodeStatusTab = ({ live, nodeId }: { live: CanopenLiveStatus; nodeI
               </span>
               <span className={hintClassName}>since {localTime(node.since)}</span>
             </div>
+            {node.held ? (
+              <p className='mb-3 text-xs text-neutral-850 dark:text-neutral-200' data-testid='canopen-node-held'>
+                Stopped after the error until the PLC restarts (the network stops nodes on error).
+              </p>
+            ) : null}
             {node.problem ? (
               <p className='mb-3 text-xs text-neutral-850 dark:text-neutral-200' data-testid='canopen-node-problem'>
                 {node.state === 'operational' ? 'Last problem: ' : ''}
@@ -128,6 +133,7 @@ export const NodeStatusTab = ({ live, nodeId }: { live: CanopenLiveStatus; nodeI
             ) : null}
             <dl className='grid max-w-[480px] grid-cols-[160px_1fr] gap-x-4 gap-y-1 text-xs'>
               <Row label='NMT state'>{nmtStateLabel(node.nmt)}</Row>
+              <Row label='Optional'>{node.optional ? 'Yes' : 'No'}</Row>
               <Row label='Boot attempts'>{node.boot_attempts}</Row>
               <Row label='Losses'>{node.losses}</Row>
             </dl>

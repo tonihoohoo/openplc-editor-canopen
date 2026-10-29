@@ -1,17 +1,26 @@
 import type {
+  CanopenDefaultSupervision,
   CanopenNetworkSettings,
   CanopenNode,
+  CanopenOnNodeError,
   CanopenOnPlcStop,
   CanopenSyncMode,
 } from '@root/middleware/shared/ports/canopen-types'
-import { CANOPEN_BITRATES, MAX_BUS_PRIORITY, MIN_BUS_PRIORITY } from '@root/middleware/shared/utils/canopen'
+import {
+  CANOPEN_BITRATES,
+  hasSyncWindow,
+  MAX_BUS_PRIORITY,
+  MIN_BUS_PRIORITY,
+} from '@root/middleware/shared/utils/canopen'
 
-import { NumberField, SelectField, type SelectOption, TextField } from './fields'
+import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { cardClassName, headingClassName } from './styles'
 
 type NetworkSettingsProps = {
   network: CanopenNetworkSettings
   nodes: readonly CanopenNode[]
+  /** The PLC cycle in microseconds, or null without a cyclic task. */
+  cycleUs: number | null
   onChange: (update: Partial<CanopenNetworkSettings>) => void
 }
 
@@ -45,8 +54,22 @@ const STOP_OPTIONS: ReadonlyArray<{ value: CanopenOnPlcStop; label: string }> = 
   { value: 'none', label: 'Leave running' },
 ]
 
-const NetworkSettings = ({ network, nodes, onChange }: NetworkSettingsProps) => {
+const ON_NODE_ERROR_OPTIONS: ReadonlyArray<{ value: CanopenOnNodeError; label: string }> = [
+  { value: 'restart', label: 'Restart the node' },
+  { value: 'stop', label: 'Stop the node' },
+]
+
+const NEW_NODE_SUPERVISION_OPTIONS: ReadonlyArray<{ value: CanopenDefaultSupervision; label: string }> = [
+  { value: 'auto', label: 'Automatic' },
+  { value: 'heartbeat', label: 'Heartbeat' },
+  { value: 'guarding', label: 'Node guarding' },
+  { value: 'none', label: 'None' },
+]
+
+const NetworkSettings = ({ network, nodes, cycleUs, onChange }: NetworkSettingsProps) => {
   const refusal = bitrateRefusal(network.bitrate, nodes)
+  const windowNodes = nodes.filter((n) => n.configure && hasSyncWindow(n.eds)).length
+  const { time, newNodeDefaults } = network
   return (
     <div className='flex flex-col gap-4 overflow-auto pb-4'>
       <div className={cardClassName}>
@@ -138,7 +161,109 @@ const NetworkSettings = ({ network, nodes, onChange }: NetworkSettingsProps) => 
               onCommit={(value) => onChange({ syncPeriodUs: value })}
             />
           ) : null}
+          {network.syncMode !== 'none' ? (
+            <NumberField
+              label='SYNC window (µs)'
+              value={network.syncWindowUs}
+              min={0}
+              max={4294967295}
+              objectRef='0x1007'
+              hint={`Written to the ${windowNodes} node${windowNodes === 1 ? '' : 's'} that take one; 0 for none`}
+              onCommit={(value) => onChange({ syncWindowUs: value })}
+            />
+          ) : null}
         </div>
+        {network.syncMode === 'plc_cycle' ? (
+          <p className='mt-2 text-[10px] text-neutral-500 dark:text-neutral-500'>
+            {cycleUs === null
+              ? 'The project has no cyclic task, so the SYNC period is not known.'
+              : `The PLC cycle is ${cycleUs / 1000} ms.`}
+          </p>
+        ) : null}
+      </div>
+
+      <div className={cardClassName}>
+        <h3 className={headingClassName}>Startup and errors</h3>
+        <div className='grid max-w-[640px] grid-cols-2 gap-4'>
+          <NumberField
+            label='Boot-up timeout (ms)'
+            value={network.bootTimeoutMs}
+            min={100}
+            max={60000}
+            hint='A node that is not up this long after the start is reported; optional nodes are not errors'
+            onCommit={(value) => onChange({ bootTimeoutMs: value })}
+          />
+          <SelectField
+            label='On node error'
+            value={network.onNodeError}
+            options={ON_NODE_ERROR_OPTIONS}
+            hint='When a node is lost or fails its boot: restart it and keep trying, or stop it until the PLC restarts'
+            onChange={(value) => onChange({ onNodeError: value })}
+          />
+        </div>
+      </div>
+
+      <div className={cardClassName}>
+        <h3 className={headingClassName}>TIME</h3>
+        <div className='flex max-w-[640px] flex-col gap-3'>
+          <CheckboxField
+            label='Send TIME'
+            checked={time.enabled}
+            hint="The master sends the runtime's time of day; nodes set to receive TIME take it"
+            onChange={(enabled) => onChange({ time: { ...time, enabled } })}
+          />
+          {time.enabled ? (
+            <div className='grid grid-cols-2 gap-4'>
+              <NumberField
+                label='TIME COB-ID'
+                value={time.cobId}
+                min={1}
+                max={0x7ff}
+                hex
+                hint='0x100 by default'
+                onCommit={(cobId) => onChange({ time: { ...time, cobId } })}
+              />
+              <NumberField
+                label='TIME period (ms)'
+                value={time.periodMs}
+                min={10}
+                max={65535}
+                onCommit={(periodMs) => onChange({ time: { ...time, periodMs } })}
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className={cardClassName}>
+        <h3 className={headingClassName}>Defaults for new nodes</h3>
+        <div className='grid max-w-[640px] grid-cols-2 gap-4'>
+          <SelectField
+            label='Supervision'
+            value={newNodeDefaults.supervision}
+            options={NEW_NODE_SUPERVISION_OPTIONS}
+            hint='Automatic: heartbeat when the device has one, else node guarding'
+            onChange={(supervision) => onChange({ newNodeDefaults: { ...newNodeDefaults, supervision } })}
+          />
+          <NumberField
+            label='Heartbeat timeout (%)'
+            value={newNodeDefaults.heartbeatTimeoutPercent}
+            min={100}
+            max={1000}
+            hint="Of the node's heartbeat time"
+            onCommit={(heartbeatTimeoutPercent) =>
+              onChange({ newNodeDefaults: { ...newNodeDefaults, heartbeatTimeoutPercent } })
+            }
+          />
+          <CheckboxField
+            label='Emergency messages'
+            checked={newNodeDefaults.emcy}
+            onChange={(emcy) => onChange({ newNodeDefaults: { ...newNodeDefaults, emcy } })}
+          />
+        </div>
+        <p className='mt-2 text-[10px] text-neutral-500 dark:text-neutral-500'>
+          Used when a node is added; nodes already on the network keep their settings.
+        </p>
       </div>
     </div>
   )
