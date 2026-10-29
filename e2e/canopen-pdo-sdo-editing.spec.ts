@@ -43,7 +43,9 @@ test('reordered entries, transmission type and startup SDOs reach conf/canopen.j
   const { project, userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-editing'), '', STATION)
   const { app, page } = await launch(userData)
   // Below a desktop size the app shows its mobile notice instead; 1280x720 is the smallest layout checked.
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1280, 720)))
+  await expect(async () => {
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1280, 720)))
+  }).toPass({ timeout: 15000 })
   try {
     await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
     await page.getByText('canopen_1', { exact: true }).first().click({ timeout: 30000 })
