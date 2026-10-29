@@ -147,7 +147,7 @@ const CanopenEditor = () => {
   )
 
   return (
-    <div aria-label='CANopen editor container' className='flex h-full w-full flex-col overflow-hidden p-4'>
+    <div aria-label='CANopen editor container' className='flex h-full w-full flex-col overflow-y-auto p-4'>
       <div className='mb-4 shrink-0'>
         <h2 className='text-lg font-semibold text-neutral-1000 dark:text-neutral-100'>CANopen network: {deviceName}</h2>
         <p className='text-sm text-neutral-600 dark:text-neutral-400'>
@@ -176,14 +176,14 @@ const CanopenEditor = () => {
         onValueChange={(v) => {
           if (isEditorTab(v)) setTab(v)
         }}
-        className='flex min-h-0 flex-1 flex-col'
+        className='flex min-h-[360px] flex-1 flex-col'
       >
         <Tabs.List className='mb-4 flex shrink-0 border-b border-neutral-200 dark:border-neutral-800'>
           <TabItem value='nodes' label='Nodes' active={tab === 'nodes'} />
           <TabItem value='network' label='Network' active={tab === 'network'} />
         </Tabs.List>
 
-        <Tabs.Content value='nodes' className='flex min-h-0 flex-1 gap-4 overflow-hidden'>
+        <Tabs.Content value='nodes' className='flex min-h-0 flex-1 gap-4 overflow-hidden data-[state=inactive]:hidden'>
           <NodeList
             nodes={config.nodes}
             selectedId={selected?.id ?? null}
@@ -220,7 +220,7 @@ const CanopenEditor = () => {
           )}
         </Tabs.Content>
 
-        <Tabs.Content value='network' className='min-h-0 flex-1 overflow-hidden'>
+        <Tabs.Content value='network' className='min-h-0 flex-1 overflow-y-auto data-[state=inactive]:hidden'>
           <NetworkSettings network={config.network} onChange={changeNetwork} />
         </Tabs.Content>
       </Tabs.Root>
