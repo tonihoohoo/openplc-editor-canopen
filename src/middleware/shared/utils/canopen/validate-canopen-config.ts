@@ -9,7 +9,7 @@ import type { PLCRemoteDevice } from '../../ports/types'
 import { CANOPEN_BITRATES, iecPrefixFor } from './data-types'
 import { findObject } from './eds-parser'
 import { pdoActive } from './generate-canopen-config'
-import { MAX_PDO_BITS, pdoBits, type PdoDirection } from './model'
+import { MAX_PDO_BITS, pdoBits, type PdoDirection, RTR_TRANSMISSION_TYPES } from './model'
 import { encodeCanopenValue } from './sdo-value'
 
 const hex = (v: number, width: number): string => `0x${v.toString(16).toUpperCase().padStart(width, '0')}`
@@ -63,6 +63,12 @@ export function validateCanopenProject(remoteDevices: readonly PLCRemoteDevice[]
           if (!pdoActive(pdo)) continue
           const where = `${label} ${direction === 'input' ? 'TPDO' : 'RPDO'} ${pdo.number}`
           if (pdoBits(pdo) > MAX_PDO_BITS) errors.push(`${where}: maps ${pdoBits(pdo)} bits; a PDO holds at most 64`)
+          if (RTR_TRANSMISSION_TYPES.includes(pdo.transmissionType))
+            errors.push(
+              `${where}: transmission type ${pdo.transmissionType} needs remote requests (RTR), which are not supported`,
+            )
+          else if (pdo.transmissionType > 240 && pdo.transmissionType < 252)
+            errors.push(`${where}: transmission type ${pdo.transmissionType} is reserved`)
           const reserved = reservedCobId(pdo.cobId)
           if (reserved) errors.push(`${where}: COB-ID ${hex(pdo.cobId, 3)} is reserved for ${reserved}`)
           const user = cobIds.get(pdo.cobId)

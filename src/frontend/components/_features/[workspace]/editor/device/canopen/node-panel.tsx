@@ -8,20 +8,15 @@ import type {
   CanopenSdo,
   CanopenSupervision,
 } from '@root/middleware/shared/ports/canopen-types'
-import { findObject, type PdoDirection, updatePdo } from '@root/middleware/shared/utils/canopen'
+import { findObject, objectParameterState, type PdoDirection, updatePdo } from '@root/middleware/shared/utils/canopen'
 import { useState } from 'react'
 
-import { CheckboxField, NumberField, SelectField, TextField } from './fields'
+import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { PdoSection } from './pdo-section'
 import { SdoSection } from './sdo-section'
 import { cardClassName, headingClassName, hintClassName, secondaryButtonClassName } from './styles'
 
 type NodeTab = 'general' | 'inputs' | 'outputs' | 'sdos'
-
-const SUPERVISION_OPTIONS: ReadonlyArray<{ value: CanopenSupervision; label: string }> = [
-  { value: 'heartbeat', label: 'Heartbeat' },
-  { value: 'none', label: 'None' },
-]
 
 const ON_LOSS_OPTIONS: ReadonlyArray<{ value: CanopenOnLoss; label: string }> = [
   { value: 'hold', label: 'Hold last values' },
@@ -37,6 +32,8 @@ type NodePanelProps = {
   /** Every node of the network, for the name and node ID checks. */
   nodes: CanopenNode[]
   masterNodeId: number
+  /** The network sends SYNC. */
+  syncOn: boolean
   sdoWarnings: ReadonlyMap<string, string>
   onChange: (update: (node: CanopenNode) => CanopenNode) => void
   onNodeIdChange: (nodeId: number) => void
@@ -65,6 +62,7 @@ const NodePanel = ({
   node,
   nodes,
   masterNodeId,
+  syncOn,
   sdoWarnings,
   onChange,
   onNodeIdChange,
@@ -74,6 +72,15 @@ const NodePanel = ({
   const [tab, setTab] = useState<NodeTab>('general')
   const { eds } = node
   const canHeartbeat = findObject(eds, 0x1017, 0) !== undefined
+  const heartbeatObject = objectParameterState(eds, 0x1017, 0)
+  const supervisionOptions: ReadonlyArray<SelectOption<CanopenSupervision>> = [
+    {
+      value: 'heartbeat',
+      label: 'Heartbeat',
+      disabledReason: canHeartbeat ? null : 'the device has no heartbeat producer (0x1017)',
+    },
+    { value: 'none', label: 'None' },
+  ]
   const mappedInputs = node.tpdos.filter((p) => p.enabled).reduce((n, p) => n + p.entries.length, 0)
   const mappedOutputs = node.rpdos.filter((p) => p.enabled).reduce((n, p) => n + p.entries.length, 0)
 
@@ -176,7 +183,7 @@ const NodePanel = ({
                 <SelectField
                   label='Supervision'
                   value={node.supervision}
-                  options={SUPERVISION_OPTIONS}
+                  options={supervisionOptions}
                   hint={canHeartbeat ? undefined : 'The device has no heartbeat producer (0x1017)'}
                   onChange={(supervision) => onChange((n) => ({ ...n, supervision }))}
                 />
@@ -193,7 +200,8 @@ const NodePanel = ({
                       value={node.heartbeatProducerMs}
                       min={1}
                       max={65535}
-                      hint="Written to the node's 0x1017 at boot"
+                      objectRef={heartbeatObject.ref}
+                      hint={heartbeatObject.notWrittenReason ?? 'Written to the node at boot'}
                       onCommit={(heartbeatProducerMs) => onChange((n) => ({ ...n, heartbeatProducerMs }))}
                     />
                     <NumberField
@@ -239,6 +247,8 @@ const NodePanel = ({
             pdos={node.tpdos}
             direction='input'
             eds={eds}
+            nodeId={node.nodeId}
+            syncOn={syncOn}
             onChange={changePdo('input')}
             onAliasChange={onAliasChange}
           />
@@ -249,6 +259,8 @@ const NodePanel = ({
             pdos={node.rpdos}
             direction='output'
             eds={eds}
+            nodeId={node.nodeId}
+            syncOn={syncOn}
             onChange={changePdo('output')}
             onAliasChange={onAliasChange}
           />

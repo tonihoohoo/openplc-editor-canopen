@@ -49,6 +49,21 @@ describe('parseEds', () => {
     expect(keys).toEqual([...keys].sort((a, b) => a - b))
   })
 
+  it('keeps parent names, limits and unsupported bit rates', () => {
+    const eds = genericIoEds()
+    expect(findObject(eds, 0x6401, 1)?.parentName).toBe('Analogue inputs')
+    expect(findObject(eds, 0x2200, 2)?.parentName).toBe('Counters')
+    expect(findObject(eds, 0x2100, 0)?.parentName).toBeUndefined()
+    expect(eds.unsupportedBitrates).toEqual([])
+    const text = GENERIC_IO_EDS.replace('BaudRate_1000=1', 'BaudRate_1000=0').replace(
+      'ParameterName=Parameter\n',
+      'ParameterName=Parameter\nLowLimit=1\nHighLimit=0x64\n',
+    )
+    const limited = parseEds(text, 'x.eds')
+    expect(limited.unsupportedBitrates).toEqual([1000000])
+    expect(findObject(limited, 0x2100, 0)).toMatchObject({ lowLimit: '1', highLimit: '0x64' })
+  })
+
   it('keeps the code of a type the master does not support', () => {
     expect(findObject(genericIoEds(), 0x1008, 0)?.dataType).toBe('0x0009')
   })

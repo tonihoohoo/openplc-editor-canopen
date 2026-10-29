@@ -30,6 +30,11 @@ export interface CanopenObject {
   access: CanopenAccess
   pdoMapping: boolean
   defaultValue?: string
+  /** Name of the array or record this sub-index belongs to. */
+  parentName?: string
+  /** EDS LowLimit and HighLimit, as written in the EDS. */
+  lowLimit?: string
+  highLimit?: string
 }
 
 /** What the editor keeps of a node's EDS. */
@@ -44,6 +49,8 @@ export interface CanopenEdsInfo {
   /** Number of receive and transmit PDOs the device supports. */
   rxPdoCount: number
   txPdoCount: number
+  /** Bit rates (bit/s) the EDS marks as not supported (`BaudRate_x=0`). */
+  unsupportedBitrates?: number[]
   objects: CanopenObject[]
 }
 

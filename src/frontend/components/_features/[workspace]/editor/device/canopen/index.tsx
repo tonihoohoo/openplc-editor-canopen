@@ -200,6 +200,7 @@ const CanopenEditor = () => {
               node={selected}
               nodes={config.nodes}
               masterNodeId={config.network.masterNodeId}
+              syncOn={config.network.syncMode !== 'none'}
               sdoWarnings={sdoWarnings}
               onChange={(update) => commit((c) => updateNode(c, selected.id, update))}
               onNodeIdChange={(nodeId) => commit((c) => updateNode(c, selected.id, (n) => withNodeId(n, nodeId)))}
@@ -221,7 +222,7 @@ const CanopenEditor = () => {
         </Tabs.Content>
 
         <Tabs.Content value='network' className='min-h-0 flex-1 overflow-y-auto data-[state=inactive]:hidden'>
-          <NetworkSettings network={config.network} onChange={changeNetwork} />
+          <NetworkSettings network={config.network} nodes={config.nodes} onChange={changeNetwork} />
         </Tabs.Content>
       </Tabs.Root>
     </div>

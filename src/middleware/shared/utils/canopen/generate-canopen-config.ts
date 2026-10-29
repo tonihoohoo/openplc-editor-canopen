@@ -4,7 +4,7 @@
  * communication and mapping parameters, then the user's startup SDOs) resolved from its EDS.
  */
 
-import type { CanopenNode, CanopenPdo } from '../../ports/canopen-types'
+import type { CanopenEdsInfo, CanopenNode, CanopenPdo } from '../../ports/canopen-types'
 import type { PLCRemoteDevice } from '../../ports/types'
 import { canopenTypeBits } from './data-types'
 import { findObject } from './eds-parser'
@@ -35,10 +35,18 @@ function le(value: number, bytes: number): string {
   return toHex(out)
 }
 
-function writable(node: CanopenNode, index: number, subIndex: number): boolean {
-  const o = findObject(node.eds, index, subIndex)
+/** Whether the EDS defines this sub-object and the master may write it. */
+export function isWritableObject(eds: CanopenEdsInfo, index: number, subIndex: number): boolean {
+  const o = findObject(eds, index, subIndex)
   return o !== undefined && o.access !== 'ro' && o.access !== 'const'
 }
+
+function writable(node: CanopenNode, index: number, subIndex: number): boolean {
+  return isWritableObject(node.eds, index, subIndex)
+}
+
+/** COB-ID bit 30: no remote request allowed on this PDO. */
+const COB_ID_NO_RTR = 0x40000000
 
 /** Whether the master exchanges this PDO. */
 export function pdoActive(pdo: CanopenPdo): boolean {
@@ -51,7 +59,8 @@ function pdoSdos(node: CanopenNode, pdo: CanopenPdo, direction: PdoDirection): S
   const out: SdoOut[] = []
   const cobWritable = writable(node, comm, 1)
   const active = pdoActive(pdo)
-  if (cobWritable) out.push({ index: comm, subindex: 1, data: le((pdo.cobId | 0x80000000) >>> 0, 4) })
+  const cobId = direction === 'input' ? (pdo.cobId | COB_ID_NO_RTR) >>> 0 : pdo.cobId
+  if (cobWritable) out.push({ index: comm, subindex: 1, data: le((cobId | 0x80000000) >>> 0, 4) })
   if (!active) return out
   if (!pdo.fixedMapping && writable(node, map, 0)) {
     out.push({ index: map, subindex: 0, data: le(0, 1) })
@@ -66,7 +75,7 @@ function pdoSdos(node: CanopenNode, pdo: CanopenPdo, direction: PdoDirection): S
     if (writable(node, comm, 3)) out.push({ index: comm, subindex: 3, data: le(pdo.inhibitTime, 2) })
     if (writable(node, comm, 5)) out.push({ index: comm, subindex: 5, data: le(pdo.eventTimerMs, 2) })
   }
-  if (cobWritable) out.push({ index: comm, subindex: 1, data: le(pdo.cobId, 4) })
+  if (cobWritable) out.push({ index: comm, subindex: 1, data: le(cobId, 4) })
   return out
 }
 

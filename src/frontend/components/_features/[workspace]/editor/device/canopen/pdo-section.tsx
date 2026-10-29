@@ -4,49 +4,122 @@ import type { CanopenEdsInfo, CanopenEntry, CanopenPdo } from '@root/middleware/
 import {
   cannotMap,
   entryFor,
+  isSynchronousType,
   mappableObjects,
   MAX_PDO_BITS,
+  moveItem,
   objectRef,
   pdoBits,
   type PdoDirection,
+  pdoParameterState,
   placeholderAddress,
   toCanopenDataType,
+  transmissionChoices,
+  type TransmissionMode,
+  transmissionMode,
+  transmissionTypeFor,
   withPdoEnabled,
 } from '@root/middleware/shared/utils/canopen'
 import { useMemo } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
-import { CheckboxField, NumberField, TextField } from './fields'
-import { cardClassName, hintClassName, iconButtonClassName, inputClassName } from './styles'
+import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
+import { ObjectPicker } from './object-picker'
+import { MoveButtons, SortableBody, SortableRow } from './sortable-rows'
+import { cardClassName, hintClassName, iconButtonClassName } from './styles'
 
-const transmissionHint = (type: number): string => {
-  if (type === 0) return 'Synchronous, acyclic'
-  if (type <= 240) return `Synchronous, every ${type} SYNC`
-  if (type === 252 || type === 253) return 'On remote request'
-  if (type === 254) return 'Event-driven (manufacturer specific)'
-  if (type === 255) return 'Event-driven (device profile)'
-  return 'Reserved'
+type ModeValue = TransmissionMode | 'unsupported'
+
+type TransmissionFieldProps = {
+  pdo: CanopenPdo
+  direction: PdoDirection
+  eds: CanopenEdsInfo
+  nodeId: number
+  syncOn: boolean
+  onChange: (transmissionType: number) => void
+}
+
+/** Transmission type as a mode dropdown, with N beside it for "every N SYNC". */
+const TransmissionField = ({ pdo, direction, eds, nodeId, syncOn, onChange }: TransmissionFieldProps) => {
+  const info = useMemo(
+    () => transmissionChoices(eds, direction, pdo.number, nodeId),
+    [eds, direction, pdo.number, nodeId],
+  )
+  const { ref } = pdoParameterState(eds, direction, pdo.number, 2)
+  const mode = transmissionMode(pdo.transmissionType)
+  const options: Array<SelectOption<ModeValue>> = info.choices.map((c) => ({
+    value: c.mode,
+    label: c.edsDefault ? `${c.label} (EDS default)` : c.label,
+    disabledReason: c.disabledReason,
+  }))
+  if (mode === null)
+    options.unshift({ value: 'unsupported', label: `Not supported (${pdo.transmissionType})`, disabledReason: null })
+  const warning =
+    mode === null
+      ? 'Remote request and reserved types are not supported; pick another type'
+      : !syncOn && isSynchronousType(pdo.transmissionType)
+        ? 'Needs SYNC, which is off for this network'
+        : undefined
+  const hint =
+    info.readOnlyReason ??
+    (info.replacedEdsDefault !== null
+      ? `EDS default ${info.replacedEdsDefault} uses remote requests (RTR), which are not supported`
+      : undefined)
+  const cyclicN = mode === 'sync_cyclic' ? pdo.transmissionType : Math.min(Math.max(1, info.cyclicMin), info.cyclicMax)
+  return (
+    <div className='flex items-start gap-2'>
+      <SelectField
+        label='Transmission type'
+        value={mode ?? 'unsupported'}
+        options={options}
+        disabled={info.readOnlyReason !== null}
+        objectRef={ref}
+        hint={hint}
+        warning={warning}
+        className='w-[260px]'
+        onChange={(next) => {
+          if (next !== 'unsupported') onChange(transmissionTypeFor(next, cyclicN))
+        }}
+      />
+      {mode === 'sync_cyclic' ? (
+        <NumberField
+          label='Every N SYNC'
+          value={pdo.transmissionType}
+          min={info.cyclicMin}
+          max={info.cyclicMax}
+          disabled={info.readOnlyReason !== null}
+          className='w-[90px]'
+          onCommit={onChange}
+        />
+      ) : null}
+    </div>
+  )
 }
 
 type PdoCardProps = {
   pdo: CanopenPdo
   direction: PdoDirection
   eds: CanopenEdsInfo
+  nodeId: number
+  syncOn: boolean
   onChange: (pdo: CanopenPdo) => void
   /** Returns an error message to refuse the alias, or null after it is accepted. */
   onAliasChange: (entry: CanopenEntry, alias: string) => string | null
 }
 
-const PdoCard = ({ pdo, direction, eds, onChange, onAliasChange }: PdoCardProps) => {
+const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, onChange, onAliasChange }: PdoCardProps) => {
   const isInput = direction === 'input'
   const title = `${isInput ? 'TPDO' : 'RPDO'} ${pdo.number}`
   const bits = pdoBits(pdo)
   const candidates = useMemo(() => mappableObjects(eds, direction), [eds, direction])
+  const cob = pdoParameterState(eds, direction, pdo.number, 1)
+  const inhibit = pdoParameterState(eds, direction, pdo.number, 3)
+  const timer = pdoParameterState(eds, direction, pdo.number, 5)
+  const moveEntry = (from: number, to: number) => onChange({ ...pdo, entries: moveItem(pdo.entries, from, to) })
 
-  const addEntry = (key: string) => {
-    const object = candidates.find((o) => objectRef(o.index, o.subIndex) === key)
-    const type = object ? toCanopenDataType(object.dataType) : undefined
-    if (!object || !type || cannotMap(pdo, object)) return
+  const addEntry = (object: (typeof candidates)[number]) => {
+    const type = toCanopenDataType(object.dataType)
+    if (!type || cannotMap(pdo, object)) return
     const entry = entryFor(object, type, direction, uuidv4(), pdo.enabled ? placeholderAddress : undefined)
     onChange({ ...pdo, entries: [...pdo.entries, entry] })
   }
@@ -68,17 +141,19 @@ const PdoCard = ({ pdo, direction, eds, onChange, onAliasChange }: PdoCardProps)
           min={1}
           max={0x7ff}
           hex
+          objectRef={cob.ref}
+          hint={cob.notWrittenReason ?? undefined}
+          disabled={cob.notWrittenReason !== null}
           className='w-[110px]'
           onCommit={(cobId) => onChange({ ...pdo, cobId })}
         />
-        <NumberField
-          label='Transmission type'
-          value={pdo.transmissionType}
-          min={0}
-          max={255}
-          hint={transmissionHint(pdo.transmissionType)}
-          className='w-[180px]'
-          onCommit={(transmissionType) => onChange({ ...pdo, transmissionType })}
+        <TransmissionField
+          pdo={pdo}
+          direction={direction}
+          eds={eds}
+          nodeId={nodeId}
+          syncOn={syncOn}
+          onChange={(transmissionType) => onChange({ ...pdo, transmissionType })}
         />
         {isInput ? (
           <>
@@ -87,8 +162,10 @@ const PdoCard = ({ pdo, direction, eds, onChange, onAliasChange }: PdoCardProps)
               value={pdo.eventTimerMs}
               min={0}
               max={65535}
-              hint='0 for none'
-              className='w-[130px]'
+              objectRef={timer.ref}
+              hint={timer.notWrittenReason ?? '0 for none'}
+              disabled={timer.notWrittenReason !== null}
+              className='w-[140px]'
               onCommit={(eventTimerMs) => onChange({ ...pdo, eventTimerMs })}
             />
             <NumberField
@@ -96,8 +173,10 @@ const PdoCard = ({ pdo, direction, eds, onChange, onAliasChange }: PdoCardProps)
               value={pdo.inhibitTime}
               min={0}
               max={65535}
-              hint='0 for none'
-              className='w-[130px]'
+              objectRef={inhibit.ref}
+              hint={inhibit.notWrittenReason ?? '0 for none'}
+              disabled={inhibit.notWrittenReason !== null}
+              className='w-[140px]'
               onCommit={(inhibitTime) => onChange({ ...pdo, inhibitTime })}
             />
           </>
@@ -111,24 +190,35 @@ const PdoCard = ({ pdo, direction, eds, onChange, onAliasChange }: PdoCardProps)
       <table className='w-full table-fixed text-left text-xs'>
         <thead className='text-neutral-500 dark:text-neutral-400'>
           <tr>
+            <th className='w-[24px] py-1' />
             <th className='w-[90px] py-1 font-medium'>Object</th>
             <th className='py-1 font-medium'>Name</th>
             <th className='w-[100px] py-1 font-medium'>Type</th>
             <th className='w-[90px] py-1 font-medium'>Address</th>
             <th className='w-[180px] py-1 font-medium'>Alias</th>
-            <th className='w-[32px] py-1' />
+            <th className='w-[84px] py-1' />
           </tr>
         </thead>
-        <tbody className='text-neutral-850 dark:text-neutral-300'>
+        <SortableBody
+          ids={pdo.entries.map((e) => e.channelId)}
+          onMove={moveEntry}
+          className='text-neutral-850 dark:text-neutral-300'
+        >
           {pdo.entries.length === 0 ? (
             <tr>
-              <td colSpan={6} className={cn(hintClassName, 'py-2')}>
+              <td colSpan={7} className={cn(hintClassName, 'py-2')}>
                 No entries mapped.
               </td>
             </tr>
           ) : null}
           {pdo.entries.map((entry, i) => (
-            <tr key={entry.channelId} className='border-t border-neutral-100 dark:border-neutral-800'>
+            <SortableRow
+              key={entry.channelId}
+              id={entry.channelId}
+              name={entry.name}
+              disabled={pdo.fixedMapping}
+              className='border-t border-neutral-100 dark:border-neutral-800'
+            >
               <td className='py-1 font-mono'>{objectRef(entry.index, entry.subIndex)}</td>
               <td className='truncate py-1' title={entry.name}>
                 {entry.name}
@@ -149,42 +239,34 @@ const PdoCard = ({ pdo, direction, eds, onChange, onAliasChange }: PdoCardProps)
                 )}
               </td>
               <td className='py-1'>
-                <button
-                  type='button'
-                  aria-label={`Remove ${entry.name}`}
-                  title='Remove entry'
-                  disabled={pdo.fixedMapping}
-                  onClick={() => onChange({ ...pdo, entries: pdo.entries.filter((_, k) => k !== i) })}
-                  className={iconButtonClassName}
-                >
-                  <TrashIcon className='h-4 w-4' />
-                </button>
+                <div className='flex items-center justify-end'>
+                  {pdo.fixedMapping ? null : (
+                    <MoveButtons name={entry.name} index={i} count={pdo.entries.length} onMove={moveEntry} />
+                  )}
+                  <button
+                    type='button'
+                    aria-label={`Remove ${entry.name}`}
+                    title='Remove entry'
+                    disabled={pdo.fixedMapping}
+                    onClick={() => onChange({ ...pdo, entries: pdo.entries.filter((_, k) => k !== i) })}
+                    className={iconButtonClassName}
+                  >
+                    <TrashIcon className='h-4 w-4' />
+                  </button>
+                </div>
               </td>
-            </tr>
+            </SortableRow>
           ))}
-        </tbody>
+        </SortableBody>
       </table>
 
       {pdo.fixedMapping ? null : (
-        <select
-          aria-label={`Add an object to ${title}`}
-          value=''
-          onChange={(e) => addEntry(e.target.value)}
-          className={cn(inputClassName, 'max-w-[420px]')}
-        >
-          <option value=''>
-            {candidates.length === 0 ? 'The device has no objects to map here' : 'Add an object...'}
-          </option>
-          {candidates.map((object) => {
-            const reason = cannotMap(pdo, object)
-            const key = objectRef(object.index, object.subIndex)
-            return (
-              <option key={key} value={key} disabled={reason !== null} title={reason ?? undefined}>
-                {`${key} ${object.name} (${object.dataType})${reason ? ' - does not fit' : ''}`}
-              </option>
-            )
-          })}
-        </select>
+        <ObjectPicker
+          label={`Add an object to ${title}`}
+          items={candidates.map((object) => ({ object, disabledReason: cannotMap(pdo, object) }))}
+          emptyText='The device has no objects to map here.'
+          onPick={addEntry}
+        />
       )}
     </div>
   )
@@ -194,11 +276,14 @@ type PdoSectionProps = {
   pdos: CanopenPdo[]
   direction: PdoDirection
   eds: CanopenEdsInfo
+  nodeId: number
+  /** The network sends SYNC. */
+  syncOn: boolean
   onChange: (pdo: CanopenPdo) => void
   onAliasChange: (entry: CanopenEntry, alias: string) => string | null
 }
 
-const PdoSection = ({ pdos, direction, eds, onChange, onAliasChange }: PdoSectionProps) => {
+const PdoSection = ({ pdos, direction, eds, nodeId, syncOn, onChange, onAliasChange }: PdoSectionProps) => {
   if (pdos.length === 0) {
     return (
       <p className={cn(hintClassName, 'p-2')}>
@@ -221,6 +306,8 @@ const PdoSection = ({ pdos, direction, eds, onChange, onAliasChange }: PdoSectio
           pdo={pdo}
           direction={direction}
           eds={eds}
+          nodeId={nodeId}
+          syncOn={syncOn}
           onChange={onChange}
           onAliasChange={onAliasChange}
         />

@@ -4,7 +4,7 @@
  */
 
 import type { CanopenAccess, CanopenEdsInfo, CanopenObject } from '../../ports/canopen-types'
-import { CANOPEN_TYPE_CODES } from './data-types'
+import { CANOPEN_BITRATES, CANOPEN_TYPE_CODES } from './data-types'
 
 export class EdsParseError extends Error {
   constructor(message: string) {
@@ -96,7 +96,7 @@ function typeName(code: number): string {
   return CANOPEN_TYPE_CODES[code] ?? `0x${code.toString(16).toUpperCase().padStart(4, '0')}`
 }
 
-function readSub(section: Section, index: number, subIndex: number, name?: string): CanopenObject {
+function readSub(section: Section, index: number, subIndex: number, name?: string, parentName?: string): CanopenObject {
   const accessEntry = section.keys.get('accesstype')
   const access = toAccess((accessEntry?.value ?? 'ro').toLowerCase())
   if (!access)
@@ -113,6 +113,11 @@ function readSub(section: Section, index: number, subIndex: number, name?: strin
   }
   const def = section.keys.get('defaultvalue')
   if (def && def.value !== '') object.defaultValue = def.value
+  if (parentName) object.parentName = parentName
+  const low = strKey(section, 'LowLimit')
+  const high = strKey(section, 'HighLimit')
+  if (low !== '') object.lowLimit = low
+  if (high !== '') object.highLimit = high
   return object
 }
 
@@ -134,6 +139,7 @@ export function parseEds(text: string, fileName: string): CanopenEdsInfo {
       continue
     }
     if (objectType !== 8 && objectType !== 9) continue // DOMAIN, DEFTYPE, DEFSTRUCT: not mappable
+    const parentName = strKey(section, 'ParameterName')
     const compact = intKey(section, 'CompactSubObj', 0)
     if (compact > 0) {
       const names = sections.get(`${m[1]}NAME`)
@@ -145,17 +151,18 @@ export function parseEds(text: string, fileName: string): CanopenEdsInfo {
         access: 'ro',
         pdoMapping: false,
         defaultValue: String(compact),
+        parentName,
       })
       for (let sub = 1; sub <= compact; sub++) {
         const custom = names?.keys.get(String(sub))?.value
-        objects.push(readSub(section, index, sub, custom ?? `${strKey(section, 'ParameterName')} ${sub}`))
+        objects.push(readSub(section, index, sub, custom ?? `${parentName} ${sub}`, parentName))
       }
       continue
     }
     const subPattern = new RegExp(`^${m[1]}SUB([0-9A-F]+)$`)
     for (const sub of sections.values()) {
       const sm = subPattern.exec(sub.name)
-      if (sm) objects.push(readSub(sub, index, parseInt(sm[1], 16)))
+      if (sm) objects.push(readSub(sub, index, parseInt(sm[1], 16), undefined, parentName))
     }
   }
   objects.sort((a, b) => a.index - b.index || a.subIndex - b.subIndex)
@@ -171,6 +178,7 @@ export function parseEds(text: string, fileName: string): CanopenEdsInfo {
     revision: intKey(info, 'RevisionNumber', 0),
     rxPdoCount: intKey(info, 'NrOfRXPDO', 0),
     txPdoCount: intKey(info, 'NrOfTXPDO', 0),
+    unsupportedBitrates: CANOPEN_BITRATES.filter((rate) => intKey(info, `BaudRate_${rate / 1000}`, 1) === 0),
     objects,
   }
 }

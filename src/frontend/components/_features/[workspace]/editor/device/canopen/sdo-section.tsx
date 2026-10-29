@@ -1,26 +1,54 @@
 import { TrashIcon } from '@radix-ui/react-icons'
 import { cn } from '@root/frontend/utils/cn'
-import type { CanopenDataType, CanopenNode, CanopenSdo } from '@root/middleware/shared/ports/canopen-types'
+import type {
+  CanopenDataType,
+  CanopenNode,
+  CanopenObject,
+  CanopenSdo,
+} from '@root/middleware/shared/ports/canopen-types'
 import {
   CANOPEN_DATA_TYPES,
   encodeCanopenValue,
+  findObject,
+  moveItem,
+  NEVER_WRITTEN_INDICES,
+  objectLabel,
   objectRef,
   parseEdsInteger,
+  startupSdoCandidates,
   toCanopenDataType,
 } from '@root/middleware/shared/utils/canopen'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
-import { NumberField, SelectField, TextField } from './fields'
-import { hintClassName, iconButtonClassName, inputClassName, secondaryButtonClassName } from './styles'
+import { CheckboxField, NumberField, SelectField, TextField } from './fields'
+import { ObjectPicker } from './object-picker'
+import { MoveButtons, SortableBody, SortableRow } from './sortable-rows'
+import { hintClassName, iconButtonClassName, secondaryButtonClassName } from './styles'
 
 const TYPE_OPTIONS: ReadonlyArray<{ value: CanopenDataType; label: string }> = CANOPEN_DATA_TYPES.map((t) => ({
   value: t,
   label: t,
 }))
 
-/** Store and restore parameters; the master never writes them. */
-const FORBIDDEN_INDICES = new Set([0x1010, 0x1011])
+const BOOLEAN_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: '0', label: 'FALSE' },
+  { value: '1', label: 'TRUE' },
+]
+
+/** "EDS default 5 · range 0 to 100" for an object of the EDS. */
+const valueHint = (object: CanopenObject | undefined): string | undefined => {
+  if (!object) return undefined
+  const parts: string[] = []
+  if (object.defaultValue !== undefined) parts.push(`EDS default ${object.defaultValue}`)
+  if (object.lowLimit !== undefined || object.highLimit !== undefined)
+    parts.push(`range ${object.lowLimit ?? '...'} to ${object.highLimit ?? '...'}`)
+  return parts.length > 0 ? parts.join(' · ') : undefined
+}
+
+/** The EDS type of an object the master supports, else undefined. */
+const edsType = (object: CanopenObject | undefined): CanopenDataType | undefined =>
+  object ? toCanopenDataType(object.dataType) : undefined
 
 type SdoSectionProps = {
   node: CanopenNode
@@ -29,25 +57,30 @@ type SdoSectionProps = {
 }
 
 const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
-  const writable = useMemo(
+  const [showAll, setShowAll] = useState(false)
+  const candidates = useMemo(() => startupSdoCandidates(node), [node])
+  const items = useMemo(
     () =>
-      node.eds.objects.filter(
-        (o) =>
-          o.access !== 'ro' &&
-          o.access !== 'const' &&
-          !FORBIDDEN_INDICES.has(o.index) &&
-          toCanopenDataType(o.dataType) !== undefined,
-      ),
-    [node.eds],
+      candidates
+        .filter((c) => showAll || c.hiddenReason === null)
+        .map((c) => ({ object: c.object, note: c.hiddenReason })),
+    [candidates, showAll],
   )
 
   const update = (id: string, patch: Partial<CanopenSdo>) =>
-    onChange(node.sdos.map((s) => (s.id === id ? { ...s, ...patch } : s)))
+    onChange(
+      node.sdos.map((s) => {
+        if (s.id !== id) return s
+        const next = { ...s, ...patch }
+        const type = edsType(findObject(node.eds, next.index, next.subIndex))
+        return type ? { ...next, dataType: type } : next
+      }),
+    )
+  const move = (from: number, to: number) => onChange(moveItem(node.sdos, from, to))
 
-  const addFromObject = (key: string) => {
-    const object = writable.find((o) => objectRef(o.index, o.subIndex) === key)
-    const dataType = object ? toCanopenDataType(object.dataType) : undefined
-    if (!object || !dataType) return
+  const addFromObject = (object: CanopenObject) => {
+    const dataType = edsType(object)
+    if (!dataType) return
     const fallback = object.defaultValue ?? '0'
     const integer = dataType.startsWith('REAL') ? null : parseEdsInteger(fallback, node.nodeId)
     const value = integer === null ? fallback : String(integer)
@@ -63,29 +96,36 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
       <table className='w-full table-fixed text-left text-xs'>
         <thead className='text-neutral-500 dark:text-neutral-400'>
           <tr>
-            <th className='w-[110px] py-1 font-medium'>Index</th>
-            <th className='w-[90px] py-1 font-medium'>Sub-index</th>
-            <th className='w-[140px] py-1 font-medium'>Type</th>
-            <th className='py-1 font-medium'>Value</th>
-            <th className='w-[32px] py-1' />
+            <th className='w-[24px] py-1' />
+            <th className='w-[90px] py-1 font-medium'>Index</th>
+            <th className='w-[64px] py-1 font-medium'>Sub-index</th>
+            <th className='py-1 font-medium'>Name</th>
+            <th className='w-[120px] py-1 font-medium'>Type</th>
+            <th className='w-[170px] py-1 font-medium'>Value</th>
+            <th className='w-[84px] py-1' />
           </tr>
         </thead>
-        <tbody className='text-neutral-850 dark:text-neutral-300'>
+        <SortableBody ids={node.sdos.map((s) => s.id)} onMove={move} className='text-neutral-850 dark:text-neutral-300'>
           {node.sdos.length === 0 ? (
             <tr>
-              <td colSpan={5} className={cn(hintClassName, 'py-2')}>
+              <td colSpan={7} className={cn(hintClassName, 'py-2')}>
                 No startup SDOs.
               </td>
             </tr>
           ) : null}
-          {node.sdos.map((sdo) => {
+          {node.sdos.map((sdo, i) => {
+            const ref = objectRef(sdo.index, sdo.subIndex)
+            const object = findObject(node.eds, sdo.index, sdo.subIndex)
+            const typeFromEds = edsType(object) !== undefined
             const encoded = encodeCanopenValue(sdo.dataType, sdo.value)
             const warning = warnings.get(sdo.id)
             return (
-              <tr
+              <SortableRow
                 key={sdo.id}
+                id={sdo.id}
+                name={`SDO ${ref}`}
                 className='border-t border-neutral-100 align-top dark:border-neutral-800'
-                data-testid='canopen-sdo-row'
+                testId='canopen-sdo-row'
               >
                 <td className='py-1 pr-2'>
                   <NumberField
@@ -110,23 +150,54 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
                   />
                 </td>
                 <td className='py-1 pr-2'>
-                  <SelectField
-                    label='Type'
-                    value={sdo.dataType}
-                    options={TYPE_OPTIONS}
-                    onChange={(dataType) => update(sdo.id, { dataType })}
-                  />
+                  <span className='flex flex-col gap-1'>
+                    <span className='text-xs font-medium text-neutral-700 dark:text-neutral-300'>Name</span>
+                    <span
+                      className={cn('flex h-[30px] items-center truncate', !object && 'italic text-neutral-500')}
+                      title={object ? objectLabel(object) : undefined}
+                    >
+                      {object ? objectLabel(object) : 'Not in the EDS'}
+                    </span>
+                  </span>
                 </td>
                 <td className='py-1 pr-2'>
-                  <TextField
-                    label='Value'
-                    value={sdo.value}
-                    onCommit={(value) => {
-                      update(sdo.id, { value })
-                      return null
-                    }}
-                  />
-                  {FORBIDDEN_INDICES.has(sdo.index) ? (
+                  {typeFromEds ? (
+                    <span className='flex flex-col gap-1'>
+                      <span className='text-xs font-medium text-neutral-700 dark:text-neutral-300'>Type</span>
+                      <span className='flex h-[30px] items-center' title='Data type from the EDS'>
+                        {sdo.dataType}
+                      </span>
+                    </span>
+                  ) : (
+                    <SelectField
+                      label='Type'
+                      value={sdo.dataType}
+                      options={TYPE_OPTIONS}
+                      onChange={(dataType) => update(sdo.id, { dataType })}
+                    />
+                  )}
+                </td>
+                <td className='py-1 pr-2'>
+                  {sdo.dataType === 'BOOLEAN' ? (
+                    <SelectField
+                      label='Value'
+                      value={encoded.ok && encoded.bytes[0] === 1 ? '1' : '0'}
+                      options={BOOLEAN_OPTIONS}
+                      hint={valueHint(object)}
+                      onChange={(value) => update(sdo.id, { value })}
+                    />
+                  ) : (
+                    <TextField
+                      label='Value'
+                      value={sdo.value}
+                      hint={valueHint(object)}
+                      onCommit={(value) => {
+                        update(sdo.id, { value })
+                        return null
+                      }}
+                    />
+                  )}
+                  {NEVER_WRITTEN_INDICES.has(sdo.index) ? (
                     <span className='text-[10px] text-red-600 dark:text-red-400'>
                       The master never writes 0x1010 or 0x1011.
                     </span>
@@ -137,44 +208,48 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
                   ) : null}
                 </td>
                 <td className='py-1 pt-6'>
-                  <button
-                    type='button'
-                    aria-label={`Remove SDO ${objectRef(sdo.index, sdo.subIndex)}`}
-                    title='Remove SDO'
-                    onClick={() => onChange(node.sdos.filter((s) => s.id !== sdo.id))}
-                    className={iconButtonClassName}
-                  >
-                    <TrashIcon className='h-4 w-4' />
-                  </button>
+                  <div className='flex items-center justify-end'>
+                    <MoveButtons name={`SDO ${ref}`} index={i} count={node.sdos.length} onMove={move} />
+                    <button
+                      type='button'
+                      aria-label={`Remove SDO ${ref}`}
+                      title='Remove SDO'
+                      onClick={() => onChange(node.sdos.filter((s) => s.id !== sdo.id))}
+                      className={iconButtonClassName}
+                    >
+                      <TrashIcon className='h-4 w-4' />
+                    </button>
+                  </div>
                 </td>
-              </tr>
+              </SortableRow>
             )
           })}
-        </tbody>
+        </SortableBody>
       </table>
       <div className='flex flex-wrap items-center gap-2'>
-        <select
-          aria-label='Add an SDO for an object of the device'
-          value=''
-          onChange={(e) => addFromObject(e.target.value)}
-          className={cn(inputClassName, 'max-w-[420px]')}
-        >
-          <option value=''>{writable.length === 0 ? 'The device has no writable objects' : 'Add an object...'}</option>
-          {writable.map((o) => {
-            const key = objectRef(o.index, o.subIndex)
-            return (
-              <option key={key} value={key}>
-                {`${key} ${o.name} (${o.dataType})`}
-              </option>
-            )
-          })}
-        </select>
+        <ObjectPicker
+          label='Add an SDO for an object of the device'
+          items={items}
+          emptyText={
+            showAll ? 'The device has no writable objects.' : 'No more objects to offer. Turn on "Show all objects".'
+          }
+          onPick={addFromObject}
+          toolbar={
+            <CheckboxField
+              label='Show all objects'
+              hint='Including those the editor writes itself or that are normally not set at boot'
+              checked={showAll}
+              onChange={setShowAll}
+            />
+          }
+        />
         <button
           type='button'
           className={secondaryButtonClassName}
-          onClick={() =>
-            onChange([...node.sdos, { id: uuidv4(), index: 0x2000, subIndex: 0, dataType: 'UNSIGNED8', value: '0' }])
-          }
+          onClick={() => {
+            const dataType = edsType(findObject(node.eds, 0x2000, 0)) ?? 'UNSIGNED8'
+            onChange([...node.sdos, { id: uuidv4(), index: 0x2000, subIndex: 0, dataType, value: '0' }])
+          }}
         >
           Add by index
         </button>
