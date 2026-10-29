@@ -201,6 +201,7 @@ const CanopenEditor = () => {
               nodes={config.nodes}
               masterNodeId={config.network.masterNodeId}
               syncOn={config.network.syncMode !== 'none'}
+              masterHeartbeatMs={config.network.heartbeatProducerMs}
               sdoWarnings={sdoWarnings}
               onChange={(update) => commit((c) => updateNode(c, selected.id, update))}
               onNodeIdChange={(nodeId) => commit((c) => updateNode(c, selected.id, (n) => withNodeId(n, nodeId)))}

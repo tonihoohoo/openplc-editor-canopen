@@ -30,16 +30,18 @@ SupportedObjects=3
 3=0x1018
 
 [OptionalObjects]
-SupportedObjects=9
+SupportedObjects=11
 1=0x1008
-2=0x1017
-3=0x1400
-4=0x1600
-5=0x1800
-6=0x1A00
-7=0x6000
-8=0x6200
-9=0x6401
+2=0x1016
+3=0x1017
+4=0x1029
+5=0x1400
+6=0x1600
+7=0x1800
+8=0x1A00
+9=0x6000
+10=0x6200
+11=0x6401
 
 [ManufacturerObjects]
 SupportedObjects=2
@@ -67,6 +69,27 @@ ObjectType=0x7
 DataType=0x0009
 AccessType=const
 DefaultValue=Generic I/O
+PDOMapping=0
+
+[1016]
+ParameterName=Consumer heartbeat time
+ObjectType=0x9
+SubNumber=2
+
+[1016sub0]
+ParameterName=Highest sub-index supported
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=1
+PDOMapping=0
+
+[1016sub1]
+ParameterName=Consumer heartbeat time
+ObjectType=0x7
+DataType=0x0007
+AccessType=rw
+DefaultValue=0
 PDOMapping=0
 
 [1017]
@@ -119,6 +142,27 @@ ParameterName=Serial number
 ObjectType=0x7
 DataType=0x0007
 AccessType=ro
+DefaultValue=0
+PDOMapping=0
+
+[1029]
+ParameterName=Error behaviour
+ObjectType=0x9
+SubNumber=2
+
+[1029sub0]
+ParameterName=Highest sub-index supported
+ObjectType=0x7
+DataType=0x0005
+AccessType=ro
+DefaultValue=1
+PDOMapping=0
+
+[1029sub1]
+ParameterName=Communication error
+ObjectType=0x7
+DataType=0x0005
+AccessType=rw
 DefaultValue=0
 PDOMapping=0
 

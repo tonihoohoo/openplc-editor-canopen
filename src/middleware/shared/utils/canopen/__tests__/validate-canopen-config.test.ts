@@ -1,5 +1,10 @@
 import type { CanopenConfig } from '../../../ports/canopen-types'
-import { canopenSdoWarnings, reservedCobId, validateCanopenProject } from '../validate-canopen-config'
+import {
+  canopenSdoWarnings,
+  reservedCobId,
+  validateCanopenProject,
+  watchMasterProblem,
+} from '../validate-canopen-config'
 import { canopenDevice, configWith, genericNode } from './fixtures/helpers'
 
 const errorsOf = (config: CanopenConfig): string[] => validateCanopenProject([canopenDevice('net', config)])
@@ -85,6 +90,30 @@ describe('validateCanopenProject', () => {
   })
 })
 
+describe('watch the master', () => {
+  it('needs a master heartbeat shorter than the node waits', () => {
+    const node = genericNode(2)
+    const config = configWith(node)
+    config.network.heartbeatProducerMs = 0
+    expect(errorsOf(config)).toEqual([
+      'CANopen "net" node 2 (io2): watches the master\'s heartbeat, but the master sends none; set the master heartbeat',
+    ])
+    config.network.heartbeatProducerMs = 300
+    expect(watchMasterProblem(node, 300)).toBe(
+      "the master's heartbeat (300 ms) must be shorter than the time the node waits for it (300 ms)",
+    )
+    expect(errorsOf(config)).toHaveLength(1)
+    node.watchMaster.enabled = false
+    expect(errorsOf(config)).toEqual([])
+  })
+
+  it('checks the real-time priority', () => {
+    const config = configWith(genericNode(2))
+    config.network.priority = 98
+    expect(errorsOf(config)).toEqual(['CANopen "net": real-time priority 98 is outside 1 - 97'])
+  })
+})
+
 describe('reservedCobId', () => {
   it('names the reserved ranges', () => {
     expect(reservedCobId(0)).toBe('NMT')
@@ -109,5 +138,15 @@ describe('canopenSdoWarnings', () => {
       { nodeId: 'node-2', sdoId: 'a', message: "This object is not in the node's EDS." },
       { nodeId: 'node-2', sdoId: 'b', message: 'The EDS marks this object read-only.' },
     ])
+  })
+
+  it('warns that Watch the master overrides a user SDO to its objects', () => {
+    const node = genericNode(2)
+    node.sdos = [{ id: 'w', index: 0x1016, subIndex: 1, dataType: 'UNSIGNED32', value: '0' }]
+    expect(canopenSdoWarnings(canopenDevice('net', configWith(node)))).toEqual([
+      { nodeId: 'node-2', sdoId: 'w', message: '"Watch the master" writes this object after the startup SDOs.' },
+    ])
+    node.watchMaster.enabled = false
+    expect(canopenSdoWarnings(canopenDevice('net', configWith(node)))).toEqual([])
   })
 })

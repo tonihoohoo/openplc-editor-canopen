@@ -4,7 +4,7 @@ import type {
   CanopenOnPlcStop,
   CanopenSyncMode,
 } from '@root/middleware/shared/ports/canopen-types'
-import { CANOPEN_BITRATES } from '@root/middleware/shared/utils/canopen'
+import { CANOPEN_BITRATES, MAX_BUS_PRIORITY, MIN_BUS_PRIORITY } from '@root/middleware/shared/utils/canopen'
 
 import { NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { cardClassName, headingClassName } from './styles'
@@ -90,8 +90,16 @@ const NetworkSettings = ({ network, nodes, onChange }: NetworkSettingsProps) => 
             value={network.heartbeatProducerMs}
             min={0}
             max={65535}
-            hint="The master's own heartbeat; 0 for none"
+            hint="The master's own heartbeat; nodes that watch it react when the PLC runtime stops. 0 for none"
             onCommit={(value) => onChange({ heartbeatProducerMs: value })}
+          />
+          <NumberField
+            label='Real-time priority'
+            value={network.priority}
+            min={MIN_BUS_PRIORITY}
+            max={MAX_BUS_PRIORITY}
+            hint={`Of the CAN bus work on the runtime, ${MIN_BUS_PRIORITY} - ${MAX_BUS_PRIORITY}; keep it above the PLC tasks (at most 49)`}
+            onCommit={(value) => onChange({ priority: value })}
           />
           <NumberField
             label='SDO timeout (ms)'

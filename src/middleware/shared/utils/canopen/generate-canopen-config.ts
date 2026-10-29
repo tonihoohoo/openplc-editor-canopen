@@ -1,14 +1,15 @@
 /**
  * conf/canopen.json for the runtime's canopen plugin (format in the runtime's docs/CANOPEN.md):
  * one network per CANopen device, with each node's configuration SDOs (heartbeat producer, PDO
- * communication and mapping parameters, then the user's startup SDOs) resolved from its EDS.
+ * communication and mapping parameters, the user's startup SDOs, then watching the master's
+ * heartbeat) resolved from its EDS.
  */
 
-import type { CanopenEdsInfo, CanopenNode, CanopenPdo } from '../../ports/canopen-types'
+import type { CanopenEdsInfo, CanopenNode, CanopenOnCommError, CanopenPdo } from '../../ports/canopen-types'
 import type { PLCRemoteDevice } from '../../ports/types'
 import { canopenTypeBits } from './data-types'
 import { findObject } from './eds-parser'
-import { type PdoDirection, pdoObjectIndices } from './model'
+import { canWatchMaster, DEFAULT_BUS_PRIORITY, hasErrorBehaviour, type PdoDirection, pdoObjectIndices } from './model'
 import { encodeCanopenValue, toHex } from './sdo-value'
 
 export const CANOPEN_CONFIG_VERSION = 1
@@ -79,8 +80,15 @@ function pdoSdos(node: CanopenNode, pdo: CanopenPdo, direction: PdoDirection): S
   return out
 }
 
+const ON_ERROR_CODE: Record<CanopenOnCommError, number> = { pre_operational: 0, no_change: 1, stopped: 2 }
+
+/** Whether the node is set to watch the master's heartbeat and its EDS allows it. */
+export function watchesMaster(node: CanopenNode): boolean {
+  return node.watchMaster.enabled && canWatchMaster(node.eds)
+}
+
 /** The node's configuration SDOs, in the order the master writes them. */
-export function nodeConfigurationSdos(node: CanopenNode): SdoOut[] {
+export function nodeConfigurationSdos(node: CanopenNode, masterNodeId: number): SdoOut[] {
   const out: SdoOut[] = []
   if (node.supervision === 'heartbeat' && writable(node, 0x1017, 0))
     out.push({ index: 0x1017, subindex: 0, data: le(node.heartbeatProducerMs, 2) })
@@ -89,6 +97,12 @@ export function nodeConfigurationSdos(node: CanopenNode): SdoOut[] {
   for (const sdo of node.sdos) {
     const encoded = encodeCanopenValue(sdo.dataType, sdo.value)
     if (encoded.ok) out.push({ index: sdo.index, subindex: sdo.subIndex, data: toHex(encoded.bytes) })
+  }
+  if (watchesMaster(node)) {
+    const entry = ((masterNodeId << 16) | node.watchMaster.consumerMs) >>> 0
+    out.push({ index: 0x1016, subindex: 1, data: le(entry, 4) })
+    if (hasErrorBehaviour(node.eds))
+      out.push({ index: 0x1029, subindex: 1, data: le(ON_ERROR_CODE[node.watchMaster.onError], 1) })
   }
   return out
 }
@@ -124,6 +138,7 @@ export function generateCanopenConfig(remoteDevices: readonly PLCRemoteDevice[] 
             ? { mode: 'period', period_us: network.syncPeriodUs }
             : { mode: network?.syncMode ?? 'none' },
         on_plc_stop: network?.onPlcStop ?? 'pre_operational',
+        priority: network?.priority ?? DEFAULT_BUS_PRIORITY,
         nodes: nodes.map((node) => ({
           node_id: node.nodeId,
           name: node.name,
@@ -138,7 +153,7 @@ export function generateCanopenConfig(remoteDevices: readonly PLCRemoteDevice[] 
               : { type: 'none' },
           on_loss: node.onLoss,
           ...(node.state.iecLocation ? { state_location: node.state.iecLocation } : {}),
-          sdo: nodeConfigurationSdos(node),
+          sdo: nodeConfigurationSdos(node, network?.masterNodeId ?? 127),
           tpdos: pdosOut(node.tpdos),
           rpdos: pdosOut(node.rpdos),
         })),

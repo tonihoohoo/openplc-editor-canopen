@@ -1,13 +1,14 @@
-import { generateCanopenConfig, nodeConfigurationSdos, pdoActive } from '../generate-canopen-config'
+import type { CanopenNode } from '../../../ports/canopen-types'
+import { generateCanopenConfig, nodeConfigurationSdos, pdoActive, watchesMaster } from '../generate-canopen-config'
 import { canopenDevice, configWith, genericNode } from './fixtures/helpers'
 
 describe('nodeConfigurationSdos', () => {
-  it('writes heartbeat, PDO communication and mapping, then the user SDOs', () => {
+  it('writes heartbeat, PDO communication and mapping, the user SDOs, then the master watch', () => {
     const node = {
       ...genericNode(2),
       sdos: [{ id: 's', index: 0x2100, subIndex: 0, dataType: 'UNSIGNED32' as const, value: '0x12345678' }],
     }
-    expect(nodeConfigurationSdos(node).map((s) => `${s.index.toString(16)}:${s.subindex}=${s.data}`)).toEqual([
+    expect(nodeConfigurationSdos(node, 127).map((s) => `${s.index.toString(16)}:${s.subindex}=${s.data}`)).toEqual([
       '1017:0=6400',
       // TPDO 1 (RTR off): disable, clear mapping, map 0x6000:1 (8 bits) and 0x6401:1 (16 bits), count, settings, enable.
       '1800:1=820100C0',
@@ -27,6 +28,9 @@ describe('nodeConfigurationSdos', () => {
       '1400:2=FF',
       '1400:1=02020000',
       '2100:0=78563412',
+      // Watch master 127 for 300 ms, go pre-operational when it is gone.
+      '1016:1=2C017F00',
+      '1029:1=00',
     ])
   })
 
@@ -34,16 +38,49 @@ describe('nodeConfigurationSdos', () => {
     const node = genericNode(2)
     node.rpdos[0].enabled = false
     expect(pdoActive(node.rpdos[0])).toBe(false)
-    const sdos = nodeConfigurationSdos(node).filter((s) => s.index === 0x1400 || s.index === 0x1600)
+    const sdos = nodeConfigurationSdos(node, 127).filter((s) => s.index === 0x1400 || s.index === 0x1600)
     expect(sdos).toEqual([{ index: 0x1400, subindex: 1, data: '02020080' }])
   })
 
   it('leaves a fixed mapping alone and sends no heartbeat without supervision', () => {
     const node = { ...genericNode(2), supervision: 'none' as const }
     node.tpdos[0].fixedMapping = true
-    const sdos = nodeConfigurationSdos(node)
+    const sdos = nodeConfigurationSdos(node, 127)
     expect(sdos.some((s) => s.index === 0x1017)).toBe(false)
     expect(sdos.some((s) => s.index === 0x1a00)).toBe(false)
+  })
+})
+
+describe('watch the master', () => {
+  const watchSdos = (node: CanopenNode, master = 127): string[] =>
+    nodeConfigurationSdos(node, master)
+      .filter((s) => s.index === 0x1016 || s.index === 0x1029)
+      .map((s) => `${s.index.toString(16)}:${s.subindex}=${s.data}`)
+
+  it('encodes the master node ID, the timeout and the reaction', () => {
+    const node = genericNode(2)
+    node.watchMaster = { enabled: true, consumerMs: 500, onError: 'stopped' }
+    expect(watchesMaster(node)).toBe(true)
+    expect(watchSdos(node, 1)).toEqual(['1016:1=F4010100', '1029:1=02'])
+    node.watchMaster.onError = 'no_change'
+    expect(watchSdos(node)).toEqual(['1016:1=F4017F00', '1029:1=01'])
+  })
+
+  it('writes nothing when it is off', () => {
+    const node = genericNode(2)
+    node.watchMaster.enabled = false
+    expect(watchesMaster(node)).toBe(false)
+    expect(watchSdos(node)).toEqual([])
+  })
+
+  it('writes nothing when the EDS has no consumer heartbeat, and skips 0x1029 when it is missing', () => {
+    const node = genericNode(2)
+    const without = (index: number): CanopenNode['eds'] => ({
+      ...node.eds,
+      objects: node.eds.objects.filter((o) => o.index !== index),
+    })
+    expect(watchSdos({ ...node, eds: without(0x1016) })).toEqual([])
+    expect(watchSdos({ ...node, eds: without(0x1029) })).toEqual(['1016:1=2C017F00'])
   })
 })
 
@@ -70,6 +107,8 @@ describe('generateCanopenConfig', () => {
           master_node_id: 127,
           sync: { mode: 'period', period_us: 5000 },
           on_plc_stop: 'pre_operational',
+          heartbeat_producer_ms: 100,
+          priority: 90,
           nodes: [
             {
               node_id: 2,

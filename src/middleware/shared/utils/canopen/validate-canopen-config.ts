@@ -4,12 +4,19 @@
  * network, node and PDO it concerns.
  */
 
-import type { CanopenPdo } from '../../ports/canopen-types'
+import type { CanopenNode, CanopenPdo } from '../../ports/canopen-types'
 import type { PLCRemoteDevice } from '../../ports/types'
 import { CANOPEN_BITRATES, iecPrefixFor } from './data-types'
 import { findObject } from './eds-parser'
-import { pdoActive } from './generate-canopen-config'
-import { MAX_PDO_BITS, pdoBits, type PdoDirection, RTR_TRANSMISSION_TYPES } from './model'
+import { pdoActive, watchesMaster } from './generate-canopen-config'
+import {
+  MAX_BUS_PRIORITY,
+  MAX_PDO_BITS,
+  MIN_BUS_PRIORITY,
+  pdoBits,
+  type PdoDirection,
+  RTR_TRANSMISSION_TYPES,
+} from './model'
 import { encodeCanopenValue } from './sdo-value'
 
 const hex = (v: number, width: number): string => `0x${v.toString(16).toUpperCase().padStart(width, '0')}`
@@ -44,6 +51,8 @@ export function validateCanopenProject(remoteDevices: readonly PLCRemoteDevice[]
     if (network.bitrate !== 0 && !CANOPEN_BITRATES.some((b) => b === network.bitrate))
       errors.push(`${net}: bit rate ${network.bitrate} is not a CANopen bit rate`)
     if (network.syncMode === 'period' && network.syncPeriodUs <= 0) errors.push(`${net}: periodic SYNC needs a period`)
+    if (network.priority < MIN_BUS_PRIORITY || network.priority > MAX_BUS_PRIORITY)
+      errors.push(`${net}: real-time priority ${network.priority} is outside ${MIN_BUS_PRIORITY} - ${MAX_BUS_PRIORITY}`)
     if (nodes.length === 0) errors.push(`${net}: no nodes`)
 
     const ids = new Map<number, string>()
@@ -91,6 +100,9 @@ export function validateCanopenProject(remoteDevices: readonly PLCRemoteDevice[]
       checkPdos(node.tpdos, 'input')
       checkPdos(node.rpdos, 'output')
 
+      const watch = watchMasterProblem(node, network.heartbeatProducerMs)
+      if (watch) errors.push(`${label}: ${watch}`)
+
       for (const sdo of node.sdos) {
         const where = `${label} startup SDO ${hex(sdo.index, 4)}:${sdo.subIndex}`
         if (sdo.index === 0x1010 || sdo.index === 0x1011)
@@ -103,6 +115,16 @@ export function validateCanopenProject(remoteDevices: readonly PLCRemoteDevice[]
   return errors
 }
 
+/** Why the node's "Watch the master" setting cannot work with this master heartbeat, or null. */
+export function watchMasterProblem(node: CanopenNode, masterHeartbeatMs: number): string | null {
+  if (!watchesMaster(node)) return null
+  if (masterHeartbeatMs === 0)
+    return "watches the master's heartbeat, but the master sends none; set the master heartbeat"
+  if (masterHeartbeatMs >= node.watchMaster.consumerMs)
+    return `the master's heartbeat (${masterHeartbeatMs} ms) must be shorter than the time the node waits for it (${node.watchMaster.consumerMs} ms)`
+  return null
+}
+
 /** Warnings shown in the editor; they do not stop the build. */
 export function canopenSdoWarnings(device: PLCRemoteDevice): Array<{ nodeId: string; sdoId: string; message: string }> {
   const out: Array<{ nodeId: string; sdoId: string; message: string }> = []
@@ -112,6 +134,12 @@ export function canopenSdoWarnings(device: PLCRemoteDevice): Array<{ nodeId: str
       if (!object) out.push({ nodeId: node.id, sdoId: sdo.id, message: "This object is not in the node's EDS." })
       else if (object.access === 'ro' || object.access === 'const')
         out.push({ nodeId: node.id, sdoId: sdo.id, message: 'The EDS marks this object read-only.' })
+      else if (watchesMaster(node) && (sdo.index === 0x1016 || sdo.index === 0x1029))
+        out.push({
+          nodeId: node.id,
+          sdoId: sdo.id,
+          message: '"Watch the master" writes this object after the startup SDOs.',
+        })
     }
   }
   return out

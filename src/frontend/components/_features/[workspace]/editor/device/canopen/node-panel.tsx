@@ -3,12 +3,21 @@ import { cn } from '@root/frontend/utils/cn'
 import type {
   CanopenEntry,
   CanopenNode,
+  CanopenOnCommError,
   CanopenOnLoss,
   CanopenPdo,
   CanopenSdo,
   CanopenSupervision,
 } from '@root/middleware/shared/ports/canopen-types'
-import { findObject, objectParameterState, type PdoDirection, updatePdo } from '@root/middleware/shared/utils/canopen'
+import {
+  canWatchMaster,
+  findObject,
+  hasErrorBehaviour,
+  objectParameterState,
+  type PdoDirection,
+  updatePdo,
+  watchMasterProblem,
+} from '@root/middleware/shared/utils/canopen'
 import { useState } from 'react'
 
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
@@ -23,6 +32,12 @@ const ON_LOSS_OPTIONS: ReadonlyArray<{ value: CanopenOnLoss; label: string }> = 
   { value: 'zero', label: 'Set to 0' },
 ]
 
+const ON_COMM_ERROR_OPTIONS: ReadonlyArray<{ value: CanopenOnCommError; label: string }> = [
+  { value: 'pre_operational', label: 'Go pre-operational' },
+  { value: 'stopped', label: 'Go stopped' },
+  { value: 'no_change', label: 'Keep running' },
+]
+
 const hex8 = (v: number): string => `0x${v.toString(16).toUpperCase().padStart(8, '0')}`
 
 const NODE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
@@ -34,6 +49,8 @@ type NodePanelProps = {
   masterNodeId: number
   /** The network sends SYNC. */
   syncOn: boolean
+  /** The network's master heartbeat, which "Watch the master" depends on. */
+  masterHeartbeatMs: number
   sdoWarnings: ReadonlyMap<string, string>
   onChange: (update: (node: CanopenNode) => CanopenNode) => void
   onNodeIdChange: (nodeId: number) => void
@@ -63,6 +80,7 @@ const NodePanel = ({
   nodes,
   masterNodeId,
   syncOn,
+  masterHeartbeatMs,
   sdoWarnings,
   onChange,
   onNodeIdChange,
@@ -81,6 +99,8 @@ const NodePanel = ({
     },
     { value: 'none', label: 'None' },
   ]
+  const canWatch = canWatchMaster(eds)
+  const watchProblem = watchMasterProblem(node, masterHeartbeatMs)
   const mappedInputs = node.tpdos.filter((p) => p.enabled).reduce((n, p) => n + p.entries.length, 0)
   const mappedOutputs = node.rpdos.filter((p) => p.enabled).reduce((n, p) => n + p.entries.length, 0)
 
@@ -217,6 +237,51 @@ const NodePanel = ({
                       onCommit={(heartbeatConsumerMs) => onChange((n) => ({ ...n, heartbeatConsumerMs }))}
                     />
                   </>
+                ) : null}
+              </div>
+              <div className='mt-4 flex max-w-[640px] flex-col gap-3'>
+                <CheckboxField
+                  label='Watch the master'
+                  checked={canWatch && node.watchMaster.enabled}
+                  disabled={!canWatch}
+                  hint={
+                    canWatch
+                      ? "The node reacts when the master's heartbeat stops, for example when the PLC runtime stops. What it does with its outputs then is set in the device's own objects (for I/O modules usually 0x6206 and 0x6207). Written to 0x1016"
+                      : 'The device cannot watch the master: its EDS has no writable 0x1016'
+                  }
+                  onChange={(enabled) => onChange((n) => ({ ...n, watchMaster: { ...n.watchMaster, enabled } }))}
+                />
+                {canWatch && node.watchMaster.enabled ? (
+                  <div className='grid grid-cols-2 gap-4'>
+                    <NumberField
+                      label='Master timeout (ms)'
+                      value={node.watchMaster.consumerMs}
+                      min={1}
+                      max={65535}
+                      hint="How long the node waits for the master's heartbeat"
+                      onCommit={(consumerMs) =>
+                        onChange((n) => ({ ...n, watchMaster: { ...n.watchMaster, consumerMs } }))
+                      }
+                    />
+                    {hasErrorBehaviour(eds) ? (
+                      <SelectField
+                        label='When the master is gone'
+                        value={node.watchMaster.onError}
+                        options={ON_COMM_ERROR_OPTIONS}
+                        hint='Written to 0x1029'
+                        onChange={(onError) => onChange((n) => ({ ...n, watchMaster: { ...n.watchMaster, onError } }))}
+                      />
+                    ) : (
+                      <div className='flex flex-col justify-end'>
+                        <span className={hintClassName}>The node goes pre-operational (CiA 301 default).</span>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+                {watchProblem ? (
+                  <p className='text-[10px] text-red-600 dark:text-red-400'>
+                    {watchProblem.charAt(0).toUpperCase() + watchProblem.slice(1)}.
+                  </p>
                 ) : null}
               </div>
             </div>

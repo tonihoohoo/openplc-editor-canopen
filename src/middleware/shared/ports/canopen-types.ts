@@ -93,6 +93,15 @@ export interface CanopenSdo {
 
 export type CanopenSupervision = 'none' | 'heartbeat'
 export type CanopenOnLoss = 'hold' | 'zero'
+/** What a node does when it misses the master's heartbeat (its 0x1029:1, CiA 301). */
+export type CanopenOnCommError = 'pre_operational' | 'no_change' | 'stopped'
+
+/** The node watches the master's heartbeat (its 0x1016), so it reacts when the master stops. */
+export interface CanopenWatchMaster {
+  enabled: boolean
+  consumerMs: number
+  onError: CanopenOnCommError
+}
 
 export interface CanopenNode {
   id: string
@@ -108,6 +117,7 @@ export interface CanopenNode {
   /** Written to the node's 0x1017 when it is configured. */
   heartbeatProducerMs: number
   onLoss: CanopenOnLoss
+  watchMaster: CanopenWatchMaster
   /** %IB channel reading the node's NMT state, 0 while it is not up. */
   state: CanopenEntry
   /** The node's transmit PDOs: inputs of the PLC. */
@@ -130,6 +140,8 @@ export interface CanopenNetworkSettings {
   heartbeatProducerMs: number
   sdoTimeoutMs: number
   onPlcStop: CanopenOnPlcStop
+  /** SCHED_FIFO priority of the network's bus thread on the runtime. */
+  priority: number
 }
 
 export interface CanopenConfig {

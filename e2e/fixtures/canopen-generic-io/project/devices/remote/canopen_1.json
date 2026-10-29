@@ -8,9 +8,10 @@
       "masterNodeId": 127,
       "syncMode": "plc_cycle",
       "syncPeriodUs": 10000,
-      "heartbeatProducerMs": 0,
+      "heartbeatProducerMs": 100,
       "sdoTimeoutMs": 1000,
-      "onPlcStop": "pre_operational"
+      "onPlcStop": "pre_operational",
+      "priority": 90
     },
     "nodes": [
       {
@@ -53,6 +54,24 @@
               "access": "const",
               "pdoMapping": false,
               "defaultValue": "Generic I/O"
+            },
+            {
+              "index": 4118,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 4118,
+              "subIndex": 1,
+              "name": "Consumer heartbeat time",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
             },
             {
               "index": 4119,
@@ -105,6 +124,24 @@
               "name": "Serial number",
               "dataType": "UNSIGNED32",
               "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 4137,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 4137,
+              "subIndex": 1,
+              "name": "Communication error",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
               "pdoMapping": false,
               "defaultValue": "0"
             },
@@ -319,6 +356,11 @@
         "heartbeatConsumerMs": 300,
         "heartbeatProducerMs": 100,
         "onLoss": "hold",
+        "watchMaster": {
+          "enabled": true,
+          "consumerMs": 300,
+          "onError": "pre_operational"
+        },
         "state": {
           "channelId": "state",
           "index": 0,

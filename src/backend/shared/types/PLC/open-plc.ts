@@ -1007,6 +1007,13 @@ const CanopenNodeSchema = z.object({
   heartbeatConsumerMs: z.number().int().min(0).max(65535),
   heartbeatProducerMs: z.number().int().min(0).max(65535),
   onLoss: z.enum(['hold', 'zero']),
+  watchMaster: z
+    .object({
+      enabled: z.boolean(),
+      consumerMs: z.number().int().min(1).max(65535),
+      onError: z.enum(['pre_operational', 'no_change', 'stopped']),
+    })
+    .default({ enabled: false, consumerMs: 300, onError: 'pre_operational' }),
   state: CanopenEntrySchema,
   tpdos: z.array(CanopenPdoSchema),
   rpdos: z.array(CanopenPdoSchema),
@@ -1022,6 +1029,7 @@ const CanopenNetworkSettingsSchema = z.object({
   heartbeatProducerMs: z.number().int().min(0).max(65535),
   sdoTimeoutMs: z.number().int().min(1).max(60000),
   onPlcStop: z.enum(['pre_operational', 'stopped', 'none']),
+  priority: z.number().int().min(1).max(97).default(90),
 })
 
 const CanopenConfigSchema = z.object({
