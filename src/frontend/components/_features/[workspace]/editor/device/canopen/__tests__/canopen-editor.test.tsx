@@ -267,6 +267,31 @@ describe('CanopenEditor', () => {
     expect(option.textContent).toContain('not supported by node 1 (Generic_I_O_module)')
   })
 
+  it('watches the master by default and flags a timeout below the master heartbeat', async () => {
+    await importEds()
+    const watch = await screen.findByLabelText<HTMLInputElement>('Watch the master')
+    expect(watch.checked).toBe(true)
+    expect(screen.getByLabelText('When the master is gone')).toBeTruthy()
+    const timeout = screen.getByLabelText('Master timeout (ms)')
+    fireEvent.change(timeout, { target: { value: '50' } })
+    fireEvent.blur(timeout)
+    expect(config()?.nodes[0].watchMaster.consumerMs).toBe(50)
+    expect(screen.getByText(/The master's heartbeat \(100 ms\) must be shorter/)).toBeTruthy()
+
+    fireEvent.click(watch)
+    expect(config()?.nodes[0].watchMaster.enabled).toBe(false)
+    expect(screen.queryByLabelText('Master timeout (ms)')).toBeNull()
+    expect(screen.queryByText(/must be shorter/)).toBeNull()
+  })
+
+  it('cannot watch the master without a consumer heartbeat object', async () => {
+    await importEds(GENERIC_IO_EDS.replace(/\[1016[^\]]*\][^[]*/g, ''))
+    const watch = await screen.findByLabelText<HTMLInputElement>('Watch the master')
+    expect(watch.checked).toBe(false)
+    expect(watch.disabled).toBe(true)
+    expect(config()?.nodes[0].watchMaster.enabled).toBe(false)
+  })
+
   it('edits the network settings', () => {
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Network' }))
     fireEvent.click(screen.getByRole('tab', { name: 'Network' }))
@@ -277,5 +302,9 @@ describe('CanopenEditor', () => {
     fireEvent.change(screen.getByLabelText('SYNC'), { target: { value: 'period' } })
     expect(config()?.network).toMatchObject({ interface: 'can1', bitrate: 250000, syncMode: 'period' })
     expect(screen.getByLabelText('SYNC period (µs)')).toBeTruthy()
+    const priority = screen.getByLabelText('Real-time priority')
+    fireEvent.change(priority, { target: { value: '80' } })
+    fireEvent.blur(priority)
+    expect(config()?.network.priority).toBe(80)
   })
 })

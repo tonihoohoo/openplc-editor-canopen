@@ -8,7 +8,7 @@
       "masterNodeId": 127,
       "syncMode": "none",
       "syncPeriodUs": 10000,
-      "heartbeatProducerMs": 0,
+      "heartbeatProducerMs": 100,
       "sdoTimeoutMs": 1000,
       "onPlcStop": "pre_operational"
     },

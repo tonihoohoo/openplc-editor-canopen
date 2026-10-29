@@ -2,8 +2,10 @@ import type { CanopenPdo } from '../../../ports/canopen-types'
 import { findObject } from '../eds-parser'
 import {
   cannotMap,
+  canWatchMaster,
   createCanopenNode,
   defaultCanopenConfig,
+  hasErrorBehaviour,
   lowestFreeNodeId,
   mappableObjects,
   moveCobId,
@@ -60,6 +62,26 @@ describe('createCanopenNode', () => {
       allocate: placeholderAddress,
     })
     expect(node.supervision).toBe('none')
+  })
+
+  it('watches the master when the EDS lets the node consume a heartbeat', () => {
+    expect(genericNode(2).watchMaster).toEqual({ enabled: true, consumerMs: 300, onError: 'pre_operational' })
+    const eds = genericIoEds()
+    expect(canWatchMaster(eds) && hasErrorBehaviour(eds)).toBe(true)
+    eds.objects = eds.objects.filter((o) => o.index !== 0x1016 && o.index !== 0x1029)
+    expect(canWatchMaster(eds) || hasErrorBehaviour(eds)).toBe(false)
+    const node = createCanopenNode(eds, {
+      id: 'n',
+      name: 'n',
+      nodeId: 3,
+      newId: () => 'x',
+      allocate: placeholderAddress,
+    })
+    expect(node.watchMaster.enabled).toBe(false)
+  })
+
+  it('gives a new network a master heartbeat and the default bus priority', () => {
+    expect(defaultCanopenConfig().network).toMatchObject({ heartbeatProducerMs: 100, priority: 90 })
   })
 
   it('marks a PDO with a read-only mapping as fixed and one with COB-ID 0 as disabled', () => {

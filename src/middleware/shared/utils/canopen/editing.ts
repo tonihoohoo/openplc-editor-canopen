@@ -7,7 +7,7 @@
 import type { CanopenEdsInfo, CanopenNode, CanopenObject } from '../../ports/canopen-types'
 import { objectRef, toCanopenDataType } from './data-types'
 import { findObject, parseEdsInteger } from './eds-parser'
-import { isWritableObject, pdoActive } from './generate-canopen-config'
+import { isWritableObject, pdoActive, watchesMaster } from './generate-canopen-config'
 import { type PdoDirection, pdoObjectIndices, RTR_TRANSMISSION_TYPES } from './model'
 
 export type TransmissionMode = 'sync_acyclic' | 'sync_cyclic' | 'event_manufacturer' | 'event_profile'
@@ -177,6 +177,8 @@ function hiddenReason(node: CanopenNode, object: CanopenObject, rpdoMapped: Read
   if (node.sdos.some((s) => s.index === index && s.subIndex === subIndex)) return 'Already in the list'
   if (index >= 0x1400 && index <= 0x1bff) return 'The editor writes it from the PDO settings'
   if (index === 0x1017) return 'The editor writes it from the supervision settings'
+  if ((index === 0x1016 || index === 0x1029) && watchesMaster(node))
+    return 'The editor writes it from "Watch the master"'
   if (subIndex === 0 && node.eds.objects.some((o) => o.index === index && o.subIndex > 0))
     return 'Number of entries, rarely a setting'
   if (rpdoMapped.has(key)) return 'Mapped in an RPDO, which overwrites it every cycle'

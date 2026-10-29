@@ -17,15 +17,21 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
 
 1. Add a remote device and pick **CANopen**. One device is one CAN interface.
 2. **Network** tab: the SocketCAN interface on the runtime device (`can0`), the bit rate (or
-   "Leave as configured" for a link set up outside the runtime), the master node ID, SYNC (none,
-   once per PLC cycle, or a fixed period) and the NMT state the nodes get when the PLC stops.
+   "Leave as configured" for a link set up outside the runtime), the master node ID, the master's
+   heartbeat (100 ms for a new network), the real-time priority of the bus work on the runtime
+   (1 to 97, default 90, above the PLC tasks), SYNC (none, once per PLC cycle, or a fixed period)
+   and the NMT state the nodes get when the PLC stops.
 3. **Nodes** tab: **Add node from EDS file...** reads the file, picks the lowest free node ID and
    maps the PDOs the EDS defines by default. Set the node ID to the one set on the device.
 4. For each node:
    - **General**: name, node ID, which identity values the master checks at boot (vendor ID and
      product code by default; the revision is off so newer firmware still boots), heartbeat
      supervision with the node's producer time and the master's timeout, what the node's inputs do
-     when it is lost, and the `%IB` that reads its NMT state.
+     when it is lost, and the `%IB` that reads its NMT state. **Watch the master** is on for a node
+     whose EDS has a writable 0x1016: the node then reacts when the master's heartbeat stops, for
+     example when the runtime dies, by going pre-operational (or stopped, or nothing, through
+     0x1029:1 when the EDS has it). The master writes these after the startup SDOs. It needs a
+     master heartbeat shorter than the node's timeout.
    - **Inputs** / **Outputs**: the node's transmit PDOs (PLC inputs, `%I`) and receive PDOs (PLC
      outputs, `%Q`). A PDO can be switched off, its COB-ID, transmission type, event timer and
      inhibit time changed, and its entries added, removed and reordered (drag handle or the up and
@@ -104,6 +110,7 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
   `.../device/canopen/__tests__/`.
 - End-to-end: `e2e/canopen-offline-build.spec.ts` adds a node from the EDS in the app and builds;
   `e2e/canopen-pdo-sdo-editing.spec.ts` reorders an entry, sets a transmission type and adds a
-  startup SDO by search, then checks the built `canopen.json`.
+  startup SDO by search, then checks the built `canopen.json`;
+  `e2e/canopen-watch-master.spec.ts` checks "Watch the master" and the bus priority in the build.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
   against a simulated node on a virtual CAN bus.

@@ -31,6 +31,28 @@ export function supportedTransmissionType(type: number): number {
 }
 export const STATE_CHANNEL_ID = 'state'
 
+/** Real-time priority of a network's bus thread: above every PLC task (at most 49), below 98. */
+export const DEFAULT_BUS_PRIORITY = 90
+export const MIN_BUS_PRIORITY = 1
+export const MAX_BUS_PRIORITY = 97
+export const DEFAULT_MASTER_HEARTBEAT_MS = 100
+export const DEFAULT_WATCH_MASTER_MS = 300
+
+function writableObject(eds: CanopenEdsInfo, index: number, subIndex: number): boolean {
+  const o = findObject(eds, index, subIndex)
+  return o !== undefined && o.access !== 'ro' && o.access !== 'const'
+}
+
+/** Whether the node can watch the master's heartbeat (a writable 0x1016:1). */
+export function canWatchMaster(eds: CanopenEdsInfo): boolean {
+  return writableObject(eds, 0x1016, 1)
+}
+
+/** Whether the node's reaction to a communication error can be set (a writable 0x1029:1). */
+export function hasErrorBehaviour(eds: CanopenEdsInfo): boolean {
+  return writableObject(eds, 0x1029, 1)
+}
+
 export function defaultNetworkSettings(): CanopenNetworkSettings {
   return {
     interface: 'can0',
@@ -38,9 +60,10 @@ export function defaultNetworkSettings(): CanopenNetworkSettings {
     masterNodeId: 127,
     syncMode: 'none',
     syncPeriodUs: 10000,
-    heartbeatProducerMs: 0,
+    heartbeatProducerMs: DEFAULT_MASTER_HEARTBEAT_MS,
     sdoTimeoutMs: 1000,
     onPlcStop: 'pre_operational',
+    priority: DEFAULT_BUS_PRIORITY,
   }
 }
 
@@ -169,7 +192,10 @@ export interface CreateNodeOptions {
   allocate: AllocateAddress
 }
 
-/** A node from an EDS: its default PDOs, heartbeat supervision when it can produce heartbeats. */
+/**
+ * A node from an EDS: its default PDOs, heartbeat supervision when it can produce heartbeats, and
+ * watching the master's heartbeat when it can.
+ */
 export function createCanopenNode(eds: CanopenEdsInfo, options: CreateNodeOptions): CanopenNode {
   const { nodeId, newId, allocate } = options
   const heartbeat = findObject(eds, 0x1017, 0) !== undefined
@@ -185,6 +211,7 @@ export function createCanopenNode(eds: CanopenEdsInfo, options: CreateNodeOption
     heartbeatConsumerMs: 300,
     heartbeatProducerMs: 100,
     onLoss: 'hold',
+    watchMaster: { enabled: canWatchMaster(eds), consumerMs: DEFAULT_WATCH_MASTER_MS, onError: 'pre_operational' },
     state: {
       channelId: STATE_CHANNEL_ID,
       index: 0,
