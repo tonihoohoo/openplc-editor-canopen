@@ -85,6 +85,18 @@ describe('CANopen live status', () => {
     expect(tab.textContent).toContain('TPDO 1 (COB-ID 0x182) late since')
   })
 
+  it('shows link resets and a bus-off link the runtime may not reset', async () => {
+    const status = sampleStatus()
+    const net = status.networks[0]
+    net.bus = { ...net.bus, state: 'bus_off', link_resets: 2 }
+    net.events = [{ time: status.now - 1000, kind: 'bus_reset', outcome: 'not_permitted' }, ...net.events]
+    await renderEditor(true, CAPABILITIES_WITH_STATUS, () => ok(status))
+    const line = screen.getByTestId('canopen-bus-status').textContent ?? ''
+    expect(line).toContain('Bus bus off')
+    expect(line).toContain('link reset 2 times')
+    expect(line).toContain('the runtime may not reset the link, reset it by hand')
+  })
+
   it('greys the last status when a read fails', async () => {
     await renderEditor(true, CAPABILITIES_WITH_STATUS, () => Promise.resolve({ success: false, error: 'timed out' }))
     expect(screen.getByTestId('canopen-bus-status').textContent).toContain('Status unavailable: timed out')

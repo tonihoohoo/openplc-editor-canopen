@@ -23,6 +23,7 @@ export function sampleStatus(networkName = 'CANopen_1') {
           tx_frames: 1488,
           rx_dropped: 0,
           load_percent: 3.1,
+          link_resets: 0,
         },
         all_nodes_up: false,
         nodes: [
@@ -58,6 +59,7 @@ export function sampleStatus(networkName = 'CANopen_1') {
           { time: NOW - 10000, node: 3, kind: 'boot_failed', problem: { kind: 'identity', field: 'product_code' } },
           { time: NOW - 60000, node: 2, kind: 'boot_ok' },
           { time: NOW - 61000, kind: 'bus_state', bus_state: 'error_active' },
+          { time: NOW - 62000, kind: 'bus_reset', outcome: 'done' },
         ],
       },
     ],
