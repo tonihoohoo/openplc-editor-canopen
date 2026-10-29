@@ -1071,7 +1071,7 @@ describe('runCompilePipeline — runtime v4 path', () => {
       ethercat: '',
       ethercatBusconfig: null,
       ethercatIomapping: null,
-      canopen: '{"version": 1, "networks": []}',
+      canopen: '{"version": 2, "networks": []}',
     }))
 
   it('refuses a CANopen project when the runtime reports no CANopen support', async () => {
@@ -1105,7 +1105,7 @@ describe('runCompilePipeline — runtime v4 path', () => {
     const port = makePort({
       checkRuntimeVersion: jest
         .fn()
-        .mockResolvedValue({ ok: true, version: 'v4.3.1-canopen.1', canopenConfigVersions: [1] }),
+        .mockResolvedValue({ ok: true, version: 'v4.3.1-canopen.1', canopenConfigVersions: [2] }),
     })
     const { emit } = captureEvents()
     const result = await runCompilePipeline(v4Args(), port, emit)

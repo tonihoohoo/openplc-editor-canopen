@@ -379,6 +379,7 @@
             "transmissionType": 255,
             "eventTimerMs": 20,
             "inhibitTime": 0,
+            "receiveTimeoutMs": 0,
             "entries": [
               {
                 "channelId": "ch-1",
@@ -410,6 +411,7 @@
             "transmissionType": 255,
             "eventTimerMs": 0,
             "inhibitTime": 0,
+            "receiveTimeoutMs": 0,
             "entries": [
               {
                 "channelId": "ch-3",

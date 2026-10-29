@@ -79,6 +79,8 @@ export interface CanopenPdo {
   eventTimerMs: number
   /** TPDO only, in units of 100 microseconds; 0 for none. */
   inhibitTime: number
+  /** TPDO only: the master reports the PDO late after this many milliseconds without it; 0 for none. */
+  receiveTimeoutMs: number
   entries: CanopenEntry[]
 }
 

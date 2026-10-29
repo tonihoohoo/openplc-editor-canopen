@@ -35,6 +35,7 @@ describe('createCanopenNode', () => {
       transmissionType: 255,
       eventTimerMs: 20,
       inhibitTime: 0,
+      receiveTimeoutMs: 0,
     })
     expect(node.tpdos[0].entries.map((e) => [e.index, e.subIndex, e.dataType, e.iecLocation])).toEqual([
       [0x6000, 1, 'UNSIGNED8', '%IB1'],

@@ -44,6 +44,11 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
      the EDS's `LowLimit`/`HighLimit` are disabled and the EDS default is marked. Remote request
      (RTR) types 252 and 253 are not supported: an EDS default of 252 or 253 becomes 255, and the
      build refuses them. A synchronous type on a network without SYNC shows a warning.
+   - An enabled TPDO has a **Receive timeout** (off at 0): the master's RPDO event timer
+     (`0x14xx:05`). When the PDO does not arrive in that time the master reports it late, logs it and
+     treats the inputs as it does for a lost node. A timeout shorter than the event timer, or shorter
+     than two SYNC intervals of a synchronous PDO on a fixed SYNC period, shows a warning. It is
+     written as `receive_timeout_ms` in `canopen.json` format version 2.
    - Under each PDO setting and the node heartbeat, the hint names the object it writes (for
      example `0x1800:05`). A setting the EDS leaves out or marks read-only is shown read-only, as the
      master does not write it.
@@ -60,6 +65,26 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
 5. Give entries aliases and bind variables to them, as with other remote I/O.
 
 Problems that would stop the build are listed at the top of the editor as they appear.
+
+## Live status
+
+While the editor is connected to a runtime whose `/api/capabilities` lists `"status"` in
+`canopen.features`, the CANopen device editor reads `GET /api/canopen/status` once a second and shows:
+
+- a dot before each node: green operational, amber booting or operational with an active emergency
+  or a late PDO, red not answering, boot failed or lost, grey waiting, stopped or not in the
+  running program; its tooltip gives the state and the reason;
+- the bus status under the network header: the controller state, error counters and bus load;
+- a **Status** tab on each node: the state and since when, the reason of the last failure in words
+  (for example "The product code is 0x43 where 0x42 was expected"), the NMT state, boot attempts and
+  losses, the last emergencies with their code, error register bits and data, late PDOs, and the
+  node's events with local times.
+
+SDO abort codes, emergency codes (CiA 301 communication and protocol codes, else the class) and
+error register bits are shown in words next to their values. When a read fails the last status stays,
+greyed, with "Status unavailable". Nothing is shown when the editor is not connected or the runtime
+does not list the feature. The polling stops when the device editor closes or the connection ends.
+The network is matched by the device's name.
 
 ## Installing a release and the runtime check
 
@@ -93,6 +118,9 @@ entry of a switched-off PDO has no address and no alias.
 | Build checks and editor warnings                          | `src/middleware/shared/utils/canopen/validate-canopen-config.ts`       |
 | `conf/canopen.json`                                       | `src/middleware/shared/utils/canopen/generate-canopen-config.ts`       |
 | Store action                                              | `projectActions.updateCanopenConfig`                                   |
+| Status answer schema                                      | `src/middleware/shared/ports/canopen-status.ts`                        |
+| Status texts and code decoders                            | `src/middleware/shared/utils/canopen/diagnostics/`                     |
+| Status polling                                            | `src/frontend/hooks/use-canopen-status.ts`                             |
 | Device editor                                             | `src/frontend/components/_features/[workspace]/editor/device/canopen/` |
 
 The parsed EDS (identity, PDO counts, object dictionary) is stored on the node, so a project opens
@@ -104,13 +132,18 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
 
 ## Tests
 
-- Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, model, editing rules, generator, validator)
+- Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, model, editing rules, generator, validator,
+  receive timeout, status schema and texts), the status polling in
+  `src/frontend/hooks/__tests__/use-canopen-status.test.ts`
   with the generic I/O module EDS in `__tests__/fixtures/`, the store action in
   `src/frontend/store/__tests__/canopen-config.test.ts`, and the device editor in
   `.../device/canopen/__tests__/`.
 - End-to-end: `e2e/canopen-offline-build.spec.ts` adds a node from the EDS in the app and builds;
   `e2e/canopen-pdo-sdo-editing.spec.ts` reorders an entry, sets a transmission type and adds a
   startup SDO by search, then checks the built `canopen.json`;
-  `e2e/canopen-watch-master.spec.ts` checks "Watch the master" and the bus priority in the build.
+  `e2e/canopen-watch-master.spec.ts` checks "Watch the master" and the bus priority in the build;
+  `e2e/canopen-live-status.spec.ts` connects to a fake runtime on port 8443 and checks the dots,
+  the Status tab and the reason of a failed boot, and that a runtime without the feature shows none
+  of it.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
   against a simulated node on a virtual CAN bus.

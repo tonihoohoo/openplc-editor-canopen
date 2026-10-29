@@ -1,4 +1,5 @@
 import * as Tabs from '@radix-ui/react-tabs'
+import type { CanopenLiveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { cn } from '@root/frontend/utils/cn'
 import type {
   CanopenEntry,
@@ -23,9 +24,10 @@ import { useState } from 'react'
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { PdoSection } from './pdo-section'
 import { SdoSection } from './sdo-section'
+import { NodeStatusTab } from './status-view'
 import { cardClassName, headingClassName, hintClassName, secondaryButtonClassName } from './styles'
 
-type NodeTab = 'general' | 'inputs' | 'outputs' | 'sdos'
+type NodeTab = 'general' | 'inputs' | 'outputs' | 'sdos' | 'status'
 
 const ON_LOSS_OPTIONS: ReadonlyArray<{ value: CanopenOnLoss; label: string }> = [
   { value: 'hold', label: 'Hold last values' },
@@ -51,7 +53,11 @@ type NodePanelProps = {
   syncOn: boolean
   /** The network's master heartbeat, which "Watch the master" depends on. */
   masterHeartbeatMs: number
+  /** The SYNC period, or null when unknown or off. */
+  syncPeriodUs: number | null
   sdoWarnings: ReadonlyMap<string, string>
+  /** The runtime's live status; null hides the Status tab. */
+  live: CanopenLiveStatus | null
   onChange: (update: (node: CanopenNode) => CanopenNode) => void
   onNodeIdChange: (nodeId: number) => void
   onRemove: () => void
@@ -73,7 +79,8 @@ const TabButton = ({ value, label, active }: { value: NodeTab; label: string; ac
   </Tabs.Trigger>
 )
 
-const isNodeTab = (v: string): v is NodeTab => v === 'general' || v === 'inputs' || v === 'outputs' || v === 'sdos'
+const isNodeTab = (v: string): v is NodeTab =>
+  v === 'general' || v === 'inputs' || v === 'outputs' || v === 'sdos' || v === 'status'
 
 const NodePanel = ({
   node,
@@ -81,13 +88,16 @@ const NodePanel = ({
   masterNodeId,
   syncOn,
   masterHeartbeatMs,
+  syncPeriodUs,
   sdoWarnings,
+  live,
   onChange,
   onNodeIdChange,
   onRemove,
   onAliasChange,
 }: NodePanelProps) => {
   const [tab, setTab] = useState<NodeTab>('general')
+  const shownTab: NodeTab = tab === 'status' && !live ? 'general' : tab
   const { eds } = node
   const canHeartbeat = findObject(eds, 0x1017, 0) !== undefined
   const heartbeatObject = objectParameterState(eds, 0x1017, 0)
@@ -124,17 +134,18 @@ const NodePanel = ({
       </div>
 
       <Tabs.Root
-        value={tab}
+        value={shownTab}
         onValueChange={(v) => {
           if (isNodeTab(v)) setTab(v)
         }}
         className='flex min-h-0 flex-1 flex-col'
       >
         <Tabs.List className='mb-3 flex shrink-0 border-b border-neutral-200 dark:border-neutral-800'>
-          <TabButton value='general' label='General' active={tab === 'general'} />
-          <TabButton value='inputs' label={`Inputs (${mappedInputs})`} active={tab === 'inputs'} />
-          <TabButton value='outputs' label={`Outputs (${mappedOutputs})`} active={tab === 'outputs'} />
-          <TabButton value='sdos' label={`Startup SDOs (${node.sdos.length})`} active={tab === 'sdos'} />
+          <TabButton value='general' label='General' active={shownTab === 'general'} />
+          <TabButton value='inputs' label={`Inputs (${mappedInputs})`} active={shownTab === 'inputs'} />
+          <TabButton value='outputs' label={`Outputs (${mappedOutputs})`} active={shownTab === 'outputs'} />
+          <TabButton value='sdos' label={`Startup SDOs (${node.sdos.length})`} active={shownTab === 'sdos'} />
+          {live ? <TabButton value='status' label='Status' active={shownTab === 'status'} /> : null}
         </Tabs.List>
 
         <Tabs.Content value='general' className='min-h-0 flex-1 overflow-auto pb-4'>
@@ -314,6 +325,7 @@ const NodePanel = ({
             eds={eds}
             nodeId={node.nodeId}
             syncOn={syncOn}
+            syncPeriodUs={syncPeriodUs}
             onChange={changePdo('input')}
             onAliasChange={onAliasChange}
           />
@@ -326,6 +338,7 @@ const NodePanel = ({
             eds={eds}
             nodeId={node.nodeId}
             syncOn={syncOn}
+            syncPeriodUs={syncPeriodUs}
             onChange={changePdo('output')}
             onAliasChange={onAliasChange}
           />
@@ -338,6 +351,12 @@ const NodePanel = ({
             onChange={(sdos: CanopenSdo[]) => onChange((n) => ({ ...n, sdos }))}
           />
         </Tabs.Content>
+
+        {live ? (
+          <Tabs.Content value='status' className='min-h-0 flex-1 overflow-auto pb-4'>
+            <NodeStatusTab live={live} nodeId={node.nodeId} />
+          </Tabs.Content>
+        ) : null}
       </Tabs.Root>
     </div>
   )

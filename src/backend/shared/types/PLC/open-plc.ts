@@ -984,6 +984,7 @@ const CanopenPdoSchema = z.object({
   transmissionType: z.number().int().min(0).max(255),
   eventTimerMs: z.number().int().min(0).max(65535),
   inhibitTime: z.number().int().min(0).max(65535),
+  receiveTimeoutMs: z.number().int().min(0).max(65535).default(0),
   entries: z.array(CanopenEntrySchema),
 })
 
