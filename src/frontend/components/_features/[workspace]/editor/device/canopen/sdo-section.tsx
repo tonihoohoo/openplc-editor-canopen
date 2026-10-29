@@ -25,6 +25,7 @@ import { CheckboxField, NumberField, SelectField, TextField } from './fields'
 import { ObjectPicker } from './object-picker'
 import { MoveButtons, SortableBody, SortableRow } from './sortable-rows'
 import { hintClassName, iconButtonClassName, secondaryButtonClassName } from './styles'
+import { useAddedHighlight } from './use-added-highlight'
 
 const TYPE_OPTIONS: ReadonlyArray<{ value: CanopenDataType; label: string }> = CANOPEN_DATA_TYPES.map((t) => ({
   value: t,
@@ -58,13 +59,18 @@ type SdoSectionProps = {
 
 const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
   const [showAll, setShowAll] = useState(false)
+  const [addedId, setAddedId] = useAddedHighlight()
   const candidates = useMemo(() => startupSdoCandidates(node), [node])
   const items = useMemo(
     () =>
       candidates
         .filter((c) => showAll || c.hiddenReason === null)
-        .map((c) => ({ object: c.object, note: c.hiddenReason })),
-    [candidates, showAll],
+        .map((c) => ({
+          object: c.object,
+          note: c.hiddenReason,
+          addedCount: node.sdos.filter((s) => s.index === c.object.index && s.subIndex === c.object.subIndex).length,
+        })),
+    [candidates, showAll, node.sdos],
   )
 
   const update = (id: string, patch: Partial<CanopenSdo>) =>
@@ -84,7 +90,9 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
     const fallback = object.defaultValue ?? '0'
     const integer = dataType.startsWith('REAL') ? null : parseEdsInteger(fallback, node.nodeId)
     const value = integer === null ? fallback : String(integer)
-    onChange([...node.sdos, { id: uuidv4(), index: object.index, subIndex: object.subIndex, dataType, value }])
+    const id = uuidv4()
+    onChange([...node.sdos, { id, index: object.index, subIndex: object.subIndex, dataType, value }])
+    setAddedId(id)
   }
 
   return (
@@ -97,6 +105,7 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
         <ObjectPicker
           label='Add an SDO for an object of the device'
           items={items}
+          summary={`${node.sdos.length} startup SDO${node.sdos.length === 1 ? '' : 's'}`}
           emptyText={
             showAll ? 'The device has no writable objects.' : 'No more objects to offer. Turn on "Show all objects".'
           }
@@ -115,7 +124,9 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
           className={secondaryButtonClassName}
           onClick={() => {
             const dataType = edsType(findObject(node.eds, 0x2000, 0)) ?? 'UNSIGNED8'
-            onChange([...node.sdos, { id: uuidv4(), index: 0x2000, subIndex: 0, dataType, value: '0' }])
+            const id = uuidv4()
+            onChange([...node.sdos, { id, index: 0x2000, subIndex: 0, dataType, value: '0' }])
+            setAddedId(id)
           }}
         >
           Add by index
@@ -151,6 +162,7 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
               <SortableRow
                 key={sdo.id}
                 id={sdo.id}
+                highlight={sdo.id === addedId}
                 name={`SDO ${ref}`}
                 className='border-t border-neutral-100 align-top dark:border-neutral-800'
                 testId='canopen-sdo-row'

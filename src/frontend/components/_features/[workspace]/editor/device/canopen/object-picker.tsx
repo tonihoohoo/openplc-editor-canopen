@@ -1,4 +1,4 @@
-import { PlusIcon } from '@radix-ui/react-icons'
+import { CheckIcon, PlusIcon } from '@radix-ui/react-icons'
 import * as Popover from '@radix-ui/react-popover'
 import { DropdownSearchInput } from '@root/frontend/components/_atoms/dropdown-search-input'
 import { cn } from '@root/frontend/utils/cn'
@@ -14,6 +14,8 @@ export type PickerItem = {
   disabledReason?: string | null
   /** Shown in amber under the item; the item can still be picked. */
   note?: string | null
+  /** How many times the object is already in the list. */
+  addedCount?: number
 }
 
 type ObjectPickerProps = {
@@ -25,21 +27,32 @@ type ObjectPickerProps = {
   emptyText: string
   /** Extra controls under the search field, e.g. a "Show all" switch. */
   toolbar?: ReactNode
+  /** Shown in the footer, e.g. "24 of 64 bits mapped". */
+  summary?: string
   disabled?: boolean
 }
 
 /** "Add object" button opening a searchable list of the node's objects; stays open after a pick. */
-const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, disabled }: ObjectPickerProps) => {
+const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, summary, disabled }: ObjectPickerProps) => {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [lastAdded, setLastAdded] = useState<string | null>(null)
   const matches = useMemo(() => items.filter((i) => matchesObjectQuery(i.object, query)), [items, query])
+
+  const pick = (object: CanopenObject) => {
+    onPick(object)
+    setLastAdded(`Added ${objectRef(object.index, object.subIndex)} ${objectLabel(object)}`)
+  }
 
   return (
     <Popover.Root
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        if (!next) setQuery('')
+        if (!next) {
+          setQuery('')
+          setLastAdded(null)
+        }
       }}
     >
       <Popover.Trigger asChild disabled={disabled}>
@@ -68,7 +81,7 @@ const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, disabled }: Ob
             onKeyDown={(e) => {
               if (e.key !== 'Enter') return
               const first = matches.find((m) => !m.disabledReason)
-              if (first) onPick(first.object)
+              if (first) pick(first.object)
             }}
           />
           {toolbar ? <div className='px-3 pb-2'>{toolbar}</div> : null}
@@ -78,7 +91,7 @@ const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, disabled }: Ob
             ) : matches.length === 0 ? (
               <p className={cn(hintClassName, 'px-3 py-4 text-center')}>No objects match “{query}”.</p>
             ) : (
-              matches.map(({ object, disabledReason, note }) => {
+              matches.map(({ object, disabledReason, note, addedCount = 0 }) => {
                 const ref = objectRef(object.index, object.subIndex)
                 return (
                   <button
@@ -89,12 +102,18 @@ const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, disabled }: Ob
                     aria-disabled={Boolean(disabledReason)}
                     disabled={Boolean(disabledReason)}
                     title={disabledReason ?? undefined}
-                    onClick={() => onPick(object)}
+                    onClick={() => pick(object)}
                     className='flex w-full flex-col px-3 py-1.5 text-left hover:bg-neutral-100 focus:bg-neutral-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent dark:hover:bg-neutral-900 dark:focus:bg-neutral-900'
                   >
                     <span className='flex w-full items-baseline gap-2 text-xs text-neutral-850 dark:text-neutral-300'>
                       <span className='shrink-0 font-mono'>{ref}</span>
                       <span className='min-w-0 flex-1 [overflow-wrap:anywhere]'>{objectLabel(object)}</span>
+                      {addedCount > 0 ? (
+                        <span className='flex shrink-0 items-center gap-0.5 text-[10px] font-medium text-green-700 dark:text-green-400'>
+                          <CheckIcon className='h-3 w-3' />
+                          {addedCount > 1 ? `Added ×${addedCount}` : 'Added'}
+                        </span>
+                      ) : null}
                       <span className='shrink-0 text-[10px] text-neutral-500'>{object.dataType}</span>
                     </span>
                     {disabledReason ? <span className={hintClassName}>{disabledReason}</span> : null}
@@ -106,6 +125,19 @@ const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, disabled }: Ob
               })
             )}
           </div>
+          {lastAdded || summary ? (
+            <div
+              role='status'
+              aria-live='polite'
+              className='flex items-center justify-between gap-3 border-t border-neutral-200 px-3 py-1.5 text-[11px] dark:border-neutral-800'
+            >
+              <span className='flex min-w-0 items-center gap-1 text-green-700 dark:text-green-400'>
+                {lastAdded ? <CheckIcon className='h-3.5 w-3.5 shrink-0' /> : null}
+                <span className='[overflow-wrap:anywhere]'>{lastAdded}</span>
+              </span>
+              {summary ? <span className='shrink-0 text-neutral-500'>{summary}</span> : null}
+            </div>
+          ) : null}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
