@@ -28,6 +28,7 @@ import { CheckboxField, NumberField, SelectField, type SelectOption, TextField }
 import { ObjectPicker } from './object-picker'
 import { MoveButtons, SortableBody, SortableRow } from './sortable-rows'
 import { cardClassName, hintClassName, iconButtonClassName } from './styles'
+import { useAddedHighlight } from './use-added-highlight'
 
 type ModeValue = TransmissionMode | 'unsupported'
 
@@ -50,7 +51,7 @@ const TransmissionField = ({ pdo, direction, eds, nodeId, syncOn, onChange }: Tr
   const mode = transmissionMode(pdo.transmissionType)
   const options: Array<SelectOption<ModeValue>> = info.choices.map((c) => ({
     value: c.mode,
-    label: c.edsDefault ? `${c.label} (EDS default)` : c.label,
+    label: c.edsDefault ? `${c.label}, EDS default` : c.label,
     disabledReason: c.disabledReason,
   }))
   if (mode === null)
@@ -77,7 +78,7 @@ const TransmissionField = ({ pdo, direction, eds, nodeId, syncOn, onChange }: Tr
         objectRef={ref}
         hint={hint}
         warning={warning}
-        className='w-[260px]'
+        className='w-[300px]'
         onChange={(next) => {
           if (next !== 'unsupported') onChange(transmissionTypeFor(next, cyclicN))
         }}
@@ -119,11 +120,14 @@ const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, syncPeriodUs, onChange, 
   const timer = pdoParameterState(eds, direction, pdo.number, 5)
   const moveEntry = (from: number, to: number) => onChange({ ...pdo, entries: moveItem(pdo.entries, from, to) })
 
+  const [addedId, setAddedId] = useAddedHighlight()
+
   const addEntry = (object: (typeof candidates)[number]) => {
     const type = toCanopenDataType(object.dataType)
     if (!type || cannotMap(pdo, object)) return
     const entry = entryFor(object, type, direction, uuidv4(), pdo.enabled ? placeholderAddress : undefined)
     onChange({ ...pdo, entries: [...pdo.entries, entry] })
+    setAddedId(entry.channelId)
   }
 
   return (
@@ -205,7 +209,12 @@ const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, syncPeriodUs, onChange, 
       {pdo.fixedMapping ? null : (
         <ObjectPicker
           label={`Add an object to ${title}`}
-          items={candidates.map((object) => ({ object, disabledReason: cannotMap(pdo, object) }))}
+          items={candidates.map((object) => ({
+            object,
+            disabledReason: cannotMap(pdo, object),
+            addedCount: pdo.entries.filter((e) => e.index === object.index && e.subIndex === object.subIndex).length,
+          }))}
+          summary={`${bits} of ${MAX_PDO_BITS} bits mapped`}
           emptyText='The device has no objects to map here.'
           onPick={addEntry}
         />
@@ -240,6 +249,7 @@ const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, syncPeriodUs, onChange, 
               key={entry.channelId}
               id={entry.channelId}
               name={entry.name}
+              highlight={entry.channelId === addedId}
               disabled={pdo.fixedMapping}
               className='border-t border-neutral-100 dark:border-neutral-800'
             >

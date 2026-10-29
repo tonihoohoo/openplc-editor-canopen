@@ -178,10 +178,10 @@ describe('CanopenEditor', () => {
       .getAllByRole('option')
       .map((o) => o.textContent)
     expect(labels).toEqual([
-      'Synchronous, acyclic (0)',
-      'Synchronous, every N SYNC (1-240)',
-      'Event-driven, manufacturer specific (254)',
-      'Event-driven, device profile (255) (EDS default)',
+      'Sync, acyclic (0)',
+      'Sync, every N (1-240)',
+      'Event, manufacturer (254)',
+      'Event, profile (255), EDS default',
     ])
     expect(within(card).getByText('0x1800:02')).toBeTruthy()
     expect(within(card).getByText('0x1800:05')).toBeTruthy()
@@ -228,6 +228,14 @@ describe('CanopenEditor', () => {
     expect(options[0]).toHaveProperty('disabled', false)
     fireEvent.keyDown(screen.getByLabelText('Search objects'), { key: 'Enter' })
     expect(config()?.nodes[0].tpdos[0].entries.map((e) => e.index)).toEqual([0x6000, 0x6401, 0x6401])
+
+    const status = screen.getByText(/^Added 0x6401:01/).closest('[role="status"]')
+    expect(status?.textContent).toContain('Added 0x6401:01 Analogue inputs / Input 1')
+    expect(status?.textContent).toContain('40 of 64 bits mapped')
+    expect(within(screen.getByRole('listbox')).getByText('Added ×2')).toBeTruthy()
+    const highlighted = card.querySelectorAll('tr[data-highlight="true"]')
+    expect(highlighted).toHaveLength(1)
+    expect(highlighted[0].textContent).toContain('0x6401:01')
   })
 
   it('names startup SDOs, offers the relevant objects and reorders them', async () => {

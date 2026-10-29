@@ -13,10 +13,10 @@ import { type PdoDirection, pdoObjectIndices, RTR_TRANSMISSION_TYPES } from './m
 export type TransmissionMode = 'sync_acyclic' | 'sync_cyclic' | 'event_manufacturer' | 'event_profile'
 
 export const TRANSMISSION_MODE_LABELS: Readonly<Record<TransmissionMode, string>> = {
-  sync_acyclic: 'Synchronous, acyclic (0)',
-  sync_cyclic: 'Synchronous, every N SYNC (1-240)',
-  event_manufacturer: 'Event-driven, manufacturer specific (254)',
-  event_profile: 'Event-driven, device profile (255)',
+  sync_acyclic: 'Sync, acyclic (0)',
+  sync_cyclic: 'Sync, every N (1-240)',
+  event_manufacturer: 'Event, manufacturer (254)',
+  event_profile: 'Event, profile (255)',
 }
 
 /** The mode of a transmission type, or null for a reserved or RTR type. */
