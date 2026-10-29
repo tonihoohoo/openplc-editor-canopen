@@ -21,10 +21,8 @@ import {
   canReceiveTime,
   canSetEmcy,
   canWatchMaster,
-  DEFAULT_BOOT_TIMEOUT_MS,
-  DEFAULT_BUS_PRIORITY,
+  defaultCanopenConfig,
   defaultEmcyCobId,
-  defaultNetworkSettings,
   edsDefault,
   effectiveGuarding,
   hasErrorBehaviour,
@@ -191,24 +189,23 @@ export function generateCanopenConfig(remoteDevices: readonly PLCRemoteDevice[] 
   const networks = (remoteDevices ?? [])
     .filter((d) => d.protocol === 'canopen' && d.canopenConfig)
     .map((d) => {
-      const { network: given, nodes } = d.canopenConfig ?? { network: undefined, nodes: [] }
-      const network = given ?? defaultNetworkSettings()
+      const { network, nodes } = d.canopenConfig ?? defaultCanopenConfig()
       return {
         name: d.name,
-        interface: network?.interface ?? '',
-        bitrate: network?.bitrate ?? 0,
-        master_node_id: network?.masterNodeId ?? 127,
-        heartbeat_producer_ms: network?.heartbeatProducerMs ?? 0,
-        sdo_timeout_ms: network?.sdoTimeoutMs ?? 1000,
+        interface: network.interface,
+        bitrate: network.bitrate,
+        master_node_id: network.masterNodeId,
+        heartbeat_producer_ms: network.heartbeatProducerMs,
+        sdo_timeout_ms: network.sdoTimeoutMs,
         sync:
-          network?.syncMode === 'period'
+          network.syncMode === 'period'
             ? { mode: 'period', period_us: network.syncPeriodUs }
-            : { mode: network?.syncMode ?? 'none' },
-        on_plc_stop: network?.onPlcStop ?? 'pre_operational',
-        priority: network?.priority ?? DEFAULT_BUS_PRIORITY,
-        boot_timeout_ms: network.bootTimeoutMs ?? DEFAULT_BOOT_TIMEOUT_MS,
-        on_node_error: network.onNodeError ?? 'restart',
-        time: network.time?.enabled ? { cob_id: network.time.cobId, period_ms: network.time.periodMs } : null,
+            : { mode: network.syncMode },
+        on_plc_stop: network.onPlcStop,
+        priority: network.priority,
+        boot_timeout_ms: network.bootTimeoutMs,
+        on_node_error: network.onNodeError,
+        time: network.time.enabled ? { cob_id: network.time.cobId, period_ms: network.time.periodMs } : null,
         nodes: nodes.map((node) => ({
           node_id: node.nodeId,
           name: node.name,

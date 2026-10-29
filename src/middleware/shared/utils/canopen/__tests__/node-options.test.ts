@@ -155,6 +155,30 @@ describe('node options in the configuration SDOs', () => {
   })
 })
 
+describe('node options in edge cases of the generator', () => {
+  it('guards a node without a heartbeat producer and leaves out what the EDS lacks', () => {
+    const eds = fullEds()
+    const guardOnly: CanopenNode = {
+      ...fullNode(4),
+      eds: { ...eds, objects: eds.objects.filter((o) => o.index !== 0x1017 && o.index !== 0x1014) },
+      supervision: 'guarding',
+      guardTimeMs: 200,
+      lifeTimeFactor: 3,
+      emcy: { enabled: true, cobId: 0x0f0 },
+    }
+    const sdos = sdoText(guardOnly)
+    expect(sdos.slice(0, 2)).toEqual(['100c:0=C800', '100d:0=03'])
+    expect(sdos.some((x) => x.startsWith('1017:') || x.startsWith('1014:'))).toBe(false)
+    const asIs = { ...guardOnly, configure: false, restoreDefaults: 2 }
+    expect(network(configWith(asIs))).toMatchObject({
+      nodes: [{ configure: false, restore_defaults: 0, supervision: { type: 'guarding', guard_time_ms: 500 } }],
+    })
+    expect(network(configWith({ ...asIs, supervision: 'none' as const }))).toMatchObject({
+      nodes: [{ supervision: { type: 'none' } }],
+    })
+  })
+})
+
 describe('node options in canopen.json', () => {
   it('writes the network and node options', () => {
     const node = {
@@ -256,6 +280,120 @@ describe('checkCanopenNetwork', () => {
     expect(validateCanopenProject([canopenDevice('net', configWith(bad))], 10000)[0]).toContain(
       'the heartbeat timeout (50 ms) must be longer',
     )
+  })
+})
+
+describe('checkCanopenNetwork fixes', () => {
+  const fixAll = (config: CanopenConfig, cycleUs: number | null = null) => fixAllCanopenProblems(config, cycleUs)
+
+  it('rounds every time to the PLC cycle', () => {
+    const node = { ...genericNode(2), heartbeatProducerMs: 105, heartbeatConsumerMs: 300 }
+    node.tpdos[0] = { ...node.tpdos[0], eventTimerMs: 15 }
+    const guarded = { ...fullNode(4), supervision: 'guarding' as const, guardTimeMs: 505 }
+    const config = configWith(node, guarded)
+    config.network.syncMode = 'period'
+    config.network.syncPeriodUs = 15000
+    config.network.heartbeatProducerMs = 95
+    config.network.time = { enabled: true, cobId: 0x100, periodMs: 999 }
+    const texts = checkCanopenNetwork(config, 10000).map(checkText)
+    expect(texts).toEqual(
+      expect.arrayContaining([
+        'the SYNC period (15000 µs) is not a multiple of the PLC cycle (10 ms)',
+        'the master heartbeat (95 ms) is not a multiple of the PLC cycle (10 ms)',
+        'the TIME period (999 ms) is not a multiple of the PLC cycle (10 ms)',
+        'node 4 (io4): the guard time (505 ms) is not a multiple of the PLC cycle (10 ms)',
+        'node 2 (io2) TPDO 1: the event timer (15 ms) is not a multiple of the PLC cycle (10 ms)',
+      ]),
+    )
+    const fixed = fixAll(config, 10000)
+    expect(fixed.network).toMatchObject({ syncPeriodUs: 20000, heartbeatProducerMs: 100, time: { periodMs: 1000 } })
+    expect(fixed.nodes[0]).toMatchObject({ heartbeatProducerMs: 110 })
+    expect(fixed.nodes[0].tpdos[0].eventTimerMs).toBe(20)
+    expect(fixed.nodes[1].guardTimeMs).toBe(510)
+    expect(checkCanopenNetwork(fixed, 10000)).toEqual([])
+    // A node that is not initialized keeps its own times.
+    expect(checkCanopenNetwork(configWith({ ...node, configure: false, supervision: 'none' }), 2500)).toEqual([])
+  })
+
+  it('moves a clashing emergency or TIME COB-ID', () => {
+    const a = fullNode(4)
+    const b = { ...fullNode(5), emcy: { enabled: true, cobId: 0x84 } }
+    const config = configWith(a, b)
+    config.network.time = { enabled: true, cobId: 0x184, periodMs: 1000 }
+    const problems = checkCanopenNetwork(config, null)
+    expect(problems.map((p) => p.fix?.label)).toEqual(expect.arrayContaining(['Move node 5 (io5) emergency to 0x081']))
+    expect(problems.find((p) => p.text.includes('emergency'))?.field).toBe('emcy')
+    const fixed = fixAll(config)
+    expect(fixed.nodes[1].emcy.cobId).toBe(0x81)
+    expect(checkCanopenNetwork(fixed, null)).toEqual([])
+    expect(fixed.network.time.cobId).toBe(0x184)
+    expect(fixed.nodes[0].tpdos[0].cobId).not.toBe(0x184)
+  })
+
+  it('checks guarding settings', () => {
+    const zero = { ...fullNode(4), supervision: 'guarding' as const, guardTimeMs: 0 }
+    expect(checkCanopenNetwork(configWith(zero), null)[0].text).toBe(
+      'node guarding needs a guard time and a life time factor above 0',
+    )
+    const unsupported = { ...genericNode(2), supervision: 'guarding' as const }
+    const [problem] = checkCanopenNetwork(configWith(unsupported), null)
+    expect(problem.fix?.label).toBe('Turn supervision off')
+    expect(fixAll(configWith(unsupported)).nodes[0].supervision).toBe('none')
+  })
+
+  it('checks a heartbeat time of 0', () => {
+    const node = { ...genericNode(2), heartbeatProducerMs: 0 }
+    expect(checkCanopenNetwork(configWith(node), null)[0].text).toBe(
+      'is supervised by heartbeat with a heartbeat time of 0',
+    )
+    const asIs = { ...fullNode(4), configure: false }
+    expect(checkCanopenNetwork(configWith(asIs), null)[0].text).toContain('its EDS default heartbeat time is 0')
+  })
+
+  it('removes heartbeats a node cannot watch', () => {
+    const consumers = (...ids: number[]) => ids.map((id, k) => ({ id: `c${k}`, producerNodeId: id, consumerMs: 500 }))
+    const tooMany = { ...fullNode(4), heartbeatConsumers: consumers(2, 2) }
+    const config = configWith(genericNode(2), tooMany)
+    expect(checkCanopenNetwork(config, null).map((p) => p.text)).toEqual([
+      'watches more heartbeats than its 0x1016 has entries for (1)',
+    ])
+    expect(fixAll(config).nodes[1].heartbeatConsumers).toHaveLength(1)
+    const own = { ...fullNode(4), heartbeatConsumers: consumers(4) }
+    expect(checkCanopenNetwork(configWith(own), null)[0].text).toBe('watches its own heartbeat')
+    const silent = { ...genericNode(2), supervision: 'none' as const }
+    const watcher = { ...fullNode(4), heartbeatConsumers: consumers(2) }
+    expect(checkCanopenNetwork(configWith(silent, watcher), null)[0].text).toBe(
+      'watches node 2 (io2), which sends no heartbeat',
+    )
+    const short = { ...fullNode(4), heartbeatConsumers: [{ id: 'c', producerNodeId: 2, consumerMs: 50 }] }
+    expect(fixAll(configWith(genericNode(2), short)).nodes[1].heartbeatConsumers[0].consumerMs).toBe(150)
+  })
+
+  it('removes a startup SDO that makes a node a SYNC producer', () => {
+    const node = genericNode(2)
+    node.sdos = [
+      { id: 'sync', index: 0x1005, subIndex: 0, dataType: 'UNSIGNED32', value: '0x40000080' },
+      { id: 'plain', index: 0x1005, subIndex: 0, dataType: 'UNSIGNED32', value: '0x80' },
+      { id: 'other', index: 0x2100, subIndex: 0, dataType: 'UNSIGNED32', value: '1' },
+    ]
+    const config = configWith(node)
+    config.network.syncMode = 'plc_cycle'
+    expect(checkCanopenNetwork(config, null)[0].fix?.label).toBe('Remove that startup SDO')
+    expect(fixAll(config).nodes[0].sdos.map((s) => s.id)).toEqual(['plain', 'other'])
+    config.network.syncWindowUs = 20000
+    expect(fixAll(config, 10000).network.syncWindowUs).toBe(5000)
+  })
+})
+
+describe('validateCanopenProject with node options', () => {
+  it('checks the boot-up timeout and the TIME period', () => {
+    const config = configWith(genericNode(2))
+    config.network.bootTimeoutMs = 50
+    config.network.time = { enabled: true, cobId: 0x100, periodMs: 5 }
+    expect(validateCanopenProject([canopenDevice('net', config)])).toEqual([
+      'CANopen "net": the boot-up timeout must be 100 - 60000 ms',
+      'CANopen "net": the TIME period must be 10 - 65535 ms',
+    ])
   })
 })
 
