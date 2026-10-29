@@ -1,4 +1,5 @@
 export * from './data-types'
+export * from './editing'
 export * from './eds-parser'
 export * from './generate-canopen-config'
 export * from './model'

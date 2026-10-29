@@ -27,12 +27,30 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
      supervision with the node's producer time and the master's timeout, what the node's inputs do
      when it is lost, and the `%IB` that reads its NMT state.
    - **Inputs** / **Outputs**: the node's transmit PDOs (PLC inputs, `%I`) and receive PDOs (PLC
-     outputs, `%Q`). A PDO can be switched off, its COB-ID and transmission type changed, and its
-     entries removed or added from the objects the EDS marks as mappable. An entry that would take
-     the PDO over 64 bits is offered but disabled. A mapping the EDS marks read-only is fixed.
+     outputs, `%Q`). A PDO can be switched off, its COB-ID, transmission type, event timer and
+     inhibit time changed, and its entries added, removed and reordered (drag handle or the up and
+     down buttons; the order is the layout of the frame). **Add object** opens a list of the objects
+     the EDS marks as mappable, searchable by index (`6401`, `0x6401:01`) or name; an entry that
+     would take the PDO over 64 bits is listed but disabled. A mapping the EDS marks read-only is
+     fixed.
+   - The transmission type is one of synchronous acyclic (0), synchronous every N SYNC (1-240),
+     event-driven manufacturer specific (254) or event-driven device profile (255); choices outside
+     the EDS's `LowLimit`/`HighLimit` are disabled and the EDS default is marked. Remote request
+     (RTR) types 252 and 253 are not supported: an EDS default of 252 or 253 becomes 255, and the
+     build refuses them. A synchronous type on a network without SYNC shows a warning.
+   - Under each PDO setting and the node heartbeat, the hint names the object it writes (for
+     example `0x1800:05`). A setting the EDS leaves out or marks read-only is shown read-only, as the
+     master does not write it.
    - **Startup SDOs**: values written after the PDO and heartbeat settings, in order, each time the
-     node boots. The master never stores them in the node (0x1010) and never restores defaults
-     (0x1011).
+     node boots; rows can be reordered. Each row shows the object's name (with its array or record
+     name), takes the data type from the EDS, offers TRUE/FALSE for a BOOLEAN, and shows the EDS
+     default and range. **Add object** lists the useful objects only: it leaves out the PDO
+     parameters and heartbeat the editor writes itself, entry counters (sub-index 0), objects mapped
+     in an enabled RPDO and objects already in the list; **Show all objects** lists them too, with
+     the reason. **Add by index** adds an object the EDS does not define. The master never stores
+     values in the node (0x1010) and never restores defaults (0x1011).
+   - On the **Network** tab, a bit rate a node's EDS marks unsupported (`BaudRate_x=0`) is disabled
+     and names the node.
 5. Give entries aliases and bind variables to them, as with other remote I/O.
 
 Problems that would stop the build are listed at the top of the editor as they appear.
@@ -65,6 +83,7 @@ entry of a switched-off PDO has no address and no alias.
 | Project schema                                            | `CanopenConfigSchema` in `src/backend/shared/types/PLC/open-plc.ts`    |
 | EDS parser                                                | `src/middleware/shared/utils/canopen/eds-parser.ts`                    |
 | Node construction and edits                               | `src/middleware/shared/utils/canopen/model.ts`                         |
+| Editing rules (transmission types, SDO objects, search)   | `src/middleware/shared/utils/canopen/editing.ts`                       |
 | Build checks and editor warnings                          | `src/middleware/shared/utils/canopen/validate-canopen-config.ts`       |
 | `conf/canopen.json`                                       | `src/middleware/shared/utils/canopen/generate-canopen-config.ts`       |
 | Store action                                              | `projectActions.updateCanopenConfig`                                   |
@@ -73,15 +92,18 @@ entry of a switched-off PDO has no address and no alias.
 The parsed EDS (identity, PDO counts, object dictionary) is stored on the node, so a project opens
 and builds without the original file. For each PDO the generator writes the configuration SDOs in
 the CiA 301 order: disable the PDO (COB-ID bit 31), clear the mapping, write the entries, set the
-count, write the transmission type, inhibit time and event timer, and enable it. A PDO that is
+count, write the transmission type, inhibit time and event timer, and enable it. TPDO COB-IDs are
+written with bit 30 set (no RTR). A PDO that is
 switched off or has no entries is only disabled. Objects the EDS marks read-only are not written.
 
 ## Tests
 
-- Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, model, generator, validator)
+- Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, model, editing rules, generator, validator)
   with the generic I/O module EDS in `__tests__/fixtures/`, the store action in
   `src/frontend/store/__tests__/canopen-config.test.ts`, and the device editor in
   `.../device/canopen/__tests__/`.
-- End-to-end: `e2e/canopen-offline-build.spec.ts` adds a node from the EDS in the app and builds.
+- End-to-end: `e2e/canopen-offline-build.spec.ts` adds a node from the EDS in the app and builds;
+  `e2e/canopen-pdo-sdo-editing.spec.ts` reorders an entry, sets a transmission type and adds a
+  startup SDO by search, then checks the built `canopen.json`.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
   against a simulated node on a virtual CAN bus.

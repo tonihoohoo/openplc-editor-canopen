@@ -60,6 +60,17 @@ describe('validateCanopenProject', () => {
     )
   })
 
+  it('refuses RTR and reserved transmission types', () => {
+    const node = genericNode(2)
+    node.tpdos[0].transmissionType = 253
+    node.rpdos[0].transmissionType = 245
+    const errors = errorsOf(configWith(node))
+    expect(errors).toContain(
+      'CANopen "net" node 2 (io2) TPDO 1: transmission type 253 needs remote requests (RTR), which are not supported',
+    )
+    expect(errors).toContain('CANopen "net" node 2 (io2) RPDO 1: transmission type 245 is reserved')
+  })
+
   it('refuses store and restore SDOs and bad values', () => {
     const node = genericNode(2)
     node.sdos = [

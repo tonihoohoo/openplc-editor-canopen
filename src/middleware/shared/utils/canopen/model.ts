@@ -22,6 +22,13 @@ export type PdoDirection = 'input' | 'output'
 export type AllocateAddress = (prefix: string, isBit: boolean) => string
 
 export const MAX_PDO_BITS = 64
+/** Remote request (RTR) transmission types; not supported by the master. */
+export const RTR_TRANSMISSION_TYPES: readonly number[] = [252, 253]
+
+/** The type itself, or 255 for an RTR type. */
+export function supportedTransmissionType(type: number): number {
+  return RTR_TRANSMISSION_TYPES.includes(type) ? 255 : type
+}
 export const STATE_CHANNEL_ID = 'state'
 
 export function defaultNetworkSettings(): CanopenNetworkSettings {
@@ -134,7 +141,7 @@ export function defaultPdos(
       cobId,
       enabled,
       fixedMapping,
-      transmissionType: defaultInt(eds, comm, 2, nodeId) ?? 255,
+      transmissionType: supportedTransmissionType(defaultInt(eds, comm, 2, nodeId) ?? 255),
       eventTimerMs: direction === 'input' ? (defaultInt(eds, comm, 5, nodeId) ?? 0) : 0,
       inhibitTime: direction === 'input' ? (defaultInt(eds, comm, 3, nodeId) ?? 0) : 0,
       entries: [],

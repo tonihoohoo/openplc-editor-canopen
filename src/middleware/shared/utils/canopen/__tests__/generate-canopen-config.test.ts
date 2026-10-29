@@ -9,8 +9,8 @@ describe('nodeConfigurationSdos', () => {
     }
     expect(nodeConfigurationSdos(node).map((s) => `${s.index.toString(16)}:${s.subindex}=${s.data}`)).toEqual([
       '1017:0=6400',
-      // TPDO 1: disable, clear mapping, map 0x6000:1 (8 bits) and 0x6401:1 (16 bits), count, settings, enable.
-      '1800:1=82010080',
+      // TPDO 1 (RTR off): disable, clear mapping, map 0x6000:1 (8 bits) and 0x6401:1 (16 bits), count, settings, enable.
+      '1800:1=820100C0',
       '1a00:0=00',
       '1a00:1=08010060',
       '1a00:2=10010164',
@@ -18,7 +18,7 @@ describe('nodeConfigurationSdos', () => {
       '1800:2=FF',
       '1800:3=0000',
       '1800:5=1400',
-      '1800:1=82010000',
+      '1800:1=82010040',
       // RPDO 1
       '1400:1=02020080',
       '1600:0=00',

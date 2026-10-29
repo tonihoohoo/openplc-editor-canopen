@@ -947,6 +947,9 @@ const CanopenObjectSchema = z.object({
   access: z.enum(['ro', 'wo', 'rw', 'rwr', 'rww', 'const']),
   pdoMapping: z.boolean(),
   defaultValue: z.string().optional(),
+  parentName: z.string().optional(),
+  lowLimit: z.string().optional(),
+  highLimit: z.string().optional(),
 })
 
 const CanopenEdsInfoSchema = z.object({
@@ -959,6 +962,7 @@ const CanopenEdsInfoSchema = z.object({
   revision: z.number().int().min(0),
   rxPdoCount: z.number().int().min(0),
   txPdoCount: z.number().int().min(0),
+  unsupportedBitrates: z.array(z.number().int().min(0)).optional(),
   objects: z.array(CanopenObjectSchema),
 })
 

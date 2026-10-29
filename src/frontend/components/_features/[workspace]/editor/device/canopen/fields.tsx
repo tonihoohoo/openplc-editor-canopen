@@ -4,14 +4,34 @@ import { useEffect, useState } from 'react'
 
 import { hintClassName, inputClassName, labelClassName } from './styles'
 
-type NumberFieldProps = {
+type FieldHintProps = {
+  /** Object the field writes, e.g. "0x1800:05". */
+  objectRef?: string
+  hint?: string
+  /** Shown in amber in place of the hint. */
+  warning?: string
+}
+
+/** The small line under a field: the object it writes, then the hint or a warning. */
+const FieldHint = ({ objectRef, hint, warning }: FieldHintProps) => {
+  const text = warning ?? hint
+  if (!objectRef && !text) return null
+  return (
+    <span className={cn(hintClassName, warning && 'text-amber-600 dark:text-amber-400')}>
+      {objectRef ? <span className='font-mono'>{objectRef}</span> : null}
+      {objectRef && text ? ' · ' : null}
+      {text}
+    </span>
+  )
+}
+
+type NumberFieldProps = FieldHintProps & {
   label: string
   value: number
   min: number
   max: number
   /** May return an error message to refuse the value. */
   onCommit: (value: number) => string | null | void
-  hint?: string
   /** Shows and accepts the value in hexadecimal (0x...); decimal input is accepted too. */
   hex?: boolean
   hexWidth?: number
@@ -30,6 +50,8 @@ const NumberField = ({
   max,
   onCommit,
   hint,
+  objectRef,
+  warning,
   hex = false,
   hexWidth = 3,
   disabled,
@@ -70,8 +92,11 @@ const NumberField = ({
         }}
         className={inputClassName}
       />
-      {error ? <span className='text-[10px] text-red-600 dark:text-red-400'>{error}</span> : null}
-      {!error && hint ? <span className={hintClassName}>{hint}</span> : null}
+      {error ? (
+        <span className='text-[10px] text-red-600 dark:text-red-400'>{error}</span>
+      ) : (
+        <FieldHint objectRef={objectRef} hint={hint} warning={warning} />
+      )}
     </label>
   )
 }
@@ -128,21 +153,41 @@ const TextField = ({ label, value, onCommit, hint, placeholder, className, hideL
   )
 }
 
-type SelectFieldProps<T extends string> = {
+export type SelectOption<T extends string> = {
+  value: T
+  label: string
+  /** Shown disabled, with this reason in the option and its tooltip. */
+  disabledReason?: string | null
+}
+
+type SelectFieldProps<T extends string> = FieldHintProps & {
   label: string
   value: T
-  options: ReadonlyArray<{ value: T; label: string }>
+  options: ReadonlyArray<SelectOption<T>>
   onChange: (value: T) => void
-  hint?: string
+  disabled?: boolean
+  hideLabel?: boolean
   className?: string
 }
 
-const SelectField = <T extends string>({ label, value, options, onChange, hint, className }: SelectFieldProps<T>) => (
+const SelectField = <T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  hint,
+  objectRef,
+  warning,
+  disabled,
+  hideLabel,
+  className,
+}: SelectFieldProps<T>) => (
   <label className={cn('flex flex-col gap-1', className)}>
-    <span className={labelClassName}>{label}</span>
+    {hideLabel ? null : <span className={labelClassName}>{label}</span>}
     <select
       aria-label={label}
       value={value}
+      disabled={disabled}
       onChange={(e) => {
         const picked = options.find((o) => o.value === e.target.value)
         if (picked) onChange(picked.value)
@@ -150,12 +195,17 @@ const SelectField = <T extends string>({ label, value, options, onChange, hint, 
       className={inputClassName}
     >
       {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
+        <option
+          key={o.value}
+          value={o.value}
+          disabled={Boolean(o.disabledReason)}
+          title={o.disabledReason ?? undefined}
+        >
+          {o.disabledReason ? `${o.label} - ${o.disabledReason}` : o.label}
         </option>
       ))}
     </select>
-    {hint ? <span className={hintClassName}>{hint}</span> : null}
+    <FieldHint objectRef={objectRef} hint={hint} warning={warning} />
   </label>
 )
 
@@ -184,4 +234,4 @@ const CheckboxField = ({ label, checked, onChange, hint, disabled }: CheckboxFie
   </label>
 )
 
-export { CheckboxField, NumberField, SelectField, TextField }
+export { CheckboxField, FieldHint, NumberField, SelectField, TextField }
