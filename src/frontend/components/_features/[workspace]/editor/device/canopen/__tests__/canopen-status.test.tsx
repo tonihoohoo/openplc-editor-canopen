@@ -165,6 +165,24 @@ describe('CANopen live status', () => {
     expect(screen.queryByTestId('canopen-bus-status')).toBeNull()
   })
 
+  it('reads no status for a network that is off and says it is off', async () => {
+    const status = jest.fn(() => ok(sampleStatus()))
+    await renderEditor(true, CAPABILITIES_WITH_STATUS, status)
+    expect(status).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('switch', { name: 'Run this network' }))
+    await act(async () => {
+      for (let i = 0; i < 4; i++) await Promise.resolve()
+    })
+    status.mockClear()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1100))
+    })
+    expect(status).not.toHaveBeenCalled()
+    expect(screen.getByTestId('canopen-bus-status').textContent).toBe('Off in the project')
+    expect(dots()).toEqual([])
+    expect(screen.queryByRole('tab', { name: 'Status' })).toBeNull()
+  })
+
   it('shows nothing for a runtime without the feature', async () => {
     await renderEditor(true, { canopen: { configVersions: [2] } })
     expect(dots()).toEqual([])

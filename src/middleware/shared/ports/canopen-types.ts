@@ -177,6 +177,8 @@ export interface CanopenNewNodeDefaults {
 }
 
 export interface CanopenNetworkSettings {
+  /** Off: the network is left out of conf/canopen.json; nodes, mappings and addresses are kept. */
+  enabled: boolean
   interface: string
   /** Bit/s. */
   bitrate: number

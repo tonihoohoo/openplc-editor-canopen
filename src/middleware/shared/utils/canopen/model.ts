@@ -186,6 +186,7 @@ export function defaultNewNodeDefaults(): CanopenNewNodeDefaults {
 
 export function defaultNetworkSettings(): CanopenNetworkSettings {
   return {
+    enabled: true,
     interface: 'can0',
     bitrate: 500000,
     masterNodeId: 127,

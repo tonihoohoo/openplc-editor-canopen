@@ -190,10 +190,15 @@ function pdosOut(pdos: CanopenPdo[], direction: PdoDirection): PdoOut[] {
   }))
 }
 
-/** The JSON text of conf/canopen.json, or null when the project has no CANopen device. */
+/** CANopen devices of the project whose network is off; they are left out of conf/canopen.json. */
+export function canopenNetworksOff(remoteDevices: readonly PLCRemoteDevice[] | undefined): PLCRemoteDevice[] {
+  return (remoteDevices ?? []).filter((d) => d.protocol === 'canopen' && d.canopenConfig?.network.enabled === false)
+}
+
+/** The JSON text of conf/canopen.json, or null when the project has no CANopen network that is on. */
 export function generateCanopenConfig(remoteDevices: readonly PLCRemoteDevice[] | undefined): string | null {
   const networks = (remoteDevices ?? [])
-    .filter((d) => d.protocol === 'canopen' && d.canopenConfig)
+    .filter((d) => d.protocol === 'canopen' && d.canopenConfig?.network.enabled)
     .map((d) => {
       const { network, nodes } = d.canopenConfig ?? defaultCanopenConfig()
       return {

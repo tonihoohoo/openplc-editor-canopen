@@ -25,10 +25,12 @@ const hex = (v: number, width: number): string => `0x${v.toString(16).toUpperCas
 /**
  * Errors that stop the build. `cycleUs` is the PLC cycle (see `plcCycleUs`), used to check a SYNC
  * window against SYNC once per PLC cycle; timings off the cycle are warnings and do not stop it.
+ * Networks that are off are skipped unless `includeOff` is set, as the device editor does.
  */
 export function validateCanopenProject(
   remoteDevices: readonly PLCRemoteDevice[] | undefined,
   cycleUs: number | null = null,
+  options: { includeOff?: boolean } = {},
 ): string[] {
   const errors: string[] = []
   const interfaces = new Map<string, string>()
@@ -36,6 +38,7 @@ export function validateCanopenProject(
 
   for (const device of remoteDevices ?? []) {
     if (device.protocol !== 'canopen' || !device.canopenConfig) continue
+    if (!device.canopenConfig.network.enabled && !options.includeOff) continue
     const { network, nodes } = device.canopenConfig
     const net = `CANopen "${device.name}"`
     const iface = network.interface.trim()

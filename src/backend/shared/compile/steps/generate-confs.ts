@@ -35,7 +35,11 @@
 // DOM dependencies).  Same legacy-tree path the editor's compiler-
 // module.ts uses; flagged as an organisational smell (`backend-shared
 // → frontend`) but functional, see the build-pipeline refactor plan.
-import { generateCanopenConfig, validateCanopenProject } from '@root/middleware/shared/utils/canopen'
+import {
+  canopenNetworksOff,
+  generateCanopenConfig,
+  validateCanopenProject,
+} from '@root/middleware/shared/utils/canopen'
 import { validateEthercatProject } from '@root/middleware/shared/utils/ethercat'
 
 import { getErrorMessage } from '../../../../frontend/utils/get-error-message'
@@ -194,6 +198,8 @@ export function generateRuntimeConfs(input: GenerateConfsInput): GenerateConfsOu
   if (canopenErrors.length > 0) {
     throw new Error(`CANopen configuration is invalid: ${canopenErrors.join('; ')}`)
   }
+  for (const off of canopenNetworksOff(remoteDevices))
+    input.log(`CANopen network "${off.name}" is off and was not sent to the runtime`, 'info')
   const canopen = generateCanopenConfig(remoteDevices)
 
   return { modbusSlave, modbusMaster, s7Comm, opcUa, ethercat, ethercatBusconfig, ethercatIomapping, canopen }

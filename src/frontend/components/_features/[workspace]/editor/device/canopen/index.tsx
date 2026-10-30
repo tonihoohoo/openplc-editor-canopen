@@ -34,6 +34,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { NetworkSettings } from './network-settings'
+import { NetworkSwitch } from './network-switch'
 import { NodeList } from './node-list'
 import { NodePanel } from './node-panel'
 import { BusStatusLine } from './status-view'
@@ -63,10 +64,12 @@ type CheckListProps = {
   onFix: (check: CanopenCheck) => void
   onFixAll: () => void
   onShow: (check: CanopenCheck) => void
+  /** The network is on; errors of a network that is off do not stop the build. */
+  on: boolean
 }
 
 /** The network's checks: errors stop the build, warnings do not; each fix is one change. */
-const CheckList = ({ checks, onFix, onFixAll, onShow }: CheckListProps) => {
+const CheckList = ({ checks, onFix, onFixAll, onShow, on }: CheckListProps) => {
   const errors = checks.filter((c) => c.level === 'error').length
   const fixable = checks.filter((c) => c.fix).length
   return (
@@ -82,7 +85,11 @@ const CheckList = ({ checks, onFix, onFixAll, onShow }: CheckListProps) => {
     >
       <div className='mb-1 flex items-center justify-between gap-4'>
         <p className='font-medium'>
-          {errors > 0 ? `${errors} problem${errors === 1 ? '' : 's'} stop the build` : 'Warnings'}
+          {errors > 0
+            ? on
+              ? `${errors} problem${errors === 1 ? '' : 's'} stop the build`
+              : `${errors} problem${errors === 1 ? '' : 's'} to fix before turning the network on`
+            : 'Warnings'}
           {checks.length > errors
             ? `, ${checks.length - errors} warning${checks.length - errors === 1 ? '' : 's'}`
             : ''}
@@ -134,9 +141,12 @@ const CanopenEditor = () => {
   const registry = useAliasRegistry()
 
   const deviceName = editor.type === 'plc-remote-device' ? editor.meta.name : ''
-  const live = useCanopenStatus(deviceName)
   const device = useMemo(() => remoteDevices?.find((d) => d.name === deviceName), [remoteDevices, deviceName])
   const config = useMemo(() => device?.canopenConfig ?? defaultCanopenConfig(), [device])
+  const on = config.network.enabled
+  const status = useCanopenStatus(deviceName, on)
+  // A network that is off shows no node dots and no Status tab.
+  const live = on ? status : null
 
   const [tab, setTab] = useState<EditorTab>('nodes')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -148,7 +158,9 @@ const CanopenEditor = () => {
   const problems = useMemo(() => {
     if (!device) return []
     const covered = checks.filter((c) => c.level === 'error').map(checkText)
-    return validateCanopenProject([device], cycleUs).filter((p) => !covered.some((c) => p.endsWith(c)))
+    return validateCanopenProject([device], cycleUs, { includeOff: true }).filter(
+      (p) => !covered.some((c) => p.endsWith(c)),
+    )
   }, [device, checks, cycleUs])
   const sdoWarnings = useMemo(() => {
     const map = new Map<string, string>()
@@ -230,13 +242,23 @@ const CanopenEditor = () => {
   return (
     <div aria-label='CANopen editor container' className='flex h-full w-full flex-col overflow-y-auto p-4'>
       <div className='mb-4 shrink-0'>
-        <h2 className='text-lg font-semibold text-neutral-1000 dark:text-neutral-100'>CANopen network: {deviceName}</h2>
-        <p className='text-sm text-neutral-600 dark:text-neutral-400'>
+        <div className='flex flex-wrap items-start justify-between gap-x-6 gap-y-2'>
+          <h2 className='text-lg font-semibold text-neutral-1000 dark:text-neutral-100'>
+            CANopen network: {deviceName}
+          </h2>
+          <NetworkSwitch on={on} onChange={(enabled) => changeNetwork({ enabled })} />
+        </div>
+        <p className={cn('text-sm text-neutral-600 dark:text-neutral-400', !on && 'opacity-50')}>
           {config.network.interface}
           {config.network.bitrate > 0 ? `, ${config.network.bitrate / 1000} kbit/s` : ''}, master node ID{' '}
           {config.network.masterNodeId}, {config.nodes.length} node{config.nodes.length === 1 ? '' : 's'}
         </p>
         {live ? <BusStatusLine live={live} /> : null}
+        {status && !on ? (
+          <p data-testid='canopen-bus-status' className='text-xs text-neutral-600 dark:text-neutral-400'>
+            Off in the project
+          </p>
+        ) : null}
       </div>
 
       {problems.length > 0 ? (
@@ -244,7 +266,9 @@ const CanopenEditor = () => {
           role='status'
           className='mb-4 shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
         >
-          <p className='font-medium'>The build stops until these are fixed:</p>
+          <p className='font-medium'>
+            {on ? 'The build stops until these are fixed:' : 'Fix these before turning the network on:'}
+          </p>
           <ul className='ml-4 list-disc'>
             {problems.map((p) => (
               <li key={p}>{p}</li>
@@ -256,6 +280,7 @@ const CanopenEditor = () => {
       {checks.length > 0 ? (
         <CheckList
           checks={checks}
+          on={on}
           onFix={(check) => {
             if (check.fix) commit(check.fix.apply)
           }}
