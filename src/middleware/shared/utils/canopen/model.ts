@@ -75,10 +75,10 @@ export function canBeGuarded(eds: CanopenEdsInfo): boolean {
   return findObject(eds, 0x100c, 0) !== undefined && findObject(eds, 0x100d, 0) !== undefined
 }
 
-/** The 0x1011 sub-indexes the EDS defines (1 all, 2 communication, 3 application, 4+ manufacturer). */
+/** The writable 0x1011 sub-indexes of the EDS (1 all, 2 communication, 3 application, 4+ manufacturer). */
 export function restoreChoices(eds: CanopenEdsInfo): number[] {
   return eds.objects
-    .filter((o) => o.index === 0x1011 && o.subIndex >= 1)
+    .filter((o) => o.index === 0x1011 && o.subIndex >= 1 && o.access !== 'ro' && o.access !== 'const')
     .map((o) => o.subIndex)
     .sort((a, b) => a - b)
 }

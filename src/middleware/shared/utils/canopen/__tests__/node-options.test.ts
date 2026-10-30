@@ -73,6 +73,11 @@ describe('node options in the model', () => {
     expect(canBeGuarded(eds)).toBe(true)
     expect(canBeGuarded(genericIoEds())).toBe(false)
     expect(restoreChoices(eds)).toEqual([1, 2, 3])
+    const appReadOnly = {
+      ...eds,
+      objects: eds.objects.map((o) => (o.index === 0x1011 && o.subIndex === 3 ? { ...o, access: 'ro' as const } : o)),
+    }
+    expect(restoreChoices(appReadOnly)).toEqual([1, 2])
     expect(restoreChoiceName(2)).toBe('Communication parameters')
     expect(restoreChoiceName(5)).toBe('Manufacturer specific (sub 5)')
     expect(autoSupervision(eds)).toBe('heartbeat')
@@ -258,6 +263,19 @@ describe('checkCanopenNetwork', () => {
     const unknown = { ...fullNode(4), restoreDefaults: 7 }
     expect(restore(configWith(unknown))?.text).toContain('0x1011 sub 7')
     expect(fixAllCanopenProblems(configWith(unknown), null).nodes[0].restoreDefaults).toBe(0)
+    const readOnly = {
+      ...fullNode(4),
+      restoreDefaults: 3,
+      eds: {
+        ...fullEds(),
+        objects: fullEds().objects.map((o) =>
+          o.index === 0x1011 && o.subIndex === 3 ? { ...o, access: 'ro' as const } : o,
+        ),
+      },
+    }
+    expect(restore(configWith(readOnly))?.text).toBe(
+      'restores its defaults with 0x1011 sub 3, which its EDS does not define as writable',
+    )
   })
 
   it('shortens a SYNC window that is not shorter than the period', () => {

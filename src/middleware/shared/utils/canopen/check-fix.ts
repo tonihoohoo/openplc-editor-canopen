@@ -429,7 +429,7 @@ function checkOptions(config: CanopenConfig, out: CanopenCheck[]): void {
         nodeId: node.id,
         where: label(node),
         field: 'restoreDefaults',
-        text: `restores its defaults with 0x1011 sub ${node.restoreDefaults}, which its EDS does not define`,
+        text: `restores its defaults with 0x1011 sub ${node.restoreDefaults}, which its EDS does not define as writable`,
         fix: turnOff,
       })
   }
