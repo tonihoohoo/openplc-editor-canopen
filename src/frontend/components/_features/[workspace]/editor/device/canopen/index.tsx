@@ -249,12 +249,7 @@ const CanopenEditor = () => {
   return (
     <div aria-label='CANopen editor container' className='flex h-full w-full flex-col overflow-y-auto p-4'>
       <div className='mb-4 shrink-0'>
-        <div className='flex flex-wrap items-start justify-between gap-x-6 gap-y-2'>
-          <h2 className='text-lg font-semibold text-neutral-1000 dark:text-neutral-100'>
-            CANopen network: {deviceName}
-          </h2>
-          <NetworkSwitch on={on} onChange={(enabled) => changeNetwork({ enabled })} />
-        </div>
+        <h2 className='text-lg font-semibold text-neutral-1000 dark:text-neutral-100'>CANopen network: {deviceName}</h2>
         <p className={cn('text-sm text-neutral-600 dark:text-neutral-400', !on && 'opacity-50')}>
           {config.network.interface}
           {config.network.bitrate > 0 ? `, ${config.network.bitrate / 1000} kbit/s` : ''}, master node ID{' '}
@@ -266,6 +261,9 @@ const CanopenEditor = () => {
             Off in the project
           </p>
         ) : null}
+        <div className='mt-2'>
+          <NetworkSwitch on={on} onChange={(enabled) => changeNetwork({ enabled })} />
+        </div>
         {online ? (
           <div className='mt-2'>
             <ServiceBus online={online} />
