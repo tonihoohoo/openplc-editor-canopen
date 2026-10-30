@@ -97,6 +97,19 @@ describe('CANopen live status', () => {
     expect(line).toContain('the runtime may not reset the link, reset it by hand')
   })
 
+  it('shows dropped sent frames and the runtime may not reset a link at a wrong bit rate', async () => {
+    const status = sampleStatus()
+    const net = status.networks[0]
+    const bus = { ...net.bus, link_resets: 1, tx_dropped: 182 }
+    const events = [{ time: status.now - 1000, kind: 'bus_reset', outcome: 'not_permitted', cause: 'bit_rate' }]
+    await renderEditor(true, CAPABILITIES_WITH_STATUS, () =>
+      ok({ ...status, networks: [{ ...net, bus, events: [...events, ...net.events] }] }),
+    )
+    const line = screen.getByTestId('canopen-bus-status').textContent ?? ''
+    expect(line).toContain('182 sent frames dropped')
+    expect(line).toContain('the runtime may not reset the link, reset it by hand')
+  })
+
   it('greys the last status when a read fails', async () => {
     await renderEditor(true, CAPABILITIES_WITH_STATUS, () => Promise.resolve({ success: false, error: 'timed out' }))
     expect(screen.getByTestId('canopen-bus-status').textContent).toContain('Status unavailable: timed out')

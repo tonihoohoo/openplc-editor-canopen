@@ -7,6 +7,7 @@ import type {
   CanopenNodeState,
   CanopenNodeStatus,
   CanopenProblem,
+  CanopenResetCause,
   CanopenResetOutcome,
 } from '../../../ports/canopen-status'
 import { emcyText, hex, sdoAbortText } from './codes'
@@ -123,26 +124,35 @@ export function problemText(problem: CanopenProblem): string {
   }
 }
 
-const RESET_OUTCOMES: Record<CanopenResetOutcome, string> = {
-  done: 'The master reset the link after a bus-off.',
-  not_permitted: 'The link is bus-off and the runtime is not permitted to reset it; reset it by hand.',
-  failed: 'The link is bus-off and the master could not reset it.',
+const RESET_CAUSES: Record<CanopenResetCause, { after: string; state: string }> = {
+  bus_off: { after: 'after a bus-off', state: 'is bus-off' },
+  bit_rate: { after: 'because it ran at a wrong bit rate', state: 'runs at a wrong bit rate' },
+  tx_stalled: { after: 'because it stopped sending', state: 'stopped sending' },
 }
 
-/** What a reset of a bus-off link came to. */
-export function resetText(outcome: CanopenResetOutcome | undefined): string {
-  return RESET_OUTCOMES[outcome ?? 'done']
+/** What a reset of a link came to, and why it was made. */
+export function resetText(outcome: CanopenResetOutcome | undefined, cause?: CanopenResetCause): string {
+  const c = RESET_CAUSES[cause ?? 'bus_off']
+  switch (outcome ?? 'done') {
+    case 'done':
+      return `The master reset the link ${c.after}.`
+    case 'not_permitted':
+      return `The link ${c.state} and the runtime is not permitted to reset it; reset it by hand.`
+    case 'failed':
+      return `The link ${c.state} and the master could not reset it.`
+  }
 }
 
-/** The bus status parts about link resets: the count, and while bus-off a reset that did not happen. */
+/** The bus status parts about link resets: the count, and while the link is faulty a reset that did not happen. */
 export function linkResetParts(network: Pick<CanopenNetworkStatus, 'bus' | 'events'>): string[] {
   const parts: string[] = []
   const resets = network.bus.link_resets ?? 0
   if (resets > 0) parts.push(resets === 1 ? 'link reset once' : `link reset ${resets} times`)
   const last = network.events.find((e) => e.kind === 'bus_reset')
-  if (network.bus.state === 'bus_off' && last?.outcome === 'not_permitted')
-    parts.push('the runtime may not reset the link, reset it by hand')
-  else if (network.bus.state === 'bus_off' && last?.outcome === 'failed') parts.push('resetting the link failed')
+  // A wrong bit rate or a stall is not visible in the bus state; it lasts until a reset is done.
+  const faulty = network.bus.state === 'bus_off' || (last?.cause ?? 'bus_off') !== 'bus_off'
+  if (faulty && last?.outcome === 'not_permitted') parts.push('the runtime may not reset the link, reset it by hand')
+  else if (faulty && last?.outcome === 'failed') parts.push('resetting the link failed')
   return parts
 }
 
@@ -175,7 +185,7 @@ export function eventText(event: CanopenEvent): string {
     case 'bus_state':
       return `Bus ${busStateLabel(event.bus_state ?? 'unknown').toLowerCase()}.`
     case 'bus_reset':
-      return resetText(event.outcome)
+      return resetText(event.outcome, event.cause)
     default: {
       const unreachable: never = event.kind
       return unreachable

@@ -115,9 +115,10 @@ While the editor is connected to a runtime whose `/api/capabilities` lists `"sta
 - a dot before each node: green operational, amber booting or operational with an active emergency
   or a late PDO, red not answering, boot failed or lost, grey waiting, stopped, an optional node
   that is absent, or not in the running program; its tooltip gives the state and the reason;
-- the bus status under the network header: the controller state, error counters and bus load, how
-  often the runtime reset the link after a bus-off, and, while the link is bus-off, when the runtime
-  is not permitted to reset it (reset it by hand then);
+- the bus status under the network header: the controller state, error counters, bus load and
+  dropped frames, how often the runtime reset the link (after a bus-off, at a wrong bit rate or when
+  it stopped sending), and, while the link is faulty, when the runtime is not permitted to reset it
+  (reset it by hand then);
 - a **Status** tab on each node: the state and since when, the reason of the last failure in words
   (for example "The product code is 0x43 where 0x42 was expected"), the NMT state, boot attempts and
   losses, the last emergencies with their code, error register bits and data, late PDOs, and the
