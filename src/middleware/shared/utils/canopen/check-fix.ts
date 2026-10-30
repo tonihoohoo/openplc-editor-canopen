@@ -11,7 +11,9 @@ import {
   canBeGuarded,
   consumerSlots,
   consumerTimeFor,
+  effectiveEmcy,
   effectiveProducerMs,
+  emcySupport,
   type PdoDirection,
   restoreChoices,
   updateNode,
@@ -139,12 +141,16 @@ function cobUses(config: CanopenConfig): CobUse[] {
       reservedOk: true,
     })
   for (const node of nodes) {
-    if (node.emcy.enabled)
+    const emcy = effectiveEmcy(node)
+    if (emcy.enabled)
       uses.push({
-        cobId: node.emcy.cobId,
+        cobId: emcy.cobId,
         what: `${label(node)} emergency`,
         nodeId: node.id,
-        move: (cobId) => setNode(node.id, (n) => ({ ...n, emcy: { ...n.emcy, cobId } })),
+        move:
+          emcySupport(node.eds) === 'fixed'
+            ? undefined
+            : (cobId) => setNode(node.id, (n) => ({ ...n, emcy: { ...n.emcy, cobId } })),
         range: [0x81, 0xff],
         reservedOk: true,
       })

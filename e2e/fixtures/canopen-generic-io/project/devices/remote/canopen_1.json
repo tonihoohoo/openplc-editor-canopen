@@ -56,6 +56,15 @@
               "defaultValue": "Generic I/O"
             },
             {
+              "index": 4116,
+              "subIndex": 0,
+              "name": "COB-ID EMCY",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "$NODEID+0x80"
+            },
+            {
               "index": 4118,
               "subIndex": 0,
               "name": "Highest sub-index supported",
@@ -467,6 +476,15 @@
               "access": "const",
               "pdoMapping": false,
               "defaultValue": "Generic I/O"
+            },
+            {
+              "index": 4116,
+              "subIndex": 0,
+              "name": "COB-ID EMCY",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "$NODEID+0x80"
             },
             {
               "index": 4118,

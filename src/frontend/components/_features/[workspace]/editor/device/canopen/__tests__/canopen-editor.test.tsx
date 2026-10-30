@@ -304,6 +304,48 @@ describe('CanopenEditor', () => {
     expect(config()?.nodes[0].watchMaster.enabled).toBe(false)
   })
 
+  it('greys out the emergency of a device without 0x1014 and says why', async () => {
+    await importEds(GENERIC_IO_EDS.replace(/\[1014\][^[]*/g, ''))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Expert view' }))
+    const emcy = screen.getByLabelText<HTMLInputElement>('Emergency messages')
+    expect(emcy.checked).toBe(false)
+    expect(emcy.disabled).toBe(true)
+    const reason = 'The device sends no emergency messages: its EDS has no 0x1014'
+    expect(emcy.closest('label')?.getAttribute('title')).toBe(reason)
+    expect(screen.getByText(reason)).toBeTruthy()
+    expect(screen.queryByLabelText('Emergency COB-ID')).toBeNull()
+    expect(config()?.nodes[0].emcy.enabled).toBe(false)
+  })
+
+  it('keeps an unsupported emergency out of the basic view', async () => {
+    await importEds(GENERIC_IO_EDS.replace(/\[1014\][^[]*/g, ''))
+    await screen.findByLabelText('Optional node')
+    expect(screen.queryByLabelText('Emergency messages')).toBeNull()
+  })
+
+  it('shows a read-only emergency COB-ID greyed out with the EDS value', async () => {
+    await importEds(GENERIC_IO_EDS.replace(/(\[1014\][^[]*AccessType=)rw/, '$1ro'))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Expert view' }))
+    const emcy = screen.getByLabelText<HTMLInputElement>('Emergency messages')
+    expect(emcy.disabled).toBe(false)
+    const cobId = screen.getByLabelText<HTMLInputElement>('Emergency COB-ID')
+    expect(cobId.value).toBe('0x081')
+    expect(cobId.disabled).toBe(true)
+    expect(cobId.closest('label')?.getAttribute('title')).toBe('Fixed by the device: its EDS marks 0x1014 read-only')
+    fireEvent.click(emcy)
+    expect(config()?.nodes[0].emcy.enabled).toBe(false)
+  })
+
+  it('says why Receive TIME is greyed out', async () => {
+    await importEds()
+    fireEvent.click(await screen.findByRole('switch', { name: 'Expert view' }))
+    const time = screen.getByLabelText<HTMLInputElement>('Receive TIME')
+    expect(time.disabled).toBe(true)
+    expect(time.closest('label')?.getAttribute('title')).toBe(
+      'The device cannot consume TIME: its EDS has no writable 0x1012',
+    )
+  })
+
   it('edits the network settings', () => {
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Network' }))
     fireEvent.click(screen.getByRole('tab', { name: 'Network' }))

@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { OpenPLCStore } from '@root/frontend/store'
 import { createStoreWrapper, createTestStore } from '@root/frontend/store/testing'
 import type { CanopenRuntimeFetch } from '@root/middleware/shared/ports/canopen-status'
+import type { CanopenNode } from '@root/middleware/shared/ports/canopen-types'
 import {
   canopenDevice,
   configWith,
@@ -85,6 +86,46 @@ describe('CANopen live status', () => {
     expect(tab.textContent).toContain('generic, communication')
     expect(tab.textContent).toContain('01 02 03 04 05')
     expect(tab.textContent).toContain('TPDO 1 (COB-ID 0x182) late since')
+  })
+
+  it('says when a node sends no emergency messages or has them turned off', async () => {
+    await renderEditor(true)
+    const setNode3 = (change: (n: CanopenNode) => CanopenNode) =>
+      act(() => {
+        const state = store.getState()
+        const devices = state.project.data.remoteDevices ?? []
+        store.setState({
+          project: {
+            ...state.project,
+            data: {
+              ...state.project.data,
+              remoteDevices: devices.map((d) =>
+                d.canopenConfig
+                  ? {
+                      ...d,
+                      canopenConfig: {
+                        ...d.canopenConfig,
+                        nodes: d.canopenConfig.nodes.map((n) => (n.nodeId === 3 ? change(n) : n)),
+                      },
+                    }
+                  : d,
+              ),
+            },
+          },
+        })
+      })
+    fireEvent.click(screen.getByRole('button', { name: /3: io3/ }))
+    openTab('Status')
+    const tab = () => screen.getByTestId('canopen-node-status').textContent
+    expect(tab()).toContain('No emergencies since the PLC started.')
+    setNode3((n) => ({ ...n, emcy: { ...n.emcy, enabled: false } }))
+    expect(tab()).toContain('Emergency messages are off for this node.')
+    setNode3((n) => ({
+      ...n,
+      emcy: { ...n.emcy, enabled: true },
+      eds: { ...n.eds, objects: n.eds.objects.filter((o) => o.index !== 0x1014) },
+    }))
+    expect(tab()).toContain('This device sends no emergency messages (its EDS has no 0x1014).')
   })
 
   it('shows link resets and a bus-off link the runtime may not reset', async () => {

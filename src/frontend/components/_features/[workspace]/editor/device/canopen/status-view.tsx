@@ -96,7 +96,24 @@ const EventList = ({ events }: { events: CanopenEvent[] }) =>
   )
 
 /** The Status tab of a node: state and reason in words, counters, emergencies, late PDOs, events. */
-export const NodeStatusTab = ({ live, nodeId }: { live: CanopenLiveStatus; nodeId: number }) => {
+/** Whether the node sends emergency messages: `none` when its EDS has no 0x1014, `off` when turned off. */
+export type NodeEmcyState = 'none' | 'off' | 'on'
+
+const NO_EMCY_TEXT: Record<NodeEmcyState, string> = {
+  none: 'This device sends no emergency messages (its EDS has no 0x1014).',
+  off: 'Emergency messages are off for this node.',
+  on: 'No emergencies since the PLC started.',
+}
+
+export const NodeStatusTab = ({
+  live,
+  nodeId,
+  emcy = 'on',
+}: {
+  live: CanopenLiveStatus
+  nodeId: number
+  emcy?: NodeEmcyState
+}) => {
   const node = liveNode(live, nodeId)
   const events = (live.network?.events ?? []).filter((e) => e.node === nodeId)
   return (
@@ -143,7 +160,7 @@ export const NodeStatusTab = ({ live, nodeId }: { live: CanopenLiveStatus; nodeI
           <div className={cardClassName}>
             <h4 className={headingClassName}>Emergencies</h4>
             {node.emcy.length === 0 ? (
-              <p className={hintClassName}>No emergencies since the PLC started.</p>
+              <p className={hintClassName}>{NO_EMCY_TEXT[emcy]}</p>
             ) : (
               <table className='w-full text-left text-xs'>
                 <thead className='text-neutral-500 dark:text-neutral-400'>

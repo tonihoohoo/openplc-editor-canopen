@@ -86,17 +86,20 @@ basic view, marked "expert".
 | Node guarding                         | Writes 0x100C and 0x100D (and 0x1017 = 0); the master guards the node and loses it when it stops answering  |
 | Heartbeats this node watches (expert) | Extra 0x1016 entries after the master's, for heartbeats of other nodes                                      |
 | When the master is gone (expert)      | 0x1029:1 for a node that watches the master                                                                 |
-| Emergency messages (expert)           | On by default; the COB-ID the master listens on, written to 0x1014 when it differs from the EDS             |
+| Emergency messages (expert)           | On by default; the COB-ID the master listens on, written to 0x1014 when it differs from the EDS. Off and greyed out when the EDS has no 0x1014; with a read-only 0x1014 the COB-ID is the EDS value, greyed out |
 | Receive TIME (expert)                 | Writes 0x1012 so the node takes the network's TIME                                                          |
 
 With **No initialization** the heartbeat or guarding values shown are the EDS defaults, read-only.
+A setting the node cannot take is greyed out, and hovering it says why (the missing object, or No
+initialization).
 
 Network settings: **Boot-up timeout** (2000 ms) after which a mandatory node that is not up is
 reported; **On node error** restarts the node and keeps trying, or stops it until the PLC restarts;
 **SYNC window** is written to the 0x1007 of the nodes that have one; **Send TIME** makes the master
 send the runtime's time of day on a COB-ID (0x100) and period; **Defaults for new nodes** pick the
 supervision (automatic: heartbeat when the device has a writable 0x1017, else node guarding), the
-heartbeat timeout as a percentage of the producer time (150 %) and whether emergencies are on.
+heartbeat timeout as a percentage of the producer time (150 %) and whether emergencies are on
+(nodes whose EDS has no 0x1014 get them off).
 
 The editor checks the network as it is edited and lists the results at the top, errors (which
 stop the build) and warnings (which do not), each with **Show** and, where there is one, a fix:

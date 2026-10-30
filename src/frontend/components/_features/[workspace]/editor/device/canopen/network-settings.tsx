@@ -258,6 +258,7 @@ const NetworkSettings = ({ network, nodes, cycleUs, onChange }: NetworkSettingsP
           <CheckboxField
             label='Emergency messages'
             checked={newNodeDefaults.emcy}
+            hint='Nodes whose EDS has no 0x1014 get it off'
             onChange={(emcy) => onChange({ newNodeDefaults: { ...newNodeDefaults, emcy } })}
           />
         </div>
