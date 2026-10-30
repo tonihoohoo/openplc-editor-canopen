@@ -20,6 +20,10 @@ export const CanopenNodeStateSchema = z.enum([
   'operational',
   'lost',
   'stopped',
+  /** Stopped or pre-operational by a client's NMT command. */
+  'manual',
+  /** Service mode: nobody manages the node. */
+  'service',
 ])
 
 export const CanopenBusStateSchema = z.enum([
@@ -96,6 +100,9 @@ export const CanopenEventSchema = z.object({
     'pdo_length',
     'bus_state',
     'bus_reset',
+    'sdo_write',
+    'nmt_command',
+    'service',
   ]),
   problem: CanopenProblemSchema.nullable().optional(),
   code: count.optional(),
@@ -105,6 +112,15 @@ export const CanopenEventSchema = z.object({
   bus_state: CanopenBusStateSchema.optional(),
   outcome: CanopenResetOutcomeSchema.optional(),
   cause: CanopenResetCauseSchema.optional(),
+  /** sdo_write: the object written, whether the node took it, and its abort code if not. */
+  index: count.optional(),
+  subindex: count.optional(),
+  ok: z.boolean().optional(),
+  abort_code: count.optional(),
+  /** nmt_command: the command a client sent. */
+  command: z.enum(['start', 'stop', 'pre_operational', 'reset_node', 'reset_communication']).optional(),
+  /** service: opened (true) or closed. */
+  open: z.boolean().optional(),
 })
 
 export const CanopenBusStatusSchema = z.object({
@@ -122,6 +138,8 @@ export const CanopenBusStatusSchema = z.object({
 
 export const CanopenNetworkStatusSchema = z.object({
   name: z.string(),
+  /** `service` while service mode runs this network. */
+  mode: z.literal('service').optional(),
   interface: z.string(),
   bus: CanopenBusStatusSchema,
   /** Runtimes before node options send `all_nodes_up` in its place. */

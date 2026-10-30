@@ -1,5 +1,6 @@
 /** Words for the runtime's CANopen status: state labels, the dot colour, failure reasons and events. */
 
+import type { CanopenNmtCommand } from '../../../ports/canopen-online'
 import type {
   CanopenBusState,
   CanopenEvent,
@@ -23,6 +24,21 @@ const NODE_STATES: Record<CanopenNodeState, string> = {
   operational: 'Operational',
   lost: 'Lost',
   stopped: 'Stopped',
+  manual: 'Held by you',
+  service: 'Service mode',
+}
+
+const NMT_COMMANDS: Record<CanopenNmtCommand, string> = {
+  start: 'Start',
+  stop: 'Stop',
+  pre_operational: 'Pre-operational',
+  reset_node: 'Reset node',
+  reset_communication: 'Reset communication',
+}
+
+/** A client NMT command as a button label, for example "Reset node". */
+export function nmtCommandLabel(command: CanopenNmtCommand): string {
+  return NMT_COMMANDS[command]
 }
 
 export function nodeStateLabel(state: CanopenNodeState): string {
@@ -72,9 +88,12 @@ export function nodeDot(node: Pick<CanopenNodeStatus, 'state' | 'warning'>): Can
     case 'failed':
     case 'lost':
       return 'red'
+    case 'manual':
+      return 'amber'
     case 'waiting':
     case 'absent':
     case 'stopped':
+    case 'service':
       return 'grey'
     default: {
       const unreachable: never = node.state
@@ -191,6 +210,18 @@ export function eventText(event: CanopenEvent): string {
       return `${busStateLabel(event.bus_state ?? 'unknown')}.`
     case 'bus_reset':
       return resetText(event.outcome, event.cause)
+    case 'sdo_write': {
+      const object = `${hex(event.index ?? 0, 4)}:${hex(event.subindex ?? 0, 2).slice(2)}`
+      if (event.ok ?? true) return `Online write to ${object}.`
+      const code = event.abort_code
+      return code !== undefined
+        ? `Online write to ${object} refused: ${sdoAbortText(code)} (${hex(code, 8)}).`
+        : `Online write to ${object} failed.`
+    }
+    case 'nmt_command':
+      return `NMT ${nmtCommandLabel(event.command ?? 'start').toLowerCase()} sent from the online tools.`
+    case 'service':
+      return event.open ? 'Service mode opened.' : 'Service mode closed.'
     default: {
       const unreachable: never = event.kind
       return unreachable
