@@ -82,7 +82,7 @@ basic view, marked "expert".
 | Identity check (expert)               | Vendor ID, product code and revision checked at boot                                                        |
 | Optional node                         | The network runs without it; the master keeps looking for it and starts it when it appears                  |
 | No initialization (expert)            | No identity check, restore or configuration SDOs; the master only starts the node, which keeps its settings |
-| Restore defaults (expert)             | Restores defaults through 0x1011 (1 all, 2 comm, 3 app, 4+ manufacturer), resets, then configures the node  |
+| Restore defaults (expert)             | Restores defaults through a writable 0x1011 sub (1 all, 2 comm, 3 app, 4+ manufacturer), resets, then configures the node |
 | Node guarding                         | Writes 0x100C and 0x100D (and 0x1017 = 0); the master guards the node and loses it when it stops answering  |
 | Heartbeats this node watches (expert) | Extra 0x1016 entries after the master's, for heartbeats of other nodes                                      |
 | When the master is gone (expert)      | 0x1029:1 for a node that watches the master                                                                 |
