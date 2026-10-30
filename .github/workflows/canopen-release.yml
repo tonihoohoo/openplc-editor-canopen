@@ -70,6 +70,7 @@ jobs:
           python3 .github/scripts/canopen_release.py resolve $dry \
             --base-file package.json --event "$GITHUB_EVENT_NAME" --ref-name "$GITHUB_REF_NAME" \
             --version "$VERSION_INPUT" --product "OpenPLC Editor" --notes "$NOTES" \
+            --about "This fork of the OpenPLC Editor adds a CANopen device type: import a node's EDS, map its PDOs to PLC variables, set start-up SDOs and node options, and watch node status online. Use it with the OpenPLC Runtime (CANopen edition), https://github.com/tonihoohoo/openplc-runtime-canopen. It is not made or supported by the upstream OpenPLC project." \
             --note "Installing this editor replaces an installed OpenPLC Editor. The installers are not signed: on macOS allow the app once in System Settings, Privacy and Security (Open Anyway); on Windows choose More info, Run anyway. Check a download against SHA256SUMS.txt." \
             --notes-out "$RUNNER_TEMP/release-notes.md"
           cat "$RUNNER_TEMP/release-notes.md"
