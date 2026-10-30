@@ -166,6 +166,22 @@ export function effectiveProducerMs(node: CanopenNode): number {
   return node.configure ? node.heartbeatProducerMs : (edsDefault(node.eds, 0x1017, 0, node.nodeId) ?? 0)
 }
 
+/** The node settings that decide how a TPDO is sent and what a late TPDO does to its inputs. */
+export type PdoNodeContext = Pick<CanopenNode, 'eds' | 'nodeId' | 'configure' | 'onLoss'>
+
+/** Whether the master writes this TPDO's event timer (0x18xx:05). */
+export function writesEventTimer(node: PdoNodeContext, pdo: CanopenPdo): boolean {
+  if (!node.configure) return false
+  const object = findObject(node.eds, pdoObjectIndices('input', pdo.number).comm, 5)
+  return object !== undefined && !isReadOnly(object)
+}
+
+/** A TPDO's event timer as it will run: the EDS default, or 0, when the master does not write it. */
+export function effectiveEventTimerMs(node: PdoNodeContext, pdo: CanopenPdo): number {
+  if (writesEventTimer(node, pdo)) return pdo.eventTimerMs
+  return defaultInt(node.eds, pdoObjectIndices('input', pdo.number).comm, 5, node.nodeId) ?? 0
+}
+
 /** Guard time and life time factor as they will run. */
 export function effectiveGuarding(node: CanopenNode): { guardTimeMs: number; lifeTimeFactor: number } {
   if (node.configure) return { guardTimeMs: node.guardTimeMs, lifeTimeFactor: node.lifeTimeFactor }

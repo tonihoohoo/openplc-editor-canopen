@@ -677,6 +677,8 @@ const NodePanel = ({
             nodeId={node.nodeId}
             syncOn={syncOn}
             syncPeriodUs={syncPeriodUs}
+            configure={node.configure}
+            onLoss={node.onLoss}
             onChange={changePdo('input')}
             onAliasChange={onAliasChange}
           />
@@ -690,6 +692,8 @@ const NodePanel = ({
             nodeId={node.nodeId}
             syncOn={syncOn}
             syncPeriodUs={syncPeriodUs}
+            configure={node.configure}
+            onLoss={node.onLoss}
             onChange={changePdo('output')}
             onAliasChange={onAliasChange}
           />

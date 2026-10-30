@@ -49,8 +49,13 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
    - An enabled TPDO has a **Receive timeout** (off at 0): the master's RPDO event timer
      (`0x14xx:05`). When the PDO does not arrive in that time the master reports it late, logs it and
      treats the inputs as it does for a lost node. A timeout shorter than the event timer, or shorter
-     than two SYNC intervals of a synchronous PDO on a fixed SYNC period, shows a warning. It is
-     written as `receive_timeout_ms` in `canopen.json` format version 2.
+     than two SYNC intervals of a synchronous PDO on a fixed SYNC period, shows a warning. So does a
+     timeout on a PDO the node sends only after a change (type 0, or 254 and 255 without an event
+     timer): while the inputs are steady it would be reported late, and with "Inputs when the node
+     is lost" at "Set to 0" its inputs would read 0. The event timer checked is the EDS default when
+     the master does not write it. The network checks offer to set the event timer to half the
+     timeout, rounded down to the PLC cycle, or to clear the timeout when no event timer helps. It
+     is written as `receive_timeout_ms` in `canopen.json` format version 2.
    - Under each PDO setting and the node heartbeat, the hint names the object it writes (for
      example `0x1800:05`). A setting the EDS leaves out or marks read-only is shown read-only, as the
      master does not write it.
@@ -114,8 +119,9 @@ stop the build) and warnings (which do not), each with **Show** and, where there
 heartbeat timeouts not longer than the heartbeat (set to the default percentage), COB-ID clashes
 (move to a free COB-ID), a startup SDO that makes a node a second SYNC producer (remove it), a SYNC
 window not shorter than the SYNC period, restore on a node that is not initialized or has no such
-sub-index (turn it off), heartbeats watched that no node sends, and times that are not multiples of
-the PLC cycle (round up). **Fix all** applies every fix as one change. These options need
+sub-index (turn it off), heartbeats watched that no node sends, receive timeouts on TPDOs sent only
+after a change (set an event timer or clear the timeout), and times that are not multiples of the
+PLC cycle (round up). **Fix all** applies every fix as one change. These options need
 `canopen.json` format version 3.
 
 ## Live status
