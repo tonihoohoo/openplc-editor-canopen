@@ -91,6 +91,9 @@ describe('CANopen status texts', () => {
     expect(at({ kind: 'boot_failed', problem: { kind: 'no_response' } })).toBe(
       'Boot failed. The node did not answer the boot.',
     )
+    expect(at({ kind: 'boot_failed', problem: { kind: 'boot_error', text: 'timeout', boot_status: 'K' } })).toBe(
+      'The boot failed: timeout (boot status K).',
+    )
     expect(at({ kind: 'boot_failed' })).toBe('Boot failed.')
     expect(at({ kind: 'silent' })).toContain('Not heard')
     expect(at({ kind: 'lost', problem: { kind: 'heartbeat' } })).toBe('Lost. The node missed its heartbeat.')

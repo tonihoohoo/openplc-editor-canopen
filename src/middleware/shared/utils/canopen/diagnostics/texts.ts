@@ -163,7 +163,11 @@ export function eventText(event: CanopenEvent): string {
     case 'boot_ok':
       return 'Boot finished, the node is operational.'
     case 'boot_failed':
-      return event.problem ? `Boot failed. ${problemText(event.problem)}` : 'Boot failed.'
+      if (!event.problem) return 'Boot failed.'
+      // The stack's own reason already starts with "The boot failed".
+      return event.problem.kind === 'boot_error'
+        ? problemText(event.problem)
+        : `Boot failed. ${problemText(event.problem)}`
     case 'silent':
       return 'Not heard from since the master started.'
     case 'absent':
