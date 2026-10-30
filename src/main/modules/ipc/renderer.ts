@@ -18,6 +18,7 @@ import type {
   RuntimeProjectSnapshotMetadata,
 } from '@root/middleware/shared/ports'
 import type { AISSEEvent, AITelemetryEventName } from '@root/middleware/shared/ports/ai-port'
+import type { CanopenRequest } from '@root/middleware/shared/ports/canopen-online'
 import type { CanopenRuntimeFetch } from '@root/middleware/shared/ports/canopen-status'
 import type {
   DeviceConnectionStatusPayload,
@@ -883,6 +884,8 @@ const rendererProcessBridge = {
     ipcRenderer.invoke('canopen:get-capabilities', ipAddress),
   canopenGetStatus: (ipAddress: string): Promise<CanopenRuntimeFetch> =>
     ipcRenderer.invoke('canopen:get-status', ipAddress),
+  canopenRequest: (ipAddress: string, request: CanopenRequest): Promise<CanopenRuntimeFetch> =>
+    ipcRenderer.invoke('canopen:request', ipAddress, request),
 
   // ===================== ESI REPOSITORY METHODS =====================
   // ESI repository mechanisms: the shared port runs the parser in the main process and

@@ -1,10 +1,12 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { useCanopenExpertView } from '@root/frontend/hooks/use-canopen-expert-view'
+import type { CanopenOnlineContext } from '@root/frontend/hooks/use-canopen-online'
 import type { CanopenLiveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { cn } from '@root/frontend/utils/cn'
 import type {
   CanopenEntry,
   CanopenHeartbeatConsumer,
+  CanopenNetworkSettings,
   CanopenNode,
   CanopenOnCommError,
   CanopenOnLoss,
@@ -36,12 +38,13 @@ import { type ReactNode, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
+import { OnlineTab } from './online-tab'
 import { PdoSection } from './pdo-section'
 import { SdoSection } from './sdo-section'
 import { NodeStatusTab } from './status-view'
 import { cardClassName, headingClassName, hintClassName, iconButtonClassName, secondaryButtonClassName } from './styles'
 
-type NodeTab = 'general' | 'inputs' | 'outputs' | 'sdos' | 'status'
+type NodeTab = 'general' | 'inputs' | 'outputs' | 'sdos' | 'status' | 'online'
 
 const ON_LOSS_OPTIONS: ReadonlyArray<{ value: CanopenOnLoss; label: string }> = [
   { value: 'hold', label: 'Hold last values' },
@@ -167,6 +170,9 @@ type NodePanelProps = {
   sdoWarnings: ReadonlyMap<string, string>
   /** The runtime's live status; null hides the Status tab. */
   live: CanopenLiveStatus | null
+  /** The online tools; null hides the Online tab. */
+  online: CanopenOnlineContext | null
+  network: CanopenNetworkSettings
   onChange: (update: (node: CanopenNode) => CanopenNode) => void
   onNodeIdChange: (nodeId: number) => void
   onRemove: () => void
@@ -189,7 +195,7 @@ const TabButton = ({ value, label, active }: { value: NodeTab; label: string; ac
 )
 
 const isNodeTab = (v: string): v is NodeTab =>
-  v === 'general' || v === 'inputs' || v === 'outputs' || v === 'sdos' || v === 'status'
+  v === 'general' || v === 'inputs' || v === 'outputs' || v === 'sdos' || v === 'status' || v === 'online'
 
 const NodePanel = ({
   node,
@@ -202,6 +208,8 @@ const NodePanel = ({
   syncPeriodUs,
   sdoWarnings,
   live,
+  online,
+  network,
   onChange,
   onNodeIdChange,
   onRemove,
@@ -209,7 +217,7 @@ const NodePanel = ({
 }: NodePanelProps) => {
   const [tab, setTab] = useState<NodeTab>('general')
   const [expert, setExpert] = useCanopenExpertView()
-  const shownTab: NodeTab = tab === 'status' && !live ? 'general' : tab
+  const shownTab: NodeTab = (tab === 'status' && !live) || (tab === 'online' && !online) ? 'general' : tab
   const { eds } = node
   const canHeartbeat = findObject(eds, 0x1017, 0) !== undefined
   const heartbeatObject = objectParameterState(eds, 0x1017, 0)
@@ -292,6 +300,7 @@ const NodePanel = ({
           <TabButton value='outputs' label={`Outputs (${mappedOutputs})`} active={shownTab === 'outputs'} />
           <TabButton value='sdos' label={`Startup SDOs (${node.sdos.length})`} active={shownTab === 'sdos'} />
           {live ? <TabButton value='status' label='Status' active={shownTab === 'status'} /> : null}
+          {online ? <TabButton value='online' label='Online' active={shownTab === 'online'} /> : null}
         </Tabs.List>
 
         <Tabs.Content value='general' className='min-h-0 flex-1 overflow-auto pb-4'>
@@ -700,6 +709,20 @@ const NodePanel = ({
               live={live}
               nodeId={node.nodeId}
               emcy={emcySupported === 'none' ? 'none' : emcy.enabled ? 'on' : 'off'}
+            />
+          </Tabs.Content>
+        ) : null}
+
+        {online ? (
+          <Tabs.Content value='online' className='min-h-0 flex-1 overflow-auto pb-4'>
+            <OnlineTab
+              node={node}
+              network={network}
+              online={online}
+              expert={expert}
+              onAddStartupSdo={(index, subIndex, dataType, value) =>
+                onChange((n) => ({ ...n, sdos: [...n.sdos, { id: uuidv4(), index, subIndex, dataType, value }] }))
+              }
             />
           </Tabs.Content>
         ) : null}

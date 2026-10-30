@@ -1066,6 +1066,7 @@ class MainProcessBridge implements MainIpcModule {
     // ===================== CANOPEN =====================
     this.registerHandle('canopen:get-capabilities', this.handleCanopenGet('/api/capabilities'))
     this.registerHandle('canopen:get-status', this.handleCanopenGet('/api/canopen/status'))
+    this.registerHandle('canopen:request', this.handleCanopenRequest)
 
     // ===================== ESI REPOSITORY =====================
     this.registerHandle('esi:parse', this.handleESIParse)
@@ -3333,6 +3334,22 @@ class MainProcessBridge implements MainIpcModule {
       const result = await this.makeRuntimeApiRequest(ipAddress, endpoint, parseBody)
       return result.success ? { success: true, body: result.data } : { success: false, error: result.error }
     }
+
+  /** `POST /api/canopen/request` with the request as given; the JSON answer goes back verbatim. */
+  handleCanopenRequest = async (
+    _event: IpcMainInvokeEvent,
+    ipAddress: string,
+    request: unknown,
+  ): Promise<CanopenRuntimeFetch> => {
+    const parseBody = (data: string): unknown => JSON.parse(data)
+    const result = await this.makeRuntimeApiPostRequest(
+      ipAddress,
+      '/api/canopen/request',
+      JSON.stringify(request),
+      parseBody,
+    )
+    return result.success ? { success: true, body: result.data } : { success: false, error: result.error }
+  }
 
   handleEtherCATGetRuntimeStatus = async (
     _event: IpcMainInvokeEvent,

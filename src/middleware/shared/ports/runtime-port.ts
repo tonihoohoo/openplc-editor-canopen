@@ -38,6 +38,7 @@
  */
 
 import type { PluginCommandOutcome } from '../../../backend/shared/utils/vpp/screen-actions'
+import type { CanopenRequest } from './canopen-online'
 import type { CanopenRuntimeFetch } from './canopen-status'
 import type {
   EtherCATRuntimeStatusResponse,
@@ -516,6 +517,9 @@ export interface RuntimePort {
 
   /** `GET /api/canopen/status`, body verbatim; read with `parseCanopenStatus`. */
   getCanopenStatus?(): Promise<CanopenRuntimeFetch>
+
+  /** `POST /api/canopen/request` (the online tools), body verbatim; read with `parseCanopenAnswer`. */
+  canopenRequest?(request: CanopenRequest): Promise<CanopenRuntimeFetch>
 
   // --- stored source project ---
 
