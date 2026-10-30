@@ -41,16 +41,17 @@ export function nmtStateLabel(nmt: CanopenNodeStatus['nmt']): string {
 }
 
 const BUS_STATES: Record<CanopenBusState, string> = {
-  unknown: 'Unknown',
-  error_active: 'Error active',
-  error_warning: 'Error warning',
-  error_passive: 'Error passive',
+  unknown: 'Bus state unknown',
+  error_active: 'Bus OK (error active)',
+  error_warning: 'Bus error warning',
+  error_passive: 'Bus error passive',
   bus_off: 'Bus off',
-  stopped: 'Stopped',
+  stopped: 'Bus stopped',
   down: 'Interface down',
   missing: 'Interface missing',
 }
 
+/** The bus state as a phrase, for example "Bus OK (error active)". */
 export function busStateLabel(state: CanopenBusState): string {
   return BUS_STATES[state]
 }
@@ -163,7 +164,11 @@ export function eventText(event: CanopenEvent): string {
     case 'boot_ok':
       return 'Boot finished, the node is operational.'
     case 'boot_failed':
-      return event.problem ? `Boot failed. ${problemText(event.problem)}` : 'Boot failed.'
+      if (!event.problem) return 'Boot failed.'
+      // The stack's own reason already starts with "The boot failed".
+      return event.problem.kind === 'boot_error'
+        ? problemText(event.problem)
+        : `Boot failed. ${problemText(event.problem)}`
     case 'silent':
       return 'Not heard from since the master started.'
     case 'absent':
@@ -183,7 +188,7 @@ export function eventText(event: CanopenEvent): string {
     case 'pdo_length':
       return `${pdo}: ${emcyText(event.code ?? 0)}.`
     case 'bus_state':
-      return `Bus ${busStateLabel(event.bus_state ?? 'unknown').toLowerCase()}.`
+      return `${busStateLabel(event.bus_state ?? 'unknown')}.`
     case 'bus_reset':
       return resetText(event.outcome, event.cause)
     default: {

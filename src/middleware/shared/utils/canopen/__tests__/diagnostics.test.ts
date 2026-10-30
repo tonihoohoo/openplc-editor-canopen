@@ -62,6 +62,7 @@ describe('CANopen status texts', () => {
     expect(nodeStateLabel('silent')).toBe('Not answering')
     expect(nmtStateLabel('pre_operational')).toBe('Pre-operational')
     expect(busStateLabel('bus_off')).toBe('Bus off')
+    expect(busStateLabel('error_active')).toBe('Bus OK (error active)')
     expect(busStateBad('error_active')).toBe(false)
     expect(busStateBad('error_passive')).toBe(true)
   })
@@ -90,6 +91,9 @@ describe('CANopen status texts', () => {
     expect(at({ kind: 'boot_ok' })).toContain('operational')
     expect(at({ kind: 'boot_failed', problem: { kind: 'no_response' } })).toBe(
       'Boot failed. The node did not answer the boot.',
+    )
+    expect(at({ kind: 'boot_failed', problem: { kind: 'boot_error', text: 'timeout', boot_status: 'K' } })).toBe(
+      'The boot failed: timeout (boot status K).',
     )
     expect(at({ kind: 'boot_failed' })).toBe('Boot failed.')
     expect(at({ kind: 'silent' })).toContain('Not heard')

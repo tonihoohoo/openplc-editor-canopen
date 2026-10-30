@@ -64,7 +64,9 @@ describe('CANopen live status', () => {
   it('shows dots, the bus status and the reason of a failed boot', async () => {
     await renderEditor(true)
     expect(dots()).toEqual(['amber', 'red'])
-    expect(screen.getByTestId('canopen-bus-status').textContent).toBe('Bus error active, errors TX 0 RX 0, load 3.1 %')
+    expect(screen.getByTestId('canopen-bus-status').textContent).toBe(
+      'Bus OK (error active), errors TX 0 RX 0, load 3.1 %',
+    )
     fireEvent.click(screen.getByRole('button', { name: /3: io3/ }))
     openTab('Status')
     const tab = screen.getByTestId('canopen-node-status')
@@ -92,7 +94,7 @@ describe('CANopen live status', () => {
     net.events = [{ time: status.now - 1000, kind: 'bus_reset', outcome: 'not_permitted' }, ...net.events]
     await renderEditor(true, CAPABILITIES_WITH_STATUS, () => ok(status))
     const line = screen.getByTestId('canopen-bus-status').textContent ?? ''
-    expect(line).toContain('Bus bus off')
+    expect(line).toContain('Bus off,')
     expect(line).toContain('link reset 2 times')
     expect(line).toContain('the runtime may not reset the link, reset it by hand')
   })
