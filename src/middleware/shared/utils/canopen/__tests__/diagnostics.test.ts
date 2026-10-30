@@ -62,6 +62,7 @@ describe('CANopen status texts', () => {
     expect(nodeStateLabel('silent')).toBe('Not answering')
     expect(nmtStateLabel('pre_operational')).toBe('Pre-operational')
     expect(busStateLabel('bus_off')).toBe('Bus off')
+    expect(busStateLabel('error_active')).toBe('Bus OK (error active)')
     expect(busStateBad('error_active')).toBe(false)
     expect(busStateBad('error_passive')).toBe(true)
   })

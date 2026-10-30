@@ -46,7 +46,7 @@ export const BusStatusLine = ({ live }: { live: CanopenLiveStatus }) => {
     if (!live.active) return 'CANopen is not running on the runtime'
     if (!live.network) return 'The program running on the runtime has no network by this name'
     const { bus } = live.network
-    const parts = [`Bus ${busStateLabel(bus.state).toLowerCase()}`]
+    const parts = [busStateLabel(bus.state)]
     if (bus.tx_errors !== undefined && bus.rx_errors !== undefined)
       parts.push(`errors TX ${bus.tx_errors} RX ${bus.rx_errors}`)
     if (bus.bus_off_count !== undefined && bus.bus_off_count > 0) parts.push(`bus off ${bus.bus_off_count} times`)
