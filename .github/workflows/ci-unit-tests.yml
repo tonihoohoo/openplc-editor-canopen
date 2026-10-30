@@ -4,10 +4,16 @@ on:
   workflow_dispatch:
   # Called from `ci.yml` on every pull request.
   workflow_call:
+    inputs:
+      docs_only:
+        description: Skip the job; the pull request changes only Markdown or docs/.
+        type: boolean
+        default: false
 
 jobs:
   unit-tests:
     name: Unit Tests + Coverage
+    if: ${{ !inputs.docs_only }}
     runs-on: ubuntu-latest
     # Required check on `development` — a red suite blocks the merge.
     steps:
