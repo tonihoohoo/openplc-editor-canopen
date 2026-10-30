@@ -1,5 +1,18 @@
 # Open PLC Editor - IDE
 
+> **CANopen edition.** This is an unofficial fork of the OpenPLC Editor that adds a CANopen device type.
+> It is not made or supported by the upstream OpenPLC project.
+>
+> In a project you add a CANopen network and its nodes, import each node's EDS, map its PDO entries
+> to PLC variables, set start-up SDOs and node options, and watch the nodes' status online. The
+> project runs on the [OpenPLC Runtime (CANopen edition)](https://github.com/tonihoohoo/openplc-runtime-canopen),
+> and the editor refuses to upload a CANopen project to a runtime without CANopen support. Everything
+> else works as in upstream OpenPLC Editor.
+>
+> Installing it replaces an installed OpenPLC Editor, and it offers updates from this fork's
+> [releases](https://github.com/tonihoohoo/openplc-editor-canopen/releases) only. More:
+> [docs/canopen.md](docs/canopen.md).
+
 ![GitHub stars](https://img.shields.io/github/stars/Autonomy-Logic/openplc-editor?color=fa6470)
 ![GitHub issues](https://img.shields.io/github/issues/Autonomy-Logic/openplc-editor?color=d8b22d)
 
