@@ -69,6 +69,14 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
 
 Problems that would stop the build are listed at the top of the editor as they appear.
 
+**Run this network**, the switch in the editor's header, turns the whole network off and on. New
+networks are on. A network that is off is left out of `conf/canopen.json` (when no network is on, the
+bundle has no `conf/canopen.json` and the upload needs no runtime with CANopen), and the build log
+names it. It keeps its nodes, mappings, addresses and aliases, so variables stay bound; its inputs
+read 0 and its outputs go nowhere. Its problems are still listed, under "Fix these before turning the
+network on", but do not stop the build, and checks between networks leave it out. The project tree
+shows it dimmed with an **Off** tag.
+
 ## Startup and supervision options
 
 The node page has a basic and an expert view; the **Expert view** switch is an editor preference,
@@ -132,7 +140,8 @@ SDO abort codes, emergency codes (CiA 301 communication and protocol codes, else
 error register bits are shown in words next to their values. When a read fails the last status stays,
 greyed, with "Status unavailable". Nothing is shown when the editor is not connected or the runtime
 does not list the feature. The polling stops when the device editor closes or the connection ends.
-The network is matched by the device's name.
+The network is matched by the device's name. A network that is off is not read: its header says
+"Off in the project", with no dots and no Status tab.
 
 ## Installing a release and the runtime check
 

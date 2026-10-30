@@ -1041,6 +1041,7 @@ const CanopenNodeSchema = z
   .transform((node) => ({ ...node, emcy: node.emcy ?? { enabled: true, cobId: 0x80 + node.nodeId } }))
 
 const CanopenNetworkSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
   interface: z.string(),
   bitrate: z.number().int().min(0),
   masterNodeId: z.number().int().min(1).max(127),

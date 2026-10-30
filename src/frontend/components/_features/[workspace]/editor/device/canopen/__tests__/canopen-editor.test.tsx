@@ -346,6 +346,27 @@ describe('CanopenEditor', () => {
     )
   })
 
+  it('turns the network off and on from the header, keeping its nodes', async () => {
+    await importEds()
+    const before = config()
+    const toggle = screen.getByRole('switch', { name: 'Run this network' })
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByText('Starts when the PLC runs')).toBeTruthy()
+    fireEvent.click(toggle)
+    expect(config()?.network.enabled).toBe(false)
+    expect(config()?.nodes).toEqual(before?.nodes)
+    expect(screen.getByText('Not sent to the runtime. Nodes, mappings and addresses are kept')).toBeTruthy()
+    fireEvent.click(toggle)
+    expect(config()?.network.enabled).toBe(true)
+  })
+
+  it('says the problems of a network that is off do not stop the build', () => {
+    expect(screen.getByText('The build stops until these are fixed:')).toBeTruthy()
+    fireEvent.click(screen.getByRole('switch', { name: 'Run this network' }))
+    expect(screen.getByText('Fix these before turning the network on:')).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toContain('CANopen "CANopen_1": no nodes')
+  })
+
   it('edits the network settings', () => {
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Network' }))
     fireEvent.click(screen.getByRole('tab', { name: 'Network' }))

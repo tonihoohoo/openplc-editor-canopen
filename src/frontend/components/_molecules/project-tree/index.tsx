@@ -487,6 +487,8 @@ type IProjectTreeLeafProps = ComponentPropsWithoutRef<'li'> & {
    * without touching the parent coupler or the other modules on it.
    */
   moduleId?: string
+  /** Short state shown after the label, e.g. "Off"; the label is dimmed while it is set. */
+  tag?: string
 }
 
 const LeafSources = {
@@ -528,6 +530,7 @@ const ProjectTreeLeaf = ({
   busName,
   deviceId,
   moduleId,
+  tag,
   onClick: handleLeafClick,
   ...res
 }: IProjectTreeLeafProps) => {
@@ -888,12 +891,18 @@ const ProjectTreeLeaf = ({
             'ml-1 w-[90%] overflow-hidden text-ellipsis whitespace-nowrap font-caption text-xs font-normal text-neutral-850 dark:text-neutral-300',
             name === label && 'font-medium text-neutral-1000 dark:text-white',
             isUnsaved(associatedFile) && 'italic',
+            tag && 'opacity-50',
           )}
           onDoubleClick={() => !isDebuggerVisible && setIsEditing(true)}
         >
           <HighlightedText text={handleLabel(label) || ''} searchQuery={highlightQuery} />
         </span>
       )}
+      {tag && !isEditing ? (
+        <span className='mr-1 shrink-0 rounded bg-neutral-200 px-1 text-[10px] font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'>
+          {tag}
+        </span>
+      ) : null}
 
       {leafLang === 'devPin' ||
       leafLang === 'devConfig' ||

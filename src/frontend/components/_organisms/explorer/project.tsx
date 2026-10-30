@@ -655,6 +655,12 @@ const Project = () => {
                       leafType='remote-device'
                       label={device.name}
                       highlightQuery={searchQuery}
+                      tag={device.canopenConfig?.network.enabled === false ? 'Off' : undefined}
+                      title={
+                        device.canopenConfig?.network.enabled === false
+                          ? 'Off: not sent to the runtime. Nodes, mappings and addresses are kept'
+                          : undefined
+                      }
                       onClick={() =>
                         handleCreateTab({
                           name: device.name,

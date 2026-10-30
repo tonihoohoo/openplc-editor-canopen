@@ -27,8 +27,9 @@ const EMPTY: CanopenLiveStatus = { active: false, network: null, now: 0, stale: 
 /**
  * The live status of one CANopen network, read once a second while the editor is connected to a
  * runtime that lists the CANopen `status` feature. Null when not connected or without the feature.
+ * With `enabled` false (the network is off in the project) nothing is read and the status stays empty.
  */
-export function useCanopenStatus(networkName: string): CanopenLiveStatus | null {
+export function useCanopenStatus(networkName: string, enabled = true): CanopenLiveStatus | null {
   const runtime = useRuntime()
   const connected = useOpenPLCStore(
     (s) => s.runtimeConnection.connectionStatus === 'connected' && s.runtimeConnection.jwtToken !== null,
@@ -57,7 +58,8 @@ export function useCanopenStatus(networkName: string): CanopenLiveStatus | null 
 
   useEffect(() => {
     const read = runtime.getCanopenStatus?.bind(runtime)
-    if (!supported || !connected || !read) return
+    setStatus(EMPTY)
+    if (!supported || !connected || !enabled || !read) return
     let cancelled = false
     let busy = false
     const fail = (error: string) => setStatus((prev) => ({ ...prev, stale: true, error }))
@@ -90,7 +92,7 @@ export function useCanopenStatus(networkName: string): CanopenLiveStatus | null 
       cancelled = true
       clearInterval(timer)
     }
-  }, [supported, connected, runtime])
+  }, [supported, connected, enabled, runtime])
 
   return supported && connected ? status : null
 }

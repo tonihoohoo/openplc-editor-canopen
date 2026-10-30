@@ -397,4 +397,25 @@ describe('generateRuntimeConfs — CANopen', () => {
       'CANopen configuration is invalid: CANopen "net": no CAN interface; CANopen "net": no nodes',
     )
   })
+
+  it('leaves out a network that is off, logs it, and does not stop on its errors', () => {
+    const off = configWith()
+    off.network.enabled = false
+    off.network.interface = ''
+    const log = jest.fn()
+    const result = generateRuntimeConfs(
+      makeInput({
+        log,
+        remoteDevices: [canopenDevice('line_2', off), canopenDevice('line_1', configWith(genericNode(2)))],
+      }),
+    )
+    expect(JSON.parse(result.canopen ?? '').networks.map((n: { name: string }) => n.name)).toEqual(['line_1'])
+    expect(log).toHaveBeenCalledWith('CANopen network "line_2" is off and was not sent to the runtime', 'info')
+  })
+
+  it('writes no conf/canopen.json when every network is off', () => {
+    const off = configWith(genericNode(2))
+    off.network.enabled = false
+    expect(generateRuntimeConfs(makeInput({ remoteDevices: [canopenDevice('net', off)] })).canopen).toBeNull()
+  })
 })
