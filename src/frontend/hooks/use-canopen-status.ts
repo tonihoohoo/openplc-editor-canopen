@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   canopenFeatures,
@@ -15,6 +15,10 @@ export interface CanopenLiveStatus {
   active: boolean
   /** The network of this device, or null when the runtime has none by its name. */
   network: CanopenNetworkStatus | null
+  /** The network's index in the runtime's status, which the online tools' requests name. */
+  networkIndex: number
+  /** The runtime's CANopen features (`status`, `sdo`, `nmt`, `service`). */
+  features: readonly string[]
   /** The runtime's clock at the last answer, in milliseconds since the epoch. */
   now: number
   /** The last read failed; `network` is the last good answer. */
@@ -22,7 +26,15 @@ export interface CanopenLiveStatus {
   error: string | null
 }
 
-const EMPTY: CanopenLiveStatus = { active: false, network: null, now: 0, stale: false, error: null }
+const EMPTY: CanopenLiveStatus = {
+  active: false,
+  network: null,
+  networkIndex: -1,
+  features: [],
+  now: 0,
+  stale: false,
+  error: null,
+}
 
 /**
  * The live status of one CANopen network, read once a second while the editor is connected to a
@@ -35,20 +47,21 @@ export function useCanopenStatus(networkName: string, enabled = true): CanopenLi
     (s) => s.runtimeConnection.connectionStatus === 'connected' && s.runtimeConnection.jwtToken !== null,
   )
   const ipAddress = useOpenPLCStore((s) => s.runtimeConnection.ipAddress)
-  const [supported, setSupported] = useState(false)
+  const [features, setFeatures] = useState<readonly string[]>([])
+  const supported = features.includes('status')
   const [status, setStatus] = useState<CanopenLiveStatus>(EMPTY)
   const nameRef = useRef(networkName)
   nameRef.current = networkName
 
   useEffect(() => {
-    setSupported(false)
+    setFeatures([])
     setStatus(EMPTY)
     if (!connected || !runtime.getCanopenCapabilities || !runtime.getCanopenStatus) return
     let cancelled = false
     runtime
       .getCanopenCapabilities()
       .then((result) => {
-        if (!cancelled && result.success) setSupported(canopenFeatures(result.body).includes('status'))
+        if (!cancelled && result.success) setFeatures(canopenFeatures(result.body))
       })
       .catch(() => undefined)
     return () => {
@@ -73,9 +86,12 @@ export function useCanopenStatus(networkName: string, enabled = true): CanopenLi
         const parsed = parseCanopenStatus(result.body)
         if (!parsed) return fail('The runtime sent a status this editor does not read')
         if (!parsed.active) return setStatus({ ...EMPTY })
+        const networkIndex = parsed.networks.findIndex((n) => n.name === nameRef.current)
         setStatus({
+          ...EMPTY,
           active: true,
-          network: parsed.networks.find((n) => n.name === nameRef.current) ?? null,
+          network: parsed.networks[networkIndex] ?? null,
+          networkIndex,
           now: parsed.now,
           stale: false,
           error: null,
@@ -94,5 +110,8 @@ export function useCanopenStatus(networkName: string, enabled = true): CanopenLi
     }
   }, [supported, connected, enabled, runtime])
 
-  return supported && connected ? status : null
+  return useMemo(
+    () => (supported && connected ? { ...status, features } : null),
+    [supported, connected, status, features],
+  )
 }

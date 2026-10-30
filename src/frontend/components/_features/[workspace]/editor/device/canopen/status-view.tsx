@@ -47,6 +47,8 @@ export const BusStatusLine = ({ live }: { live: CanopenLiveStatus }) => {
     if (!live.network) return 'The program running on the runtime has no network by this name'
     const { bus } = live.network
     const parts = [busStateLabel(bus.state)]
+    if (live.network.mode === 'service')
+      parts.unshift('Service mode: the PLC is stopped and the master does not run the nodes')
     if (bus.tx_errors !== undefined && bus.rx_errors !== undefined)
       parts.push(`errors TX ${bus.tx_errors} RX ${bus.rx_errors}`)
     if (bus.bus_off_count !== undefined && bus.bus_off_count > 0) parts.push(`bus off ${bus.bus_off_count} times`)
@@ -138,6 +140,17 @@ export const NodeStatusTab = ({
               </span>
               <span className={hintClassName}>since {localTime(node.since)}</span>
             </div>
+            {node.state === 'manual' ? (
+              <p className='mb-3 text-xs text-neutral-850 dark:text-neutral-200' data-testid='canopen-node-manual'>
+                Stopped or pre-operational by a command from the online tools. The master does not boot it again and
+                does not report its PDOs as late; Start puts it back.
+              </p>
+            ) : null}
+            {node.state === 'service' ? (
+              <p className='mb-3 text-xs text-neutral-850 dark:text-neutral-200' data-testid='canopen-node-service'>
+                Service mode: the master does not boot, start or supervise the node, and does not follow its NMT state.
+              </p>
+            ) : null}
             {node.held ? (
               <p className='mb-3 text-xs text-neutral-850 dark:text-neutral-200' data-testid='canopen-node-held'>
                 Stopped after the error until the PLC restarts (the network stops nodes on error).

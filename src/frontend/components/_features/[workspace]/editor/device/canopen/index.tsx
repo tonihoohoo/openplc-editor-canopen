@@ -1,6 +1,8 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { toast } from '@root/frontend/components/_features/[app]/toast/use-toast'
 import { useAliasRegistry } from '@root/frontend/hooks/use-alias-registry'
+import { useCanopenExpertView } from '@root/frontend/hooks/use-canopen-expert-view'
+import { useCanopenOnline } from '@root/frontend/hooks/use-canopen-online'
 import { useCanopenStatus } from '@root/frontend/hooks/use-canopen-status'
 import { useOpenPLCStore, useOpenPLCStoreApi } from '@root/frontend/store'
 import { cn } from '@root/frontend/utils/cn'
@@ -37,8 +39,9 @@ import { NetworkSettings } from './network-settings'
 import { NetworkSwitch } from './network-switch'
 import { NodeList } from './node-list'
 import { NodePanel } from './node-panel'
+import { ConfirmBar, type ConfirmRequest, NmtButtons, ServiceBus } from './online-tab'
 import { BusStatusLine } from './status-view'
-import { hintClassName, secondaryButtonClassName } from './styles'
+import { cardClassName, headingClassName, hintClassName, secondaryButtonClassName } from './styles'
 
 type EditorTab = 'nodes' | 'network'
 
@@ -145,8 +148,12 @@ const CanopenEditor = () => {
   const config = useMemo(() => device?.canopenConfig ?? defaultCanopenConfig(), [device])
   const on = config.network.enabled
   const status = useCanopenStatus(deviceName, on)
-  // A network that is off shows no node dots and no Status tab.
+  // A network that is off shows no node dots, no Status tab and no online tools.
   const live = on ? status : null
+  const online = useCanopenOnline(deviceName, config, live)
+  const [expert] = useCanopenExpertView()
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
+  const [nmtMessage, setNmtMessage] = useState<string | null>(null)
 
   const [tab, setTab] = useState<EditorTab>('nodes')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -257,6 +264,11 @@ const CanopenEditor = () => {
         <div className='mt-2'>
           <NetworkSwitch on={on} onChange={(enabled) => changeNetwork({ enabled })} />
         </div>
+        {online ? (
+          <div className='mt-2'>
+            <ServiceBus online={online} />
+          </div>
+        ) : null}
       </div>
 
       {problems.length > 0 ? (
@@ -328,6 +340,8 @@ const CanopenEditor = () => {
               timeOn={config.network.time.enabled}
               syncPeriodUs={config.network.syncMode === 'period' ? config.network.syncPeriodUs : null}
               live={live}
+              online={online}
+              network={config.network}
               sdoWarnings={sdoWarnings}
               onChange={(update) => commit((c) => updateNode(c, selected.id, update))}
               onNodeIdChange={(nodeId) => commit((c) => updateNode(c, selected.id, (n) => withNodeId(n, nodeId)))}
@@ -349,6 +363,14 @@ const CanopenEditor = () => {
         </Tabs.Content>
 
         <Tabs.Content value='network' className='min-h-0 flex-1 overflow-y-auto data-[state=inactive]:hidden'>
+          {online && online.nmt && expert ? (
+            <div className={cn(cardClassName, 'mb-4')} data-testid='canopen-network-nmt'>
+              <h4 className={headingClassName}>NMT for all nodes</h4>
+              <ConfirmBar confirm={confirm} onClose={() => setConfirm(null)} />
+              <NmtButtons online={online} node={0} onConfirm={setConfirm} onResult={setNmtMessage} />
+              {nmtMessage ? <p className={cn(hintClassName, 'mt-2')}>{nmtMessage}</p> : null}
+            </div>
+          ) : null}
           <NetworkSettings network={config.network} nodes={config.nodes} cycleUs={cycleUs} onChange={changeNetwork} />
         </Tabs.Content>
       </Tabs.Root>

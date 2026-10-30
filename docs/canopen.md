@@ -134,7 +134,8 @@ While the editor is connected to a runtime whose `/api/capabilities` lists `"sta
   (for example "The product code is 0x43 where 0x42 was expected"), the NMT state, boot attempts and
   losses, the last emergencies with their code, error register bits and data, late PDOs, and the
   node's events with local times, and whether the node is optional or stopped after an error until
-  the PLC restarts.
+  the PLC restarts. A node held by a command from the online tools is "Held by you"; in service
+  mode the nodes are "Service mode".
 
 SDO abort codes, emergency codes (CiA 301 communication and protocol codes, else the class) and
 error register bits are shown in words next to their values. When a read fails the last status stays,
@@ -142,6 +143,40 @@ greyed, with "Status unavailable". Nothing is shown when the editor is not conne
 does not list the feature. The polling stops when the device editor closes or the connection ends.
 The network is matched by the device's name. A network that is off is not read: its header says
 "Off in the project", with no dots and no Status tab.
+
+## Online tools
+
+While the editor is connected to a runtime that lists `"sdo"` in `canopen.features`, each node has an
+**Online** tab. It sends its requests to `POST /api/canopen/request`; SDO requests are jobs the editor
+polls every 100 ms. The network is the device's network in the runtime's status. A network that is
+off in the project has no Online tab and no Open bus, and turning it off closes the service mode the
+editor opened.
+
+- **Basic view (read only).** Every object of the node's EDS with index, name, type, access, the value
+  in the project (the value the master writes at boot, marked "written at boot", else the EDS
+  default) and the value read from the node. Search over index and name; filters for all objects,
+  "Differs from project" (highlighted), writable objects and objects mapped in a PDO; Read per
+  object and Read all with progress and Cancel; decimal or hex; strings decoded. A refused read
+  shows the abort code in words in the row.
+- **Expert view.** A Write field on each writable object, with the same typed parsing and EDS limits
+  as startup SDOs; the object is read back after the write. A write to an object the master writes
+  at boot says that the value lasts until the node boots again; any other written value can be kept
+  with **Add as startup SDO**. When the node refuses a write with 0x08000022 (not in its present
+  state), the row offers to switch the node to pre-operational and write again.
+  NMT buttons (Start, Pre-operational, Stop, Reset node, Reset communication) for the node, and the
+  same for all nodes on the Network tab; all but Start ask first. **Node memory** offers Save to node
+  (0x1010) and Restore defaults (0x1011) for the scopes the EDS lists as writable sub-indexes. Each
+  save scope is read when the tab opens: a node that saves on command gets the button, one that saves
+  by itself shows "saves automatically", and one that does neither has the button greyed; when the
+  read fails the button stays. Both ask first, and after a restore the editor offers the reset that
+  makes it take effect (reset communication for the communication scope, else reset node).
+  **Any object** reads or writes any index and sub-index by data type or as raw hex bytes; it never
+  writes 0x1010 or 0x1011 and points to the buttons above instead.
+- **Service mode.** With the runtime's `"service"` feature and the PLC stopped, the network header
+  and the Online tab offer **Open bus**, which opens service mode with the network's settings and
+  nodes; the online tools then work as with a running PLC while the master sends nothing of its own.
+  **Close bus** closes it, and so does closing the device editor; the runtime closes it before the
+  PLC starts and after 5 minutes without a request.
 
 ## Installing a release and the runtime check
 
@@ -179,6 +214,9 @@ entry of a switched-off PDO has no address and no alias.
 | Status answer schema                                      | `src/middleware/shared/ports/canopen-status.ts`                        |
 | Status texts and code decoders                            | `src/middleware/shared/utils/canopen/diagnostics/`                     |
 | Status polling                                            | `src/frontend/hooks/use-canopen-status.ts`                             |
+| Online requests and answers                               | `src/middleware/shared/ports/canopen-online.ts`                        |
+| Online tools (jobs, values, scopes)                       | `src/middleware/shared/utils/canopen/online.ts`                        |
+| Online tools and service mode in the editor               | `src/frontend/hooks/use-canopen-online.ts`                             |
 | Device editor                                             | `src/frontend/components/_features/[workspace]/editor/device/canopen/` |
 
 The parsed EDS (identity, PDO counts, object dictionary) is stored on the node, so a project opens
@@ -191,7 +229,7 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
 ## Tests
 
 - Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, model, editing rules, generator, validator,
-  receive timeout, node options and checks, status schema and texts), the status polling in
+  receive timeout, node options and checks, status schema and texts, online tools), the status polling in
   `src/frontend/hooks/__tests__/use-canopen-status.test.ts`
   with the generic I/O module EDS in `__tests__/fixtures/`, the store action in
   `src/frontend/store/__tests__/canopen-config.test.ts`, and the device editor in
@@ -204,6 +242,8 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
   the built `canopen.json`;
   `e2e/canopen-live-status.spec.ts` connects to a fake runtime on port 8443 and checks the dots,
   the Status tab and the reason of a failed boot, and that a runtime without the feature shows none
-  of it.
+  of it;
+  `e2e/canopen-online.spec.ts` reads a node in the Online tab against a fake runtime with a
+  simulated node and retries a refused write after switching the node to pre-operational.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
   against a simulated node on a virtual CAN bus.

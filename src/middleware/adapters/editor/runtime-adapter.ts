@@ -379,6 +379,14 @@ export function createEditorRuntimeAdapter(store: OpenPLCStore, getIpAddress: ()
       }
     },
 
+    async canopenRequest(request) {
+      try {
+        return await window.bridge.canopenRequest(requireIp(), request)
+      } catch (err) {
+        return { success: false, error: getErrorMessage(err) }
+      }
+    },
+
     // --- LAN discovery ---
 
     async discoverDevices(opts?: DiscoverDevicesOptions): Promise<DiscoverDevicesResult> {
