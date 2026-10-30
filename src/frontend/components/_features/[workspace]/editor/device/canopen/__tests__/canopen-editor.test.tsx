@@ -419,6 +419,25 @@ describe('CanopenEditor', () => {
     expect(screen.queryByRole('status', { name: 'Network checks' })).toBeNull()
   })
 
+  it('warns about a receive timeout on a PDO sent only on a change and fixes it', async () => {
+    await importEds()
+    await waitFor(() => expect(config()?.nodes).toHaveLength(1))
+    openTab(/Inputs/)
+    const card = screen.getByTestId('canopen-pdo-input-1')
+    const timer = within(card).getByLabelText('Event timer (ms)')
+    fireEvent.change(timer, { target: { value: '0' } })
+    fireEvent.blur(timer)
+    const timeout = within(card).getByLabelText('Receive timeout (ms)')
+    fireEvent.change(timeout, { target: { value: '250' } })
+    fireEvent.blur(timeout)
+    expect(card.textContent).toContain('The PDO is sent only when an input changes')
+    const checks = screen.getByRole('status', { name: 'Network checks' })
+    expect(checks.textContent).toContain('TPDO 1: has a receive timeout')
+    fireEvent.click(within(checks).getByRole('button', { name: /^Set event timer to \d+ ms/ }))
+    expect(config()?.nodes[0].tpdos[0].eventTimerMs).toBeGreaterThan(0)
+    expect(screen.getByTestId('canopen-pdo-input-1').textContent).not.toContain('only when an input changes')
+  })
+
   it('edits the startup, TIME and new node settings of the network', () => {
     openTab('Network')
     const boot = screen.getByLabelText('Boot-up timeout (ms)')

@@ -8,7 +8,15 @@ import type { CanopenEdsInfo, CanopenNode, CanopenObject, CanopenPdo } from '../
 import { objectRef, toCanopenDataType } from './data-types'
 import { findObject, parseEdsInteger } from './eds-parser'
 import { isWritableObject, pdoActive, watchesMaster } from './generate-canopen-config'
-import { canSetEmcy, type PdoDirection, pdoObjectIndices, RTR_TRANSMISSION_TYPES } from './model'
+import {
+  canSetEmcy,
+  effectiveEventTimerMs,
+  type PdoDirection,
+  type PdoNodeContext,
+  pdoObjectIndices,
+  RTR_TRANSMISSION_TYPES,
+  writesEventTimer,
+} from './model'
 
 export type TransmissionMode = 'sync_acyclic' | 'sync_cyclic' | 'event_manufacturer' | 'event_profile'
 
@@ -211,16 +219,52 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
   return out
 }
 
+/** Whether a TPDO is sent only after one of its values changes: type 0, or 254/255 with no event timer. */
+export function sentOnlyOnChange(transmissionType: number, eventTimerMs: number): boolean {
+  return transmissionType === 0 || ((transmissionType === 254 || transmissionType === 255) && eventTimerMs === 0)
+}
+
+/** Whether a receive timeout is set on an active TPDO that the node sends only after a change. */
+export function timeoutOnChangeOnlyPdo(node: PdoNodeContext, pdo: CanopenPdo): boolean {
+  return pdo.receiveTimeoutMs > 0 && sentOnlyOnChange(pdo.transmissionType, effectiveEventTimerMs(node, pdo))
+}
+
+function joinChoices(choices: string[]): string {
+  return choices.length < 2 ? choices.join('') : `${choices.slice(0, -1).join(', ')} or ${choices[choices.length - 1]}`
+}
+
+/** What a receive timeout does to a TPDO sent only after a change, without the ways out. */
+export function changeOnlyTimeoutText(node: PdoNodeContext, pdo: CanopenPdo): string {
+  const when = pdo.transmissionType === 0 ? 'only at a SYNC after an input changes' : 'only when an input changes'
+  const zero = node.onLoss === 'zero' ? ' and its inputs read 0' : ''
+  return `the PDO is sent ${when}, so while the inputs are steady it is reported late after ${pdo.receiveTimeoutMs} ms${zero}`
+}
+
 /**
- * Why a TPDO's receive timeout would report the PDO late between two regular frames, or null.
- * `syncPeriodUs` is the network's SYNC period, or null when the master sends no SYNC.
+ * Why a TPDO's receive timeout would report the PDO late although the node sends it as set up, or
+ * null. `syncPeriodUs` is the network's SYNC period, or null when the master sends no SYNC.
  */
-export function receiveTimeoutWarning(pdo: CanopenPdo, syncPeriodUs: number | null): string | null {
+export function receiveTimeoutWarning(
+  node: PdoNodeContext,
+  pdo: CanopenPdo,
+  syncPeriodUs: number | null,
+): string | null {
   const timeout = pdo.receiveTimeoutMs
   if (timeout <= 0) return null
-  if (pdo.eventTimerMs > 0 && timeout < pdo.eventTimerMs)
-    return `Shorter than the event timer (${pdo.eventTimerMs} ms): the PDO would be reported late between two regular frames`
+  const eventTimerMs = effectiveEventTimerMs(node, pdo)
+  if (eventTimerMs > 0 && timeout < eventTimerMs)
+    return `Shorter than the event timer (${eventTimerMs} ms): the PDO would be reported late between two regular frames`
   const type = pdo.transmissionType
+  if (sentOnlyOnChange(type, eventTimerMs)) {
+    const text = changeOnlyTimeoutText(node, pdo)
+    const ways = [
+      ...(type !== 0 && writesEventTimer(node, pdo) ? ['set an event timer shorter than the timeout'] : []),
+      ...(node.configure ? ['pick a cyclic SYNC type'] : []),
+      'set the timeout to 0',
+    ]
+    const sentence = joinChoices(ways)
+    return `${text[0].toUpperCase()}${text.slice(1)}. To avoid it, ${sentence}`
+  }
   if (syncPeriodUs !== null && syncPeriodUs > 0 && type >= 1 && type <= 240) {
     const twoFramesMs = (2 * type * syncPeriodUs) / 1000
     if (timeout < twoFramesMs)

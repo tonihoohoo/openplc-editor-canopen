@@ -1,11 +1,13 @@
 /**
  * Checks of a CANopen network that come with a repair: timings that do not fit the PLC cycle,
  * heartbeat timeouts that cannot work, a second SYNC producer, COB-ID clashes, a SYNC window that
- * is not shorter than the SYNC period, and node options the EDS does not allow. Each fix is a pure
+ * is not shorter than the SYNC period, node options the EDS does not allow, and receive timeouts on
+ * TPDOs sent only after a change. Each fix is a pure
  * function of the configuration, so "Fix all" applies them one after the other as one change.
  */
 
 import type { CanopenConfig, CanopenNode, CanopenPdo } from '../../ports/canopen-types'
+import { changeOnlyTimeoutText, timeoutOnChangeOnlyPdo } from './editing'
 import { pdoActive, watchesMaster } from './generate-canopen-config'
 import {
   canBeGuarded,
@@ -18,6 +20,7 @@ import {
   restoreChoices,
   updateNode,
   updatePdo,
+  writesEventTimer,
 } from './model'
 
 export type CanopenCheckLevel = 'error' | 'warning'
@@ -102,6 +105,13 @@ export function roundUpToCycle(ms: number, cycleUs: number): number {
   let k = Math.ceil((ms * 1000) / cycleUs)
   while ((k * cycleUs) % 1000 !== 0) k++
   return (k * cycleUs) / 1000
+}
+
+/** The largest whole number of milliseconds at or below `ms` that is a multiple of the cycle, or 0. */
+export function roundDownToCycle(ms: number, cycleUs: number): number {
+  for (let k = Math.floor((ms * 1000) / cycleUs); k > 0; k--)
+    if ((k * cycleUs) % 1000 === 0) return (k * cycleUs) / 1000
+  return 0
 }
 
 function label(node: CanopenNode): string {
@@ -441,6 +451,28 @@ function checkOptions(config: CanopenConfig, out: CanopenCheck[]): void {
   }
 }
 
+function checkReceiveTimeouts(config: CanopenConfig, cycleUs: number | null, out: CanopenCheck[]): void {
+  for (const node of config.nodes) {
+    for (const pdo of node.tpdos) {
+      if (!pdoActive(pdo) || !timeoutOnChangeOnlyPdo(node, pdo)) continue
+      const half = Math.floor(pdo.receiveTimeoutMs / 2)
+      const timerMs = cycleUs === null ? half : roundDownToCycle(half, cycleUs)
+      const setPdo = (change: Partial<CanopenPdo>) =>
+        setNode(node.id, (n) => updatePdo(n, 'input', pdo.number, (p) => ({ ...p, ...change })))
+      out.push({
+        level: 'warning',
+        nodeId: node.id,
+        where: `${label(node)} TPDO ${pdo.number}`,
+        text: `has a receive timeout, but ${changeOnlyTimeoutText(node, pdo)}`,
+        fix:
+          pdo.transmissionType !== 0 && writesEventTimer(node, pdo) && timerMs > 0
+            ? { label: `Set event timer to ${timerMs} ms`, apply: setPdo({ eventTimerMs: timerMs }) }
+            : { label: 'Clear the receive timeout', apply: setPdo({ receiveTimeoutMs: 0 }) },
+      })
+    }
+  }
+}
+
 /** Every problem of the network that the editor can explain, with its fix where there is one. */
 export function checkCanopenNetwork(config: CanopenConfig, cycleUs: number | null): CanopenCheck[] {
   const out: CanopenCheck[] = []
@@ -448,6 +480,7 @@ export function checkCanopenNetwork(config: CanopenConfig, cycleUs: number | nul
   checkHeartbeats(config, out)
   checkSync(config, cycleUs, out)
   checkOptions(config, out)
+  checkReceiveTimeouts(config, cycleUs, out)
   if (cycleUs !== null) checkCycle(config, cycleUs, out)
   return out
 }

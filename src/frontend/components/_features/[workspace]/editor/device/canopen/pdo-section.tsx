@@ -1,6 +1,11 @@
 import { TrashIcon } from '@radix-ui/react-icons'
 import { cn } from '@root/frontend/utils/cn'
-import type { CanopenEdsInfo, CanopenEntry, CanopenPdo } from '@root/middleware/shared/ports/canopen-types'
+import type {
+  CanopenEdsInfo,
+  CanopenEntry,
+  CanopenOnLoss,
+  CanopenPdo,
+} from '@root/middleware/shared/ports/canopen-types'
 import {
   cannotMap,
   entryFor,
@@ -105,12 +110,26 @@ type PdoCardProps = {
   nodeId: number
   syncOn: boolean
   syncPeriodUs: number | null
+  /** The master configures the node. */
+  configure: boolean
+  onLoss: CanopenOnLoss
   onChange: (pdo: CanopenPdo) => void
   /** Returns an error message to refuse the alias, or null after it is accepted. */
   onAliasChange: (entry: CanopenEntry, alias: string) => string | null
 }
 
-const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, syncPeriodUs, onChange, onAliasChange }: PdoCardProps) => {
+const PdoCard = ({
+  pdo,
+  direction,
+  eds,
+  nodeId,
+  syncOn,
+  syncPeriodUs,
+  configure,
+  onLoss,
+  onChange,
+  onAliasChange,
+}: PdoCardProps) => {
   const isInput = direction === 'input'
   const title = `${isInput ? 'TPDO' : 'RPDO'} ${pdo.number}`
   const bits = pdoBits(pdo)
@@ -193,7 +212,7 @@ const PdoCard = ({ pdo, direction, eds, nodeId, syncOn, syncPeriodUs, onChange, 
                 max={65535}
                 objectRef={objectRef(0x1400 + pdo.number - 1, 5)}
                 hint='Master RPDO event timer; 0 for none'
-                warning={receiveTimeoutWarning(pdo, syncPeriodUs) ?? undefined}
+                warning={receiveTimeoutWarning({ eds, nodeId, configure, onLoss }, pdo, syncPeriodUs) ?? undefined}
                 className='w-[150px]'
                 onCommit={(receiveTimeoutMs) => onChange({ ...pdo, receiveTimeoutMs })}
               />
@@ -304,6 +323,9 @@ type PdoSectionProps = {
   syncOn: boolean
   /** The SYNC period, or null when unknown or off. */
   syncPeriodUs: number | null
+  /** The master configures the node. */
+  configure: boolean
+  onLoss: CanopenOnLoss
   onChange: (pdo: CanopenPdo) => void
   onAliasChange: (entry: CanopenEntry, alias: string) => string | null
 }
@@ -315,6 +337,8 @@ const PdoSection = ({
   nodeId,
   syncOn,
   syncPeriodUs,
+  configure,
+  onLoss,
   onChange,
   onAliasChange,
 }: PdoSectionProps) => {
@@ -343,6 +367,8 @@ const PdoSection = ({
           nodeId={nodeId}
           syncOn={syncOn}
           syncPeriodUs={syncPeriodUs}
+          configure={configure}
+          onLoss={onLoss}
           onChange={onChange}
           onAliasChange={onAliasChange}
         />
