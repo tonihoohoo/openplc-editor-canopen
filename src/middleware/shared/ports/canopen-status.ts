@@ -73,8 +73,11 @@ export const CanopenNodeStatusSchema = z.object({
   late_pdos: z.array(LatePdoSchema),
 })
 
-/** What came of the master's reset of a bus-off link. */
+/** What came of the master's reset of a link. */
 export const CanopenResetOutcomeSchema = z.enum(['done', 'not_permitted', 'failed'])
+
+/** Why the master reset a link. Runtimes before link stall recovery send none: read it as bus-off. */
+export const CanopenResetCauseSchema = z.enum(['bus_off', 'bit_rate', 'tx_stalled'])
 
 export const CanopenEventSchema = z.object({
   time: z.number(),
@@ -101,6 +104,7 @@ export const CanopenEventSchema = z.object({
   cob_id: count.optional(),
   bus_state: CanopenBusStateSchema.optional(),
   outcome: CanopenResetOutcomeSchema.optional(),
+  cause: CanopenResetCauseSchema.optional(),
 })
 
 export const CanopenBusStatusSchema = z.object({
@@ -111,6 +115,7 @@ export const CanopenBusStatusSchema = z.object({
   rx_frames: count.optional(),
   tx_frames: count.optional(),
   rx_dropped: count.optional(),
+  tx_dropped: count.optional(),
   load_percent: z.number().optional(),
   link_resets: count.optional(),
 })
@@ -142,6 +147,7 @@ export type CanopenBusState = z.infer<typeof CanopenBusStateSchema>
 export type CanopenProblem = z.infer<typeof CanopenProblemSchema>
 export type CanopenNodeStatus = z.infer<typeof CanopenNodeStatusSchema>
 export type CanopenResetOutcome = z.infer<typeof CanopenResetOutcomeSchema>
+export type CanopenResetCause = z.infer<typeof CanopenResetCauseSchema>
 export type CanopenEvent = z.infer<typeof CanopenEventSchema>
 export type CanopenBusStatus = z.infer<typeof CanopenBusStatusSchema>
 export type CanopenNetworkStatus = z.infer<typeof CanopenNetworkStatusSchema>

@@ -22,6 +22,7 @@ export function sampleStatus(networkName = 'CANopen_1') {
           rx_frames: 1520,
           tx_frames: 1488,
           rx_dropped: 0,
+          tx_dropped: 0,
           load_percent: 3.1,
           link_resets: 0,
         },

@@ -52,6 +52,7 @@ export const BusStatusLine = ({ live }: { live: CanopenLiveStatus }) => {
     if (bus.bus_off_count !== undefined && bus.bus_off_count > 0) parts.push(`bus off ${bus.bus_off_count} times`)
     if (bus.load_percent !== undefined) parts.push(`load ${bus.load_percent.toFixed(1)} %`)
     if (bus.rx_dropped !== undefined && bus.rx_dropped > 0) parts.push(`${bus.rx_dropped} frames dropped`)
+    if (bus.tx_dropped !== undefined && bus.tx_dropped > 0) parts.push(`${bus.tx_dropped} sent frames dropped`)
     parts.push(...linkResetParts(live.network))
     return parts.join(', ')
   })()

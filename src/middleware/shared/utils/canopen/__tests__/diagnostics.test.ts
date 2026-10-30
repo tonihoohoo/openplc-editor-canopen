@@ -108,6 +108,21 @@ describe('CANopen status texts', () => {
     expect(at({ kind: 'bus_reset', outcome: 'done' })).toBe('The master reset the link after a bus-off.')
     expect(at({ kind: 'bus_reset', outcome: 'not_permitted' })).toContain('reset it by hand')
     expect(at({ kind: 'bus_reset', outcome: 'failed' })).toContain('could not reset it')
+    expect(at({ kind: 'bus_reset', outcome: 'done', cause: 'bus_off' })).toBe(
+      'The master reset the link after a bus-off.',
+    )
+    expect(at({ kind: 'bus_reset', outcome: 'done', cause: 'bit_rate' })).toBe(
+      'The master reset the link because it ran at a wrong bit rate.',
+    )
+    expect(at({ kind: 'bus_reset', outcome: 'done', cause: 'tx_stalled' })).toBe(
+      'The master reset the link because it stopped sending.',
+    )
+    expect(at({ kind: 'bus_reset', outcome: 'not_permitted', cause: 'bit_rate' })).toBe(
+      'The link runs at a wrong bit rate and the runtime is not permitted to reset it; reset it by hand.',
+    )
+    expect(at({ kind: 'bus_reset', outcome: 'failed', cause: 'tx_stalled' })).toBe(
+      'The link stopped sending and the master could not reset it.',
+    )
   })
 
   it('describes link resets in the bus status', () => {
@@ -125,6 +140,11 @@ describe('CANopen status texts', () => {
       'resetting the link failed',
     ])
     expect(net('bus_off', 1, [{ time: 0, kind: 'bus_reset', outcome: 'done' }])).toEqual(['link reset once'])
+    const rateRefused: CanopenEvent = { time: 0, kind: 'bus_reset', outcome: 'not_permitted', cause: 'bit_rate' }
+    expect(net('error_active', 0, [rateRefused])).toEqual(['the runtime may not reset the link, reset it by hand'])
+    expect(net('error_active', 2, [{ time: 0, kind: 'bus_reset', outcome: 'done', cause: 'tx_stalled' }])).toEqual([
+      'link reset 2 times',
+    ])
   })
 })
 
