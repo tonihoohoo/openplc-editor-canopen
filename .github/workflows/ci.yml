@@ -8,21 +8,59 @@ on:
       - canopen
 
 jobs:
+  changes:
+    name: Changed files
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      docs_only: ${{ steps.files.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Docs-only pull request
+        id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: .github/scripts/docs-only.sh
+
   architecture:
+    needs: [changes]
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/ci-architecture.yml
+    with:
+      docs_only: ${{ needs.changes.outputs.docs_only == 'true' }}
 
   build-check:
+    needs: [changes]
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/ci-build.yml
+    with:
+      docs_only: ${{ needs.changes.outputs.docs_only == 'true' }}
 
   lint:
+    needs: [changes]
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/ci-lint.yml
+    with:
+      docs_only: ${{ needs.changes.outputs.docs_only == 'true' }}
 
   unit-tests:
+    needs: [changes]
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/ci-unit-tests.yml
+    with:
+      docs_only: ${{ needs.changes.outputs.docs_only == 'true' }}
 
   format:
-    needs: [architecture, build-check, lint]
+    needs: [changes, architecture, build-check, lint]
     uses: ./.github/workflows/ci-format.yml
+    with:
+      docs_only: ${{ needs.changes.outputs.docs_only == 'true' }}
 
   sync:
     needs: [format]

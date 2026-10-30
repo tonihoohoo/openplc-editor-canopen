@@ -2,10 +2,16 @@ name: CI - Architecture
 
 on:
   workflow_call:
+    inputs:
+      docs_only:
+        description: Skip the job; the pull request changes only Markdown or docs/.
+        type: boolean
+        default: false
 
 jobs:
   architecture:
     name: Architecture Validation
+    if: ${{ !inputs.docs_only }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
