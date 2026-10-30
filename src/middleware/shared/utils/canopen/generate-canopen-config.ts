@@ -24,6 +24,7 @@ import {
   defaultCanopenConfig,
   defaultEmcyCobId,
   edsDefault,
+  effectiveEmcy,
   effectiveGuarding,
   hasErrorBehaviour,
   hasSyncWindow,
@@ -161,6 +162,11 @@ export function nodeConfigurationSdos(node: CanopenNode, network: CanopenNetwork
   return out
 }
 
+function emcyOut(node: CanopenNode): { enabled: boolean; cob_id: number } {
+  const emcy = effectiveEmcy(node)
+  return { enabled: emcy.enabled, cob_id: emcy.cobId }
+}
+
 function supervisionOut(node: CanopenNode): Record<string, string | number> {
   if (node.supervision === 'heartbeat') return { type: 'heartbeat', consumer_ms: node.heartbeatConsumerMs }
   if (node.supervision === 'guarding') {
@@ -212,7 +218,7 @@ export function generateCanopenConfig(remoteDevices: readonly PLCRemoteDevice[] 
           optional: node.optional,
           configure: node.configure,
           restore_defaults: node.configure ? node.restoreDefaults : 0,
-          emcy: { enabled: node.emcy.enabled, cob_id: node.emcy.cobId },
+          emcy: emcyOut(node),
           identity: {
             vendor_id: node.checkVendorId ? node.eds.vendorId : 0,
             product_code: node.checkProductCode ? node.eds.productCode : 0,

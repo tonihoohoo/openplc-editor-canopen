@@ -7,6 +7,7 @@ import type {
   CanopenConfig,
   CanopenDataType,
   CanopenEdsInfo,
+  CanopenEmcy,
   CanopenEntry,
   CanopenNetworkSettings,
   CanopenNewNodeDefaults,
@@ -91,9 +92,45 @@ export function restoreChoiceName(subIndex: number): string {
   return `Manufacturer specific (sub ${subIndex})`
 }
 
+/** How a node supports emergency messages (0x1014). */
+export type EmcySupport = 'none' | 'fixed' | 'writable'
+
+/**
+ * `none` without 0x1014 (or a read-only 0x1014 whose default marks the emergency invalid), `fixed`
+ * with a read-only 0x1014, `writable` otherwise.
+ */
+export function emcySupport(eds: CanopenEdsInfo): EmcySupport {
+  if (findObject(eds, 0x1014, 0) === undefined) return 'none'
+  if (writableObject(eds, 0x1014, 0)) return 'writable'
+  return ((defaultInt(eds, 0x1014, 0, 0) ?? 0) & 0x80000000) !== 0 ? 'none' : 'fixed'
+}
+
 /** Whether the emergency COB-ID can be written to the node (a writable 0x1014). */
 export function canSetEmcy(eds: CanopenEdsInfo): boolean {
-  return writableObject(eds, 0x1014, 0)
+  return emcySupport(eds) === 'writable'
+}
+
+/** The emergency COB-ID a read-only 0x1014 gives the node. */
+export function fixedEmcyCobId(eds: CanopenEdsInfo, nodeId: number): number {
+  return (defaultInt(eds, 0x1014, 0, nodeId) ?? defaultEmcyCobId(nodeId)) & 0x7ff
+}
+
+/** The node's emergency as the master uses it: off without 0x1014, the EDS COB-ID with a read-only one. */
+export function effectiveEmcy(node: CanopenNode): CanopenEmcy {
+  switch (emcySupport(node.eds)) {
+    case 'none':
+      return { ...node.emcy, enabled: false }
+    case 'fixed':
+      return { ...node.emcy, cobId: fixedEmcyCobId(node.eds, node.nodeId) }
+    case 'writable':
+      return node.emcy
+  }
+}
+
+function newNodeEmcy(eds: CanopenEdsInfo, nodeId: number, enabled: boolean): CanopenEmcy {
+  const support = emcySupport(eds)
+  if (support === 'none') return { enabled: false, cobId: defaultEmcyCobId(nodeId) }
+  return { enabled, cobId: support === 'fixed' ? fixedEmcyCobId(eds, nodeId) : defaultEmcyCobId(nodeId) }
 }
 
 /** Whether the node can consume TIME (a writable 0x1012). */
@@ -323,7 +360,7 @@ export function createCanopenNode(eds: CanopenEdsInfo, options: CreateNodeOption
     guardTimeMs: edsDefault(eds, 0x100c, 0, nodeId) || DEFAULT_GUARD_TIME_MS,
     lifeTimeFactor: edsDefault(eds, 0x100d, 0, nodeId) || DEFAULT_LIFE_TIME_FACTOR,
     heartbeatConsumers: [],
-    emcy: { enabled: defaults.emcy, cobId: defaultEmcyCobId(nodeId) },
+    emcy: newNodeEmcy(eds, nodeId, defaults.emcy),
     receiveTime: false,
     onLoss: 'hold',
     watchMaster: { enabled: canWatchMaster(eds), consumerMs: DEFAULT_WATCH_MASTER_MS, onError: 'pre_operational' },
@@ -350,7 +387,12 @@ export function nodeEntries(node: CanopenNode): CanopenEntry[] {
 export function withNodeId(node: CanopenNode, nodeId: number): CanopenNode {
   const move = (pdos: CanopenPdo[], direction: PdoDirection): CanopenPdo[] =>
     pdos.map((p) => ({ ...p, cobId: moveCobId(p.cobId, node.nodeId, nodeId, direction) }))
-  const emcyCobId = node.emcy.cobId === defaultEmcyCobId(node.nodeId) ? defaultEmcyCobId(nodeId) : node.emcy.cobId
+  const emcyCobId =
+    emcySupport(node.eds) === 'fixed'
+      ? fixedEmcyCobId(node.eds, nodeId)
+      : node.emcy.cobId === defaultEmcyCobId(node.nodeId)
+        ? defaultEmcyCobId(nodeId)
+        : node.emcy.cobId
   return {
     ...node,
     nodeId,

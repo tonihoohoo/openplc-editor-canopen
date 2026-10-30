@@ -30,18 +30,19 @@ SupportedObjects=3
 3=0x1018
 
 [OptionalObjects]
-SupportedObjects=11
+SupportedObjects=12
 1=0x1008
-2=0x1016
-3=0x1017
-4=0x1029
-5=0x1400
-6=0x1600
-7=0x1800
-8=0x1A00
-9=0x6000
-10=0x6200
-11=0x6401
+2=0x1014
+3=0x1016
+4=0x1017
+5=0x1029
+6=0x1400
+7=0x1600
+8=0x1800
+9=0x1A00
+10=0x6000
+11=0x6200
+12=0x6401
 
 [ManufacturerObjects]
 SupportedObjects=2
@@ -69,6 +70,14 @@ ObjectType=0x7
 DataType=0x0009
 AccessType=const
 DefaultValue=Generic I/O
+PDOMapping=0
+
+[1014]
+ParameterName=COB-ID EMCY
+ObjectType=0x7
+DataType=0x0007
+AccessType=rw
+DefaultValue=$NODEID+0x80
 PDOMapping=0
 
 [1016]

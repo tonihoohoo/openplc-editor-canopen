@@ -15,13 +15,14 @@ import type {
 import {
   canBeGuarded,
   canReceiveTime,
-  canSetEmcy,
   canWatchMaster,
   consumerSlots,
   consumerTimeFor,
   defaultEmcyCobId,
+  effectiveEmcy,
   effectiveGuarding,
   effectiveProducerMs,
+  emcySupport,
   findObject,
   hasErrorBehaviour,
   objectParameterState,
@@ -53,6 +54,13 @@ const ON_COMM_ERROR_OPTIONS: ReadonlyArray<{ value: CanopenOnCommError; label: s
   { value: 'no_change', label: 'Keep running' },
 ]
 
+/** Whether the user changed the node's emergency; off for lack of 0x1014 is not a change. */
+const emcyChanged = (node: CanopenNode): boolean => {
+  const support = emcySupport(node.eds)
+  if (support === 'none') return false
+  return !node.emcy.enabled || (support === 'writable' && node.emcy.cobId !== defaultEmcyCobId(node.nodeId))
+}
+
 /** Expert settings that differ from their defaults, which the basic view keeps showing. */
 const nonDefaultExpert = (node: CanopenNode) => ({
   configure: !node.configure,
@@ -63,7 +71,7 @@ const nonDefaultExpert = (node: CanopenNode) => ({
     node.checkRevision,
   heartbeatConsumers: node.heartbeatConsumers.length > 0,
   watchMasterReaction: node.watchMaster.onError !== 'pre_operational',
-  emcy: !node.emcy.enabled || node.emcy.cobId !== defaultEmcyCobId(node.nodeId),
+  emcy: emcyChanged(node),
   receiveTime: node.receiveTime,
 })
 
@@ -93,13 +101,13 @@ const hex3 = (v: number): string => `0x${v.toString(16).toUpperCase().padStart(3
 type ConsumerRowProps = {
   consumer: CanopenHeartbeatConsumer
   others: readonly CanopenNode[]
-  disabled: boolean
+  disabledReason: string | null
   onChange: (consumer: CanopenHeartbeatConsumer) => void
   onRemove: () => void
 }
 
 /** One heartbeat the node watches: the producing node and the timeout. */
-const ConsumerRow = ({ consumer, others, disabled, onChange, onRemove }: ConsumerRowProps) => {
+const ConsumerRow = ({ consumer, others, disabledReason, onChange, onRemove }: ConsumerRowProps) => {
   const options: ReadonlyArray<SelectOption<string>> = [
     ...others.map((o) => ({ value: String(o.nodeId), label: `Node ${o.nodeId} (${o.name})` })),
     ...(others.some((o) => o.nodeId === consumer.producerNodeId)
@@ -112,7 +120,7 @@ const ConsumerRow = ({ consumer, others, disabled, onChange, onRemove }: Consume
         label='Producer'
         value={String(consumer.producerNodeId)}
         options={options}
-        disabled={disabled}
+        disabledReason={disabledReason}
         onChange={(value) => onChange({ ...consumer, producerNodeId: Number(value) })}
       />
       <NumberField
@@ -120,14 +128,15 @@ const ConsumerRow = ({ consumer, others, disabled, onChange, onRemove }: Consume
         value={consumer.consumerMs}
         min={1}
         max={65535}
-        disabled={disabled}
+        disabledReason={disabledReason}
         onCommit={(consumerMs) => onChange({ ...consumer, consumerMs })}
       />
       <button
         type='button'
         aria-label={`Stop watching node ${consumer.producerNodeId}`}
         className={cn(iconButtonClassName, 'mt-6')}
-        disabled={disabled}
+        disabled={Boolean(disabledReason)}
+        title={disabledReason ?? undefined}
         onClick={onRemove}
       >
         Remove
@@ -230,6 +239,9 @@ const NodePanel = ({
   const freeSlots = consumerSlots(eds) - (canWatchMaster(eds) && node.watchMaster.enabled ? 1 : 0)
   const guarding = effectiveGuarding(node)
   const notWritten = 'From the EDS: the master does not configure this node'
+  const noInit = node.configure ? null : 'Not with No initialization'
+  const emcySupported = emcySupport(eds)
+  const emcy = effectiveEmcy(node)
   const canWatch = canWatchMaster(eds)
   const watchProblem = watchMasterProblem(node, masterHeartbeatMs)
   const mappedInputs = node.tpdos.filter((p) => p.enabled).reduce((n, p) => n + p.entries.length, 0)
@@ -346,15 +358,14 @@ const NodePanel = ({
                         label='Restore defaults before configuring'
                         value={String(node.restoreDefaults)}
                         options={restoreOptions}
-                        disabled={!node.configure || (restores.length === 0 && node.restoreDefaults === 0)}
-                        objectRef='0x1011'
-                        hint={
-                          !node.configure
-                            ? 'Not with No initialization'
-                            : restores.length === 0
-                              ? 'The device cannot restore its defaults: its EDS has no 0x1011'
-                              : 'The node resets to its saved defaults at every boot, then gets this configuration. Nothing is ever stored on the node'
+                        disabledReason={
+                          noInit ??
+                          (restores.length === 0 && node.restoreDefaults === 0
+                            ? 'The device cannot restore its defaults: its EDS has no 0x1011'
+                            : null)
                         }
+                        objectRef='0x1011'
+                        hint='The node resets to its saved defaults at every boot, then gets this configuration. Nothing is ever stored on the node'
                         onChange={(value) => onChange((n) => ({ ...n, restoreDefaults: Number(value) }))}
                       />
                     </div>
@@ -369,24 +380,20 @@ const NodePanel = ({
                   <CheckboxField
                     label={`Vendor ID ${hex8(eds.vendorId)}`}
                     checked={node.checkVendorId}
-                    disabled={!node.configure}
+                    disabledReason={node.configure ? null : 'Not checked with No initialization'}
                     onChange={(checkVendorId) => onChange((n) => ({ ...n, checkVendorId }))}
                   />
                   <CheckboxField
                     label={`Product code ${hex8(eds.productCode)}`}
                     checked={node.checkProductCode}
-                    disabled={!node.configure}
+                    disabledReason={node.configure ? null : 'Not checked with No initialization'}
                     onChange={(checkProductCode) => onChange((n) => ({ ...n, checkProductCode }))}
                   />
                   <CheckboxField
                     label={`Revision ${hex8(eds.revision)}`}
                     checked={node.checkRevision}
-                    disabled={!node.configure}
-                    hint={
-                      node.configure
-                        ? 'Leave off to accept newer firmware of the same product'
-                        : 'Not checked with No initialization'
-                    }
+                    disabledReason={node.configure ? null : 'Not checked with No initialization'}
+                    hint='Leave off to accept newer firmware of the same product'
                     onChange={(checkRevision) => onChange((n) => ({ ...n, checkRevision }))}
                   />
                 </div>
@@ -415,13 +422,9 @@ const NodePanel = ({
                       value={effectiveProducerMs(node)}
                       min={1}
                       max={65535}
-                      disabled={!node.configure}
+                      disabledReason={node.configure ? null : notWritten}
                       objectRef={heartbeatObject.ref}
-                      hint={
-                        node.configure
-                          ? (heartbeatObject.notWrittenReason ?? 'Written to the node at boot')
-                          : notWritten
-                      }
+                      hint={heartbeatObject.notWrittenReason ?? 'Written to the node at boot'}
                       onCommit={(heartbeatProducerMs) => onChange((n) => ({ ...n, heartbeatProducerMs }))}
                     />
                     <NumberField
@@ -445,9 +448,9 @@ const NodePanel = ({
                       value={guarding.guardTimeMs}
                       min={1}
                       max={65535}
-                      disabled={!node.configure}
+                      disabledReason={node.configure ? null : notWritten}
                       objectRef='0x100C'
-                      hint={node.configure ? 'How often the master asks the node for its state' : notWritten}
+                      hint='How often the master asks the node for its state'
                       onCommit={(guardTimeMs) => onChange((n) => ({ ...n, guardTimeMs }))}
                     />
                     <NumberField
@@ -455,13 +458,9 @@ const NodePanel = ({
                       value={guarding.lifeTimeFactor}
                       min={1}
                       max={255}
-                      disabled={!node.configure}
+                      disabledReason={node.configure ? null : notWritten}
                       objectRef='0x100D'
-                      hint={
-                        node.configure
-                          ? `The node is lost after ${guarding.guardTimeMs * guarding.lifeTimeFactor} ms without an answer`
-                          : notWritten
-                      }
+                      hint={`The node is lost after ${guarding.guardTimeMs * guarding.lifeTimeFactor} ms without an answer`}
                       onCommit={(lifeTimeFactor) => onChange((n) => ({ ...n, lifeTimeFactor }))}
                     />
                   </>
@@ -471,12 +470,10 @@ const NodePanel = ({
                 <CheckboxField
                   label='Watch the master'
                   checked={canWatch && node.watchMaster.enabled}
-                  disabled={!canWatch || !node.configure}
-                  hint={
-                    canWatch
-                      ? "The node reacts when the master's heartbeat stops, for example when the PLC runtime stops. What it does with its outputs then is set in the device's own objects (for I/O modules usually 0x6206 and 0x6207). Written to 0x1016"
-                      : 'The device cannot watch the master: its EDS has no writable 0x1016'
+                  disabledReason={
+                    canWatch ? noInit : 'The device cannot watch the master: its EDS has no writable 0x1016'
                   }
+                  hint="The node reacts when the master's heartbeat stops, for example when the PLC runtime stops. What it does with its outputs then is set in the device's own objects (for I/O modules usually 0x6206 and 0x6207). Written to 0x1016"
                   onChange={(enabled) => onChange((n) => ({ ...n, watchMaster: { ...n.watchMaster, enabled } }))}
                 />
                 {canWatch && node.watchMaster.enabled ? (
@@ -486,7 +483,7 @@ const NodePanel = ({
                       value={node.watchMaster.consumerMs}
                       min={1}
                       max={65535}
-                      disabled={!node.configure}
+                      disabledReason={noInit}
                       hint="How long the node waits for the master's heartbeat"
                       onCommit={(consumerMs) =>
                         onChange((n) => ({ ...n, watchMaster: { ...n.watchMaster, consumerMs } }))
@@ -497,7 +494,7 @@ const NodePanel = ({
                         label='When the master is gone'
                         value={node.watchMaster.onError}
                         options={ON_COMM_ERROR_OPTIONS}
-                        disabled={!node.configure}
+                        disabledReason={noInit}
                         hint={tag('watchMasterReaction') ? 'Expert setting · written to 0x1029' : 'Written to 0x1029'}
                         onChange={(onError) => onChange((n) => ({ ...n, watchMaster: { ...n.watchMaster, onError } }))}
                       />
@@ -528,7 +525,7 @@ const NodePanel = ({
                       key={c.id}
                       consumer={c}
                       others={others}
-                      disabled={!node.configure}
+                      disabledReason={noInit}
                       onChange={(next) =>
                         onChange((n) => ({
                           ...n,
@@ -549,9 +546,12 @@ const NodePanel = ({
                       className={secondaryButtonClassName}
                       disabled={!node.configure || others.length === 0 || node.heartbeatConsumers.length >= freeSlots}
                       title={
-                        node.heartbeatConsumers.length >= freeSlots
-                          ? 'The node has no free heartbeat consumer entry (0x1016)'
-                          : undefined
+                        noInit ??
+                        (others.length === 0
+                          ? 'There is no other node on the network'
+                          : node.heartbeatConsumers.length >= freeSlots
+                            ? 'The node has no free heartbeat consumer entry (0x1016)'
+                            : undefined)
                       }
                       onClick={() => {
                         const producer =
@@ -585,21 +585,33 @@ const NodePanel = ({
                     <>
                       <CheckboxField
                         label='Emergency messages'
-                        checked={node.emcy.enabled}
+                        checked={emcy.enabled}
+                        disabledReason={
+                          emcySupported === 'none'
+                            ? 'The device sends no emergency messages: its EDS has no 0x1014'
+                            : null
+                        }
                         hint="The master logs the node's emergency messages and shows them in its status"
                         onChange={(enabled) => onChange((n) => ({ ...n, emcy: { ...n.emcy, enabled } }))}
                       />
-                      {node.emcy.enabled ? (
+                      {emcy.enabled ? (
                         <div className='grid grid-cols-2 gap-4'>
                           <NumberField
                             label='Emergency COB-ID'
-                            value={node.emcy.cobId}
+                            value={emcy.cobId}
                             min={1}
                             max={0x7ff}
                             hex
-                            objectRef={canSetEmcy(eds) && node.configure ? '0x1014' : undefined}
+                            disabledReason={
+                              emcySupported === 'fixed' ? 'Fixed by the device: its EDS marks 0x1014 read-only' : null
+                            }
+                            objectRef={
+                              emcySupported === 'fixed' || (emcySupported === 'writable' && node.configure)
+                                ? '0x1014'
+                                : undefined
+                            }
                             hint={
-                              canSetEmcy(eds) && node.configure
+                              emcySupported === 'writable' && node.configure
                                 ? `Written to the node when not ${hex3(defaultEmcyCobId(node.nodeId))}`
                                 : 'The COB-ID the node sends on; the master listens on it'
                             }
@@ -613,13 +625,13 @@ const NodePanel = ({
                     <CheckboxField
                       label='Receive TIME'
                       checked={node.receiveTime}
-                      disabled={!canReceiveTime(eds) || !node.configure}
+                      disabledReason={
+                        canReceiveTime(eds) ? noInit : 'The device cannot consume TIME: its EDS has no writable 0x1012'
+                      }
                       hint={
-                        !canReceiveTime(eds)
-                          ? 'The device cannot consume TIME: its EDS has no writable 0x1012'
-                          : timeOn
-                            ? 'The node takes the time of day the master sends. Written to 0x1012'
-                            : 'The network sends no TIME: turn it on in the network settings'
+                        timeOn
+                          ? 'The node takes the time of day the master sends. Written to 0x1012'
+                          : 'The network sends no TIME: turn it on in the network settings'
                       }
                       onChange={(receiveTime) => onChange((n) => ({ ...n, receiveTime }))}
                     />
@@ -684,7 +696,11 @@ const NodePanel = ({
 
         {live ? (
           <Tabs.Content value='status' className='min-h-0 flex-1 overflow-auto pb-4'>
-            <NodeStatusTab live={live} nodeId={node.nodeId} />
+            <NodeStatusTab
+              live={live}
+              nodeId={node.nodeId}
+              emcy={emcySupported === 'none' ? 'none' : emcy.enabled ? 'on' : 'off'}
+            />
           </Tabs.Content>
         ) : null}
       </Tabs.Root>

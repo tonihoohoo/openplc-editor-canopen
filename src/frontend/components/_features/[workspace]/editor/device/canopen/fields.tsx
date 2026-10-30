@@ -36,6 +36,8 @@ type NumberFieldProps = FieldHintProps & {
   hex?: boolean
   hexWidth?: number
   disabled?: boolean
+  /** Shown disabled, with this reason as its tooltip and in place of the hint. */
+  disabledReason?: string | null
   hideLabel?: boolean
   className?: string
 }
@@ -56,6 +58,7 @@ const NumberField = ({
   hex = false,
   hexWidth = 3,
   disabled,
+  disabledReason,
   hideLabel,
   className,
 }: NumberFieldProps) => {
@@ -79,14 +82,14 @@ const NumberField = ({
   }
 
   return (
-    <label className={cn('flex flex-col gap-1', className)}>
+    <label className={cn('flex flex-col gap-1', className)} title={disabledReason ?? undefined}>
       {hideLabel ? null : <span className={labelClassName}>{label}</span>}
       <input
         type='text'
         inputMode={hex ? 'text' : 'numeric'}
         aria-label={label}
         value={text}
-        disabled={disabled}
+        disabled={disabled || Boolean(disabledReason)}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -97,7 +100,7 @@ const NumberField = ({
       {error ? (
         <span className='text-[10px] text-red-600 dark:text-red-400'>{error}</span>
       ) : (
-        <FieldHint objectRef={objectRef} hint={hint} warning={warning} />
+        <FieldHint objectRef={objectRef} hint={disabledReason ?? hint} warning={warning} />
       )}
     </label>
   )
@@ -168,6 +171,8 @@ type SelectFieldProps<T extends string> = FieldHintProps & {
   options: ReadonlyArray<SelectOption<T>>
   onChange: (value: T) => void
   disabled?: boolean
+  /** Shown disabled, with this reason as its tooltip and in place of the hint. */
+  disabledReason?: string | null
   hideLabel?: boolean
   className?: string
 }
@@ -181,15 +186,16 @@ const SelectField = <T extends string>({
   objectRef,
   warning,
   disabled,
+  disabledReason,
   hideLabel,
   className,
 }: SelectFieldProps<T>) => (
-  <label className={cn('flex flex-col gap-1', className)}>
+  <label className={cn('flex flex-col gap-1', className)} title={disabledReason ?? undefined}>
     {hideLabel ? null : <span className={labelClassName}>{label}</span>}
     <select
       aria-label={label}
       value={value}
-      disabled={disabled}
+      disabled={disabled || Boolean(disabledReason)}
       onChange={(e) => {
         const picked = options.find((o) => o.value === e.target.value)
         if (picked) onChange(picked.value)
@@ -207,7 +213,7 @@ const SelectField = <T extends string>({
         </option>
       ))}
     </select>
-    <FieldHint objectRef={objectRef} hint={hint} warning={warning} />
+    <FieldHint objectRef={objectRef} hint={disabledReason ?? hint} warning={warning} />
   </label>
 )
 
@@ -217,21 +223,23 @@ type CheckboxFieldProps = {
   onChange: (checked: boolean) => void
   hint?: string
   disabled?: boolean
+  /** Shown disabled, with this reason as its tooltip and in place of the hint. */
+  disabledReason?: string | null
 }
 
-const CheckboxField = ({ label, checked, onChange, hint, disabled }: CheckboxFieldProps) => (
-  <label className='flex items-start gap-2'>
+const CheckboxField = ({ label, checked, onChange, hint, disabled, disabledReason }: CheckboxFieldProps) => (
+  <label className='flex items-start gap-2' title={disabledReason ?? undefined}>
     <input
       type='checkbox'
       aria-label={label}
       checked={checked}
-      disabled={disabled}
+      disabled={disabled || Boolean(disabledReason)}
       onChange={(e) => onChange(e.target.checked)}
       className='mt-0.5 h-3.5 w-3.5 accent-brand'
     />
     <span className='flex flex-col'>
       <span className={labelClassName}>{label}</span>
-      {hint ? <span className={hintClassName}>{hint}</span> : null}
+      {(disabledReason ?? hint) ? <span className={hintClassName}>{disabledReason ?? hint}</span> : null}
     </span>
   </label>
 )

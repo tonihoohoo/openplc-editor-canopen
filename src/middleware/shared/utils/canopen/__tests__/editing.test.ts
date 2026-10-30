@@ -134,6 +134,7 @@ describe('startupSdoCandidates', () => {
       c.hiddenReason,
     ])
     expect(shown).toEqual([
+      ['1014:0', 'The editor writes it from "Emergency messages"'],
       ['1016:1', 'The editor writes it from "Watch the master"'],
       ['1017:0', 'The editor writes it from the supervision settings'],
       ['1029:1', 'The editor writes it from "Watch the master"'],
