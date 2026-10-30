@@ -93,6 +93,8 @@ export interface GenerateConfsInput {
    *  device and which buffers it can address. The image is sized from the same
    *  answer, so a block this drops is a block nothing sizes. */
   s7Profile: S7TargetProfile
+  /** The PLC cycle in microseconds (`plcCycleUs` of the cyclic tasks), or null when unknown. */
+  plcCycleUs?: number | null
 }
 
 /**
@@ -188,7 +190,7 @@ export function generateRuntimeConfs(input: GenerateConfsInput): GenerateConfsOu
   }
 
   // CANopen: same gate as EtherCAT, the build stops on any error.
-  const canopenErrors = validateCanopenProject(remoteDevices)
+  const canopenErrors = validateCanopenProject(remoteDevices, input.plcCycleUs ?? null)
   if (canopenErrors.length > 0) {
     throw new Error(`CANopen configuration is invalid: ${canopenErrors.join('; ')}`)
   }

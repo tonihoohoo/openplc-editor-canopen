@@ -11,13 +11,18 @@ import type {
   CanopenNode,
 } from '@root/middleware/shared/ports/canopen-types'
 import {
+  type CanopenCheck,
   canopenSdoWarnings,
+  checkCanopenNetwork,
+  checkText,
   createCanopenNode,
   defaultCanopenConfig,
+  fixAllCanopenProblems,
   lowestFreeNodeId,
   nodeNameFromEds,
   parseEds,
   placeholderAddress,
+  plcCycleUs,
   uniqueNodeName,
   updateNode,
   validateCanopenProject,
@@ -32,7 +37,7 @@ import { NetworkSettings } from './network-settings'
 import { NodeList } from './node-list'
 import { NodePanel } from './node-panel'
 import { BusStatusLine } from './status-view'
-import { hintClassName } from './styles'
+import { hintClassName, secondaryButtonClassName } from './styles'
 
 type EditorTab = 'nodes' | 'network'
 
@@ -53,6 +58,70 @@ const TabItem = ({ value, label, active }: { value: EditorTab; label: string; ac
   </Tabs.Trigger>
 )
 
+type CheckListProps = {
+  checks: readonly CanopenCheck[]
+  onFix: (check: CanopenCheck) => void
+  onFixAll: () => void
+  onShow: (check: CanopenCheck) => void
+}
+
+/** The network's checks: errors stop the build, warnings do not; each fix is one change. */
+const CheckList = ({ checks, onFix, onFixAll, onShow }: CheckListProps) => {
+  const errors = checks.filter((c) => c.level === 'error').length
+  const fixable = checks.filter((c) => c.fix).length
+  return (
+    <div
+      role='status'
+      aria-label='Network checks'
+      className={cn(
+        'mb-4 shrink-0 rounded-md border px-3 py-2 text-xs',
+        errors > 0
+          ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+          : 'border-neutral-200 bg-neutral-50 text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300',
+      )}
+    >
+      <div className='mb-1 flex items-center justify-between gap-4'>
+        <p className='font-medium'>
+          {errors > 0 ? `${errors} problem${errors === 1 ? '' : 's'} stop the build` : 'Warnings'}
+          {checks.length > errors
+            ? `, ${checks.length - errors} warning${checks.length - errors === 1 ? '' : 's'}`
+            : ''}
+        </p>
+        {fixable > 1 ? (
+          <button type='button' className={secondaryButtonClassName} onClick={onFixAll}>
+            Fix all
+          </button>
+        ) : null}
+      </div>
+      <ul className='flex flex-col gap-1'>
+        {checks.map((c, i) => (
+          <li key={`${c.where}:${c.text}:${i}`} className='flex items-start justify-between gap-4'>
+            <span>
+              <span className='font-medium'>{c.level === 'error' ? 'Error' : 'Warning'}: </span>
+              {checkText(c)}
+            </span>
+            <span className='flex shrink-0 gap-2'>
+              <button type='button' className='underline' onClick={() => onShow(c)}>
+                Show
+              </button>
+              {c.fix ? (
+                <button
+                  type='button'
+                  className='font-medium underline'
+                  aria-label={`${c.fix.label}: ${checkText(c)}`}
+                  onClick={() => onFix(c)}
+                >
+                  {c.fix.label}
+                </button>
+              ) : null}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 /**
  * CANopen network editor: the network's CAN interface and master settings, and its nodes, each
  * added from an EDS file, with PDO mapping and startup SDOs.
@@ -61,6 +130,7 @@ const CanopenEditor = () => {
   const store = useOpenPLCStoreApi()
   const editor = useOpenPLCStore((s) => s.editor)
   const remoteDevices = useOpenPLCStore((s) => s.project.data.remoteDevices)
+  const tasks = useOpenPLCStore((s) => s.project.data.configurations.resource.tasks)
   const registry = useAliasRegistry()
 
   const deviceName = editor.type === 'plc-remote-device' ? editor.meta.name : ''
@@ -72,7 +142,14 @@ const CanopenEditor = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = config.nodes.find((n) => n.id === selectedId) ?? config.nodes[0]
 
-  const problems = useMemo(() => (device ? validateCanopenProject([device]) : []), [device])
+  const cycleUs = useMemo(() => plcCycleUs(tasks), [tasks])
+  const checks = useMemo(() => checkCanopenNetwork(config, cycleUs), [config, cycleUs])
+  // Errors without a check of their own; the checks are listed with their fixes.
+  const problems = useMemo(() => {
+    if (!device) return []
+    const covered = checks.filter((c) => c.level === 'error').map(checkText)
+    return validateCanopenProject([device], cycleUs).filter((p) => !covered.some((c) => p.endsWith(c)))
+  }, [device, checks, cycleUs])
   const sdoWarnings = useMemo(() => {
     const map = new Map<string, string>()
     if (device) for (const w of canopenSdoWarnings(device)) map.set(w.sdoId, w.message)
@@ -124,6 +201,7 @@ const CanopenEditor = () => {
         nodeId,
         newId: uuidv4,
         allocate: placeholderAddress,
+        defaults: current.network.newNodeDefaults,
       })
       commit((c) => ({ ...c, nodes: [...c.nodes, node] }))
       setSelectedId(node.id)
@@ -175,6 +253,22 @@ const CanopenEditor = () => {
         </div>
       ) : null}
 
+      {checks.length > 0 ? (
+        <CheckList
+          checks={checks}
+          onFix={(check) => {
+            if (check.fix) commit(check.fix.apply)
+          }}
+          onFixAll={() => commit((c) => fixAllCanopenProblems(c, cycleUs))}
+          onShow={(check) => {
+            if (check.nodeId) {
+              setSelectedId(check.nodeId)
+              setTab('nodes')
+            } else setTab('network')
+          }}
+        />
+      ) : null}
+
       <Tabs.Root
         value={tab}
         onValueChange={(v) => {
@@ -207,6 +301,8 @@ const CanopenEditor = () => {
               masterNodeId={config.network.masterNodeId}
               syncOn={config.network.syncMode !== 'none'}
               masterHeartbeatMs={config.network.heartbeatProducerMs}
+              heartbeatTimeoutPercent={config.network.newNodeDefaults.heartbeatTimeoutPercent}
+              timeOn={config.network.time.enabled}
               syncPeriodUs={config.network.syncMode === 'period' ? config.network.syncPeriodUs : null}
               live={live}
               sdoWarnings={sdoWarnings}
@@ -230,7 +326,7 @@ const CanopenEditor = () => {
         </Tabs.Content>
 
         <Tabs.Content value='network' className='min-h-0 flex-1 overflow-y-auto data-[state=inactive]:hidden'>
-          <NetworkSettings network={config.network} nodes={config.nodes} onChange={changeNetwork} />
+          <NetworkSettings network={config.network} nodes={config.nodes} cycleUs={cycleUs} onChange={changeNetwork} />
         </Tabs.Content>
       </Tabs.Root>
     </div>

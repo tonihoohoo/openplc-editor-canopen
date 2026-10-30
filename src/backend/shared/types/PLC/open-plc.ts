@@ -996,30 +996,49 @@ const CanopenSdoSchema = z.object({
   value: z.string(),
 })
 
-const CanopenNodeSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  nodeId: z.number().int().min(1).max(127),
-  eds: CanopenEdsInfoSchema,
-  checkVendorId: z.boolean(),
-  checkProductCode: z.boolean(),
-  checkRevision: z.boolean(),
-  supervision: z.enum(['none', 'heartbeat']),
-  heartbeatConsumerMs: z.number().int().min(0).max(65535),
-  heartbeatProducerMs: z.number().int().min(0).max(65535),
-  onLoss: z.enum(['hold', 'zero']),
-  watchMaster: z
-    .object({
-      enabled: z.boolean(),
-      consumerMs: z.number().int().min(1).max(65535),
-      onError: z.enum(['pre_operational', 'no_change', 'stopped']),
-    })
-    .default({ enabled: false, consumerMs: 300, onError: 'pre_operational' }),
-  state: CanopenEntrySchema,
-  tpdos: z.array(CanopenPdoSchema),
-  rpdos: z.array(CanopenPdoSchema),
-  sdos: z.array(CanopenSdoSchema),
-})
+const CanopenNodeSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    nodeId: z.number().int().min(1).max(127),
+    eds: CanopenEdsInfoSchema,
+    checkVendorId: z.boolean(),
+    checkProductCode: z.boolean(),
+    checkRevision: z.boolean(),
+    optional: z.boolean().default(false),
+    configure: z.boolean().default(true),
+    restoreDefaults: z.number().int().min(0).max(127).default(0),
+    supervision: z.enum(['none', 'heartbeat', 'guarding']),
+    heartbeatConsumerMs: z.number().int().min(0).max(65535),
+    heartbeatProducerMs: z.number().int().min(0).max(65535),
+    guardTimeMs: z.number().int().min(0).max(65535).default(1000),
+    lifeTimeFactor: z.number().int().min(0).max(255).default(3),
+    heartbeatConsumers: z
+      .array(
+        z.object({
+          id: z.string(),
+          producerNodeId: z.number().int().min(1).max(127),
+          consumerMs: z.number().int().min(0).max(65535),
+        }),
+      )
+      .default([]),
+    emcy: z.object({ enabled: z.boolean(), cobId: z.number().int().min(0).max(0x7ff) }).optional(),
+    receiveTime: z.boolean().default(false),
+    onLoss: z.enum(['hold', 'zero']),
+    watchMaster: z
+      .object({
+        enabled: z.boolean(),
+        consumerMs: z.number().int().min(1).max(65535),
+        onError: z.enum(['pre_operational', 'no_change', 'stopped']),
+      })
+      .default({ enabled: false, consumerMs: 300, onError: 'pre_operational' }),
+    state: CanopenEntrySchema,
+    tpdos: z.array(CanopenPdoSchema),
+    rpdos: z.array(CanopenPdoSchema),
+    sdos: z.array(CanopenSdoSchema),
+  })
+  // The default emergency COB-ID depends on the node ID.
+  .transform((node) => ({ ...node, emcy: node.emcy ?? { enabled: true, cobId: 0x80 + node.nodeId } }))
 
 const CanopenNetworkSettingsSchema = z.object({
   interface: z.string(),
@@ -1031,6 +1050,23 @@ const CanopenNetworkSettingsSchema = z.object({
   sdoTimeoutMs: z.number().int().min(1).max(60000),
   onPlcStop: z.enum(['pre_operational', 'stopped', 'none']),
   priority: z.number().int().min(1).max(97).default(90),
+  bootTimeoutMs: z.number().int().min(100).max(60000).default(2000),
+  onNodeError: z.enum(['restart', 'stop']).default('restart'),
+  syncWindowUs: z.number().int().min(0).default(0),
+  time: z
+    .object({
+      enabled: z.boolean(),
+      cobId: z.number().int().min(1).max(0x7ff),
+      periodMs: z.number().int().min(10).max(65535),
+    })
+    .default({ enabled: false, cobId: 0x100, periodMs: 1000 }),
+  newNodeDefaults: z
+    .object({
+      heartbeatTimeoutPercent: z.number().int().min(100).max(1000),
+      supervision: z.enum(['auto', 'none', 'heartbeat', 'guarding']),
+      emcy: z.boolean(),
+    })
+    .default({ heartbeatTimeoutPercent: 150, supervision: 'auto', emcy: true }),
 })
 
 const CanopenConfigSchema = z.object({

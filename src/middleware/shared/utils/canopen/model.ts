@@ -9,9 +9,11 @@ import type {
   CanopenEdsInfo,
   CanopenEntry,
   CanopenNetworkSettings,
+  CanopenNewNodeDefaults,
   CanopenNode,
   CanopenObject,
   CanopenPdo,
+  CanopenSupervision,
 } from '../../ports/canopen-types'
 import { accessFits, canopenTypeBits, iecPrefixFor, toCanopenDataType } from './data-types'
 import { findObject, parseEdsInteger } from './eds-parser'
@@ -37,6 +39,16 @@ export const MIN_BUS_PRIORITY = 1
 export const MAX_BUS_PRIORITY = 97
 export const DEFAULT_MASTER_HEARTBEAT_MS = 100
 export const DEFAULT_WATCH_MASTER_MS = 300
+export const DEFAULT_BOOT_TIMEOUT_MS = 2000
+export const DEFAULT_HEARTBEAT_PRODUCER_MS = 100
+export const DEFAULT_GUARD_TIME_MS = 1000
+export const DEFAULT_LIFE_TIME_FACTOR = 3
+export const DEFAULT_TIME_COB_ID = 0x100
+
+/** The default emergency COB-ID of a node (CiA 301 predefined connection set). */
+export function defaultEmcyCobId(nodeId: number): number {
+  return 0x80 + nodeId
+}
 
 function writableObject(eds: CanopenEdsInfo, index: number, subIndex: number): boolean {
   const o = findObject(eds, index, subIndex)
@@ -53,6 +65,88 @@ export function hasErrorBehaviour(eds: CanopenEdsInfo): boolean {
   return writableObject(eds, 0x1029, 1)
 }
 
+/** Whether the node can produce heartbeats at a time the master sets (a writable 0x1017). */
+export function canProduceHeartbeat(eds: CanopenEdsInfo): boolean {
+  return writableObject(eds, 0x1017, 0)
+}
+
+/** Whether the node supports node guarding (guard time 0x100C and life time factor 0x100D). */
+export function canBeGuarded(eds: CanopenEdsInfo): boolean {
+  return findObject(eds, 0x100c, 0) !== undefined && findObject(eds, 0x100d, 0) !== undefined
+}
+
+/** The 0x1011 sub-indexes the EDS defines (1 all, 2 communication, 3 application, 4+ manufacturer). */
+export function restoreChoices(eds: CanopenEdsInfo): number[] {
+  return eds.objects
+    .filter((o) => o.index === 0x1011 && o.subIndex >= 1)
+    .map((o) => o.subIndex)
+    .sort((a, b) => a - b)
+}
+
+/** The name of a 0x1011 sub-index. */
+export function restoreChoiceName(subIndex: number): string {
+  if (subIndex === 1) return 'All parameters'
+  if (subIndex === 2) return 'Communication parameters'
+  if (subIndex === 3) return 'Application parameters'
+  return `Manufacturer specific (sub ${subIndex})`
+}
+
+/** Whether the emergency COB-ID can be written to the node (a writable 0x1014). */
+export function canSetEmcy(eds: CanopenEdsInfo): boolean {
+  return writableObject(eds, 0x1014, 0)
+}
+
+/** Whether the node can consume TIME (a writable 0x1012). */
+export function canReceiveTime(eds: CanopenEdsInfo): boolean {
+  return writableObject(eds, 0x1012, 0)
+}
+
+/** Whether the node takes a SYNC window length (a writable 0x1007). */
+export function hasSyncWindow(eds: CanopenEdsInfo): boolean {
+  return writableObject(eds, 0x1007, 0)
+}
+
+/** How many heartbeats the node can watch (the sub-indexes of its writable 0x1016). */
+export function consumerSlots(eds: CanopenEdsInfo): number {
+  return eds.objects.filter((o) => o.index === 0x1016 && o.subIndex >= 1 && o.access !== 'ro' && o.access !== 'const')
+    .length
+}
+
+/** The supervision `auto` picks for this EDS. */
+export function autoSupervision(eds: CanopenEdsInfo): CanopenSupervision {
+  if (canProduceHeartbeat(eds)) return 'heartbeat'
+  if (canBeGuarded(eds)) return 'guarding'
+  return 'none'
+}
+
+/** An integer default value from the EDS, with $NODEID resolved, or null. */
+export function edsDefault(eds: CanopenEdsInfo, index: number, subIndex: number, nodeId: number): number | null {
+  return defaultInt(eds, index, subIndex, nodeId)
+}
+
+/** The node's heartbeat producer time as it will run: its own default when the master does not configure it. */
+export function effectiveProducerMs(node: CanopenNode): number {
+  return node.configure ? node.heartbeatProducerMs : (edsDefault(node.eds, 0x1017, 0, node.nodeId) ?? 0)
+}
+
+/** Guard time and life time factor as they will run. */
+export function effectiveGuarding(node: CanopenNode): { guardTimeMs: number; lifeTimeFactor: number } {
+  if (node.configure) return { guardTimeMs: node.guardTimeMs, lifeTimeFactor: node.lifeTimeFactor }
+  return {
+    guardTimeMs: edsDefault(node.eds, 0x100c, 0, node.nodeId) ?? 0,
+    lifeTimeFactor: edsDefault(node.eds, 0x100d, 0, node.nodeId) ?? 0,
+  }
+}
+
+/** The consumer time for a producer time at a percentage, rounded up to a millisecond. */
+export function consumerTimeFor(producerMs: number, percent: number): number {
+  return Math.ceil((producerMs * percent) / 100)
+}
+
+export function defaultNewNodeDefaults(): CanopenNewNodeDefaults {
+  return { heartbeatTimeoutPercent: 150, supervision: 'auto', emcy: true }
+}
+
 export function defaultNetworkSettings(): CanopenNetworkSettings {
   return {
     interface: 'can0',
@@ -64,6 +158,11 @@ export function defaultNetworkSettings(): CanopenNetworkSettings {
     sdoTimeoutMs: 1000,
     onPlcStop: 'pre_operational',
     priority: DEFAULT_BUS_PRIORITY,
+    bootTimeoutMs: DEFAULT_BOOT_TIMEOUT_MS,
+    onNodeError: 'restart',
+    syncWindowUs: 0,
+    time: { enabled: false, cobId: DEFAULT_TIME_COB_ID, periodMs: 1000 },
+    newNodeDefaults: defaultNewNodeDefaults(),
   }
 }
 
@@ -191,15 +290,22 @@ export interface CreateNodeOptions {
   nodeId: number
   newId: () => string
   allocate: AllocateAddress
+  /** The network's defaults for new nodes; the built-in ones when absent. */
+  defaults?: CanopenNewNodeDefaults
 }
 
 /**
- * A node from an EDS: its default PDOs, heartbeat supervision when it can produce heartbeats, and
- * watching the master's heartbeat when it can.
+ * A node from an EDS: its default PDOs, the supervision the network's defaults pick, and watching
+ * the master's heartbeat when it can.
  */
 export function createCanopenNode(eds: CanopenEdsInfo, options: CreateNodeOptions): CanopenNode {
   const { nodeId, newId, allocate } = options
-  const heartbeat = findObject(eds, 0x1017, 0) !== undefined
+  const defaults = options.defaults ?? defaultNewNodeDefaults()
+  const wanted = defaults.supervision === 'auto' ? autoSupervision(eds) : defaults.supervision
+  const supervision =
+    (wanted === 'heartbeat' && !canProduceHeartbeat(eds)) || (wanted === 'guarding' && !canBeGuarded(eds))
+      ? 'none'
+      : wanted
   return {
     id: options.id,
     name: options.name,
@@ -208,9 +314,17 @@ export function createCanopenNode(eds: CanopenEdsInfo, options: CreateNodeOption
     checkVendorId: eds.vendorId !== 0,
     checkProductCode: eds.productCode !== 0,
     checkRevision: false,
-    supervision: heartbeat ? 'heartbeat' : 'none',
-    heartbeatConsumerMs: 300,
-    heartbeatProducerMs: 100,
+    optional: false,
+    configure: true,
+    restoreDefaults: 0,
+    supervision,
+    heartbeatConsumerMs: consumerTimeFor(DEFAULT_HEARTBEAT_PRODUCER_MS, defaults.heartbeatTimeoutPercent),
+    heartbeatProducerMs: DEFAULT_HEARTBEAT_PRODUCER_MS,
+    guardTimeMs: edsDefault(eds, 0x100c, 0, nodeId) || DEFAULT_GUARD_TIME_MS,
+    lifeTimeFactor: edsDefault(eds, 0x100d, 0, nodeId) || DEFAULT_LIFE_TIME_FACTOR,
+    heartbeatConsumers: [],
+    emcy: { enabled: defaults.emcy, cobId: defaultEmcyCobId(nodeId) },
+    receiveTime: false,
     onLoss: 'hold',
     watchMaster: { enabled: canWatchMaster(eds), consumerMs: DEFAULT_WATCH_MASTER_MS, onError: 'pre_operational' },
     state: {
@@ -236,7 +350,14 @@ export function nodeEntries(node: CanopenNode): CanopenEntry[] {
 export function withNodeId(node: CanopenNode, nodeId: number): CanopenNode {
   const move = (pdos: CanopenPdo[], direction: PdoDirection): CanopenPdo[] =>
     pdos.map((p) => ({ ...p, cobId: moveCobId(p.cobId, node.nodeId, nodeId, direction) }))
-  return { ...node, nodeId, tpdos: move(node.tpdos, 'input'), rpdos: move(node.rpdos, 'output') }
+  const emcyCobId = node.emcy.cobId === defaultEmcyCobId(node.nodeId) ? defaultEmcyCobId(nodeId) : node.emcy.cobId
+  return {
+    ...node,
+    nodeId,
+    emcy: { ...node.emcy, cobId: emcyCobId },
+    tpdos: move(node.tpdos, 'input'),
+    rpdos: move(node.rpdos, 'output'),
+  }
 }
 
 /** `base`, or `base_2`, `base_3`, ... when another node already has the name. */

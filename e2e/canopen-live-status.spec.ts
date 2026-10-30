@@ -34,7 +34,8 @@ function status(now: number) {
         name: 'canopen_1',
         interface: 'vcan0',
         bus: { state: 'error_active', tx_errors: 0, rx_errors: 0, load_percent: 2.5 },
-        all_nodes_up: false,
+        all_mandatory_up: false,
+        all_optional_up: true,
         nodes: [
           {
             node_id: 2,

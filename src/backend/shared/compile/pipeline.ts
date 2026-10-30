@@ -32,7 +32,11 @@ import type {
   RuntimeV4Bundle,
 } from '../../../middleware/shared/ports/compiler-platform-port'
 import type { StructuredCompileError } from '../../../middleware/shared/ports/types'
-import { CANOPEN_CONFIG_VERSION, describeCanopenRuntimeMismatch } from '../../../middleware/shared/utils/canopen'
+import {
+  CANOPEN_CONFIG_VERSION,
+  describeCanopenRuntimeMismatch,
+  plcCycleUs,
+} from '../../../middleware/shared/utils/canopen'
 import { composeRuntimeV4Bundle } from '../../../middleware/shared/utils/library/compose-runtime-v4-bundle'
 import { resolveModbusServerProfile } from '../../../middleware/shared/utils/modbus-server-profile'
 import {
@@ -792,6 +796,7 @@ async function runCompilePipelineInner(
         debugMapContent: debugMapJson,
         log: (message, level) => emit({ stage: 'confs', message, level }),
         runtimeVersion: versionCheck?.version ?? null,
+        plcCycleUs: plcCycleUs(processedData.configuration.resource.tasks),
       })
     } catch (error) {
       return bailError(

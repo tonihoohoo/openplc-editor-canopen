@@ -1,8 +1,10 @@
 import * as Tabs from '@radix-ui/react-tabs'
+import { useCanopenExpertView } from '@root/frontend/hooks/use-canopen-expert-view'
 import type { CanopenLiveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { cn } from '@root/frontend/utils/cn'
 import type {
   CanopenEntry,
+  CanopenHeartbeatConsumer,
   CanopenNode,
   CanopenOnCommError,
   CanopenOnLoss,
@@ -11,21 +13,32 @@ import type {
   CanopenSupervision,
 } from '@root/middleware/shared/ports/canopen-types'
 import {
+  canBeGuarded,
+  canReceiveTime,
+  canSetEmcy,
   canWatchMaster,
+  consumerSlots,
+  consumerTimeFor,
+  defaultEmcyCobId,
+  effectiveGuarding,
+  effectiveProducerMs,
   findObject,
   hasErrorBehaviour,
   objectParameterState,
   type PdoDirection,
+  restoreChoiceName,
+  restoreChoices,
   updatePdo,
   watchMasterProblem,
 } from '@root/middleware/shared/utils/canopen'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { PdoSection } from './pdo-section'
 import { SdoSection } from './sdo-section'
 import { NodeStatusTab } from './status-view'
-import { cardClassName, headingClassName, hintClassName, secondaryButtonClassName } from './styles'
+import { cardClassName, headingClassName, hintClassName, iconButtonClassName, secondaryButtonClassName } from './styles'
 
 type NodeTab = 'general' | 'inputs' | 'outputs' | 'sdos' | 'status'
 
@@ -40,6 +53,89 @@ const ON_COMM_ERROR_OPTIONS: ReadonlyArray<{ value: CanopenOnCommError; label: s
   { value: 'no_change', label: 'Keep running' },
 ]
 
+/** Expert settings that differ from their defaults, which the basic view keeps showing. */
+const nonDefaultExpert = (node: CanopenNode) => ({
+  configure: !node.configure,
+  restoreDefaults: node.restoreDefaults !== 0,
+  identity:
+    node.checkVendorId !== (node.eds.vendorId !== 0) ||
+    node.checkProductCode !== (node.eds.productCode !== 0) ||
+    node.checkRevision,
+  heartbeatConsumers: node.heartbeatConsumers.length > 0,
+  watchMasterReaction: node.watchMaster.onError !== 'pre_operational',
+  emcy: !node.emcy.enabled || node.emcy.cobId !== defaultEmcyCobId(node.nodeId),
+  receiveTime: node.receiveTime,
+})
+
+/** Marks an expert setting shown in the basic view because it is not at its default. */
+const ExpertTag = ({ shown }: { shown: boolean }) =>
+  shown ? (
+    <span
+      className='ml-2 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium normal-case text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+      title='An expert setting, shown because it is not at its default'
+    >
+      expert
+    </span>
+  ) : null
+
+const Card = ({ title, tag, children }: { title: string; tag?: boolean; children: ReactNode }) => (
+  <div className={cardClassName}>
+    <h4 className={headingClassName}>
+      {title}
+      <ExpertTag shown={tag ?? false} />
+    </h4>
+    {children}
+  </div>
+)
+
+const hex3 = (v: number): string => `0x${v.toString(16).toUpperCase().padStart(3, '0')}`
+
+type ConsumerRowProps = {
+  consumer: CanopenHeartbeatConsumer
+  others: readonly CanopenNode[]
+  disabled: boolean
+  onChange: (consumer: CanopenHeartbeatConsumer) => void
+  onRemove: () => void
+}
+
+/** One heartbeat the node watches: the producing node and the timeout. */
+const ConsumerRow = ({ consumer, others, disabled, onChange, onRemove }: ConsumerRowProps) => {
+  const options: ReadonlyArray<SelectOption<string>> = [
+    ...others.map((o) => ({ value: String(o.nodeId), label: `Node ${o.nodeId} (${o.name})` })),
+    ...(others.some((o) => o.nodeId === consumer.producerNodeId)
+      ? []
+      : [{ value: String(consumer.producerNodeId), label: `Node ${consumer.producerNodeId} (not on the network)` }]),
+  ]
+  return (
+    <div className='grid grid-cols-[1fr_1fr_auto] items-start gap-4'>
+      <SelectField
+        label='Producer'
+        value={String(consumer.producerNodeId)}
+        options={options}
+        disabled={disabled}
+        onChange={(value) => onChange({ ...consumer, producerNodeId: Number(value) })}
+      />
+      <NumberField
+        label='Timeout (ms)'
+        value={consumer.consumerMs}
+        min={1}
+        max={65535}
+        disabled={disabled}
+        onCommit={(consumerMs) => onChange({ ...consumer, consumerMs })}
+      />
+      <button
+        type='button'
+        aria-label={`Stop watching node ${consumer.producerNodeId}`}
+        className={cn(iconButtonClassName, 'mt-6')}
+        disabled={disabled}
+        onClick={onRemove}
+      >
+        Remove
+      </button>
+    </div>
+  )
+}
+
 const hex8 = (v: number): string => `0x${v.toString(16).toUpperCase().padStart(8, '0')}`
 
 const NODE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
@@ -53,6 +149,10 @@ type NodePanelProps = {
   syncOn: boolean
   /** The network's master heartbeat, which "Watch the master" depends on. */
   masterHeartbeatMs: number
+  /** The default heartbeat timeout as a percentage of the producer time. */
+  heartbeatTimeoutPercent: number
+  /** The network produces TIME. */
+  timeOn: boolean
   /** The SYNC period, or null when unknown or off. */
   syncPeriodUs: number | null
   sdoWarnings: ReadonlyMap<string, string>
@@ -88,6 +188,8 @@ const NodePanel = ({
   masterNodeId,
   syncOn,
   masterHeartbeatMs,
+  heartbeatTimeoutPercent,
+  timeOn,
   syncPeriodUs,
   sdoWarnings,
   live,
@@ -97,18 +199,37 @@ const NodePanel = ({
   onAliasChange,
 }: NodePanelProps) => {
   const [tab, setTab] = useState<NodeTab>('general')
+  const [expert, setExpert] = useCanopenExpertView()
   const shownTab: NodeTab = tab === 'status' && !live ? 'general' : tab
   const { eds } = node
   const canHeartbeat = findObject(eds, 0x1017, 0) !== undefined
   const heartbeatObject = objectParameterState(eds, 0x1017, 0)
+  const canGuard = canBeGuarded(eds)
   const supervisionOptions: ReadonlyArray<SelectOption<CanopenSupervision>> = [
     {
       value: 'heartbeat',
       label: 'Heartbeat',
       disabledReason: canHeartbeat ? null : 'the device has no heartbeat producer (0x1017)',
     },
+    {
+      value: 'guarding',
+      label: 'Node guarding',
+      disabledReason: canGuard ? null : 'the device has no guard time and life time factor (0x100C, 0x100D)',
+    },
     { value: 'none', label: 'None' },
   ]
+  const tagged = nonDefaultExpert(node)
+  const show = (field: keyof typeof tagged): boolean => expert || tagged[field]
+  const tag = (field: keyof typeof tagged): boolean => !expert && tagged[field]
+  const restores = restoreChoices(eds)
+  const restoreOptions: ReadonlyArray<SelectOption<string>> = [
+    { value: '0', label: 'No' },
+    ...restores.map((sub) => ({ value: String(sub), label: `${restoreChoiceName(sub)} (0x1011:${sub})` })),
+  ]
+  const others = nodes.filter((n) => n.id !== node.id)
+  const freeSlots = consumerSlots(eds) - (canWatchMaster(eds) && node.watchMaster.enabled ? 1 : 0)
+  const guarding = effectiveGuarding(node)
+  const notWritten = 'From the EDS: the master does not configure this node'
   const canWatch = canWatchMaster(eds)
   const watchProblem = watchMasterProblem(node, masterHeartbeatMs)
   const mappedInputs = node.tpdos.filter((p) => p.enabled).reduce((n, p) => n + p.entries.length, 0)
@@ -128,9 +249,22 @@ const NodePanel = ({
             {[eds.vendorName, eds.productName].filter((s) => s !== '').join(' - ') || 'Unnamed device'} ({eds.fileName})
           </p>
         </div>
-        <button type='button' className={secondaryButtonClassName} onClick={onRemove}>
-          Remove node
-        </button>
+        <div className='flex shrink-0 items-center gap-3'>
+          <label className='flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300'>
+            <input
+              type='checkbox'
+              role='switch'
+              aria-label='Expert view'
+              checked={expert}
+              onChange={(e) => setExpert(e.target.checked)}
+              className='h-3.5 w-3.5 accent-brand'
+            />
+            Expert view
+          </label>
+          <button type='button' className={secondaryButtonClassName} onClick={onRemove}>
+            Remove node
+          </button>
+        </div>
       </div>
 
       <Tabs.Root
@@ -150,8 +284,7 @@ const NodePanel = ({
 
         <Tabs.Content value='general' className='min-h-0 flex-1 overflow-auto pb-4'>
           <div className='flex flex-col gap-4'>
-            <div className={cardClassName}>
-              <h4 className={headingClassName}>Node</h4>
+            <Card title='Node'>
               <div className='grid max-w-[640px] grid-cols-2 gap-4'>
                 <TextField
                   label='Name'
@@ -184,38 +317,89 @@ const NodePanel = ({
                   This node ID is already used on the network.
                 </p>
               ) : null}
-            </div>
-
-            <div className={cardClassName}>
-              <h4 className={headingClassName}>Identity check at boot</h4>
-              <div className='flex flex-col gap-2'>
+              <div className='mt-4 flex max-w-[640px] flex-col gap-3'>
                 <CheckboxField
-                  label={`Vendor ID ${hex8(eds.vendorId)}`}
-                  checked={node.checkVendorId}
-                  onChange={(checkVendorId) => onChange((n) => ({ ...n, checkVendorId }))}
-                />
-                <CheckboxField
-                  label={`Product code ${hex8(eds.productCode)}`}
-                  checked={node.checkProductCode}
-                  onChange={(checkProductCode) => onChange((n) => ({ ...n, checkProductCode }))}
-                />
-                <CheckboxField
-                  label={`Revision ${hex8(eds.revision)}`}
-                  checked={node.checkRevision}
-                  hint='Leave off to accept newer firmware of the same product'
-                  onChange={(checkRevision) => onChange((n) => ({ ...n, checkRevision }))}
+                  label='Optional node'
+                  checked={node.optional}
+                  hint='The network runs without it; the master keeps looking for it and starts it when it appears'
+                  onChange={(optional) => onChange((n) => ({ ...n, optional }))}
                 />
               </div>
-            </div>
+            </Card>
 
-            <div className={cardClassName}>
-              <h4 className={headingClassName}>Supervision</h4>
+            {show('configure') || show('restoreDefaults') ? (
+              <Card title='Startup' tag={tag('configure') || tag('restoreDefaults')}>
+                <div className='flex max-w-[640px] flex-col gap-3'>
+                  {show('configure') ? (
+                    <CheckboxField
+                      label='No initialization'
+                      checked={!node.configure}
+                      hint='The master only starts the node: no identity check, restore, configuration SDOs or PDO mapping. The node runs with the settings it has'
+                      onChange={(off) =>
+                        onChange((n) => ({ ...n, configure: !off, restoreDefaults: off ? 0 : n.restoreDefaults }))
+                      }
+                    />
+                  ) : null}
+                  {show('restoreDefaults') ? (
+                    <div className='grid grid-cols-2 gap-4'>
+                      <SelectField
+                        label='Restore defaults before configuring'
+                        value={String(node.restoreDefaults)}
+                        options={restoreOptions}
+                        disabled={!node.configure || (restores.length === 0 && node.restoreDefaults === 0)}
+                        objectRef='0x1011'
+                        hint={
+                          !node.configure
+                            ? 'Not with No initialization'
+                            : restores.length === 0
+                              ? 'The device cannot restore its defaults: its EDS has no 0x1011'
+                              : 'The node resets to its saved defaults at every boot, then gets this configuration. Nothing is ever stored on the node'
+                        }
+                        onChange={(value) => onChange((n) => ({ ...n, restoreDefaults: Number(value) }))}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              </Card>
+            ) : null}
+
+            {show('identity') ? (
+              <Card title='Identity check at boot' tag={tag('identity')}>
+                <div className='flex flex-col gap-2'>
+                  <CheckboxField
+                    label={`Vendor ID ${hex8(eds.vendorId)}`}
+                    checked={node.checkVendorId}
+                    disabled={!node.configure}
+                    onChange={(checkVendorId) => onChange((n) => ({ ...n, checkVendorId }))}
+                  />
+                  <CheckboxField
+                    label={`Product code ${hex8(eds.productCode)}`}
+                    checked={node.checkProductCode}
+                    disabled={!node.configure}
+                    onChange={(checkProductCode) => onChange((n) => ({ ...n, checkProductCode }))}
+                  />
+                  <CheckboxField
+                    label={`Revision ${hex8(eds.revision)}`}
+                    checked={node.checkRevision}
+                    disabled={!node.configure}
+                    hint={
+                      node.configure
+                        ? 'Leave off to accept newer firmware of the same product'
+                        : 'Not checked with No initialization'
+                    }
+                    onChange={(checkRevision) => onChange((n) => ({ ...n, checkRevision }))}
+                  />
+                </div>
+              </Card>
+            ) : null}
+
+            <Card title='Supervision'>
               <div className='grid max-w-[640px] grid-cols-2 gap-4'>
                 <SelectField
                   label='Supervision'
                   value={node.supervision}
                   options={supervisionOptions}
-                  hint={canHeartbeat ? undefined : 'The device has no heartbeat producer (0x1017)'}
+                  hint={canHeartbeat || canGuard ? undefined : 'The device has no heartbeat producer (0x1017)'}
                   onChange={(supervision) => onChange((n) => ({ ...n, supervision }))}
                 />
                 <SelectField
@@ -228,11 +412,16 @@ const NodePanel = ({
                   <>
                     <NumberField
                       label='Node heartbeat (ms)'
-                      value={node.heartbeatProducerMs}
+                      value={effectiveProducerMs(node)}
                       min={1}
                       max={65535}
+                      disabled={!node.configure}
                       objectRef={heartbeatObject.ref}
-                      hint={heartbeatObject.notWrittenReason ?? 'Written to the node at boot'}
+                      hint={
+                        node.configure
+                          ? (heartbeatObject.notWrittenReason ?? 'Written to the node at boot')
+                          : notWritten
+                      }
                       onCommit={(heartbeatProducerMs) => onChange((n) => ({ ...n, heartbeatProducerMs }))}
                     />
                     <NumberField
@@ -241,11 +430,39 @@ const NodePanel = ({
                       min={1}
                       max={65535}
                       hint={
-                        node.heartbeatConsumerMs <= node.heartbeatProducerMs
+                        node.heartbeatConsumerMs <= effectiveProducerMs(node)
                           ? 'Should be longer than the node heartbeat'
                           : 'The node is lost when no heartbeat comes in this time'
                       }
                       onCommit={(heartbeatConsumerMs) => onChange((n) => ({ ...n, heartbeatConsumerMs }))}
+                    />
+                  </>
+                ) : null}
+                {node.supervision === 'guarding' ? (
+                  <>
+                    <NumberField
+                      label='Guard time (ms)'
+                      value={guarding.guardTimeMs}
+                      min={1}
+                      max={65535}
+                      disabled={!node.configure}
+                      objectRef='0x100C'
+                      hint={node.configure ? 'How often the master asks the node for its state' : notWritten}
+                      onCommit={(guardTimeMs) => onChange((n) => ({ ...n, guardTimeMs }))}
+                    />
+                    <NumberField
+                      label='Life time factor'
+                      value={guarding.lifeTimeFactor}
+                      min={1}
+                      max={255}
+                      disabled={!node.configure}
+                      objectRef='0x100D'
+                      hint={
+                        node.configure
+                          ? `The node is lost after ${guarding.guardTimeMs * guarding.lifeTimeFactor} ms without an answer`
+                          : notWritten
+                      }
+                      onCommit={(lifeTimeFactor) => onChange((n) => ({ ...n, lifeTimeFactor }))}
                     />
                   </>
                 ) : null}
@@ -254,7 +471,7 @@ const NodePanel = ({
                 <CheckboxField
                   label='Watch the master'
                   checked={canWatch && node.watchMaster.enabled}
-                  disabled={!canWatch}
+                  disabled={!canWatch || !node.configure}
                   hint={
                     canWatch
                       ? "The node reacts when the master's heartbeat stops, for example when the PLC runtime stops. What it does with its outputs then is set in the device's own objects (for I/O modules usually 0x6206 and 0x6207). Written to 0x1016"
@@ -269,17 +486,19 @@ const NodePanel = ({
                       value={node.watchMaster.consumerMs}
                       min={1}
                       max={65535}
+                      disabled={!node.configure}
                       hint="How long the node waits for the master's heartbeat"
                       onCommit={(consumerMs) =>
                         onChange((n) => ({ ...n, watchMaster: { ...n.watchMaster, consumerMs } }))
                       }
                     />
-                    {hasErrorBehaviour(eds) ? (
+                    {hasErrorBehaviour(eds) && show('watchMasterReaction') ? (
                       <SelectField
                         label='When the master is gone'
                         value={node.watchMaster.onError}
                         options={ON_COMM_ERROR_OPTIONS}
-                        hint='Written to 0x1029'
+                        disabled={!node.configure}
+                        hint={tag('watchMasterReaction') ? 'Expert setting · written to 0x1029' : 'Written to 0x1029'}
                         onChange={(onError) => onChange((n) => ({ ...n, watchMaster: { ...n.watchMaster, onError } }))}
                       />
                     ) : (
@@ -295,10 +514,121 @@ const NodePanel = ({
                   </p>
                 ) : null}
               </div>
-            </div>
+            </Card>
 
-            <div className={cardClassName}>
-              <h4 className={headingClassName}>Node state</h4>
+            {show('heartbeatConsumers') ? (
+              <Card title='Heartbeats this node watches' tag={tag('heartbeatConsumers')}>
+                <div className='flex max-w-[640px] flex-col gap-2'>
+                  <p className={hintClassName}>
+                    The node watches the heartbeat of other nodes and reacts as its 0x1029 sets when one stops. Written
+                    to 0x1016 after the master&apos;s entry.
+                  </p>
+                  {node.heartbeatConsumers.map((c) => (
+                    <ConsumerRow
+                      key={c.id}
+                      consumer={c}
+                      others={others}
+                      disabled={!node.configure}
+                      onChange={(next) =>
+                        onChange((n) => ({
+                          ...n,
+                          heartbeatConsumers: n.heartbeatConsumers.map((x) => (x.id === c.id ? next : x)),
+                        }))
+                      }
+                      onRemove={() =>
+                        onChange((n) => ({
+                          ...n,
+                          heartbeatConsumers: n.heartbeatConsumers.filter((x) => x.id !== c.id),
+                        }))
+                      }
+                    />
+                  ))}
+                  <div>
+                    <button
+                      type='button'
+                      className={secondaryButtonClassName}
+                      disabled={!node.configure || others.length === 0 || node.heartbeatConsumers.length >= freeSlots}
+                      title={
+                        node.heartbeatConsumers.length >= freeSlots
+                          ? 'The node has no free heartbeat consumer entry (0x1016)'
+                          : undefined
+                      }
+                      onClick={() => {
+                        const producer =
+                          others.find((o) => !node.heartbeatConsumers.some((c) => c.producerNodeId === o.nodeId)) ??
+                          others[0]
+                        if (!producer) return
+                        const consumerMs = consumerTimeFor(
+                          Math.max(effectiveProducerMs(producer), 1),
+                          heartbeatTimeoutPercent,
+                        )
+                        onChange((n) => ({
+                          ...n,
+                          heartbeatConsumers: [
+                            ...n.heartbeatConsumers,
+                            { id: uuidv4(), producerNodeId: producer.nodeId, consumerMs },
+                          ],
+                        }))
+                      }}
+                    >
+                      Watch a node
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            ) : null}
+
+            {show('emcy') || show('receiveTime') ? (
+              <Card title='Emergency and time' tag={tag('emcy') || tag('receiveTime')}>
+                <div className='flex max-w-[640px] flex-col gap-3'>
+                  {show('emcy') ? (
+                    <>
+                      <CheckboxField
+                        label='Emergency messages'
+                        checked={node.emcy.enabled}
+                        hint="The master logs the node's emergency messages and shows them in its status"
+                        onChange={(enabled) => onChange((n) => ({ ...n, emcy: { ...n.emcy, enabled } }))}
+                      />
+                      {node.emcy.enabled ? (
+                        <div className='grid grid-cols-2 gap-4'>
+                          <NumberField
+                            label='Emergency COB-ID'
+                            value={node.emcy.cobId}
+                            min={1}
+                            max={0x7ff}
+                            hex
+                            objectRef={canSetEmcy(eds) && node.configure ? '0x1014' : undefined}
+                            hint={
+                              canSetEmcy(eds) && node.configure
+                                ? `Written to the node when not ${hex3(defaultEmcyCobId(node.nodeId))}`
+                                : 'The COB-ID the node sends on; the master listens on it'
+                            }
+                            onCommit={(cobId) => onChange((n) => ({ ...n, emcy: { ...n.emcy, cobId } }))}
+                          />
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {show('receiveTime') ? (
+                    <CheckboxField
+                      label='Receive TIME'
+                      checked={node.receiveTime}
+                      disabled={!canReceiveTime(eds) || !node.configure}
+                      hint={
+                        !canReceiveTime(eds)
+                          ? 'The device cannot consume TIME: its EDS has no writable 0x1012'
+                          : timeOn
+                            ? 'The node takes the time of day the master sends. Written to 0x1012'
+                            : 'The network sends no TIME: turn it on in the network settings'
+                      }
+                      onChange={(receiveTime) => onChange((n) => ({ ...n, receiveTime }))}
+                    />
+                  ) : null}
+                </div>
+              </Card>
+            ) : null}
+
+            <Card title='Node state'>
               <div className='grid max-w-[640px] grid-cols-2 items-start gap-4'>
                 <div className='flex flex-col gap-1'>
                   <span className='text-xs font-medium text-neutral-700 dark:text-neutral-300'>Address</span>
@@ -314,7 +644,7 @@ const NodePanel = ({
                   onCommit={(alias) => onAliasChange(node.state, alias)}
                 />
               </div>
-            </div>
+            </Card>
           </div>
         </Tabs.Content>
 

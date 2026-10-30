@@ -1,6 +1,9 @@
 import type { CanopenNode } from '../../../ports/canopen-types'
 import { generateCanopenConfig, nodeConfigurationSdos, pdoActive, watchesMaster } from '../generate-canopen-config'
+import { defaultNetworkSettings } from '../model'
 import { canopenDevice, configWith, genericNode } from './fixtures/helpers'
+
+const net = (masterNodeId = 127) => ({ ...defaultNetworkSettings(), masterNodeId })
 
 describe('nodeConfigurationSdos', () => {
   it('writes heartbeat, PDO communication and mapping, the user SDOs, then the master watch', () => {
@@ -8,7 +11,7 @@ describe('nodeConfigurationSdos', () => {
       ...genericNode(2),
       sdos: [{ id: 's', index: 0x2100, subIndex: 0, dataType: 'UNSIGNED32' as const, value: '0x12345678' }],
     }
-    expect(nodeConfigurationSdos(node, 127).map((s) => `${s.index.toString(16)}:${s.subindex}=${s.data}`)).toEqual([
+    expect(nodeConfigurationSdos(node, net()).map((s) => `${s.index.toString(16)}:${s.subindex}=${s.data}`)).toEqual([
       '1017:0=6400',
       // TPDO 1 (RTR off): disable, clear mapping, map 0x6000:1 (8 bits) and 0x6401:1 (16 bits), count, settings, enable.
       '1800:1=820100C0',
@@ -38,14 +41,14 @@ describe('nodeConfigurationSdos', () => {
     const node = genericNode(2)
     node.rpdos[0].enabled = false
     expect(pdoActive(node.rpdos[0])).toBe(false)
-    const sdos = nodeConfigurationSdos(node, 127).filter((s) => s.index === 0x1400 || s.index === 0x1600)
+    const sdos = nodeConfigurationSdos(node, net()).filter((s) => s.index === 0x1400 || s.index === 0x1600)
     expect(sdos).toEqual([{ index: 0x1400, subindex: 1, data: '02020080' }])
   })
 
   it('leaves a fixed mapping alone and sends no heartbeat without supervision', () => {
     const node = { ...genericNode(2), supervision: 'none' as const }
     node.tpdos[0].fixedMapping = true
-    const sdos = nodeConfigurationSdos(node, 127)
+    const sdos = nodeConfigurationSdos(node, net())
     expect(sdos.some((s) => s.index === 0x1017)).toBe(false)
     expect(sdos.some((s) => s.index === 0x1a00)).toBe(false)
   })
@@ -53,7 +56,7 @@ describe('nodeConfigurationSdos', () => {
 
 describe('watch the master', () => {
   const watchSdos = (node: CanopenNode, master = 127): string[] =>
-    nodeConfigurationSdos(node, master)
+    nodeConfigurationSdos(node, net(master))
       .filter((s) => s.index === 0x1016 || s.index === 0x1029)
       .map((s) => `${s.index.toString(16)}:${s.subindex}=${s.data}`)
 
@@ -98,7 +101,7 @@ describe('generateCanopenConfig', () => {
     expect(text).not.toBeNull()
     const json: unknown = JSON.parse(text ?? '')
     expect(json).toMatchObject({
-      version: 2,
+      version: 3,
       networks: [
         {
           name: 'CANopen_1',
@@ -114,7 +117,7 @@ describe('generateCanopenConfig', () => {
               node_id: 2,
               name: 'io2',
               identity: { vendor_id: 1, product_code: 2, revision: 0 },
-              supervision: { type: 'heartbeat', consumer_ms: 300 },
+              supervision: { type: 'heartbeat', consumer_ms: 150 },
               on_loss: 'hold',
               state_location: '%IB0',
               tpdos: [

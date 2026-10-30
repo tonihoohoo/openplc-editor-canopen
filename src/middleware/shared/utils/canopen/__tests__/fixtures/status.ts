@@ -25,7 +25,8 @@ export function sampleStatus(networkName = 'CANopen_1') {
           load_percent: 3.1,
           link_resets: 0,
         },
-        all_nodes_up: false,
+        all_mandatory_up: false,
+        all_optional_up: true,
         nodes: [
           {
             node_id: 2,

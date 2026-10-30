@@ -16,6 +16,7 @@ export type CanopenDot = 'green' | 'amber' | 'red' | 'grey'
 const NODE_STATES: Record<CanopenNodeState, string> = {
   waiting: 'Waiting',
   silent: 'Not answering',
+  absent: 'Absent (optional)',
   booting: 'Booting',
   failed: 'Boot failed',
   operational: 'Operational',
@@ -70,6 +71,7 @@ export function nodeDot(node: Pick<CanopenNodeStatus, 'state' | 'warning'>): Can
     case 'lost':
       return 'red'
     case 'waiting':
+    case 'absent':
     case 'stopped':
       return 'grey'
     default: {
@@ -108,6 +110,8 @@ export function problemText(problem: CanopenProblem): string {
     }
     case 'heartbeat':
       return 'The node missed its heartbeat.'
+    case 'guarding':
+      return 'The node did not answer node guarding.'
     case 'reset':
       return 'The node restarted: it sent a boot-up message while running.'
     case 'boot_error':
@@ -152,6 +156,8 @@ export function eventText(event: CanopenEvent): string {
       return event.problem ? `Boot failed. ${problemText(event.problem)}` : 'Boot failed.'
     case 'silent':
       return 'Not heard from since the master started.'
+    case 'absent':
+      return 'Optional node not present; the master keeps looking for it.'
     case 'lost':
       return event.problem ? `Lost. ${problemText(event.problem)}` : 'Lost.'
     case 'emcy':

@@ -14,6 +14,7 @@ const count = z.number().int().nonnegative()
 export const CanopenNodeStateSchema = z.enum([
   'waiting',
   'silent',
+  'absent',
   'booting',
   'failed',
   'operational',
@@ -33,7 +34,7 @@ export const CanopenBusStateSchema = z.enum([
 ])
 
 export const CanopenProblemSchema = z.object({
-  kind: z.enum(['no_response', 'identity', 'sdo_abort', 'heartbeat', 'reset', 'boot_error']),
+  kind: z.enum(['no_response', 'identity', 'sdo_abort', 'heartbeat', 'guarding', 'reset', 'boot_error']),
   field: z.enum(['device_type', 'vendor_id', 'product_code', 'revision', 'serial_number']).optional(),
   expected: count.optional(),
   found: count.optional(),
@@ -57,7 +58,11 @@ const LatePdoSchema = z.object({ pdo: count, cob_id: count, since: z.number() })
 export const CanopenNodeStatusSchema = z.object({
   node_id: count,
   name: z.string(),
+  /** Absent from runtimes before node options. */
+  optional: z.boolean().default(false),
   state: CanopenNodeStateSchema,
+  /** Stopped after an error until the PLC restarts (the network's "on node error" is stop). */
+  held: z.boolean().default(false),
   nmt: z.enum(['unknown', 'pre_operational', 'operational', 'stopped']),
   since: z.number(),
   boot_attempts: count,
@@ -78,6 +83,7 @@ export const CanopenEventSchema = z.object({
     'boot_ok',
     'boot_failed',
     'silent',
+    'absent',
     'lost',
     'emcy',
     'emcy_reset',
@@ -113,7 +119,10 @@ export const CanopenNetworkStatusSchema = z.object({
   name: z.string(),
   interface: z.string(),
   bus: CanopenBusStatusSchema,
-  all_nodes_up: z.boolean(),
+  /** Runtimes before node options send `all_nodes_up` in its place. */
+  all_mandatory_up: z.boolean().optional(),
+  all_optional_up: z.boolean().optional(),
+  all_nodes_up: z.boolean().optional(),
   nodes: z.array(CanopenNodeStatusSchema),
   events: z.array(CanopenEventSchema),
 })

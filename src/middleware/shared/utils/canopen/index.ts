@@ -1,3 +1,4 @@
+export * from './check-fix'
 export * from './data-types'
 export * from './diagnostics'
 export * from './editing'

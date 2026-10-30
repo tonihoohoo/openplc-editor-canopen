@@ -20,13 +20,15 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
    "Leave as configured" for a link set up outside the runtime), the master node ID, the master's
    heartbeat (100 ms for a new network), the real-time priority of the bus work on the runtime
    (1 to 97, default 90, above the PLC tasks), SYNC (none, once per PLC cycle, or a fixed period)
-   and the NMT state the nodes get when the PLC stops.
+   and the NMT state the nodes get when the PLC stops. Further groups set the startup and error
+   behaviour, TIME and the defaults for new nodes (see "Startup and supervision options").
 3. **Nodes** tab: **Add node from EDS file...** reads the file, picks the lowest free node ID and
    maps the PDOs the EDS defines by default. Set the node ID to the one set on the device.
 4. For each node:
-   - **General**: name, node ID, which identity values the master checks at boot (vendor ID and
-     product code by default; the revision is off so newer firmware still boots), heartbeat
-     supervision with the node's producer time and the master's timeout, what the node's inputs do
+   - **General**: name, node ID, **Optional node**, which identity values the master checks at boot
+     (vendor ID and product code by default; the revision is off so newer firmware still boots),
+     supervision (heartbeat with the node's producer time and the master's timeout, or node guarding
+     with guard time and life time factor), what the node's inputs do
      when it is lost, and the `%IB` that reads its NMT state. **Watch the master** is on for a node
      whose EDS has a writable 0x1016: the node then reacts when the master's heartbeat stops, for
      example when the runtime dies, by going pre-operational (or stopped, or nothing, through
@@ -59,12 +61,51 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
      parameters and heartbeat the editor writes itself, entry counters (sub-index 0), objects mapped
      in an enabled RPDO and objects already in the list; **Show all objects** lists them too, with
      the reason. **Add by index** adds an object the EDS does not define. The master never stores
-     values in the node (0x1010) and never restores defaults (0x1011).
+     values in the node (0x1010); startup SDOs to 0x1010 and 0x1011 are refused, and restoring
+     defaults is the node's own option.
    - On the **Network** tab, a bit rate a node's EDS marks unsupported (`BaudRate_x=0`) is disabled
      and names the node.
 5. Give entries aliases and bind variables to them, as with other remote I/O.
 
 Problems that would stop the build are listed at the top of the editor as they appear.
+
+## Startup and supervision options
+
+The node page has a basic and an expert view; the **Expert view** switch is an editor preference,
+kept across sessions and not in the project. The basic view shows the name, node ID, optional,
+supervision, inputs on loss, watch the master with its timeout, and the state channel. The expert
+view adds the settings below. An expert setting that is not at its default stays visible in the
+basic view, marked "expert".
+
+| Node setting                          | Effect                                                                                                      |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Identity check (expert)               | Vendor ID, product code and revision checked at boot                                                        |
+| Optional node                         | The network runs without it; the master keeps looking for it and starts it when it appears                  |
+| No initialization (expert)            | No identity check, restore or configuration SDOs; the master only starts the node, which keeps its settings |
+| Restore defaults (expert)             | Restores defaults through 0x1011 (1 all, 2 comm, 3 app, 4+ manufacturer), resets, then configures the node  |
+| Node guarding                         | Writes 0x100C and 0x100D (and 0x1017 = 0); the master guards the node and loses it when it stops answering  |
+| Heartbeats this node watches (expert) | Extra 0x1016 entries after the master's, for heartbeats of other nodes                                      |
+| When the master is gone (expert)      | 0x1029:1 for a node that watches the master                                                                 |
+| Emergency messages (expert)           | On by default; the COB-ID the master listens on, written to 0x1014 when it differs from the EDS             |
+| Receive TIME (expert)                 | Writes 0x1012 so the node takes the network's TIME                                                          |
+
+With **No initialization** the heartbeat or guarding values shown are the EDS defaults, read-only.
+
+Network settings: **Boot-up timeout** (2000 ms) after which a mandatory node that is not up is
+reported; **On node error** restarts the node and keeps trying, or stops it until the PLC restarts;
+**SYNC window** is written to the 0x1007 of the nodes that have one; **Send TIME** makes the master
+send the runtime's time of day on a COB-ID (0x100) and period; **Defaults for new nodes** pick the
+supervision (automatic: heartbeat when the device has a writable 0x1017, else node guarding), the
+heartbeat timeout as a percentage of the producer time (150 %) and whether emergencies are on.
+
+The editor checks the network as it is edited and lists the results at the top, errors (which
+stop the build) and warnings (which do not), each with **Show** and, where there is one, a fix:
+heartbeat timeouts not longer than the heartbeat (set to the default percentage), COB-ID clashes
+(move to a free COB-ID), a startup SDO that makes a node a second SYNC producer (remove it), a SYNC
+window not shorter than the SYNC period, restore on a node that is not initialized or has no such
+sub-index (turn it off), heartbeats watched that no node sends, and times that are not multiples of
+the PLC cycle (round up). **Fix all** applies every fix as one change. These options need
+`canopen.json` format version 3.
 
 ## Live status
 
@@ -72,15 +113,16 @@ While the editor is connected to a runtime whose `/api/capabilities` lists `"sta
 `canopen.features`, the CANopen device editor reads `GET /api/canopen/status` once a second and shows:
 
 - a dot before each node: green operational, amber booting or operational with an active emergency
-  or a late PDO, red not answering, boot failed or lost, grey waiting, stopped or not in the
-  running program; its tooltip gives the state and the reason;
+  or a late PDO, red not answering, boot failed or lost, grey waiting, stopped, an optional node
+  that is absent, or not in the running program; its tooltip gives the state and the reason;
 - the bus status under the network header: the controller state, error counters and bus load, how
   often the runtime reset the link after a bus-off, and, while the link is bus-off, when the runtime
   is not permitted to reset it (reset it by hand then);
 - a **Status** tab on each node: the state and since when, the reason of the last failure in words
   (for example "The product code is 0x43 where 0x42 was expected"), the NMT state, boot attempts and
   losses, the last emergencies with their code, error register bits and data, late PDOs, and the
-  node's events with local times.
+  node's events with local times, and whether the node is optional or stopped after an error until
+  the PLC restarts.
 
 SDO abort codes, emergency codes (CiA 301 communication and protocol codes, else the class) and
 error register bits are shown in words next to their values. When a read fails the last status stays,
@@ -118,6 +160,7 @@ entry of a switched-off PDO has no address and no alias.
 | Node construction and edits                               | `src/middleware/shared/utils/canopen/model.ts`                         |
 | Editing rules (transmission types, SDO objects, search)   | `src/middleware/shared/utils/canopen/editing.ts`                       |
 | Build checks and editor warnings                          | `src/middleware/shared/utils/canopen/validate-canopen-config.ts`       |
+| Checks with fixes                                         | `src/middleware/shared/utils/canopen/check-fix.ts`                     |
 | `conf/canopen.json`                                       | `src/middleware/shared/utils/canopen/generate-canopen-config.ts`       |
 | Store action                                              | `projectActions.updateCanopenConfig`                                   |
 | Status answer schema                                      | `src/middleware/shared/ports/canopen-status.ts`                        |
@@ -135,7 +178,7 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
 ## Tests
 
 - Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, model, editing rules, generator, validator,
-  receive timeout, status schema and texts), the status polling in
+  receive timeout, node options and checks, status schema and texts), the status polling in
   `src/frontend/hooks/__tests__/use-canopen-status.test.ts`
   with the generic I/O module EDS in `__tests__/fixtures/`, the store action in
   `src/frontend/store/__tests__/canopen-config.test.ts`, and the device editor in
@@ -144,6 +187,8 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
   `e2e/canopen-pdo-sdo-editing.spec.ts` reorders an entry, sets a transmission type and adds a
   startup SDO by search, then checks the built `canopen.json`;
   `e2e/canopen-watch-master.spec.ts` checks "Watch the master" and the bus priority in the build;
+  `e2e/canopen-node-options.spec.ts` sets node options in the expert view, uses a fix, and checks
+  the built `canopen.json`;
   `e2e/canopen-live-status.spec.ts` connects to a fake runtime on port 8443 and checks the dots,
   the Status tab and the reason of a failed boot, and that a runtime without the feature shows none
   of it.
