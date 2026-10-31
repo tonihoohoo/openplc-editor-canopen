@@ -34,7 +34,7 @@ import {
   updatePdo,
   watchMasterProblem,
 } from '@root/middleware/shared/utils/canopen'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
@@ -176,6 +176,9 @@ type NodePanelProps = {
   onChange: (update: (node: CanopenNode) => CanopenNode) => void
   onNodeIdChange: (nodeId: number) => void
   onRemove: () => void
+  onExportDcf: () => void
+  /** Called with the chosen EDS or DCF file's name and bytes. */
+  onReplaceFile: (fileName: string, bytes: Uint8Array) => void
   onAliasChange: (entry: CanopenEntry, alias: string) => string | null
 }
 
@@ -213,8 +216,11 @@ const NodePanel = ({
   onChange,
   onNodeIdChange,
   onRemove,
+  onExportDcf,
+  onReplaceFile,
   onAliasChange,
 }: NodePanelProps) => {
+  const replaceInput = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState<NodeTab>('general')
   const [expert, setExpert] = useCanopenExpertView()
   const shownTab: NodeTab = (tab === 'status' && !live) || (tab === 'online' && !online) ? 'general' : tab
@@ -281,6 +287,26 @@ const NodePanel = ({
             />
             Expert view
           </label>
+          <button type='button' className={secondaryButtonClassName} onClick={onExportDcf}>
+            Export DCF...
+          </button>
+          <button type='button' className={secondaryButtonClassName} onClick={() => replaceInput.current?.click()}>
+            Replace EDS...
+          </button>
+          <input
+            ref={replaceInput}
+            type='file'
+            accept='.eds,.EDS,.dcf,.DCF'
+            aria-label='Replacement EDS or DCF file'
+            data-testid='canopen-replace-input'
+            className='hidden'
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (!file) return
+              void file.arrayBuffer().then((buffer) => onReplaceFile(file.name, new Uint8Array(buffer)))
+            }}
+          />
           <button type='button' className={secondaryButtonClassName} onClick={onRemove}>
             Remove node
           </button>

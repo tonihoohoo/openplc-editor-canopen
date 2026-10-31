@@ -13,28 +13,31 @@ import type {
   CanopenNode,
 } from '@root/middleware/shared/ports/canopen-types'
 import {
+  buildNetworkDcfs,
+  buildNodeDcf,
   type CanopenCheck,
   canopenSdoWarnings,
   checkCanopenNetwork,
   checkText,
-  createCanopenNode,
+  type DcfExport,
+  dcfZip,
   defaultCanopenConfig,
   fixAllCanopenProblems,
   lowestFreeNodeId,
-  nodeNameFromEds,
-  parseEds,
-  placeholderAddress,
   plcCycleUs,
-  uniqueNodeName,
+  prepareDeviceFile,
+  pruneStoredFiles,
+  storedFileText,
   updateNode,
   validateCanopenProject,
   withEntryAlias,
   withNodeId,
+  withStoredFile,
 } from '@root/middleware/shared/utils/canopen'
 import { describeAliasRejection, validateAliasEdit } from '@root/middleware/shared/utils/iec-address'
 import { useCallback, useMemo, useState } from 'react'
-import { v4 as uuidv4 } from 'uuid'
 
+import { DcfExportDialog, DeviceFileDialog, type DeviceFileRequest } from './device-file-dialogs'
 import { NetworkSettings } from './network-settings'
 import { NetworkSwitch } from './network-switch'
 import { NodeList } from './node-list'
@@ -42,6 +45,26 @@ import { NodePanel } from './node-panel'
 import { ConfirmBar, type ConfirmRequest, NmtButtons, ServiceBus } from './online-tab'
 import { BusStatusLine } from './status-view'
 import { cardClassName, headingClassName, hintClassName, secondaryButtonClassName } from './styles'
+
+type ExportRequest = {
+  title: string
+  files: DcfExport[]
+  missing: CanopenNode[]
+  saveLabel: string
+  save: () => Promise<void>
+}
+
+/** Same anchor-download approach as the other editor exports. */
+const downloadFile = (fileName: string, content: BlobPart, mimeType: string) => {
+  const url = URL.createObjectURL(new Blob([content], { type: mimeType }))
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
+  URL.revokeObjectURL(url)
+}
 
 type EditorTab = 'nodes' | 'network'
 
@@ -196,42 +219,53 @@ const CanopenEditor = () => {
     [commit],
   )
 
-  const importEds = useCallback(
-    (fileName: string, text: string) => {
-      let eds
-      try {
-        eds = parseEds(text, fileName)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        toast({ title: `Cannot read ${fileName}`, description: message, variant: 'fail' })
-        return
-      }
-      const current =
-        store.getState().project.data.remoteDevices?.find((d) => d.name === deviceName)?.canopenConfig ??
-        defaultCanopenConfig()
-      const nodeId = lowestFreeNodeId(current)
-      if (nodeId === null) {
-        toast({ title: 'No free node ID', description: 'All node IDs of the network are in use.', variant: 'fail' })
-        return
-      }
-      const node = createCanopenNode(eds, {
-        id: uuidv4(),
-        name: uniqueNodeName(current, nodeNameFromEds(eds)),
-        nodeId,
-        newId: uuidv4,
-        allocate: placeholderAddress,
-        defaults: current.network.newNodeDefaults,
-      })
-      commit((c) => ({ ...c, nodes: [...c.nodes, node] }))
-      setSelectedId(node.id)
-      toast({
-        title: `Added node ${nodeId}`,
-        description: 'Check that its node ID matches the one set on the device.',
-        variant: 'default',
+  const [fileRequest, setFileRequest] = useState<DeviceFileRequest | null>(null)
+  const [exportRequest, setExportRequest] = useState<ExportRequest | null>(null)
+
+  const chooseFile = useCallback((fileName: string, bytes: Uint8Array, replacing?: CanopenNode) => {
+    prepareDeviceFile(fileName, bytes)
+      .then((prepared) =>
+        setFileRequest(replacing ? { kind: 'replace', prepared, node: replacing } : { kind: 'add', prepared }),
+      )
+      .catch((error: unknown) =>
+        toast({ title: `Cannot read ${fileName}`, description: String(error), variant: 'fail' }),
+      )
+  }, [])
+
+  const aliasTaken = useCallback(
+    (alias: string) => !validateAliasEdit(registry, alias, { kind: 'canopen', ref: `${deviceName}:new` }).ok,
+    [registry, deviceName],
+  )
+
+  const exportNode = useCallback(
+    (node: CanopenNode) => {
+      const text = storedFileText(config, node)
+      const files = text ? [buildNodeDcf(node, text, config, { now: new Date(), networkName: deviceName })] : []
+      setExportRequest({
+        title: `Export node ${node.nodeId} as a DCF file`,
+        files,
+        missing: text ? [] : [node],
+        saveLabel: `Save ${files[0]?.fileName ?? 'DCF'}...`,
+        save: () => {
+          if (files[0]) downloadFile(files[0].fileName, files[0].text, 'text/plain;charset=utf-8')
+          return Promise.resolve()
+        },
       })
     },
-    [store, deviceName, commit],
+    [config, deviceName],
   )
+
+  const exportNetwork = useCallback(() => {
+    const { files, missing } = buildNetworkDcfs(config, { now: new Date(), networkName: deviceName })
+    const zipName = `${deviceName}-dcf.zip`
+    setExportRequest({
+      title: `Export network ${deviceName} as DCF files`,
+      files,
+      missing,
+      saveLabel: `Save ${zipName}...`,
+      save: async () => downloadFile(zipName, await dcfZip(files), 'application/zip'),
+    })
+  }, [config, deviceName])
 
   const changeAlias = useCallback(
     (node: CanopenNode, entry: CanopenEntry, alias: string): string | null => {
@@ -326,7 +360,7 @@ const CanopenEditor = () => {
             selectedId={selected?.id ?? null}
             live={live}
             onSelect={setSelectedId}
-            onImport={importEds}
+            onImport={(fileName, bytes) => chooseFile(fileName, bytes)}
             onImportError={(fileName, message) =>
               toast({ title: `Cannot read ${fileName}`, description: message, variant: 'fail' })
             }
@@ -350,9 +384,11 @@ const CanopenEditor = () => {
               onChange={(update) => commit((c) => updateNode(c, selected.id, update))}
               onNodeIdChange={(nodeId) => commit((c) => updateNode(c, selected.id, (n) => withNodeId(n, nodeId)))}
               onRemove={() => {
-                commit((c) => ({ ...c, nodes: c.nodes.filter((n) => n.id !== selected.id) }))
+                commit((c) => pruneStoredFiles({ ...c, nodes: c.nodes.filter((n) => n.id !== selected.id) }))
                 setSelectedId(null)
               }}
+              onExportDcf={() => exportNode(selected)}
+              onReplaceFile={(fileName, bytes) => chooseFile(fileName, bytes, selected)}
               onAliasChange={(entry, alias) => changeAlias(selected, entry, alias)}
             />
           ) : (
@@ -375,9 +411,68 @@ const CanopenEditor = () => {
               {nmtMessage ? <p className={cn(hintClassName, 'mt-2')}>{nmtMessage}</p> : null}
             </div>
           ) : null}
+          <div className='mb-4 flex items-center justify-between gap-4'>
+            <p className={hintClassName}>
+              One CiA 306 DCF per node: its device file with the values the master writes when it configures it.
+            </p>
+            <button
+              type='button'
+              className={secondaryButtonClassName}
+              disabled={config.nodes.length === 0}
+              onClick={exportNetwork}
+            >
+              Export network as DCF files...
+            </button>
+          </div>
           <NetworkSettings network={config.network} nodes={config.nodes} cycleUs={cycleUs} onChange={changeNetwork} />
         </Tabs.Content>
       </Tabs.Root>
+
+      {fileRequest ? (
+        <DeviceFileDialog
+          request={fileRequest}
+          config={config}
+          aliasTaken={aliasTaken}
+          onCancel={() => setFileRequest(null)}
+          onAdd={(node, prepared) => {
+            commit((c) => withStoredFile({ ...c, nodes: [...c.nodes, node] }, prepared))
+            setSelectedId(node.id)
+            setFileRequest(null)
+            toast({
+              title: `Added node ${node.nodeId}`,
+              description: 'Check that its node ID matches the one set on the device.',
+              variant: 'default',
+            })
+          }}
+          onReplace={(node, prepared) => {
+            commit((c) =>
+              withStoredFile(
+                updateNode(c, node.id, () => node),
+                prepared,
+              ),
+            )
+            setFileRequest(null)
+            toast({ title: `Replaced the device file of node ${node.nodeId}`, variant: 'default' })
+          }}
+        />
+      ) : null}
+      {exportRequest ? (
+        <DcfExportDialog
+          title={exportRequest.title}
+          files={exportRequest.files}
+          missing={exportRequest.missing}
+          saveLabel={exportRequest.saveLabel}
+          onCancel={() => setExportRequest(null)}
+          onSave={() => {
+            exportRequest
+              .save()
+              .then(() => setExportRequest(null))
+              .catch((error: unknown) =>
+                toast({ title: 'Cannot save the DCF files', description: String(error), variant: 'fail' }),
+              )
+          }}
+        />
+      ) : null}
     </div>
   )
 }

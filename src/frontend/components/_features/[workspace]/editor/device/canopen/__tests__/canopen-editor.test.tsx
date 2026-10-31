@@ -54,16 +54,32 @@ function seed() {
 
 function edsFile(text: string, name = 'generic-io-module.eds'): File {
   const file = new File([text], name)
-  Object.defineProperty(file, 'text', { value: () => Promise.resolve(text) })
+  const bytes = new TextEncoder().encode(text)
+  Object.defineProperty(file, 'arrayBuffer', { value: () => Promise.resolve(bytes.buffer) })
   return file
 }
 
-async function importEds(text = GENERIC_IO_EDS, name?: string) {
-  const input = screen.getByTestId('canopen-eds-input')
+/** Chooses a file in the "Add node" or "Replace EDS" input; the check dialog opens. */
+async function chooseFile(text = GENERIC_IO_EDS, name?: string, testId = 'canopen-eds-input') {
+  const input = screen.getByTestId(testId)
   await act(async () => {
     fireEvent.change(input, { target: { files: [edsFile(text, name)] } })
     await Promise.resolve()
   })
+  await screen.findByTestId('canopen-file-dialog')
+}
+
+async function confirmFile() {
+  const confirm = await screen.findByTestId('canopen-file-dialog-confirm')
+  await act(async () => {
+    fireEvent.click(confirm)
+    await Promise.resolve()
+  })
+}
+
+async function importEds(text = GENERIC_IO_EDS, name?: string) {
+  await chooseFile(text, name)
+  await confirmFile()
 }
 
 /** Opens an object picker and picks the object by its "0x6200:01" reference. */
@@ -110,8 +126,10 @@ describe('CanopenEditor', () => {
   })
 
   it('reports an unreadable file and adds nothing', async () => {
-    await importEds('not an eds', 'notes.txt')
-    await waitFor(() => expect(toastTitles()).toContain('Cannot read notes.txt'))
+    await chooseFile('not an eds', 'notes.txt')
+    expect(screen.getByText('Cannot add a node from notes.txt')).toBeTruthy()
+    expect(screen.getByTestId('canopen-file-findings').textContent).toMatch(/no \[DeviceInfo\] section/)
+    expect(screen.queryByTestId('canopen-file-dialog-confirm')).toBeNull()
     expect(config()?.nodes).toHaveLength(0)
   })
 
@@ -454,6 +472,112 @@ describe('CanopenEditor', () => {
       onNodeError: 'stop',
       time: { enabled: true, periodMs: 500 },
       newNodeDefaults: { supervision: 'none' },
+    })
+  })
+
+  describe('device files', () => {
+    const DCF = GENERIC_IO_EDS.replace(
+      '[1800sub5]\nParameterName=Event timer\nObjectType=0x7\nDataType=0x0006\nAccessType=rw\nDefaultValue=20',
+      '[1800sub5]\nParameterName=Event timer\nObjectType=0x7\nDataType=0x0006\nAccessType=rw\nDefaultValue=20\nParameterValue=100',
+    )
+      .replace('[2100]\nParameterName=Parameter', '[2100]\nParameterValue=7\nParameterName=Parameter')
+      .concat('\n[DeviceComissioning]\nNodeID=5\nNodeName=io5\nBaudrate=500\n')
+
+    let saved: Blob[] = []
+    beforeEach(() => {
+      saved = []
+      Object.defineProperty(URL, 'createObjectURL', {
+        configurable: true,
+        value: (blob: Blob) => {
+          saved.push(blob)
+          return 'blob:dcf'
+        },
+      })
+      Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: () => undefined })
+    })
+
+    it('stores the file once and exports a node as a DCF', async () => {
+      await importEds()
+      const files = config()?.files ?? {}
+      expect(Object.keys(files)).toHaveLength(1)
+      expect(config()?.nodes[0].eds.source?.sha256).toBe(Object.keys(files)[0])
+      fireEvent.click(screen.getByRole('button', { name: 'Export DCF...' }))
+      const dialog = screen.getByTestId('canopen-dcf-export-dialog')
+      expect(within(dialog).getByTestId('canopen-dcf-export-results').textContent).toContain('node_1.dcf')
+      await act(async () => {
+        fireEvent.click(within(dialog).getByTestId('canopen-dcf-export-save'))
+        await Promise.resolve()
+      })
+      expect(saved).toHaveLength(1)
+      const text = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.readAsText(saved[0])
+      })
+      expect(text).toContain('[DeviceComissioning]\nNodeID=1\n')
+      expect(text).toContain('LastEDS=generic-io-module.eds')
+    })
+
+    it('adds a node from a DCF and takes its settings', async () => {
+      await chooseFile(DCF, 'io5.dcf')
+      const dialog = screen.getByTestId('canopen-file-dialog')
+      expect(within(dialog).getByRole('radio', { name: /Take its settings/ })).toHaveProperty('checked', true)
+      expect(within(dialog).getByTestId('canopen-file-settings').textContent).toContain('startup SDO 7')
+      await confirmFile()
+      const node = config()?.nodes[0]
+      expect(node).toMatchObject({ nodeId: 5, name: 'io5' })
+      expect(node?.tpdos[0].eventTimerMs).toBe(100)
+      expect(node?.sdos).toEqual([expect.objectContaining({ index: 0x2100, value: '7' })])
+    })
+
+    it('uses a DCF only as a device description when asked', async () => {
+      await chooseFile(DCF, 'io5.dcf')
+      fireEvent.click(screen.getByRole('radio', { name: /Use it only as a device description/ }))
+      expect(screen.getByTestId('canopen-file-dialog-confirm').textContent).toBe('Add node 1')
+      await confirmFile()
+      expect(config()?.nodes[0]).toMatchObject({ nodeId: 1, sdos: [] })
+      expect(config()?.nodes[0].tpdos[0].eventTimerMs).toBe(20)
+    })
+
+    it('refuses a file with a broken communication object', async () => {
+      await chooseFile(
+        GENERIC_IO_EDS.replace(
+          '[1A00sub0]\nParameterName=Number of mapped objects\nObjectType=0x7\nDataType=0x0005',
+          '[1A00sub0]\nParameterName=Number of mapped objects\nObjectType=0x7\nDataType=0x0007',
+        ),
+      )
+      const findings = screen.getByTestId('canopen-file-findings').textContent ?? ''
+      expect(findings).toMatch(/\[1A00sub0\] DataType line \d+: DataType is UNSIGNED32; CiA 301 gives UNSIGNED8/)
+      expect(screen.queryByTestId('canopen-file-dialog-confirm')).toBeNull()
+    })
+
+    it('replaces the EDS and keeps the PDOs and addresses', async () => {
+      await importEds()
+      const before = config()?.nodes[0]
+      await chooseFile(
+        GENERIC_IO_EDS.replace('RevisionNumber=0x00000003', 'RevisionNumber=0x00000004'),
+        'generic-io-module-r4.eds',
+        'canopen-replace-input',
+      )
+      expect(screen.getByText('Everything is kept.')).toBeTruthy()
+      await confirmFile()
+      const after = config()?.nodes[0]
+      expect(after?.eds.revision).toBe(4)
+      expect(after?.tpdos).toEqual(before?.tpdos)
+      expect(Object.keys(config()?.files ?? {})).toEqual([after?.eds.source?.sha256])
+    })
+
+    it('exports the network as a zip of DCF files from the Network tab', async () => {
+      await importEds()
+      openTab('Network')
+      fireEvent.click(screen.getByRole('button', { name: 'Export network as DCF files...' }))
+      const dialog = screen.getByTestId('canopen-dcf-export-dialog')
+      await act(async () => {
+        fireEvent.click(within(dialog).getByTestId('canopen-dcf-export-save'))
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      })
+      expect(saved).toHaveLength(1)
+      expect(saved[0].type).toBe('application/zip')
     })
   })
 })

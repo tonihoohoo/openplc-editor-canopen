@@ -1,0 +1,98 @@
+{
+  "comm-broken.eds": {
+    "encoding": "utf-8",
+    "ok": false,
+    "findings": [
+      "warning device-info DeviceInfo OrderCode",
+      "error comm-data-type 1A00sub0 DataType"
+    ]
+  },
+  "comm-limit.eds": {
+    "encoding": "utf-8",
+    "ok": true,
+    "findings": [
+      "warning device-info DeviceInfo OrderCode",
+      "warning value-limits 1800sub1 DefaultValue"
+    ]
+  },
+  "cp1252.eds": {
+    "encoding": "windows-1252",
+    "ok": true,
+    "findings": [
+      "warning file-encoding ",
+      "warning device-info DeviceInfo OrderCode"
+    ]
+  },
+  "nodeid-suffix.eds": {
+    "encoding": "utf-8",
+    "ok": true,
+    "findings": [
+      "warning device-info DeviceInfo OrderCode",
+      "warning nodeid-formula 1400sub1 DefaultValue",
+      "warning nodeid-formula 1800sub1 DefaultValue",
+      "warning nodeid-formula 2130 DefaultValue"
+    ]
+  },
+  "octal-limit.eds": {
+    "encoding": "utf-8",
+    "ok": true,
+    "findings": [
+      "warning device-info DeviceInfo OrderCode",
+      "warning octal-number 605B LowLimit",
+      "warning octal-number 605B HighLimit"
+    ]
+  },
+  "octet-string.eds": {
+    "encoding": "utf-8",
+    "ok": true,
+    "findings": [
+      "warning device-info DeviceInfo OrderCode",
+      "warning value-syntax 2051 DefaultValue"
+    ]
+  },
+  "out-of-limits.eds": {
+    "encoding": "utf-8",
+    "ok": true,
+    "findings": [
+      "warning device-info DeviceInfo OrderCode",
+      "warning value-limits 6060 DefaultValue"
+    ]
+  },
+  "real-decimal.eds": {
+    "encoding": "utf-8",
+    "ok": true,
+    "findings": [
+      "warning device-info DeviceInfo OrderCode"
+    ]
+  },
+  "signed-hex.eds": {
+    "encoding": "utf-8",
+    "ok": true,
+    "findings": [
+      "warning device-info DeviceInfo OrderCode",
+      "warning limit-syntax 6061 HighLimit",
+      "warning limit-syntax 60C0 LowLimit",
+      "warning limit-syntax 60C0 HighLimit",
+      "warning value-range 60C0 DefaultValue"
+    ]
+  },
+  "structure.eds": {
+    "encoding": "utf-8",
+    "ok": true,
+    "findings": [
+      "warning device-info DeviceInfo OrderCode",
+      "warning sub-number 200B SubNumber",
+      "warning access-type-structured 200B AccessType",
+      "warning sub-zero-type 6064sub0 DataType"
+    ]
+  },
+  "type-limits.eds": {
+    "encoding": "utf-8",
+    "ok": true,
+    "findings": [
+      "warning device-info DeviceInfo OrderCode",
+      "warning limit-syntax 2100 LowLimit",
+      "warning limit-syntax 2101 HighLimit"
+    ]
+  }
+}

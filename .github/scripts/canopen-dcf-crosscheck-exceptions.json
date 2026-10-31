@@ -1,0 +1,29 @@
+{
+  "comment": "Differences between the editor's CiA 306 check and the other checkers that the standard decides for the editor. See .github/scripts/canopen_dcf_crosscheck.py.",
+  "exceptions": [
+    {
+      "tool": "lely",
+      "file": "cp1252.eds",
+      "kind": "crash",
+      "match": "UnicodeDecodeError",
+      "clause": "CiA 306 4.2",
+      "reason": "The file must be ASCII. Lely reads it as UTF-8 and stops; the editor reads the text as Windows-1252 and warns (not-ascii)."
+    },
+    {
+      "tool": "lely",
+      "file": "nodeid-suffix.eds",
+      "kind": "blocking",
+      "match": "+$NODEID",
+      "clause": "CiA 306 4.3",
+      "reason": "The formula is $NODEID+n; n+$NODEID is not the formula form. Lely refuses it, the editor reads it as the formula with a warning (nodeid-formula), which is the agreed choice."
+    },
+    {
+      "tool": "lely",
+      "file": "real-decimal.eds",
+      "kind": "finding",
+      "match": "invalid DefaultValue in [2120]: 12.345",
+      "clause": "CiA 306 4.3",
+      "reason": "A REAL value written as a decimal number is valid. Lely reads REAL values only as a hexadecimal bit pattern."
+    }
+  ]
+}

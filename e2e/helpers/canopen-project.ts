@@ -69,6 +69,7 @@ export async function openNetwork(page: Page, connect?: () => Promise<void>): Pr
 /** Adds a node from @p eds and waits for its page. */
 export async function addNode(page: Page, eds: string, title: string): Promise<void> {
   await page.getByTestId('canopen-eds-input').setInputFiles(eds)
+  await page.getByTestId('canopen-file-dialog-confirm').click()
   await expect(page.getByText(title)).toBeVisible({ timeout: 15000 })
 }
 

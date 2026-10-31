@@ -6,7 +6,7 @@
 
 import type { CanopenEdsInfo, CanopenNode, CanopenObject, CanopenPdo } from '../../ports/canopen-types'
 import { objectRef, toCanopenDataType } from './data-types'
-import { findObject, parseEdsInteger } from './eds-parser'
+import { findObject, masterMayWrite, parseEdsInteger } from './eds-parser'
 import { isWritableObject, pdoActive, watchesMaster } from './generate-canopen-config'
 import {
   canSetEmcy,
@@ -201,11 +201,7 @@ export function startupSdoCandidates(node: CanopenNode): SdoCandidate[] {
   )
   return node.eds.objects
     .filter(
-      (o) =>
-        o.access !== 'ro' &&
-        o.access !== 'const' &&
-        !NEVER_WRITTEN_INDICES.has(o.index) &&
-        toCanopenDataType(o.dataType) !== undefined,
+      (o) => masterMayWrite(o) && !NEVER_WRITTEN_INDICES.has(o.index) && toCanopenDataType(o.dataType) !== undefined,
     )
     .map((object) => ({ object, hiddenReason: hiddenReason(node, object, rpdoMapped) }))
 }
