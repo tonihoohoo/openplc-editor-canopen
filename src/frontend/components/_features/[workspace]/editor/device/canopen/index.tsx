@@ -1,7 +1,6 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { toast } from '@root/frontend/components/_features/[app]/toast/use-toast'
 import { useAliasRegistry } from '@root/frontend/hooks/use-alias-registry'
-import { useCanopenExpertView } from '@root/frontend/hooks/use-canopen-expert-view'
 import { useCanopenOnline } from '@root/frontend/hooks/use-canopen-online'
 import { useCanopenOnlineReads } from '@root/frontend/hooks/use-canopen-online-reads'
 import { useCanopenStatus } from '@root/frontend/hooks/use-canopen-status'
@@ -36,7 +35,6 @@ import { describeAliasRejection, validateAliasEdit } from '@root/middleware/shar
 import { useCallback, useMemo, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
-import { NetworkOnline } from './network-online'
 import { NetworkSettings } from './network-settings'
 import { NetworkSwitch } from './network-switch'
 import { NodeList } from './node-list'
@@ -45,9 +43,9 @@ import { ServiceBus } from './online-tab'
 import { BusStatusLine } from './status-view'
 import { hintClassName, secondaryButtonClassName } from './styles'
 
-type EditorTab = 'nodes' | 'network' | 'online'
+type EditorTab = 'nodes' | 'network'
 
-const isEditorTab = (v: string): v is EditorTab => v === 'nodes' || v === 'network' || v === 'online'
+const isEditorTab = (v: string): v is EditorTab => v === 'nodes' || v === 'network'
 
 const TabItem = ({ value, label, active }: { value: EditorTab; label: string; active: boolean }) => (
   <Tabs.Trigger
@@ -153,11 +151,9 @@ const CanopenEditor = () => {
   // A network that is off shows no node dots, no Status tab and no online tools.
   const live = on ? status : null
   const online = useCanopenOnline(deviceName, config, live)
-  const [expert, setExpert] = useCanopenExpertView()
   const reads = useCanopenOnlineReads(online)
 
-  const [chosenTab, setTab] = useState<EditorTab>('nodes')
-  const tab: EditorTab = chosenTab === 'online' && !online ? 'nodes' : chosenTab
+  const [tab, setTab] = useState<EditorTab>('nodes')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = config.nodes.find((n) => n.id === selectedId) ?? config.nodes[0]
 
@@ -320,7 +316,6 @@ const CanopenEditor = () => {
         <Tabs.List className='mb-4 flex shrink-0 border-b border-neutral-200 dark:border-neutral-800'>
           <TabItem value='nodes' label='Nodes' active={tab === 'nodes'} />
           <TabItem value='network' label='Network' active={tab === 'network'} />
-          {online ? <TabItem value='online' label='Online' active={tab === 'online'} /> : null}
         </Tabs.List>
 
         <Tabs.Content value='nodes' className='flex min-h-0 flex-1 gap-4 overflow-hidden data-[state=inactive]:hidden'>
@@ -373,18 +368,6 @@ const CanopenEditor = () => {
         <Tabs.Content value='network' className='min-h-0 flex-1 overflow-y-auto data-[state=inactive]:hidden'>
           <NetworkSettings network={config.network} nodes={config.nodes} cycleUs={cycleUs} onChange={changeNetwork} />
         </Tabs.Content>
-
-        {online ? (
-          <Tabs.Content value='online' className='min-h-0 flex-1 overflow-y-auto data-[state=inactive]:hidden'>
-            <NetworkOnline
-              nodes={config.nodes}
-              online={online}
-              live={live}
-              expert={expert}
-              onExpertChange={setExpert}
-            />
-          </Tabs.Content>
-        ) : null}
       </Tabs.Root>
     </div>
   )

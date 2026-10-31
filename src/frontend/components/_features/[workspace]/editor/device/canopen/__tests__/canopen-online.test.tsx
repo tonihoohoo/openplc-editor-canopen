@@ -166,13 +166,6 @@ function openNodeOnline() {
   fireEvent.click(tab)
 }
 
-/** The network's Online tab. */
-function openNetworkOnline() {
-  const tab = screen.getAllByRole('tab', { name: 'Online' })[0]
-  fireEvent.mouseDown(tab)
-  fireEvent.click(tab)
-}
-
 const row = (index: number) => screen.getByTestId(`canopen-online-row-${index}:0`)
 const note = (index: number) => screen.getByTestId(`canopen-online-note-${index}:0`)
 
@@ -255,22 +248,18 @@ describe('CANopen online tools', () => {
     expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'reset_node' })
     expect(card.textContent).toContain('Reset node sent.')
 
-    openNetworkOnline()
-    const all = screen.getByTestId('canopen-network-nmt')
-    fireEvent.click(within(all).getByRole('button', { name: 'Stop' }))
-    fireEvent.click(within(within(all).getByRole('alertdialog')).getByRole('button', { name: 'Stop' }))
+    fireEvent.click(within(card).getByRole('checkbox', { name: 'Send to all nodes of the network' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Stop' }))
+    expect(within(card).getByRole('alertdialog').textContent).toContain('Stop every node?')
+    fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Stop' }))
     await settle()
     expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 0, command: 'stop' })
-    expect(all.textContent).toContain('Stop sent to every node.')
+    expect(card.textContent).toContain('Stop sent to every node.')
   })
 
-  it('lists the nodes with their states on the network Online tab', async () => {
+  it('has one Online tab, on the node, and none on the network', async () => {
     await renderEditor()
-    openNetworkOnline()
-    const list = screen.getByRole('list', { name: 'CANopen nodes online' })
-    expect(list.textContent).toContain('Node 2')
-    expect(list.textContent).toContain('NMT:')
-    expect(screen.queryByTestId('canopen-network-nmt')).toBeNull()
+    expect(screen.getAllByRole('tab', { name: 'Online' })).toHaveLength(1)
   })
 
   it('reads any object from the toolbar and refuses raw writes to 0x1010', async () => {

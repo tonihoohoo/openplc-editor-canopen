@@ -92,6 +92,14 @@ export const ConfirmBar = ({ confirm, onClose }: { confirm: ConfirmRequest | nul
     </div>
   ) : null
 
+/** A card's controls with its feedback to their right, so the card keeps its size as feedback comes and goes. */
+const WithFeedback = ({ children, feedback }: { children: ReactNode; feedback: ReactNode }) => (
+  <div className='flex flex-wrap items-start gap-x-6 gap-y-2'>
+    <div className='shrink-0'>{children}</div>
+    <div className='min-w-[260px] flex-1 [&>*:first-child]:mt-0'>{feedback}</div>
+  </div>
+)
+
 /** A card's own confirmation and result line, so feedback shows next to the button pressed. */
 export function useCardFeedback() {
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
@@ -328,6 +336,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
   const [display, setDisplay] = useState<ValueDisplay>('decimal')
   const [anyObject, setAnyObject] = useState(false)
   const nmtFeedback = useCardFeedback()
+  const [allNodes, setAllNodes] = useState(false)
   const { client, networkIndex, ready } = online
   const nodeId = node.nodeId
   const { values, progress } = reads.of(nodeId)
@@ -405,8 +414,23 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
             <h4 className={cn(headingClassName, 'mb-0')}>Node state</h4>
             <NodeStateLine status={status} />
           </div>
-          <NmtButtons online={online} node={nodeId} onConfirm={nmtFeedback.ask} onResult={nmtFeedback.setMessage} />
-          {nmtFeedback.view}
+          <WithFeedback feedback={nmtFeedback.view}>
+            <NmtButtons
+              online={online}
+              node={allNodes ? 0 : nodeId}
+              onConfirm={nmtFeedback.ask}
+              onResult={nmtFeedback.setMessage}
+            />
+            <label className='mt-2 flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300'>
+              <input
+                type='checkbox'
+                checked={allNodes}
+                onChange={(e) => setAllNodes(e.target.checked)}
+                className='h-3.5 w-3.5 accent-brand'
+              />
+              Send to all nodes of the network
+            </label>
+          </WithFeedback>
         </div>
       ) : null}
 
@@ -491,8 +515,8 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
             <col />
             <col className='w-[112px]' />
             <col className='w-[60px]' />
-            <col className='w-[96px]' />
-            <col className='w-[96px]' />
+            <col className='w-[150px]' />
+            <col className='w-[150px]' />
             <col className={expert ? 'w-[196px]' : 'w-[56px]'} />
           </colgroup>
           <thead className='text-neutral-500 dark:text-neutral-400'>
@@ -535,13 +559,13 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                     </td>
                     <td className='truncate py-1 pr-2'>{dataTypeLabel(object.dataType)}</td>
                     <td className='truncate py-1 pr-2'>{object.access}</td>
-                    <td className='truncate py-1 pr-2 font-mono' title={projectTitle}>
+                    <td className='py-1 pr-2 font-mono [overflow-wrap:anywhere]' title={projectTitle}>
                       {project}
                       {row.masterWrites ? <span className={cn(hintClassName, 'ml-1')}>*</span> : null}
                     </td>
                     <td
                       className={cn(
-                        'truncate py-1 pr-2 font-mono',
+                        'py-1 pr-2 font-mono [overflow-wrap:anywhere]',
                         differs && 'bg-amber-100 dark:bg-amber-900/30',
                         failedRead && 'font-sans text-red-600 dark:text-red-400',
                       )}
@@ -670,11 +694,11 @@ const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineCon
         return
       }
       if (op === 'save') {
-        onResult(`Saved on the node: ${name}.${inPreOp}`)
+        onResult(`Saved: ${name}.${inPreOp}`)
         if (retried) setOffer({ kind: 'start' })
         return
       }
-      onResult(`Restored on the node: ${name}. The defaults take effect after a reset.`)
+      onResult(`Restored: ${name}. Takes effect after a reset.`)
       setOffer({ kind: 'reset', subIndex, preOperational: retried })
     })
   }
@@ -722,7 +746,7 @@ const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineCon
         const command = resetForRestore(offer.subIndex)
         const preOperational = offer.preOperational
         return offerRow(
-          'Reset the node so the restored defaults take effect?',
+          'Reset now?',
           {
             label: nmtCommandLabel(command),
             run: () => {
@@ -763,79 +787,86 @@ const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineCon
   return (
     <div className={cardClassName} data-testid='canopen-online-nvm'>
       <h4 className={headingClassName}>Node memory</h4>
-      <div className='grid grid-cols-[max-content_minmax(0,240px)_max-content] items-center gap-x-3 gap-y-2 text-xs'>
-        {allSaves.length > 0 ? (
+      <WithFeedback
+        feedback={
           <>
-            <span>Save</span>
-            {saves.length > 0 ? (
-              <select
-                aria-label='Scope to save'
-                className={inputClassName}
-                value={saveScope?.subIndex ?? ''}
-                onChange={(e) => setSaveSub(Number(e.target.value))}
+            {feedback.view}
+            {offerBar}
+          </>
+        }
+      >
+        <div className='grid grid-cols-[max-content_minmax(0,240px)_max-content] items-center gap-x-3 gap-y-2 text-xs'>
+          {allSaves.length > 0 ? (
+            <>
+              <span>Save</span>
+              {saves.length > 0 ? (
+                <select
+                  aria-label='Scope to save'
+                  className={inputClassName}
+                  value={saveScope?.subIndex ?? ''}
+                  onChange={(e) => setSaveSub(Number(e.target.value))}
+                >
+                  {saves.map((s) => (
+                    <option key={s.subIndex} value={s.subIndex}>
+                      {saveScopeLabel(s, support.get(s.subIndex))}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className={hintClassName}>The node saves nothing on command.</span>
+              )}
+              <button
+                type='button'
+                className={smallButtonClassName}
+                disabled={!ready || !saveScope || saveAuto}
+                title={saveAuto ? 'The node saves this by itself' : undefined}
+                onClick={() => {
+                  if (!saveScope) return
+                  feedback.ask({
+                    text: `Save to node ${nodeId}'s non-volatile memory: ${saveScope.name}?`,
+                    label: 'Save to node',
+                    action: () => nvmWrite('save', saveScope.subIndex, saveScope.name, false),
+                  })
+                }}
               >
-                {saves.map((s) => (
+                Save to node
+              </button>
+            </>
+          ) : null}
+          {restores.length > 0 ? (
+            <>
+              <span>Restore</span>
+              <select
+                aria-label='Scope to restore'
+                className={inputClassName}
+                value={restoreScope?.subIndex ?? ''}
+                onChange={(e) => setRestoreSub(Number(e.target.value))}
+              >
+                {restores.map((s) => (
                   <option key={s.subIndex} value={s.subIndex}>
-                    {saveScopeLabel(s, support.get(s.subIndex))}
+                    {s.name}
                   </option>
                 ))}
               </select>
-            ) : (
-              <span className={hintClassName}>The node saves nothing on command.</span>
-            )}
-            <button
-              type='button'
-              className={smallButtonClassName}
-              disabled={!ready || !saveScope || saveAuto}
-              title={saveAuto ? 'The node saves this by itself' : undefined}
-              onClick={() => {
-                if (!saveScope) return
-                feedback.ask({
-                  text: `Save to node ${nodeId}'s non-volatile memory: ${saveScope.name}?`,
-                  label: 'Save to node',
-                  action: () => nvmWrite('save', saveScope.subIndex, saveScope.name, false),
-                })
-              }}
-            >
-              Save to node
-            </button>
-          </>
-        ) : null}
-        {restores.length > 0 ? (
-          <>
-            <span>Restore</span>
-            <select
-              aria-label='Scope to restore'
-              className={inputClassName}
-              value={restoreScope?.subIndex ?? ''}
-              onChange={(e) => setRestoreSub(Number(e.target.value))}
-            >
-              {restores.map((s) => (
-                <option key={s.subIndex} value={s.subIndex}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type='button'
-              className={smallButtonClassName}
-              disabled={!ready || !restoreScope}
-              onClick={() => {
-                if (!restoreScope) return
-                feedback.ask({
-                  text: `Restore defaults on node ${nodeId}: ${restoreScope.name}? They take effect after a reset.`,
-                  label: 'Restore defaults',
-                  action: () => nvmWrite('restore', restoreScope.subIndex, restoreScope.name, false),
-                })
-              }}
-            >
-              Restore defaults
-            </button>
-          </>
-        ) : null}
-      </div>
-      {feedback.view}
-      {offerBar}
+              <button
+                type='button'
+                className={smallButtonClassName}
+                disabled={!ready || !restoreScope}
+                onClick={() => {
+                  if (!restoreScope) return
+                  feedback.ask({
+                    text: `Restore defaults on node ${nodeId}: ${restoreScope.name}? They take effect after a reset.`,
+                    label: 'Restore defaults',
+                    action: () => nvmWrite('restore', restoreScope.subIndex, restoreScope.name, false),
+                  })
+                }}
+              >
+                Restore defaults
+              </button>
+            </>
+          ) : null}
+        </div>
+      </WithFeedback>
     </div>
   )
 }

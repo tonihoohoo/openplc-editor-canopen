@@ -1,7 +1,7 @@
 /**
- * Screenshots of the CANopen Online tabs for a layout review: the node's Online tab in the basic
- * and expert views, node memory, any-object access and the network's Online tab, at a wide and a
- * narrow window. Writes PNGs to SCREENSHOT_DIR (default test-results/canopen-online-screens).
+ * Screenshots of the CANopen Online tab for a layout review: the basic and expert views, node
+ * memory, any-object access and NMT to all nodes, at a wide and a narrow window. Writes PNGs to
+ * SCREENSHOT_DIR (default test-results/canopen-online-screens).
  *
  * Needs a production build plus the preload copy; see "Electron e2e" in CLAUDE.md. Port 8443 must be free.
  */
@@ -133,26 +133,18 @@ test('screenshots of the CANopen Online tabs', async () => {
     await expect(page.getByTestId('canopen-online-nvm-offer')).toBeVisible({ timeout: 15000 })
     await shot(page, '06-node-memory-reset-offer.png')
 
-    await page.getByRole('tab', { name: 'Online' }).first().click()
-    await page.waitForTimeout(500)
-    await shot(page, '07-network-online-expert.png')
-    await page.getByRole('switch', { name: 'Expert view' }).first().uncheck()
-    await page.waitForTimeout(300)
-    await shot(page, '08-network-online-basic.png')
+    const state = page.getByTestId('canopen-online-nmt')
+    await state.scrollIntoViewIfNeeded()
+    await state.getByRole('checkbox', { name: 'Send to all nodes of the network' }).check()
+    await state.getByRole('button', { name: 'Stop' }).click()
+    await shot(page, '07-node-state-all-nodes-confirm.png')
+    await state.getByRole('alertdialog').getByRole('button', { name: 'Stop' }).click()
+    await expect(state).toContainText('Stop sent to every node.', { timeout: 15000 })
+    await shot(page, '08-node-state-all-nodes-sent.png')
 
-    await page.getByRole('switch', { name: 'Expert view' }).first().check()
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1100, 800)))
     await page.waitForTimeout(500)
-    await shot(page, '09-network-online-narrow.png')
-    await page
-      .getByRole('tab', { name: 'Nodes' })
-      .first()
-      .click()
-      .catch(() => undefined)
-    await page.getByText('Node 2: io2').first().click()
-    await page.getByRole('tab', { name: 'Online' }).last().click()
-    await page.waitForTimeout(500)
-    await shot(page, '10-node-online-narrow.png')
+    await shot(page, '09-node-online-narrow.png')
   } finally {
     await quitApp(app, page)
     runtime.close()

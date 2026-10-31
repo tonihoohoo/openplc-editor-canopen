@@ -153,14 +153,14 @@ The network is matched by the device's name. A network that is off is not read: 
 ## Online tools
 
 While the editor is connected to a runtime that lists `"sdo"` in `canopen.features`, each node has an
-**Online** tab, and the network has one too. They send their requests to `POST /api/canopen/request`;
+**Online** tab. It sends its requests to `POST /api/canopen/request`;
 SDO requests are jobs the editor polls after 10, 20 and 50 ms and then every 100 ms. The network is
-the device's network in the runtime's status. A network that is off in the project has no Online tabs
+the device's network in the runtime's status. A network that is off in the project has no Online tab
 and no Open bus, and turning it off closes the service mode the editor opened.
 
 - **Basic view (read only).** Every object of the node's EDS with index, name, type, access, the value
   in the project (the value the master writes at boot, marked with `*`, else the EDS default) and the
-  value read from the node, in fixed columns that do not move while values load. Search over index
+  value read from the node, in fixed columns that do not move while values load; long values wrap. Search over index
   and name; filters for all objects, "Differs from project" (highlighted), writable objects and
   objects mapped in a PDO; Read per object and Read all with progress and Stop; decimal or hex;
   strings decoded. Read all goes on while another tab or node is shown and ends when done or stopped.
@@ -172,18 +172,18 @@ and no Open bus, and turning it off closes the service mode the editor opened.
   Problems and refusals show on a line under the row; when the node refuses a write with 0x08000022
   (not in its present state), that line offers to switch the node to pre-operational and write again.
   **Node state** shows the node's state and NMT state with the NMT buttons (Start, Pre-operational,
-  Stop, Reset node, Reset communication); all but Start ask first, inline.
+  Stop, Reset node, Reset communication); all but Start ask first. With **Send to all nodes of the
+  network** ticked, the buttons send to every node and the question says so. Questions and results
+  show to the right of the buttons, so the card keeps its size.
   **Node memory** has one Save to node (0x1010) and one Restore defaults (0x1011), each with a scope
   list holding only the scopes the EDS lists as writable sub-indexes. Each save scope is read when the
   tab opens: a scope the node does not save on command is left out, and one it saves by itself shows
   "(saves automatically)" with the button greyed; when the read fails the scope stays. Both ask first,
-  under the buttons, and after a restore the editor offers the reset that makes it take effect (reset
+  to the right of the buttons, and after a restore the editor offers the reset that makes it take effect (reset
   communication for the communication scope, else reset node). When the node refuses a save or
   restore with 0x08000022, the card offers to switch it to pre-operational and try once more; after a
   retried restore the reset brings the node back, and after a retried save the card offers Start.
   Any object also writes; it never writes 0x1010 or 0x1011 and points to Node memory instead.
-- **Network Online tab.** Each node with its state and NMT state; in the expert view each node has
-  its NMT buttons, and **All nodes** sends a command to every node at once and says so before it does.
 - **Service mode.** With the runtime's `"service"` feature and the PLC stopped, the network header
   and the Online tab offer **Open bus**, which opens service mode with the network's settings and
   nodes; the online tools then work as with a running PLC while the master sends nothing of its own.
@@ -259,7 +259,7 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
   of it;
   `e2e/canopen-online.spec.ts` reads a node in the Online tab against a fake runtime with a
   simulated node and retries a refused write after switching the node to pre-operational.
-  `e2e/canopen-online-screenshots.spec.ts` takes screenshots of the Online tabs for a layout review
+  `e2e/canopen-online-screenshots.spec.ts` takes screenshots of the Online tab for a layout review
   (into `SCREENSHOT_DIR`).
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
   against a simulated node on a virtual CAN bus.
