@@ -175,7 +175,10 @@ editor opened.
   save scope is read when the tab opens: a node that saves on command gets the button, one that saves
   by itself shows "saves automatically", and one that does neither has the button greyed; when the
   read fails the button stays. Both ask first, and after a restore the editor offers the reset that
-  makes it take effect (reset communication for the communication scope, else reset node).
+  makes it take effect (reset communication for the communication scope, else reset node). When the
+  node refuses a save or restore with 0x08000022, the card offers to switch it to pre-operational and
+  try once more; after a retried restore the reset brings the node back, and after a retried save the
+  card offers Start.
   **Any object** reads or writes any index and sub-index by data type or as raw hex bytes; it never
   writes 0x1010 or 0x1011 and points to the buttons above instead.
 - **Service mode.** With the runtime's `"service"` feature and the PLC stopped, the network header
