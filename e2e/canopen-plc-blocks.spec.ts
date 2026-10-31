@@ -81,7 +81,7 @@ test('the first CANopen network turns the block library on, and a program calls 
     await expect(page.getByText('Node 2: Generic_I_O_module')).toBeVisible()
 
     // The library is on: its blocks are in the library tree, with their descriptions.
-    await page.getByText('CANopen (CiA 405)', { exact: true }).first().click({ timeout: 30000 })
+    await page.getByText('CANopen', { exact: true }).first().click({ timeout: 30000 })
     await page.getByText('SDO_READ4', { exact: true }).first().click()
     await expect(page.getByText(/Reads an object of 1 to 4 bytes from a node by SDO/)).toBeVisible()
     await shot(page, 'plc-blocks-library-tree')

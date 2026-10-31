@@ -1,7 +1,7 @@
 {
   "name": "canopen",
   "version": "1.0.0",
-  "displayName": "CANopen (CiA 405)",
+  "displayName": "CANopen",
   "description": "CiA 405 function blocks for the CANopen networks of the project: SDO read and write, NMT, node and bus state, emergency messages. Address a node by its name or node ID. Needs OpenPLC Runtime v4 with the canopen plugin.",
   "documentation": {
     "CANOPEN_DWORD_TO_REAL": "The REAL whose IEEE 754 bits are IN, every bit kept, for a REAL32 object read with SDO_READ4. Example: speed := CANOPEN_DWORD_TO_REAL(read.DATA);",

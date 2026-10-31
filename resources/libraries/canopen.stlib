@@ -831,7 +831,7 @@
       "RECV_EMCY.cpp",
       "RECV_EMCY_DEV.cpp"
     ],
-    "displayName": "CANopen (CiA 405)",
+    "displayName": "CANopen",
     "description": "CiA 405 function blocks for the CANopen networks of the project: SDO read and write, NMT, node and bus state, emergency messages. Address a node by its name or node ID. Needs OpenPLC Runtime v4 with the canopen plugin."
   },
   "chunks": [

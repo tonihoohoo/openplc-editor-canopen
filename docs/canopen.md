@@ -189,7 +189,7 @@ editor opened.
 
 ## PLC function blocks
 
-The editor ships the **canopen** library ("CANopen (CiA 405)") with CiA 405 function blocks for the
+The editor ships the **canopen** library ("CANopen" in the library tree) with CiA 405 function blocks for the
 project's CANopen networks. The project's first CANopen network turns it on; it can be turned off and
 on in the project's libraries like any other. The blocks are C++ blocks that run inside the program and
 hand each request to the runtime's canopen plugin, so a call never waits for the bus.
