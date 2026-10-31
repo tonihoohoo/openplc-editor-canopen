@@ -10,6 +10,8 @@ import { join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
+import { windowSize } from './helpers/canopen-project'
+import { shot } from './helpers/canopen-shots'
 import {
   buildFromMenu,
   findFile,
@@ -42,7 +44,7 @@ test('a node watches the master and the build configures it', async () => {
   test.setTimeout(300000)
   const { project, userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-watch'), '', STATION)
   const { app, page } = await launch(userData)
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1600, 1000)))
+  await windowSize(app, 1600, 1000)
   try {
     await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
     await page.getByText('canopen_1', { exact: true }).first().click({ timeout: 30000 })
@@ -61,6 +63,7 @@ test('a node watches the master and the build configures it', async () => {
     await heartbeat.fill('100')
     await heartbeat.press('Enter')
     await expect(page.getByText(/the master sends none/)).toHaveCount(0)
+    await shot(page, 'watch-master-network')
 
     await buildFromMenu(page, 'Build only')
     const build = join(project, 'build')

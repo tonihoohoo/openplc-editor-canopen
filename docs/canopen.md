@@ -90,17 +90,17 @@ supervision, inputs on loss, watch the master with its timeout, and the state ch
 view adds the settings below. An expert setting that is not at its default stays visible in the
 basic view, marked "expert".
 
-| Node setting                          | Effect                                                                                                      |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Identity check (expert)               | Vendor ID, product code and revision checked at boot                                                        |
-| Optional node                         | The network runs without it; the master keeps looking for it and starts it when it appears                  |
-| No initialization (expert)            | No identity check, restore or configuration SDOs; the master only starts the node, which keeps its settings |
-| Restore defaults (expert)             | Restores defaults through a writable 0x1011 sub (1 all, 2 comm, 3 app, 4+ manufacturer), resets, then configures the node |
-| Node guarding                         | Writes 0x100C and 0x100D (and 0x1017 = 0); the master guards the node and loses it when it stops answering  |
-| Heartbeats this node watches (expert) | Extra 0x1016 entries after the master's, for heartbeats of other nodes                                      |
-| When the master is gone (expert)      | 0x1029:1 for a node that watches the master                                                                 |
+| Node setting                          | Effect                                                                                                                                                                                                          |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity check (expert)               | Vendor ID, product code and revision checked at boot                                                                                                                                                            |
+| Optional node                         | The network runs without it; the master keeps looking for it and starts it when it appears                                                                                                                      |
+| No initialization (expert)            | No identity check, restore or configuration SDOs; the master only starts the node, which keeps its settings                                                                                                     |
+| Restore defaults (expert)             | Restores defaults through a writable 0x1011 sub (1 all, 2 comm, 3 app, 4+ manufacturer), resets, then configures the node                                                                                       |
+| Node guarding                         | Writes 0x100C and 0x100D (and 0x1017 = 0); the master guards the node and loses it when it stops answering                                                                                                      |
+| Heartbeats this node watches (expert) | Extra 0x1016 entries after the master's, for heartbeats of other nodes                                                                                                                                          |
+| When the master is gone (expert)      | 0x1029:1 for a node that watches the master                                                                                                                                                                     |
 | Emergency messages (expert)           | On by default; the COB-ID the master listens on, written to 0x1014 when it differs from the EDS. Off and greyed out when the EDS has no 0x1014; with a read-only 0x1014 the COB-ID is the EDS value, greyed out |
-| Receive TIME (expert)                 | Writes 0x1012 so the node takes the network's TIME                                                          |
+| Receive TIME (expert)                 | Writes 0x1012 so the node takes the network's TIME                                                                                                                                                              |
 
 With **No initialization** the heartbeat or guarding values shown are the EDS defaults, read-only.
 A setting the node cannot take is greyed out, and hovering it says why (the missing object, or No
@@ -175,7 +175,10 @@ editor opened.
   save scope is read when the tab opens: a node that saves on command gets the button, one that saves
   by itself shows "saves automatically", and one that does neither has the button greyed; when the
   read fails the button stays. Both ask first, and after a restore the editor offers the reset that
-  makes it take effect (reset communication for the communication scope, else reset node).
+  makes it take effect (reset communication for the communication scope, else reset node). When the
+  node refuses a save or restore with 0x08000022, the card offers to switch it to pre-operational and
+  try once more; after a retried restore the reset brings the node back, and after a retried save the
+  card offers Start.
   **Any object** reads or writes any index and sub-index by data type or as raw hex bytes; it never
   writes 0x1010 or 0x1011 and points to the buttons above instead.
 - **Service mode.** With the runtime's `"service"` feature and the PLC stopped, the network header
@@ -191,16 +194,16 @@ project's CANopen networks. The project's first CANopen network turns it on; it 
 on in the project's libraries like any other. The blocks are C++ blocks that run inside the program and
 hand each request to the runtime's canopen plugin, so a call never waits for the bus.
 
-| Block                                    | What it does                                                       |
-| ---------------------------------------- | ------------------------------------------------------------------ |
-| `SDO_READ4`, `SDO_WRITE4`                | Read or write an object of 1 to 4 bytes (`DATA : DWORD`)           |
-| `SDO_READ_DATA`, `SDO_WRITE_DATA`        | Read or write up to 256 bytes (`DATA : ARRAY[0..255] OF BYTE`)     |
-| `SDO_READ_STRING`, `SDO_WRITE_STRING`    | Read or write a text object of up to 254 characters                |
-| `NMT`                                    | Send an NMT command to a node, or with `DEVICE := 0` to every node |
-| `GET_STATE`                              | A node's NMT state as the master sees it                           |
-| `GET_LOCAL_NODE_ID`                      | The master's node ID                                               |
-| `GET_CANOPEN_KERNEL_STATE`               | The bus state (no error, error passive, bus off, no driver)        |
-| `RECV_EMCY`, `RECV_EMCY_DEV`             | Emergency messages of the network, or of one node, oldest first    |
+| Block                                 | What it does                                                       |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| `SDO_READ4`, `SDO_WRITE4`             | Read or write an object of 1 to 4 bytes (`DATA : DWORD`)           |
+| `SDO_READ_DATA`, `SDO_WRITE_DATA`     | Read or write up to 256 bytes (`DATA : ARRAY[0..255] OF BYTE`)     |
+| `SDO_READ_STRING`, `SDO_WRITE_STRING` | Read or write a text object of up to 254 characters                |
+| `NMT`                                 | Send an NMT command to a node, or with `DEVICE := 0` to every node |
+| `GET_STATE`                           | A node's NMT state as the master sees it                           |
+| `GET_LOCAL_NODE_ID`                   | The master's node ID                                               |
+| `GET_CANOPEN_KERNEL_STATE`            | The bus state (no error, error passive, bus off, no driver)        |
+| `RECV_EMCY`, `RECV_EMCY_DEV`          | Emergency messages of the network, or of one node, oldest first    |
 
 - **Addressing.** `NETWORK` counts the networks that are on from 1 (default 1) and `DEVICE` is the node
   ID. Each network and node name is also a constant of the program, so `DEVICE := io2` and
@@ -286,19 +289,24 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
   with the generic I/O module EDS in `__tests__/fixtures/`, the store action in
   `src/frontend/store/__tests__/canopen-config.test.ts`, and the device editor in
   `.../device/canopen/__tests__/`.
-- End-to-end: `e2e/canopen-offline-build.spec.ts` adds a node from the EDS in the app and builds;
-  `e2e/canopen-pdo-sdo-editing.spec.ts` reorders an entry, sets a transmission type and adds a
-  startup SDO by search, then checks the built `canopen.json`;
-  `e2e/canopen-watch-master.spec.ts` checks "Watch the master" and the bus priority in the build;
-  `e2e/canopen-node-options.spec.ts` sets node options in the expert view, uses a fix, and checks
-  the built `canopen.json`;
-  `e2e/canopen-live-status.spec.ts` connects to a fake runtime on port 8443 and checks the dots,
-  the Status tab and the reason of a failed boot, and that a runtime without the feature shows none
-  of it;
-  `e2e/canopen-online.spec.ts` reads a node in the Online tab against a fake runtime with a
-  simulated node and retries a refused write after switching the node to pre-operational.
-  `e2e/canopen-plc-blocks.spec.ts` adds a network in the app, checks that the block library turns
-  on, and builds a program that calls a node by name.
+- End-to-end: `e2e/canopen-*.spec.ts` drive the built app (Playwright, Electron). They cover adding a
+  node from an EDS and building it, PDO and startup SDO editing, aliases, the Network tab settings and
+  the bit rates the nodes support, the defaults for new nodes, the checks that stop a build and their
+  fixes, receive timeouts, node options, the basic and expert view, heartbeat consuming, emergency and
+  TIME settings, turning a network off, the PLC block library and node names in a program, the upload check against a runtime without CANopen, and,
+  against a fake runtime on port 8443 (`e2e/helpers/canopen-runtime.ts`), the live status, the Online
+  tab, Save to node and Restore defaults, and service mode. Run them locally with
+  `npx playwright test e2e/canopen-` after the build steps in CLAUDE.md ("Electron e2e").
+- CI: `.github/workflows/canopen-ui.yml` runs them on every pull request to `canopen` that changes a
+  path under `src/` or `e2e/` with `canopen` in it, an e2e helper, the dependencies or the workflow,
+  and on upstream sync pull requests; for any other pull request the job is skipped. It builds the app
+  once on `ubuntu-24.04` and runs the tests under `xvfb`. Their screenshots go to the `ci-screenshots`
+  branch and one comment on the pull request, updated on each run.
+- Key views are compared with the baselines in `e2e/<spec>-snapshots/` (`keyView` in
+  `e2e/helpers/canopen-shots.ts`), in CI only, because the baselines are Linux renderings. A view that
+  differs fails the job, and the comment shows the baseline, the new image and the difference. For an
+  intended change, take the new images from the run's `canopen-ui-results` artifact
+  (`<view>-actual.png`), save them as `e2e/<spec>-snapshots/<view>-chromium-linux.png` and commit.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
   against a simulated node on a virtual CAN bus, and runs `e2e/fixtures/canopen-plc-blocks/`, a
   program that calls every block, against the same node across PLC stops and starts.

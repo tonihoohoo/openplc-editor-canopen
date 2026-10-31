@@ -1,0 +1,117 @@
+name: CANopen UI
+
+# The CANopen device editor's Playwright tests (e2e/canopen-*.spec.ts) against a production build
+# under a virtual display. Runs only when a pull request can change the CANopen screens (see
+# .github/scripts/canopen-ui-changed.sh); otherwise the job is skipped, which counts as passed.
+# Screenshots go to the ci-screenshots branch and one comment on the pull request; key views are
+# compared with the baselines in e2e/*-snapshots/.
+
+on:
+  pull_request:
+    branches: [canopen]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canopen-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Changed files
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ui: ${{ steps.files.outputs.ui }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: CANopen UI files
+        id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: .github/scripts/canopen-ui-changed.sh
+
+  ui-tests:
+    name: CANopen UI tests
+    needs: changes
+    if: ${{ needs.changes.outputs.ui == 'true' }}
+    # Pinned so fonts and rendering stay those of the baselines.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: |
+          npm ci --ignore-scripts
+          npm run setup:strucpp
+          node node_modules/electron/install.js
+          command -v xvfb-run || (sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb)
+          # Ubuntu 24.04's AppArmor blocks the unprivileged user namespaces Electron's sandbox needs.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Build
+        run: |
+          npm run build
+          # Launched from dist, the app is not packaged and looks for the preload under configs/dll.
+          mkdir -p release/app/configs/dll
+          cp release/app/dist/main/preload.js release/app/configs/dll/preload.js
+          # The app looks for STruC++'s runtime headers next to main.js.
+          mkdir -p release/app/dist/main/node_modules
+          ln -sfn "$PWD/node_modules/strucpp" release/app/dist/main/node_modules/strucpp
+
+      - name: Tests
+        id: tests
+        env:
+          CANOPEN_UI_VISUAL: '1'
+        run: |
+          status=0
+          xvfb-run -a --server-args='-screen 0 1920x1080x24' \
+            npx playwright test e2e/canopen- --workers=1 --reporter=list,html || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Screenshots on the pull request
+        if: >-
+          ${{ always() && github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          outcome=success
+          [ "${{ steps.tests.outputs.status }}" = "0" ] || outcome=failure
+          python3 .github/scripts/canopen_ui_report.py --results test-results --outcome "$outcome"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canopen-ui-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+      - name: Result
+        run: |
+          if [ "${{ steps.tests.outputs.status }}" != "0" ]; then
+            echo "::error::CANopen UI tests failed; see the pull request comment and the artifact"
+            exit 1
+          fi

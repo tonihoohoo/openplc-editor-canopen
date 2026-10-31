@@ -512,6 +512,14 @@ const supportText = (support: SaveSupport | undefined): string | null => {
   }
 }
 
+type NvmOp = 'save' | 'restore'
+
+/** What the Node memory card offers after a save or restore. */
+type NvmOffer =
+  | { kind: 'retry'; op: NvmOp; subIndex: number; name: string }
+  | { kind: 'reset'; subIndex: number; preOperational: boolean }
+  | { kind: 'start' }
+
 /** Save to node (0x1010) and Restore defaults (0x1011) for the scopes the EDS lists. */
 const NvmCard = ({
   node,
@@ -527,7 +535,7 @@ const NvmCard = ({
   const saves = useMemo(() => nvmScopes(node.eds, 0x1010), [node.eds])
   const restores = useMemo(() => nvmScopes(node.eds, 0x1011), [node.eds])
   const [support, setSupport] = useState<ReadonlyMap<number, SaveSupport>>(new Map())
-  const [offerReset, setOfferReset] = useState<{ subIndex: number } | null>(null)
+  const [offer, setOffer] = useState<NvmOffer | null>(null)
   const { client, networkIndex, ready } = online
   const nodeId = node.nodeId
 
@@ -549,44 +557,125 @@ const NvmCard = ({
 
   if (saves.length === 0 && restores.length === 0) return null
 
-  const save = (subIndex: number, name: string) =>
-    void client.write(networkIndex, nodeId, 0x1010, subIndex, [...SAVE_SIGNATURE]).then((r) => {
-      onResult(r.ok ? `Saved to the node: ${name}.` : `Save failed: ${r.message}.`)
+  const sendNmt = (command: CanopenNmtCommand) =>
+    void client
+      .nmt(networkIndex, nodeId, command)
+      .then((r) =>
+        onResult(r.ok ? `${nmtCommandLabel(command)} sent.` : `${nmtCommandLabel(command)} failed: ${r.message}.`),
+      )
+
+  const nvmWrite = (op: NvmOp, subIndex: number, name: string, retried: boolean) => {
+    setOffer(null)
+    const index = op === 'save' ? 0x1010 : 0x1011
+    const signature = op === 'save' ? SAVE_SIGNATURE : LOAD_SIGNATURE
+    void client.write(networkIndex, nodeId, index, subIndex, [...signature]).then((r) => {
+      const inPreOp = retried ? ' The node is in pre-operational.' : ''
+      if (!r.ok) {
+        const failed = `${op === 'save' ? 'Save' : 'Restore'} failed: ${r.message}.`
+        if (r.abortCode === ABORT_DEVICE_STATE && !retried && online.nmt) {
+          onResult(`${failed} The node may take it in pre-operational.`)
+          setOffer({ kind: 'retry', op, subIndex, name })
+        } else {
+          onResult(`${failed}${inPreOp}`)
+        }
+        return
+      }
+      if (op === 'save') {
+        onResult(`Saved to the node: ${name}.${inPreOp}`)
+        if (retried) setOffer({ kind: 'start' })
+        return
+      }
+      onResult(`Defaults restored: ${name}. They take effect after a reset.`)
+      setOffer({ kind: 'reset', subIndex, preOperational: retried })
     })
-  const restore = (subIndex: number, name: string) =>
-    void client.write(networkIndex, nodeId, 0x1011, subIndex, [...LOAD_SIGNATURE]).then((r) => {
-      onResult(r.ok ? `Defaults restored: ${name}. They take effect after a reset.` : `Restore failed: ${r.message}.`)
-      if (r.ok) setOfferReset({ subIndex })
+  }
+
+  const retryInPreOperational = (op: NvmOp, subIndex: number, name: string) => {
+    setOffer(null)
+    void client.nmt(networkIndex, nodeId, 'pre_operational').then((r) => {
+      if (!r.ok) return onResult(`Pre-operational failed: ${r.message}.`)
+      nvmWrite(op, subIndex, name, true)
     })
+  }
+
+  const save = (subIndex: number, name: string) => nvmWrite('save', subIndex, name, false)
+  const restore = (subIndex: number, name: string) => nvmWrite('restore', subIndex, name, false)
+
+  const offerRow = (text: string, action: { label: string; run: () => void }, onNotNow: () => void) => (
+    <div className='mb-3 flex items-center gap-2 text-xs' data-testid='canopen-online-nvm-offer'>
+      <span>{text}</span>
+      <button type='button' className={secondaryButtonClassName} onClick={action.run}>
+        {action.label}
+      </button>
+      <button type='button' className={secondaryButtonClassName} onClick={onNotNow}>
+        Not now
+      </button>
+    </div>
+  )
+
+  const offerBar = (() => {
+    if (!offer) return null
+    switch (offer.kind) {
+      case 'retry': {
+        const { op, subIndex, name } = offer
+        return offerRow(
+          `The node refused the ${op} in its present state.`,
+          {
+            label: 'Switch to pre-operational and retry',
+            run: () =>
+              onConfirm({
+                text: `Put the node in pre-operational and ${op} again?`,
+                label: 'Switch and retry',
+                action: () => retryInPreOperational(op, subIndex, name),
+              }),
+          },
+          () => setOffer(null),
+        )
+      }
+      case 'reset': {
+        const command = resetForRestore(offer.subIndex)
+        const preOperational = offer.preOperational
+        return offerRow(
+          'Reset the node so the restored defaults take effect?',
+          {
+            label: nmtCommandLabel(command),
+            run: () => {
+              setOffer(null)
+              sendNmt(command)
+            },
+          },
+          () => {
+            setOffer(null)
+            if (preOperational) onResult('The node stays in pre-operational until it is started or reset.')
+          },
+        )
+      }
+      case 'start':
+        return offerRow(
+          'Start the node again?',
+          {
+            label: nmtCommandLabel('start'),
+            run: () => {
+              setOffer(null)
+              sendNmt('start')
+            },
+          },
+          () => {
+            setOffer(null)
+            onResult('The node stays in pre-operational until it is started or reset.')
+          },
+        )
+      default: {
+        const unreachable: never = offer
+        return unreachable
+      }
+    }
+  })()
 
   return (
     <div className={cardClassName} data-testid='canopen-online-nvm'>
       <h4 className={headingClassName}>Node memory</h4>
-      {offerReset ? (
-        <div className='mb-3 flex items-center gap-2 text-xs'>
-          <span>Reset the node so the restored defaults take effect?</span>
-          <button
-            type='button'
-            className={secondaryButtonClassName}
-            onClick={() => {
-              const command = resetForRestore(offerReset.subIndex)
-              setOfferReset(null)
-              void client
-                .nmt(networkIndex, nodeId, command)
-                .then((r) =>
-                  onResult(
-                    r.ok ? `${nmtCommandLabel(command)} sent.` : `${nmtCommandLabel(command)} failed: ${r.message}.`,
-                  ),
-                )
-            }}
-          >
-            {nmtCommandLabel(resetForRestore(offerReset.subIndex))}
-          </button>
-          <button type='button' className={secondaryButtonClassName} onClick={() => setOfferReset(null)}>
-            Not now
-          </button>
-        </div>
-      ) : null}
+      {offerBar}
       <div className='grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-1 text-xs'>
         {saves.map((scope) => {
           const s = support.get(scope.subIndex)
