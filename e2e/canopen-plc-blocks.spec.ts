@@ -11,6 +11,8 @@ import { join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
+import { windowSize } from './helpers/canopen-project'
+import { shot } from './helpers/canopen-shots'
 import {
   buildFromMenu,
   findFile,
@@ -59,7 +61,7 @@ test('the first CANopen network turns the block library on, and a program calls 
   // The network is added in the app, so the project starts without one.
   rmSync(join(project, 'devices', 'remote', 'canopen_1.json'))
   const { app, page } = await launch(userData)
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1600, 1000)))
+  await windowSize(app, 1600, 1000)
   try {
     await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
 
@@ -78,8 +80,17 @@ test('the first CANopen network turns the block library on, and a program calls 
     await nodeId.press('Enter')
     await expect(page.getByText('Node 2: Generic_I_O_module')).toBeVisible()
 
-    // The library's blocks are in the library tree.
-    await expect(page.getByText('SDO_READ4', { exact: true }).first()).toBeAttached({ timeout: 30000 })
+    // The library is on: its blocks are in the library tree, with their descriptions.
+    await page.getByText('CANopen (CiA 405)', { exact: true }).first().click({ timeout: 30000 })
+    await page.getByText('SDO_READ4', { exact: true }).first().click()
+    await expect(page.getByText(/Reads an object of 1 to 4 bytes from a node by SDO/)).toBeVisible()
+    await shot(page, 'plc-blocks-library-tree')
+
+    await page.getByText('main', { exact: true }).first().click()
+    await expect(page.locator('.view-lines:visible')).toContainText('DEVICE := Generic_I_O_module', { timeout: 30000 })
+    // The language server knows the blocks and the names: nothing is underlined.
+    await expect(page.locator('.squiggly-error')).toHaveCount(0, { timeout: 30000 })
+    await shot(page, 'plc-blocks-program')
 
     await buildFromMenu(page, 'Build only')
     const build = join(project, 'build')
@@ -89,6 +100,21 @@ test('the first CANopen network turns the block library on, and a program calls 
     expect(program).toMatch(/Generic_I_O_module\s*:\s*USINT\s*:=\s*2;/)
     expect(program).toContain('CANOPEN_OBJECT_SIZES')
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
+    await shot(page, 'plc-blocks-built')
+
+    // A node named like a POU clashes with it: the node page lists it and the build stops.
+    await page.getByText('line_1', { exact: true }).first().click()
+    const name = page.getByLabel('Name', { exact: true })
+    await name.fill('main')
+    await name.press('Enter')
+    const clash = 'CANopen "line_1" node "main": the name is also the POU "main"'
+    await expect(page.getByText(clash, { exact: false })).toBeVisible({ timeout: 15000 })
+    await shot(page, 'plc-blocks-name-clash')
+    await buildFromMenu(page, 'Build only')
+    await expect(page.getByText(/Compilation aborted: .*the name is also the POU "main"/).first()).toBeVisible({
+      timeout: 120000,
+    })
+    await shot(page, 'plc-blocks-name-clash-build')
   } finally {
     await quitApp(app, page)
   }
