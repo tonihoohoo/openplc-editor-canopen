@@ -64,6 +64,8 @@ jobs:
           npm run setup:strucpp
           node node_modules/electron/install.js
           command -v xvfb-run || (sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb)
+          # Ubuntu 24.04's AppArmor blocks the unprivileged user namespaces Electron's sandbox needs.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Build
         run: |
