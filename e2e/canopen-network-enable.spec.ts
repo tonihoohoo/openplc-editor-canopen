@@ -10,6 +10,8 @@ import { join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
+import { windowSize } from './helpers/canopen-project'
+import { keyView } from './helpers/canopen-shots'
 import {
   buildFromMenu,
   findFile,
@@ -29,7 +31,7 @@ test('a network that is off is left out of the build', async () => {
   const { project, userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-off'), '', STATION)
   const { app, page } = await launch(userData)
   // Below a desktop size the app shows its mobile notice instead (a virtual display opens it at 800x600).
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1600, 1000)))
+  await windowSize(app, 1600, 1000)
   try {
     await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
     await page.getByText('canopen_1', { exact: true }).first().click({ timeout: 30000 })
@@ -41,6 +43,7 @@ test('a network that is off is left out of the build', async () => {
     await expect(toggle).toHaveAttribute('aria-checked', 'false')
     await expect(page.getByText('Fix these before turning the network on:')).toBeVisible()
     await expect(page.getByText('Off', { exact: true })).toBeVisible()
+    await keyView(page, 'network-off')
 
     await buildFromMenu(page, 'Build only')
     const build = join(project, 'build')

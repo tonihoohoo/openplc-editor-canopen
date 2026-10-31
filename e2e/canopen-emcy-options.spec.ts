@@ -19,6 +19,7 @@ import {
   quitApp,
   writeEthercatProject,
 } from './helpers/ethercat-project'
+import { shot } from './helpers/canopen-shots'
 
 const EDS_TEXT = readFileSync(
   join(
@@ -51,7 +52,6 @@ test('emergency settings follow the EDS and greyed-out options say why', async (
   const fixedEmcy = join(userData, 'fixed-emcy-module.eds')
   writeFileSync(noEmcy, EDS_TEXT.replace(/\[1014\][^[]*/g, ''))
   writeFileSync(fixedEmcy, EDS_TEXT.replace(/(\[1014\][^[]*AccessType=)rw/, '$1ro'))
-  const shot = (name: string) => page.screenshot({ path: test.info().outputPath(`${name}.png`) })
 
   const { app, page } = await launch(userData)
   await expect(async () => {
@@ -77,7 +77,7 @@ test('emergency settings follow the EDS and greyed-out options say why', async (
     await expect(time).toBeDisabled()
     expect(await tooltip(time)).toBe('The device cannot consume TIME: its EDS has no writable 0x1012')
     await emcy.scrollIntoViewIfNeeded()
-    await shot('1-no-0x1014')
+    await shot(page, 'emcy-1-no-0x1014')
 
     await page.getByLabel('No initialization', { exact: true }).check()
     const vendor = page.getByLabel(/^Vendor ID /)
@@ -87,7 +87,7 @@ test('emergency settings follow the EDS and greyed-out options say why', async (
     await expect(restore).toBeDisabled()
     expect(await tooltip(restore)).toBe('Not with No initialization')
     await vendor.scrollIntoViewIfNeeded()
-    await shot('2-no-initialization')
+    await shot(page, 'emcy-2-no-initialization')
     await page.getByLabel('No initialization', { exact: true }).uncheck()
 
     await page.getByRole('switch', { name: 'Expert view' }).uncheck()
@@ -103,11 +103,11 @@ test('emergency settings follow the EDS and greyed-out options say why', async (
     await expect(cobId).toBeDisabled()
     expect(await tooltip(cobId)).toBe('Fixed by the device: its EDS marks 0x1014 read-only')
     await cobId.scrollIntoViewIfNeeded()
-    await shot('3-read-only-0x1014')
+    await shot(page, 'emcy-3-read-only-0x1014')
 
     await page.getByRole('tab', { name: 'Network' }).click()
     await expect(page.getByText('Nodes whose EDS has no 0x1014 get it off')).toBeVisible()
-    await shot('4-network-defaults')
+    await shot(page, 'emcy-4-network-defaults')
 
     await buildFromMenu(page, 'Build only')
     const build = join(project, 'build')

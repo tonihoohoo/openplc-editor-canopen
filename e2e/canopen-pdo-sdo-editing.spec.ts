@@ -10,6 +10,7 @@ import { join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
+import { keyView } from './helpers/canopen-shots'
 import {
   buildFromMenu,
   findFile,
@@ -61,6 +62,7 @@ test('reordered entries, transmission type and startup SDOs reach conf/canopen.j
     await input.getByLabel('Every N SYNC').fill('4')
     await input.getByLabel('Every N SYNC').press('Enter')
     await expect(input.getByText('Needs SYNC, which is off for this network')).toBeVisible()
+    await keyView(page, 'node-inputs')
 
     await page.getByRole('tab', { name: /Startup SDOs/ }).click()
     await page.getByRole('button', { name: 'Add an SDO for an object of the device' }).click()
@@ -71,6 +73,7 @@ test('reordered entries, transmission type and startup SDOs reach conf/canopen.j
     await expect(row.getByText('Parameter', { exact: true })).toBeVisible()
     await row.getByLabel('Value').fill('0x10')
     await row.getByLabel('Value').press('Enter')
+    await keyView(page, 'node-startup-sdos')
 
     await buildFromMenu(page, 'Build only')
     const build = join(project, 'build')

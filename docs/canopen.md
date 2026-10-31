@@ -243,16 +243,23 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
   with the generic I/O module EDS in `__tests__/fixtures/`, the store action in
   `src/frontend/store/__tests__/canopen-config.test.ts`, and the device editor in
   `.../device/canopen/__tests__/`.
-- End-to-end: `e2e/canopen-offline-build.spec.ts` adds a node from the EDS in the app and builds;
-  `e2e/canopen-pdo-sdo-editing.spec.ts` reorders an entry, sets a transmission type and adds a
-  startup SDO by search, then checks the built `canopen.json`;
-  `e2e/canopen-watch-master.spec.ts` checks "Watch the master" and the bus priority in the build;
-  `e2e/canopen-node-options.spec.ts` sets node options in the expert view, uses a fix, and checks
-  the built `canopen.json`;
-  `e2e/canopen-live-status.spec.ts` connects to a fake runtime on port 8443 and checks the dots,
-  the Status tab and the reason of a failed boot, and that a runtime without the feature shows none
-  of it;
-  `e2e/canopen-online.spec.ts` reads a node in the Online tab against a fake runtime with a
-  simulated node and retries a refused write after switching the node to pre-operational.
+- End-to-end: `e2e/canopen-*.spec.ts` drive the built app (Playwright, Electron). They cover adding a
+  node from an EDS and building it, PDO and startup SDO editing, aliases, the Network tab settings and
+  the bit rates the nodes support, the defaults for new nodes, the checks that stop a build and their
+  fixes, receive timeouts, node options, the basic and expert view, heartbeat consuming, emergency and
+  TIME settings, turning a network off, the upload check against a runtime without CANopen, and,
+  against a fake runtime on port 8443 (`e2e/helpers/canopen-runtime.ts`), the live status, the Online
+  tab, Save to node and Restore defaults, and service mode. Run them locally with
+  `npx playwright test e2e/canopen-` after the build steps in CLAUDE.md ("Electron e2e").
+- CI: `.github/workflows/canopen-ui.yml` runs them on every pull request to `canopen` that changes a
+  path under `src/` or `e2e/` with `canopen` in it, an e2e helper, the dependencies or the workflow,
+  and on upstream sync pull requests; for any other pull request the job is skipped. It builds the app
+  once on `ubuntu-24.04` and runs the tests under `xvfb`. Their screenshots go to the `ci-screenshots`
+  branch and one comment on the pull request, updated on each run.
+- Key views are compared with the baselines in `e2e/<spec>-snapshots/` (`keyView` in
+  `e2e/helpers/canopen-shots.ts`), in CI only, because the baselines are Linux renderings. A view that
+  differs fails the job, and the comment shows the baseline, the new image and the difference. For an
+  intended change, take the new images from the run's `canopen-ui-results` artifact
+  (`<view>-actual.png`), save them as `e2e/<spec>-snapshots/<view>-chromium-linux.png` and commit.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
   against a simulated node on a virtual CAN bus.
