@@ -214,7 +214,20 @@ export function attachProjectSync(store: OpenPLCStore, service: StLspService): P
 
   function reconcileSoftMotionGlobals(remoteDevices: PLCRemoteDevice[] | undefined): void {
     reconcileSyntheticDoc(SOFTMOTION_GLOBALS_URI, serializeSoftMotionAxisGlobalsToST({ remoteDevices } as never))
-    reconcileSyntheticDoc(CANOPEN_NAMES_URI, serializeCanopenConstantsToST(remoteDevices, false))
+    // A POU is analysed against the names as they were when it was last sent, so re-send them all.
+    if (reconcileSyntheticDoc(CANOPEN_NAMES_URI, serializeCanopenConstantsToST(remoteDevices, false))) republishPous()
+  }
+
+  /** Re-sends every POU document unchanged, with a new version, so the worker analyses it again. */
+  function republishPous(): void {
+    if (disposed) return
+    for (const pou of store.getState().project.data.pous) {
+      const uri = snapshot.uriByName.get(pou.name)
+      const text = uri === undefined ? undefined : snapshot.contentByUri.get(uri)
+      if (uri === undefined || text === undefined) continue
+      snapshot.version += 1
+      service.changeDocument(uri, text, snapshot.version)
+    }
   }
 
   function reconcile(pous: PLCPou[]): void {
