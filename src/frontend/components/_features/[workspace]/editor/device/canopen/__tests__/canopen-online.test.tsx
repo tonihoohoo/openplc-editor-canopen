@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 
 import type { OpenPLCStore } from '@root/frontend/store'
 import { createStoreWrapper, createTestStore } from '@root/frontend/store/testing'
-import type { CanopenConfig } from '@root/middleware/shared/ports/canopen-types'
+import type { CanopenConfig, CanopenObject } from '@root/middleware/shared/ports/canopen-types'
 import type { CanopenRequest } from '@root/middleware/shared/ports/canopen-online'
 import type { CanopenRuntimeFetch } from '@root/middleware/shared/ports/canopen-status'
 import {
@@ -23,8 +23,14 @@ class FakeNode {
     ['4119:0', 'f401'], // 0x1017 = 500
     ['8448:0', '00000000'], // 0x2100
     ['4096:0', '91010000'], // 0x1000 = 401, as the EDS
+    ['4112:1', '01000000'], // 0x1010:01 saves on command
   ])
   operational = true
+  /** Abort code for writes to 0x1010 and 0x1011 while operational, or null to take them. */
+  nvmAbort: number | null = null
+  /** Refuse 0x1010 and 0x1011 in every state. */
+  nvmAlwaysRefused = false
+  nmtError: string | null = null
   sent: CanopenRequest[] = []
   private jobs = new Map<number, unknown>()
   private next = 1
@@ -44,11 +50,18 @@ class FakeNode {
         }
         case 'sdo_write':
           if (request.index === 0x2100 && this.operational) return job({ state: 'failed', abort_code: 0x08000022 })
+          if (
+            (request.index === 0x1010 || request.index === 0x1011) &&
+            this.nvmAbort !== null &&
+            (this.operational || this.nvmAlwaysRefused)
+          )
+            return job({ state: 'failed', abort_code: this.nvmAbort })
           this.values.set(`${request.index}:${request.subindex}`, request.data)
           return job({ state: 'done' })
         case 'job':
           return this.jobs.get(request.job) ?? { error: 'unknown_job' }
         case 'nmt':
+          if (this.nmtError) return { error: this.nmtError }
           this.operational = request.command === 'start'
           return { ok: true }
         case 'service_open':
@@ -60,6 +73,24 @@ class FakeNode {
     return Promise.resolve({ success: true, body })
   }
 }
+
+const nvmObject = (index: number, subIndex: number, name: string): CanopenObject => ({
+  index,
+  subIndex,
+  name,
+  dataType: 'UNSIGNED32',
+  access: 'rw',
+  pdoMapping: false,
+})
+
+const NVM_OBJECTS: CanopenObject[] = [
+  nvmObject(0x1010, 1, 'Save all parameters'),
+  nvmObject(0x1011, 1, 'Restore all default parameters'),
+  nvmObject(0x1011, 2, 'Restore communication default parameters'),
+]
+
+const LOAD = '6C6F6164'
+const SAVE = '73617665'
 
 const offIf = (config: CanopenConfig, off: boolean): CanopenConfig =>
   off ? { ...config, network: { ...config.network, enabled: false } } : config
@@ -76,13 +107,26 @@ async function settle() {
 }
 
 async function renderEditor(
-  options: { capabilities?: unknown; status?: unknown; expert?: boolean; off?: boolean } = {},
+  options: {
+    capabilities?: unknown
+    status?: unknown
+    expert?: boolean
+    off?: boolean
+    setup?: (node: FakeNode) => void
+  } = {},
 ) {
   localStorage.setItem('openplc:canopen-expert-view', options.expert ? 'on' : 'off')
   store = createTestStore()
   node = new FakeNode()
+  options.setup?.(node)
   const state = store.getState()
-  const n2 = { ...genericNode(2), heartbeatProducerMs: 1000, supervision: 'heartbeat' as const }
+  const base = genericNode(2)
+  const n2 = {
+    ...base,
+    eds: { ...base.eds, objects: [...base.eds.objects, ...NVM_OBJECTS] },
+    heartbeatProducerMs: 1000,
+    supervision: 'heartbeat' as const,
+  }
   store.setState({
     editor: { type: 'plc-remote-device', meta: { name: NET, protocol: 'canopen' } },
     project: {
@@ -209,5 +253,106 @@ describe('CANopen online tools', () => {
     await renderEditor({ off: true, status: { version: 1, active: false } })
     expect(screen.queryByRole('tab', { name: 'Online' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Open bus' })).toBeNull()
+  })
+  describe('node memory refused in the present state', () => {
+    const nvmCard = () => screen.getByTestId('canopen-online-nvm')
+    const nvmWrites = (index: number) => node.sent.filter((s) => s.op === 'sdo_write' && s.index === index)
+    const press = async (label: string, scope: RegExp) => {
+      const card = nvmCard()
+      const rowLabel = within(card).getByText(scope)
+      const buttons = Array.from(rowLabel.parentElement?.querySelectorAll('button') ?? [])
+      const target = buttons.find((b) => b.textContent === label)
+      expect(target).toBeTruthy()
+      if (target) fireEvent.click(target)
+      fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: label }))
+      await settle()
+      await settle()
+    }
+    const retry = async () => {
+      fireEvent.click(within(nvmCard()).getByRole('button', { name: 'Switch to pre-operational and retry' }))
+      fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Switch and retry' }))
+      await settle()
+      await settle()
+    }
+
+    it('switches to pre-operational, restores again and offers the reset', async () => {
+      await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x08000022) })
+      openTab('Online')
+      await press('Restore defaults', /0x1011:1\)/)
+      expect(screen.getByTestId('canopen-online-tab').textContent).toContain('Restore failed')
+      await retry()
+      expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'pre_operational' })
+      const writes = nvmWrites(0x1011)
+      expect(writes).toHaveLength(2)
+      expect(writes[1]).toMatchObject({ subindex: 1, data: LOAD })
+      const offer = screen.getByTestId('canopen-online-nvm-offer')
+      expect(within(offer).getByRole('button', { name: 'Reset node' })).toBeTruthy()
+      fireEvent.click(within(offer).getByRole('button', { name: 'Not now' }))
+      expect(screen.getByTestId('canopen-online-tab').textContent).toContain(
+        'The node stays in pre-operational until it is started or reset.',
+      )
+    })
+
+    it('offers reset communication after a retried communication restore', async () => {
+      await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x08000022) })
+      openTab('Online')
+      await press('Restore defaults', /0x1011:2\)/)
+      await retry()
+      const offer = screen.getByTestId('canopen-online-nvm-offer')
+      fireEvent.click(within(offer).getByRole('button', { name: 'Reset communication' }))
+      await settle()
+      expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'reset_communication' })
+    })
+
+    it('saves again in pre-operational and offers to start the node', async () => {
+      await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x08000022) })
+      openTab('Online')
+      await press('Save to node', /0x1010:1\)/)
+      await retry()
+      expect(nvmWrites(0x1010)[1]).toMatchObject({ subindex: 1, data: SAVE })
+      expect(screen.getByTestId('canopen-online-tab').textContent).toContain('The node is in pre-operational.')
+      fireEvent.click(within(screen.getByTestId('canopen-online-nvm-offer')).getByRole('button', { name: 'Start' }))
+      await settle()
+      expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'start' })
+    })
+
+    it('shows a second refusal without another retry', async () => {
+      await renderEditor({
+        expert: true,
+        setup: (n) => {
+          n.nvmAbort = 0x08000022
+          n.nvmAlwaysRefused = true
+        },
+      })
+      openTab('Online')
+      await press('Restore defaults', /0x1011:1\)/)
+      await retry()
+      expect(nvmWrites(0x1011)).toHaveLength(2)
+      expect(screen.queryByTestId('canopen-online-nvm-offer')).toBeNull()
+      expect(screen.getByTestId('canopen-online-tab').textContent).toContain('The node is in pre-operational.')
+    })
+
+    it('offers no retry for another abort', async () => {
+      await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x06010002) })
+      openTab('Online')
+      await press('Restore defaults', /0x1011:1\)/)
+      expect(screen.getByTestId('canopen-online-tab').textContent).toContain('Restore failed')
+      expect(screen.queryByTestId('canopen-online-nvm-offer')).toBeNull()
+    })
+
+    it('shows a failed switch to pre-operational and does not write again', async () => {
+      await renderEditor({
+        expert: true,
+        setup: (n) => {
+          n.nvmAbort = 0x08000022
+          n.nmtError = 'busy'
+        },
+      })
+      openTab('Online')
+      await press('Restore defaults', /0x1011:1\)/)
+      await retry()
+      expect(screen.getByTestId('canopen-online-tab').textContent).toContain('Pre-operational failed')
+      expect(nvmWrites(0x1011)).toHaveLength(1)
+    })
   })
 })
