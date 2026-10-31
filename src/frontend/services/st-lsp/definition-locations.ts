@@ -19,6 +19,7 @@ import { lspRangeToMonaco } from '../lsp-shared/converters'
 import { lspMirrorUri } from '../lsp-shared/lsp-mirror'
 import type { MappedLocation } from '../lsp-shared/providers'
 import {
+  CANOPEN_NAMES_URI,
   DATA_TYPES_URI,
   GLOBAL_VARIABLE_LISTS_URI,
   parsePouUri,
@@ -31,6 +32,7 @@ const SYNTHESIZED_URIS = new Set([
   RESOURCE_GLOBALS_URI,
   SOFTMOTION_GLOBALS_URI,
   GLOBAL_VARIABLE_LISTS_URI,
+  CANOPEN_NAMES_URI,
 ])
 
 export function mapStDefinitionLocation(loc: LspLocation): MappedLocation {

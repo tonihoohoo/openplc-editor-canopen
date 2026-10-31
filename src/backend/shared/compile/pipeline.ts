@@ -34,8 +34,11 @@ import type {
 import type { StructuredCompileError } from '../../../middleware/shared/ports/types'
 import {
   CANOPEN_CONFIG_VERSION,
+  canopenNameProblems,
   describeCanopenRuntimeMismatch,
   plcCycleUs,
+  projectNamesForCanopen,
+  withCanopenConstants,
 } from '../../../middleware/shared/utils/canopen'
 import { composeRuntimeV4Bundle } from '../../../middleware/shared/utils/library/compose-runtime-v4-bundle'
 import { resolveModbusServerProfile } from '../../../middleware/shared/utils/modbus-server-profile'
@@ -692,7 +695,17 @@ async function runCompilePipelineInner(
     }
     return bailError(emit, 'st', 'Failed to generate Structured Text', stResult.errors)
   }
-  const programSt = stResult.programSt
+  // The CANopen node and network names (and the blocks' object size table) as global constants.
+  const canopenNames = canopenNameProblems(
+    processedData.remoteDevices as never,
+    projectNamesForCanopen(
+      processedData.configuration.resource.globalVariables,
+      processedData.pous.map((p) => p.data.name),
+      processedData.dataTypes ?? [],
+    ),
+  )
+  if (canopenNames.length > 0) return bailError(emit, 'validate', `Compilation aborted: ${canopenNames.join('; ')}`)
+  const programSt = withCanopenConstants(stResult.programSt, processedData)
 
   // ---------------------------------------------------------------------
   // Step 3: Strucpp compile.  Emits generated.cpp/hpp,

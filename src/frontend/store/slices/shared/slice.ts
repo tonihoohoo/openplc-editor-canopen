@@ -2,6 +2,7 @@ import { produce } from 'immer'
 import { StateCreator } from 'zustand'
 
 import type { PLCRemoteDevice } from '../../../../middleware/shared/ports/types'
+import { CANOPEN_LIBRARY_NAME } from '../../../../middleware/shared/utils/canopen'
 import { isValidIecIdentifier, removeModuleAndCompact } from '../../../../middleware/shared/utils/ethercat'
 import { describeAliasRename } from '../../../../middleware/shared/utils/iec-address/normalize-aliases'
 import { findAllReferencesToDataType } from '../../../utils/data-type-references'
@@ -680,9 +681,13 @@ const createSharedSlice: StateCreator<SharedRootState, [], [], SharedSlice> = (s
       const nameCheck = validateElementName(name)
       if (!nameCheck.ok) return nameCheck
 
+      // The project's first CANopen network turns the canopen block library on; nothing else does.
+      const firstCanopen =
+        protocol === 'canopen' && !(state.project.data.remoteDevices ?? []).some((d) => d.protocol === 'canopen')
       const result = state.projectActions.createRemoteDevice({ data: { name, protocol } })
       /* istanbul ignore next -- defensive: shared slice already validates name uniqueness */
       if (!result.ok) return { ok: false, message: result.message }
+      if (firstCanopen) state.libraryActions.enableLibrary(CANOPEN_LIBRARY_NAME)
 
       const editorModel = CreateRemoteDeviceEditor(name, protocol)
       state.editorActions.addModel(editorModel)

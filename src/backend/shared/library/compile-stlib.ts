@@ -30,6 +30,8 @@ export interface CompileStlibOptions {
   /** Mark as a built-in runtime library (strucpp's bundled libs). */
   builtin?: boolean
   globalConstants?: Record<string, number>
+  /** Parsed archives the sources may use. */
+  dependencies?: import('strucpp').StlibArchive[]
 }
 
 export interface CompileStlibError {

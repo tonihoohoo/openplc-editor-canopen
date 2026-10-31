@@ -21,6 +21,11 @@
     {
       "from": "./node_modules/strucpp/libs",
       "to": "./strucpp/libs"
+    },
+    {
+      "from": "./resources/libraries",
+      "to": "./libraries",
+      "filter": ["*.stlib"]
     }
   ],
   "mac": {

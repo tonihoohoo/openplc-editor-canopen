@@ -1,7 +1,12 @@
 /**
  * @jest-environment jsdom
  */
-import type { PLCPou } from '../../../../middleware/shared/ports/types'
+import type { PLCPou, PLCRemoteDevice } from '../../../../middleware/shared/ports/types'
+import {
+  canopenDevice,
+  configWith,
+  genericNode,
+} from '../../../../middleware/shared/utils/canopen/__tests__/fixtures/helpers'
 import type { OpenPLCStore } from '../../../store'
 import type { SystemLibrary } from '../../../store/slices/library/types'
 import { createTestStore } from '../../../store/testing'
@@ -146,6 +151,31 @@ let store: OpenPLCStore
 
 beforeEach(() => {
   store = createTestStore()
+})
+
+describe('attachProjectSync — CANopen names', () => {
+  const setRemoteDevices = (remoteDevices: PLCRemoteDevice[]) =>
+    store.setState((s) => ({ ...s, project: { ...s.project, data: { ...s.project.data, remoteDevices } } }))
+  const namesUri = 'inmemory://canopen/__names__.st'
+
+  it('declares the node and network names and re-sends the POUs when they change', () => {
+    setProjectPous([makeStPou('main', 'r(DEVICE := io2);')])
+    const service = makeStubService()
+    const handle = attachProjectSync(store, service)
+    service.changeDocument.mockClear()
+
+    setRemoteDevices([canopenDevice('line_1', configWith(genericNode(2)))])
+    const opened = service.openDocument.mock.calls.filter(([uri]: [string]) => uri === namesUri)
+    expect(opened[opened.length - 1][1]).toContain('io2 : USINT := 2;')
+    // The POU text is unchanged, but it has to be analysed against the new names.
+    expect(service.changeDocument.mock.calls.map(([uri]: [string]) => uri)).toContain('inmemory://pou/main.st')
+
+    // An edit that leaves the names as they are re-sends nothing.
+    service.changeDocument.mockClear()
+    setRemoteDevices([canopenDevice('line_1', configWith(genericNode(2)))])
+    expect(service.changeDocument).not.toHaveBeenCalled()
+    handle.dispose()
+  })
 })
 
 describe('attachProjectSync — global variable lists', () => {
