@@ -10,9 +10,13 @@ type NetworkSwitchProps = {
   onChange: (on: boolean) => void
 }
 
-/** Turns the whole network on or off; shown in the device editor header so every tab shows it. */
+/** Turns the whole network on or off; right-aligned in the device editor header, the switch at the edge so it stays put. */
 const NetworkSwitch = ({ on, onChange }: NetworkSwitchProps) => (
-  <div className='flex items-center gap-3'>
+  <div className='flex shrink-0 items-center gap-3'>
+    <span className='flex flex-col text-right'>
+      <span className={labelClassName}>Run this network</span>
+      <span className={hintClassName}>{on ? NETWORK_ON_HINT : NETWORK_OFF_HINT}</span>
+    </span>
     <button
       type='button'
       role='switch'
@@ -31,10 +35,6 @@ const NetworkSwitch = ({ on, onChange }: NetworkSwitchProps) => (
         )}
       />
     </button>
-    <span className='flex flex-col'>
-      <span className={labelClassName}>Run this network</span>
-      <span className={hintClassName}>{on ? NETWORK_ON_HINT : NETWORK_OFF_HINT}</span>
-    </span>
   </div>
 )
 
