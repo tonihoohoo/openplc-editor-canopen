@@ -24,6 +24,8 @@ class FakeNode {
     ['8448:0', '00000000'], // 0x2100
     ['4096:0', '91010000'], // 0x1000 = 401, as the EDS
     ['4112:1', '01000000'], // 0x1010:01 saves on command
+    ['4112:2', '00000000'], // 0x1010:02 does not save on command
+    ['4112:3', '02000000'], // 0x1010:03 saves by itself
   ])
   operational = true
   /** Abort code for writes to 0x1010 and 0x1011 while operational, or null to take them. */
@@ -85,6 +87,8 @@ const nvmObject = (index: number, subIndex: number, name: string): CanopenObject
 
 const NVM_OBJECTS: CanopenObject[] = [
   nvmObject(0x1010, 1, 'Save all parameters'),
+  nvmObject(0x1010, 2, 'Save communication parameters'),
+  nvmObject(0x1010, 3, 'Save application parameters'),
   nvmObject(0x1011, 1, 'Restore all default parameters'),
   nvmObject(0x1011, 2, 'Restore communication default parameters'),
 ]
@@ -154,7 +158,23 @@ function openTab(name: string) {
   fireEvent.click(screen.getByRole('tab', { name }))
 }
 
+/** The node's Online tab; the network's Online tab comes first in the page. */
+function openNodeOnline() {
+  const tabs = screen.getAllByRole('tab', { name: 'Online' })
+  const tab = tabs[tabs.length - 1]
+  fireEvent.mouseDown(tab)
+  fireEvent.click(tab)
+}
+
+/** The network's Online tab. */
+function openNetworkOnline() {
+  const tab = screen.getAllByRole('tab', { name: 'Online' })[0]
+  fireEvent.mouseDown(tab)
+  fireEvent.click(tab)
+}
+
 const row = (index: number) => screen.getByTestId(`canopen-online-row-${index}:0`)
+const note = (index: number) => screen.getByTestId(`canopen-online-note-${index}:0`)
 
 describe('CANopen online tools', () => {
   it('has no Online tab for a runtime that lists only the status', async () => {
@@ -165,7 +185,7 @@ describe('CANopen online tools', () => {
 
   it('reads all objects and finds the one that differs from the project, read only in the basic view', async () => {
     await renderEditor()
-    openTab('Online')
+    openNodeOnline()
     expect(screen.queryByRole('button', { name: 'Write' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Reset node' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Read all' }))
@@ -181,57 +201,82 @@ describe('CANopen online tools', () => {
     expect(node.sent.every((r) => r.op === 'sdo_read' || r.op === 'job')).toBe(true)
   })
 
-  it('switches a node to pre-operational to retry a refused write, then keeps it as a startup SDO', async () => {
+  it('keeps reading all objects while another tab is open, until stopped', async () => {
+    await renderEditor()
+    openNodeOnline()
+    fireEvent.click(screen.getByRole('button', { name: 'Read all' }))
+    openTab('Status')
+    await settle()
+    openNodeOnline()
+    await settle()
+    await settle()
+    expect(screen.getByTestId('canopen-online-value-4119:0').textContent).toBe('500')
+    expect(screen.getByTestId('canopen-online-value-8448:0').textContent).toBe('0')
+  })
+
+  it('switches a node to pre-operational to retry a refused write, and leaves the project as it was', async () => {
     await renderEditor({ expert: true })
-    openTab('Online')
+    openNodeOnline()
+    const before = store.getState().project.data.remoteDevices?.[0].canopenConfig?.nodes[0].sdos.length
     const r = row(0x2100)
     fireEvent.change(within(r).getByLabelText('New value for 0x2100:00'), { target: { value: '25' } })
     fireEvent.click(within(r).getByRole('button', { name: 'Write' }))
     await settle()
-    expect(r.textContent).toContain('Write refused')
-    fireEvent.click(within(r).getByRole('button', { name: 'Switch to pre-operational and retry' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Switch and retry' }))
+    expect(note(0x2100).textContent).toContain('Write refused')
+    fireEvent.click(within(note(0x2100)).getByRole('button', { name: 'Switch to pre-operational and retry' }))
+    fireEvent.click(within(note(0x2100)).getByRole('button', { name: 'Switch and retry' }))
     await settle()
     await settle()
     expect(node.sent.some((s) => s.op === 'nmt' && s.command === 'pre_operational' && s.node === 2)).toBe(true)
     expect(screen.getByTestId('canopen-online-value-8448:0').textContent).toBe('25')
-    fireEvent.click(within(r).getByRole('button', { name: 'Add as startup SDO' }))
-    const sdos = store.getState().project.data.remoteDevices?.[0].canopenConfig?.nodes[0].sdos ?? []
-    expect(sdos[sdos.length - 1]).toMatchObject({ index: 0x2100, subIndex: 0, dataType: 'UNSIGNED32', value: '25' })
+    expect(screen.queryByRole('button', { name: 'Add as startup SDO' })).toBeNull()
+    expect(store.getState().project.data.remoteDevices?.[0].canopenConfig?.nodes[0].sdos.length).toBe(before)
   })
 
   it('says a write to an object the master writes lasts until the next boot', async () => {
     await renderEditor({ expert: true })
-    openTab('Online')
+    openNodeOnline()
     const r = row(0x1017)
     fireEvent.change(within(r).getByLabelText('New value for 0x1017:00'), { target: { value: '200' } })
     fireEvent.click(within(r).getByRole('button', { name: 'Write' }))
     await settle()
     await settle()
-    expect(r.textContent).toContain('lasts until the node boots again')
-    expect(within(r).queryByRole('button', { name: 'Add as startup SDO' })).toBeNull()
+    expect(note(0x1017).textContent).toContain('lasts until the node boots again')
   })
 
-  it('asks before a reset and before an NMT command to every node', async () => {
+  it('asks before a reset, in the card, and before an NMT command to every node', async () => {
     await renderEditor({ expert: true })
-    openTab('Online')
-    fireEvent.click(screen.getByRole('button', { name: 'Reset node' }))
+    openNodeOnline()
+    const card = screen.getByTestId('canopen-online-nmt')
+    fireEvent.click(within(card).getByRole('button', { name: 'Reset node' }))
     expect(node.sent.some((s) => s.op === 'nmt')).toBe(false)
-    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Reset node' }))
+    fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Reset node' }))
     await settle()
     expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'reset_node' })
+    expect(card.textContent).toContain('Reset node sent.')
 
-    openTab('Network')
-    const card = screen.getByTestId('canopen-network-nmt')
-    fireEvent.click(within(card).getByRole('button', { name: 'Stop' }))
-    fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Stop' }))
+    openNetworkOnline()
+    const all = screen.getByTestId('canopen-network-nmt')
+    fireEvent.click(within(all).getByRole('button', { name: 'Stop' }))
+    fireEvent.click(within(within(all).getByRole('alertdialog')).getByRole('button', { name: 'Stop' }))
     await settle()
     expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 0, command: 'stop' })
+    expect(all.textContent).toContain('Stop sent to every node.')
   })
 
-  it('refuses raw writes to 0x1010 and points to Save to node', async () => {
+  it('lists the nodes with their states on the network Online tab', async () => {
+    await renderEditor()
+    openNetworkOnline()
+    const list = screen.getByRole('list', { name: 'CANopen nodes online' })
+    expect(list.textContent).toContain('Node 2')
+    expect(list.textContent).toContain('NMT:')
+    expect(screen.queryByTestId('canopen-network-nmt')).toBeNull()
+  })
+
+  it('reads any object from the toolbar and refuses raw writes to 0x1010', async () => {
     await renderEditor({ expert: true })
-    openTab('Online')
+    openNodeOnline()
+    fireEvent.click(screen.getByRole('button', { name: 'Any object…' }))
     const raw = screen.getByTestId('canopen-online-raw')
     fireEvent.change(within(raw).getByLabelText('Index (hex)'), { target: { value: '1010' } })
     fireEvent.change(within(raw).getByLabelText('Sub-index'), { target: { value: '1' } })
@@ -239,6 +284,18 @@ describe('CANopen online tools', () => {
     fireEvent.click(within(raw).getByRole('button', { name: 'Write' }))
     expect(raw.textContent).toContain('Use Save to node')
     expect(node.sent.some((s) => s.op === 'sdo_write')).toBe(false)
+  })
+
+  it('reads any object in the basic view too, without a write', async () => {
+    await renderEditor()
+    openNodeOnline()
+    fireEvent.click(screen.getByRole('button', { name: 'Any object…' }))
+    const raw = screen.getByTestId('canopen-online-raw')
+    expect(within(raw).queryByRole('button', { name: 'Write' })).toBeNull()
+    fireEvent.change(within(raw).getByLabelText('Index (hex)'), { target: { value: '1017' } })
+    fireEvent.click(within(raw).getByRole('button', { name: 'Read' }))
+    await settle()
+    expect(raw.textContent).toContain('0x1017:00')
   })
 
   it('opens the bus in service mode while the PLC is stopped', async () => {
@@ -254,32 +311,47 @@ describe('CANopen online tools', () => {
     expect(screen.queryByRole('tab', { name: 'Online' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Open bus' })).toBeNull()
   })
-  describe('node memory refused in the present state', () => {
+
+  describe('node memory', () => {
     const nvmCard = () => screen.getByTestId('canopen-online-nvm')
     const nvmWrites = (index: number) => node.sent.filter((s) => s.op === 'sdo_write' && s.index === index)
-    const press = async (label: string, scope: RegExp) => {
+    const press = async (label: 'Save to node' | 'Restore defaults', subIndex: number) => {
       const card = nvmCard()
-      const rowLabel = within(card).getByText(scope)
-      const buttons = Array.from(rowLabel.parentElement?.querySelectorAll('button') ?? [])
-      const target = buttons.find((b) => b.textContent === label)
-      expect(target).toBeTruthy()
-      if (target) fireEvent.click(target)
-      fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: label }))
+      const select = within(card).getByLabelText(label === 'Save to node' ? 'Scope to save' : 'Scope to restore')
+      fireEvent.change(select, { target: { value: String(subIndex) } })
+      fireEvent.click(within(card).getByRole('button', { name: label }))
+      fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: label }))
       await settle()
       await settle()
     }
     const retry = async () => {
       fireEvent.click(within(nvmCard()).getByRole('button', { name: 'Switch to pre-operational and retry' }))
-      fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Switch and retry' }))
+      fireEvent.click(
+        within(within(nvmCard()).getByRole('alertdialog')).getByRole('button', { name: 'Switch and retry' }),
+      )
       await settle()
       await settle()
     }
 
-    it('switches to pre-operational, restores again and offers the reset', async () => {
+    it('lists only the save scopes the node saves on command, and one the node saves by itself', async () => {
+      await renderEditor({ expert: true })
+      openNodeOnline()
+      await settle()
+      const options = within(within(nvmCard()).getByLabelText('Scope to save'))
+        .getAllByRole('option')
+        .map((o) => o.textContent)
+      expect(options).toEqual(['Save all parameters', 'Save application parameters (saves automatically)'])
+      const restores = within(within(nvmCard()).getByLabelText('Scope to restore'))
+        .getAllByRole('option')
+        .map((o) => o.textContent)
+      expect(restores).toEqual(['Restore all default parameters', 'Restore communication default parameters'])
+    })
+
+    it('switches to pre-operational, restores again and offers the reset, in the card', async () => {
       await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x08000022) })
-      openTab('Online')
-      await press('Restore defaults', /0x1011:1\)/)
-      expect(screen.getByTestId('canopen-online-tab').textContent).toContain('Restore failed')
+      openNodeOnline()
+      await press('Restore defaults', 1)
+      expect(nvmCard().textContent).toContain('Restore failed')
       await retry()
       expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'pre_operational' })
       const writes = nvmWrites(0x1011)
@@ -288,15 +360,13 @@ describe('CANopen online tools', () => {
       const offer = screen.getByTestId('canopen-online-nvm-offer')
       expect(within(offer).getByRole('button', { name: 'Reset node' })).toBeTruthy()
       fireEvent.click(within(offer).getByRole('button', { name: 'Not now' }))
-      expect(screen.getByTestId('canopen-online-tab').textContent).toContain(
-        'The node stays in pre-operational until it is started or reset.',
-      )
+      expect(nvmCard().textContent).toContain('The node stays in pre-operational until it is started or reset.')
     })
 
     it('offers reset communication after a retried communication restore', async () => {
       await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x08000022) })
-      openTab('Online')
-      await press('Restore defaults', /0x1011:2\)/)
+      openNodeOnline()
+      await press('Restore defaults', 2)
       await retry()
       const offer = screen.getByTestId('canopen-online-nvm-offer')
       fireEvent.click(within(offer).getByRole('button', { name: 'Reset communication' }))
@@ -306,11 +376,12 @@ describe('CANopen online tools', () => {
 
     it('saves again in pre-operational and offers to start the node', async () => {
       await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x08000022) })
-      openTab('Online')
-      await press('Save to node', /0x1010:1\)/)
+      openNodeOnline()
+      await settle()
+      await press('Save to node', 1)
       await retry()
       expect(nvmWrites(0x1010)[1]).toMatchObject({ subindex: 1, data: SAVE })
-      expect(screen.getByTestId('canopen-online-tab').textContent).toContain('The node is in pre-operational.')
+      expect(nvmCard().textContent).toContain('The node is in pre-operational.')
       fireEvent.click(within(screen.getByTestId('canopen-online-nvm-offer')).getByRole('button', { name: 'Start' }))
       await settle()
       expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'start' })
@@ -324,19 +395,19 @@ describe('CANopen online tools', () => {
           n.nvmAlwaysRefused = true
         },
       })
-      openTab('Online')
-      await press('Restore defaults', /0x1011:1\)/)
+      openNodeOnline()
+      await press('Restore defaults', 1)
       await retry()
       expect(nvmWrites(0x1011)).toHaveLength(2)
       expect(screen.queryByTestId('canopen-online-nvm-offer')).toBeNull()
-      expect(screen.getByTestId('canopen-online-tab').textContent).toContain('The node is in pre-operational.')
+      expect(nvmCard().textContent).toContain('The node is in pre-operational.')
     })
 
     it('offers no retry for another abort', async () => {
       await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x06010002) })
-      openTab('Online')
-      await press('Restore defaults', /0x1011:1\)/)
-      expect(screen.getByTestId('canopen-online-tab').textContent).toContain('Restore failed')
+      openNodeOnline()
+      await press('Restore defaults', 1)
+      expect(nvmCard().textContent).toContain('Restore failed')
       expect(screen.queryByTestId('canopen-online-nvm-offer')).toBeNull()
     })
 
@@ -348,10 +419,10 @@ describe('CANopen online tools', () => {
           n.nmtError = 'busy'
         },
       })
-      openTab('Online')
-      await press('Restore defaults', /0x1011:1\)/)
+      openNodeOnline()
+      await press('Restore defaults', 1)
       await retry()
-      expect(screen.getByTestId('canopen-online-tab').textContent).toContain('Pre-operational failed')
+      expect(nvmCard().textContent).toContain('Pre-operational failed')
       expect(nvmWrites(0x1011)).toHaveLength(1)
     })
   })

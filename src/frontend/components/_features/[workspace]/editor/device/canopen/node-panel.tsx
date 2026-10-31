@@ -1,6 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { useCanopenExpertView } from '@root/frontend/hooks/use-canopen-expert-view'
 import type { CanopenOnlineContext } from '@root/frontend/hooks/use-canopen-online'
+import type { CanopenOnlineReads } from '@root/frontend/hooks/use-canopen-online-reads'
 import type { CanopenLiveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { cn } from '@root/frontend/utils/cn'
 import type {
@@ -172,6 +173,8 @@ type NodePanelProps = {
   live: CanopenLiveStatus | null
   /** The online tools; null hides the Online tab. */
   online: CanopenOnlineContext | null
+  /** Values read from the nodes, kept across tabs and nodes. */
+  reads: CanopenOnlineReads
   network: CanopenNetworkSettings
   onChange: (update: (node: CanopenNode) => CanopenNode) => void
   onNodeIdChange: (nodeId: number) => void
@@ -209,6 +212,7 @@ const NodePanel = ({
   sdoWarnings,
   live,
   online,
+  reads,
   network,
   onChange,
   onNodeIdChange,
@@ -723,10 +727,9 @@ const NodePanel = ({
               node={node}
               network={network}
               online={online}
+              reads={reads}
+              status={live?.network?.nodes.find((n) => n.node_id === node.nodeId)}
               expert={expert}
-              onAddStartupSdo={(index, subIndex, dataType, value) =>
-                onChange((n) => ({ ...n, sdos: [...n.sdos, { id: uuidv4(), index, subIndex, dataType, value }] }))
-              }
             />
           </Tabs.Content>
         ) : null}
