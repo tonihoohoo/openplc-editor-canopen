@@ -32,6 +32,7 @@ import type {
   PLCRemoteDevice,
   PLCVariable,
 } from '../../../middleware/shared/ports/types'
+import { serializeCanopenConstantsToST } from '../../../middleware/shared/utils/canopen'
 import { serializeSoftMotionAxisGlobalsToST } from '../../../middleware/shared/utils/ethercat'
 import type { OpenPLCStore } from '../../store'
 import { serializeDataTypesToST } from '../../utils/PLC/data-type-serializer'
@@ -45,6 +46,7 @@ import { serializePouSignatureToSTWithBodyOffset } from '../../utils/PLC/pou-sig
 import { serializeResourceGlobalsToST } from '../../utils/PLC/resource-globals-serializer'
 import { deleteBodyLineOffset, setBodyLineOffset } from '../lsp-shared/body-offsets'
 import {
+  CANOPEN_NAMES_URI,
   DATA_TYPES_URI,
   GLOBAL_VARIABLE_LISTS_URI,
   pouUri,
@@ -212,6 +214,7 @@ export function attachProjectSync(store: OpenPLCStore, service: StLspService): P
 
   function reconcileSoftMotionGlobals(remoteDevices: PLCRemoteDevice[] | undefined): void {
     reconcileSyntheticDoc(SOFTMOTION_GLOBALS_URI, serializeSoftMotionAxisGlobalsToST({ remoteDevices } as never))
+    reconcileSyntheticDoc(CANOPEN_NAMES_URI, serializeCanopenConstantsToST(remoteDevices, false))
   }
 
   function reconcile(pous: PLCPou[]): void {
@@ -227,6 +230,7 @@ export function attachProjectSync(store: OpenPLCStore, service: StLspService): P
     seenUris.add(DATA_TYPES_URI)
     seenUris.add(RESOURCE_GLOBALS_URI)
     seenUris.add(SOFTMOTION_GLOBALS_URI)
+    seenUris.add(CANOPEN_NAMES_URI)
     seenUris.add(GLOBAL_VARIABLE_LISTS_URI)
 
     for (const pou of pous) {

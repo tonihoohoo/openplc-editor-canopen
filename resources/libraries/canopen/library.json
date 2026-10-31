@@ -1,0 +1,14 @@
+{
+  "name": "canopen",
+  "version": "1.0.0",
+  "displayName": "CANopen (CiA 405)",
+  "description": "CiA 405 function blocks for the CANopen networks of the project: SDO read and write, NMT, node and bus state, emergency messages. Address a node by its name or node ID. Needs OpenPLC Runtime v4 with the canopen plugin.",
+  "documentation": {
+    "CANOPEN_DWORD_TO_REAL": "The REAL whose IEEE 754 bits are IN, every bit kept, for a REAL32 object read with SDO_READ4. Example: speed := CANOPEN_DWORD_TO_REAL(read.DATA);",
+    "CANOPEN_REAL_TO_DWORD": "The IEEE 754 bits of IN as a DWORD, every bit kept, for a REAL32 object written with SDO_WRITE4. Example: write(DATA := CANOPEN_REAL_TO_DWORD(1.5), DATALENGTH := 4, ...);",
+    "CANOPEN_KERNEL_ERROR": "The ERROR of the blocks (USINT): CANOPEN_KERNEL_NO_ERROR, _OTHER_ERROR (the node aborted, see ERRORINFO), _TIMEOUT, _BUS_OFF, _ERROR_PASSIVE, _INTERNAL, _WRONG_PARAMETER, _NODE_ID_UNKNOWN, _NET_ID_UNKNOWN, _REQUEST_ERROR, _NO_DRIVER.",
+    "DEVICE_STATE": "The STATE of GET_STATE (USINT): INIT, RESET_COMM, RESET_APP, PRE_OPERATIONAL, STOPPED, OPERATIONAL, UNKNOWN, NOT_AVAIL.",
+    "TRANSITION_STATE": "The STATE of NMT (USINT): START_REMOTE_NODE, STOP_REMOTE_NODE, ENTER_PRE_OPERATIONAL, RESET_NODE, RESET_COMMUNICATION.",
+    "EMCY_ERROR": "One emergency message: ERRORCODE, ERRORREGISTER and the five MANUFACTURERERROR bytes."
+  }
+}

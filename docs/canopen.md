@@ -184,6 +184,52 @@ editor opened.
   **Close bus** closes it, and so does closing the device editor; the runtime closes it before the
   PLC starts and after 5 minutes without a request.
 
+## PLC function blocks
+
+The editor ships the **canopen** library ("CANopen (CiA 405)") with CiA 405 function blocks for the
+project's CANopen networks. The project's first CANopen network turns it on; it can be turned off and
+on in the project's libraries like any other. The blocks are C++ blocks that run inside the program and
+hand each request to the runtime's canopen plugin, so a call never waits for the bus.
+
+| Block                                    | What it does                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| `SDO_READ4`, `SDO_WRITE4`                | Read or write an object of 1 to 4 bytes (`DATA : DWORD`)           |
+| `SDO_READ_DATA`, `SDO_WRITE_DATA`        | Read or write up to 256 bytes (`DATA : ARRAY[0..255] OF BYTE`)     |
+| `SDO_READ_STRING`, `SDO_WRITE_STRING`    | Read or write a text object of up to 254 characters                |
+| `NMT`                                    | Send an NMT command to a node, or with `DEVICE := 0` to every node |
+| `GET_STATE`                              | A node's NMT state as the master sees it                           |
+| `GET_LOCAL_NODE_ID`                      | The master's node ID                                               |
+| `GET_CANOPEN_KERNEL_STATE`               | The bus state (no error, error passive, bus off, no driver)        |
+| `RECV_EMCY`, `RECV_EMCY_DEV`             | Emergency messages of the network, or of one node, oldest first    |
+
+- **Addressing.** `NETWORK` counts the networks that are on from 1 (default 1) and `DEVICE` is the node
+  ID. Each network and node name is also a constant of the program, so `DEVICE := io2` and
+  `NETWORK := line_1` work. A name must be an identifier, unique across the networks (case does not
+  matter) and must not be a name of the project or of the library; the node page lists a clash and
+  the build refuses it.
+- **Handshake.** A rising edge of `ENABLE` starts a request. `BUSY` is TRUE until it ends, then
+  `CONFIRM` or `ERROR` stays until `ENABLE` goes FALSE. `TIMEOUT := T#0s` uses the network's SDO
+  timeout. The state blocks answer in the same call while `ENABLE` is TRUE. Instances are independent,
+  so one block type can be used many times with different names.
+- **Errors.** `ERROR` is a `CANOPEN_KERNEL_*` constant; `ERRORINFO` holds the SDO abort code when the
+  node refused (`CANOPEN_KERNEL_OTHER_ERROR`) and `ERRORTEXT` says the same in words with the network,
+  node and object. A runtime without the canopen plugin, or one too old, gives
+  `CANOPEN_KERNEL_NO_DRIVER`.
+- **Types.** STruC++ does not export a library's enumerations, so the CiA 405 enumerations are `USINT`
+  types (`CANOPEN_KERNEL_ERROR`, `DEVICE_STATE`, `TRANSITION_STATE`) with their values as constants
+  (`STOPPED`, `START_REMOTE_NODE`, ...). `CANOPEN_DWORD_TO_REAL` and `CANOPEN_REAL_TO_DWORD` keep every
+  bit for REAL32 objects.
+- **PLC stop and start.** A request in progress when the PLC stops is cancelled; after a start the
+  blocks begin again from idle. `SDO_WRITE4` with `DATALENGTH := 0` takes the object's size from the
+  node's EDS.
+
+The library's sources are in `resources/libraries/canopen/` (`library.json`, `src/types.st`,
+`src/shared.inc`) and the block templates in `src/backend/shared/canopen/library-blocks.ts`;
+`npm run build:canopen-lib` writes `resources/libraries/canopen/blocks/` and
+`resources/libraries/canopen.stlib`, and a unit test fails while they are stale. The names, the
+constants and the EDS size table come from `src/middleware/shared/utils/canopen/plc-names.ts` and are
+appended to the program at build time.
+
 ## Installing a release and the runtime check
 
 This fork's releases are on its GitHub Releases page (`v<upstream version>-canopen.<N>`); installing one
@@ -251,5 +297,13 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
   of it;
   `e2e/canopen-online.spec.ts` reads a node in the Online tab against a fake runtime with a
   simulated node and retries a refused write after switching the node to pre-operational.
+  `e2e/canopen-plc-blocks.spec.ts` adds a network in the app, checks that the block library turns
+  on, and builds a program that calls a node by name.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
-  against a simulated node on a virtual CAN bus.
+  against a simulated node on a virtual CAN bus, and runs `e2e/fixtures/canopen-plc-blocks/`, a
+  program that calls every block, against the same node across PLC stops and starts.
+- PLC blocks: the names and constants in
+  `src/middleware/shared/utils/canopen/__tests__/plc-names.test.ts`, the library build in
+  `src/backend/shared/canopen/__tests__/build-library.test.ts` (it also fails while the committed
+  archive is stale), the shipped libraries in the library manager's tests and the auto-enable in
+  `src/frontend/store/__tests__/shared-slice.test.ts`.
