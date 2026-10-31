@@ -10,6 +10,8 @@ import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 
 import { launch, PROJECT_NAME, quitApp, writeEthercatProject } from './helpers/ethercat-project'
+import { windowSize } from './helpers/canopen-project'
+import { shot } from './helpers/canopen-shots'
 
 const EDS = join(
   __dirname,
@@ -33,7 +35,7 @@ test('the device editor tabs fit a short window', async () => {
   test.setTimeout(120000)
   const { userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-network-tab'), '', STATION)
   const { app, page } = await launch(userData)
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1280, 640)))
+  await windowSize(app, 1280, 640)
   try {
     await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
     await page.getByText('canopen_1', { exact: true }).first().click({ timeout: 30000 })
@@ -53,6 +55,7 @@ test('the device editor tabs fit a short window', async () => {
     const sync = page.getByRole('heading', { name: 'SYNC', exact: true })
     await sync.scrollIntoViewIfNeeded()
     await expect(sync).toBeInViewport()
+    await shot(page, 'network-tab-short-window')
   } finally {
     await quitApp(app, page)
   }
