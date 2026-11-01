@@ -115,8 +115,8 @@ const CheckList = ({ checks, onFix, onFixAll, onShow, on }: CheckListProps) => {
       className={cn(
         'mb-4 shrink-0 rounded-md border px-3 py-2 text-xs',
         errors > 0
-          ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-          : 'border-neutral-200 bg-neutral-50 text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300',
+          ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300'
+          : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
       )}
     >
       <div className='mb-1 flex items-center justify-between gap-4'>
@@ -372,7 +372,7 @@ const CanopenEditor = () => {
       {problems.length > 0 ? (
         <div
           role='status'
-          className='mb-4 shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+          className='mb-4 shrink-0 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300'
         >
           <p className='font-medium'>
             {on ? 'The build stops until these are fixed:' : 'Fix these before turning the network on:'}
@@ -455,11 +455,11 @@ const CanopenEditor = () => {
               onAliasChange={(entry, alias) => changeAlias(selected, entry, alias)}
             />
           ) : (
-            <div className='flex flex-1 flex-col items-center justify-center gap-2 self-stretch text-center'>
-              <p className='text-sm font-medium text-neutral-700 dark:text-neutral-300'>No nodes yet</p>
-              <p className={cn(hintClassName, 'max-w-[360px]')}>
-                Add a node from the EDS file its manufacturer provides. Its PDOs are mapped to PLC inputs and outputs
-                from the file&apos;s defaults, and you can change them afterwards.
+            <div className='flex min-w-0 flex-1 flex-col gap-1 pt-2' data-testid='canopen-no-nodes'>
+              <h3 className='text-sm font-semibold text-neutral-1000 dark:text-neutral-100'>No nodes yet</h3>
+              <p className={cn(hintClassName, 'max-w-[480px]')}>
+                Add the first node with Add node from EDS or DCF..., using the file its manufacturer provides. Its PDOs
+                are mapped to PLC inputs and outputs from the file&apos;s defaults, and you can change them afterwards.
               </p>
             </div>
           )}

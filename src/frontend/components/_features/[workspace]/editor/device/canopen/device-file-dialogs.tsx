@@ -238,6 +238,10 @@ export const DeviceFileDialog = ({
         onClose={onCancel}
         className='!inset-x-0 !bottom-auto !top-[7vh] !h-[min(86vh,640px)] max-h-[86vh] w-[640px] p-6 pb-0'
         data-testid='canopen-file-dialog'
+        onOpenAutoFocus={(e) => {
+          e.preventDefault()
+          if (e.currentTarget instanceof HTMLElement) e.currentTarget.focus()
+        }}
       >
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
         <p className='text-xs text-neutral-600 dark:text-neutral-400'>
