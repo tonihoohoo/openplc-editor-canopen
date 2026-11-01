@@ -122,7 +122,12 @@ describe('CanopenEditor', () => {
     expect(node?.tpdos[0].entries.every((e) => e.iecLocation.startsWith('%I'))).toBe(true)
     expect(screen.getByText('Node 1: Generic_I_O_module')).toBeTruthy()
     expect(screen.queryByRole('status')).toBeNull()
-    expect(toastTitles()).toContain('Added node 1')
+    expect(toastTitles()).toEqual([])
+  })
+
+  it('opens the add dialog with the focus on its Add node button', async () => {
+    await chooseFile(GENERIC_IO_EDS, 'generic-io-module.eds')
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('canopen-file-dialog-confirm')))
   })
 
   it('reports an unreadable file and adds nothing', async () => {
@@ -452,6 +457,9 @@ describe('CanopenEditor', () => {
     fireEvent.change(timeout, { target: { value: '250' } })
     fireEvent.blur(timeout)
     expect(card.textContent).toContain('The PDO is sent only when an input changes')
+    expect(screen.getByTestId('canopen-receive-timeout-warning-1').textContent).toMatch(
+      /^Receive timeout: The PDO is sent only when an input changes/,
+    )
     const checks = screen.getByRole('status', { name: 'Network checks' })
     expect(checks.textContent).toContain('TPDO 1: has a receive timeout')
     expect(checks.textContent).toMatch(/^1 warning[^s]/)

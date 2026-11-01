@@ -139,7 +139,7 @@ const ConsumerRow = ({ consumer, others, disabledReason, onChange, onRemove }: C
       <button
         type='button'
         aria-label={`Stop watching node ${consumer.producerNodeId}`}
-        className={cn(iconButtonClassName, 'mt-6')}
+        className={cn(iconButtonClassName, 'mt-5 flex h-[30px] items-center px-2 text-xs')}
         disabled={Boolean(disabledReason)}
         title={disabledReason ?? undefined}
         onClick={onRemove}

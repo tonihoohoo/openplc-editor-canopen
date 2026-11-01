@@ -20,7 +20,7 @@ import {
   replaceDeviceFile,
   uniqueNodeName,
 } from '@root/middleware/shared/utils/canopen'
-import { Fragment, type ReactNode, useMemo, useState } from 'react'
+import { Fragment, type ReactNode, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import {
@@ -299,6 +299,7 @@ export const DeviceFileDialog = ({
         ? `Cannot add a node from ${prepared.fileName}`
         : `Add node from ${prepared.fileName}`
   const confirmLabel = request.kind === 'replace' ? 'Replace' : preview ? `Add node ${preview.node.nodeId}` : 'Add node'
+  const confirmRef = useRef<HTMLButtonElement>(null)
 
   return (
     <Modal open onOpenChange={(open) => (open ? undefined : onCancel())}>
@@ -308,7 +309,9 @@ export const DeviceFileDialog = ({
         data-testid='canopen-file-dialog'
         onOpenAutoFocus={(e) => {
           e.preventDefault()
-          if (e.currentTarget instanceof HTMLElement) e.currentTarget.focus()
+          const confirm = confirmRef.current
+          if (confirm && !confirm.disabled) confirm.focus()
+          else if (e.currentTarget instanceof HTMLElement) e.currentTarget.focus()
         }}
       >
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
@@ -387,6 +390,7 @@ export const DeviceFileDialog = ({
             <button
               type='button'
               className={primaryButtonClassName}
+              ref={confirmRef}
               data-testid='canopen-file-dialog-confirm'
               disabled={!preview}
               onClick={() => {

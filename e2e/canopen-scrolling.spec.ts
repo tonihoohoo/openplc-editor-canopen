@@ -65,6 +65,11 @@ test('the CANopen editor scrolls as one area with the tab bar and node list in v
       }).length
     })
     expect(visibleRows).toBeGreaterThanOrEqual(10)
+    // A 600 px wheel lands on 584 or 600; pin the offset so the key view is stable.
+    await editor.evaluate((el) => {
+      el.scrollTop = 584
+    })
+    await expect.poll(() => editor.evaluate((el) => el.scrollTop)).toBe(584)
     await keyView(page, 'scrolled-online')
 
     await wheel(page, editor, 20000)
