@@ -255,14 +255,6 @@ export function predefinedCobId(direction: PdoDirection, number: number, nodeId:
   return (direction === 'input' ? 0x180 : 0x200) + 0x100 * (number - 1) + nodeId
 }
 
-/** Rewrites the node ID part of a predefined COB-ID when the node ID changes. */
-export function moveCobId(cobId: number, oldNodeId: number, newNodeId: number, direction: PdoDirection): number {
-  for (let number = 1; number <= 4; number++) {
-    if (cobId === predefinedCobId(direction, number, oldNodeId)) return predefinedCobId(direction, number, newNodeId)
-  }
-  return cobId
-}
-
 function defaultInt(eds: CanopenEdsInfo, index: number, subIndex: number, nodeId: number): number | null {
   const text = findObject(eds, index, subIndex)?.defaultValue
   return text === undefined ? null : parseEdsInteger(text, nodeId)
@@ -290,7 +282,64 @@ export function entryFor(
   }
 }
 
-/** The PDOs the EDS defines in one direction, with their default COB-IDs and mappings. */
+/** PDO numbers the EDS defines in one direction (those with a communication parameter sub 1), ascending. */
+export function edsPdoNumbers(eds: CanopenEdsInfo, direction: PdoDirection): number[] {
+  const out: number[] = []
+  for (let number = 1; number <= 512; number++)
+    if (findObject(eds, pdoObjectIndices(direction, number).comm, 1)) out.push(number)
+  return out
+}
+
+/** Whether the EDS default of this PDO's COB-ID is valid (bit 31 clear and not 0). */
+function edsPdoValid(eds: CanopenEdsInfo, direction: PdoDirection, number: number, nodeId: number): boolean {
+  const raw = defaultInt(eds, pdoObjectIndices(direction, number).comm, 1, nodeId)
+  if (raw === null) return predefinedCobId(direction, number, nodeId) !== 0
+  return (raw & 0x80000000) === 0 && (raw & 0x7ff) !== 0
+}
+
+/**
+ * PDO `number` with the EDS defaults: COB-ID (0 when the file gives none outside the predefined
+ * set), transmission settings and default mapping; entries get addresses when `allocate` is given.
+ */
+export function edsPdo(
+  eds: CanopenEdsInfo,
+  direction: PdoDirection,
+  number: number,
+  nodeId: number,
+  newId: () => string,
+  allocate?: AllocateAddress,
+): CanopenPdo {
+  const { comm, map } = pdoObjectIndices(direction, number)
+  const rawCob = defaultInt(eds, comm, 1, nodeId)
+  const predefined = predefinedCobId(direction, number, nodeId)
+  const fileCob = rawCob === null ? 0 : rawCob & 0x7ff
+  const cobId = fileCob === 0 ? predefined : fileCob
+  const fixedMapping = isReadOnly(findObject(eds, map, 0)) || isReadOnly(findObject(eds, map, 1))
+  const pdo: CanopenPdo = {
+    number,
+    cobId,
+    followsNodeId: predefined !== 0 && cobId === predefined,
+    exchanged: true,
+    fixedMapping,
+    transmissionType: supportedTransmissionType(defaultInt(eds, comm, 2, nodeId) ?? 255),
+    eventTimerMs: direction === 'input' ? (defaultInt(eds, comm, 5, nodeId) ?? 0) : 0,
+    inhibitTime: direction === 'input' ? (defaultInt(eds, comm, 3, nodeId) ?? 0) : 0,
+    receiveTimeoutMs: 0,
+    entries: [],
+  }
+  const count = defaultInt(eds, map, 0, nodeId) ?? 0
+  for (let k = 1; k <= count; k++) {
+    const value = defaultInt(eds, map, k, nodeId)
+    if (value === null) continue
+    const object = findObject(eds, (value >>> 16) & 0xffff, (value >>> 8) & 0xff)
+    const type = object ? toCanopenDataType(object.dataType) : undefined
+    if (!object || !type) continue
+    pdo.entries.push(entryFor(object, type, direction, newId(), allocate))
+  }
+  return pdo
+}
+
+/** The PDOs a new node uses in one direction: those the EDS makes valid by default and that map an entry. */
 export function defaultPdos(
   eds: CanopenEdsInfo,
   direction: PdoDirection,
@@ -298,43 +347,93 @@ export function defaultPdos(
   newId: () => string,
   allocate: AllocateAddress,
 ): CanopenPdo[] {
-  const pdos: CanopenPdo[] = []
-  for (let number = 1; number <= 512; number++) {
-    const { comm, map } = pdoObjectIndices(direction, number)
-    if (!findObject(eds, comm, 1)) continue
-    const rawCob = defaultInt(eds, comm, 1, nodeId)
-    const predefined = predefinedCobId(direction, number, nodeId)
-    let cobId = rawCob === null ? predefined : rawCob & 0x7ff
-    let enabled = rawCob === null ? predefined !== 0 : (rawCob & 0x80000000) === 0
-    if (cobId === 0) {
-      cobId = predefined
-      enabled = false
-    }
-    const fixedMapping = isReadOnly(findObject(eds, map, 0)) || isReadOnly(findObject(eds, map, 1))
-    const pdo: CanopenPdo = {
-      number,
-      cobId,
-      enabled,
-      fixedMapping,
-      transmissionType: supportedTransmissionType(defaultInt(eds, comm, 2, nodeId) ?? 255),
-      eventTimerMs: direction === 'input' ? (defaultInt(eds, comm, 5, nodeId) ?? 0) : 0,
-      inhibitTime: direction === 'input' ? (defaultInt(eds, comm, 3, nodeId) ?? 0) : 0,
-      receiveTimeoutMs: 0,
-      entries: [],
-    }
-    const count = defaultInt(eds, map, 0, nodeId) ?? 0
-    for (let k = 1; k <= count; k++) {
-      const value = defaultInt(eds, map, k, nodeId)
-      if (value === null) continue
-      const object = findObject(eds, (value >>> 16) & 0xffff, (value >>> 8) & 0xff)
-      const type = object ? toCanopenDataType(object.dataType) : undefined
-      if (!object || !type) continue
-      pdo.entries.push(entryFor(object, type, direction, newId(), enabled ? allocate : undefined))
-    }
-    if (pdo.entries.length === 0 && !fixedMapping) pdo.enabled = false
-    pdos.push(pdo)
-  }
-  return pdos
+  return edsPdoNumbers(eds, direction)
+    .filter((number) => edsPdoValid(eds, direction, number, nodeId))
+    .map((number) => edsPdo(eds, direction, number, nodeId, newId, allocate))
+    .filter((pdo) => pdo.entries.length > 0)
+}
+
+/** PDO numbers of the EDS that the node does not use yet, ascending. */
+export function addablePdoNumbers(node: CanopenNode, direction: PdoDirection): number[] {
+  const used = new Set((direction === 'input' ? node.tpdos : node.rpdos).map((p) => p.number))
+  return edsPdoNumbers(node.eds, direction).filter((n) => !used.has(n))
+}
+
+/**
+ * PDOs the EDS makes valid by default that the node does not use and whose COB-ID the master
+ * cannot switch off; the device keeps sending or expecting them.
+ */
+export function unswitchablePdoNumbers(node: CanopenNode, direction: PdoDirection): number[] {
+  if (!node.configure) return []
+  return addablePdoNumbers(node, direction).filter((number) => {
+    const object = findObject(node.eds, pdoObjectIndices(direction, number).comm, 1)
+    return edsPdoValid(node.eds, direction, number, node.nodeId) && (object === undefined || !masterMayWrite(object))
+  })
+}
+
+/** The node's PDO list in one direction with `pdos` in it, ordered by PDO number. */
+export function withPdos(node: CanopenNode, direction: PdoDirection, pdos: CanopenPdo[]): CanopenNode {
+  const sorted = [...pdos].sort((a, b) => a.number - b.number)
+  return direction === 'input' ? { ...node, tpdos: sorted } : { ...node, rpdos: sorted }
+}
+
+/** The node without PDO `number`. */
+export function removePdo(node: CanopenNode, direction: PdoDirection, number: number): CanopenNode {
+  const list = direction === 'input' ? node.tpdos : node.rpdos
+  return withPdos(
+    node,
+    direction,
+    list.filter((p) => p.number !== number),
+  )
+}
+
+/** The COB-ID of `pdo` shown as node ID plus a base, or null when it does not follow the node ID. */
+export function cobIdBase(pdo: CanopenPdo, nodeId: number): number | null {
+  return pdo.followsNodeId ? pdo.cobId - nodeId : null
+}
+
+/** Why `entry` cannot move to `target`, or null when it can. */
+export function cannotMoveEntry(target: CanopenPdo, entry: CanopenEntry): string | null {
+  if (target.fixedMapping) return 'The EDS fixes the mapping of this PDO.'
+  if (pdoBits(target) + canopenTypeBits(entry.dataType) > MAX_PDO_BITS)
+    return `A PDO carries at most ${MAX_PDO_BITS / 8} bytes; this entry does not fit.`
+  return null
+}
+
+/**
+ * The node with entry `channelId` moved from PDO `from` to the end of PDO `to`, keeping its address
+ * and alias; unchanged when the move is not allowed. Moving to or from a PDO the master does not
+ * exchange gives up or takes an address.
+ */
+export function moveEntryToPdo(
+  node: CanopenNode,
+  direction: PdoDirection,
+  from: number,
+  to: number,
+  channelId: string,
+  allocate: AllocateAddress,
+): CanopenNode {
+  const list = direction === 'input' ? node.tpdos : node.rpdos
+  const source = list.find((p) => p.number === from)
+  const target = list.find((p) => p.number === to)
+  const entry = source?.entries.find((e) => e.channelId === channelId)
+  if (!source || !target || !entry || from === to || source.fixedMapping || cannotMoveEntry(target, entry)) return node
+  const moved: CanopenEntry = target.exchanged
+    ? {
+        ...entry,
+        iecLocation:
+          entry.iecLocation || allocate(iecPrefixFor(entry.dataType, direction), entry.dataType === 'BOOLEAN'),
+      }
+    : { ...entry, iecLocation: '', alias: undefined }
+  return withPdos(
+    node,
+    direction,
+    list.map((p) => {
+      if (p.number === from) return { ...p, entries: p.entries.filter((e) => e.channelId !== channelId) }
+      if (p.number === to) return { ...p, entries: [...p.entries, moved] }
+      return p
+    }),
+  )
 }
 
 export interface CreateNodeOptions {
@@ -401,8 +500,8 @@ export function nodeEntries(node: CanopenNode): CanopenEntry[] {
 
 /** The node with a new node ID; COB-IDs of the predefined connection set follow it. */
 export function withNodeId(node: CanopenNode, nodeId: number): CanopenNode {
-  const move = (pdos: CanopenPdo[], direction: PdoDirection): CanopenPdo[] =>
-    pdos.map((p) => ({ ...p, cobId: moveCobId(p.cobId, node.nodeId, nodeId, direction) }))
+  const move = (pdos: CanopenPdo[]): CanopenPdo[] =>
+    pdos.map((p) => (p.followsNodeId ? { ...p, cobId: p.cobId - node.nodeId + nodeId } : p))
   const emcyCobId =
     emcySupport(node.eds) === 'fixed'
       ? fixedEmcyCobId(node.eds, nodeId)
@@ -413,8 +512,8 @@ export function withNodeId(node: CanopenNode, nodeId: number): CanopenNode {
     ...node,
     nodeId,
     emcy: { ...node.emcy, cobId: emcyCobId },
-    tpdos: move(node.tpdos, 'input'),
-    rpdos: move(node.rpdos, 'output'),
+    tpdos: move(node.tpdos),
+    rpdos: move(node.rpdos),
   }
 }
 
@@ -470,22 +569,22 @@ export function cannotMap(pdo: CanopenPdo, object: CanopenObject): string | null
   return null
 }
 
-/** The PDO switched on or off: an enabled PDO's entries get addresses, a disabled one's give theirs up. */
-export function withPdoEnabled(
+/** The PDO exchanged by the master or not: an exchanged PDO's entries get addresses, another's give theirs up. */
+export function withPdoExchanged(
   pdo: CanopenPdo,
   direction: PdoDirection,
-  enabled: boolean,
+  exchanged: boolean,
   allocate: AllocateAddress,
 ): CanopenPdo {
   return {
     ...pdo,
-    enabled,
+    exchanged,
     entries: pdo.entries.map((e) => ({
       ...e,
-      iecLocation: enabled
+      iecLocation: exchanged
         ? e.iecLocation || allocate(iecPrefixFor(e.dataType, direction), e.dataType === 'BOOLEAN')
         : '',
-      alias: enabled ? e.alias : undefined,
+      alias: exchanged ? e.alias : undefined,
     })),
   }
 }
