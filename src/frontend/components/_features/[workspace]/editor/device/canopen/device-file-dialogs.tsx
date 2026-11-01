@@ -236,7 +236,7 @@ export const DeviceFileDialog = ({
     <Modal open onOpenChange={(open) => (open ? undefined : onCancel())}>
       <ModalContent
         onClose={onCancel}
-        className='!inset-x-0 !bottom-auto !top-[7vh] !h-auto max-h-[86vh] w-[640px] p-6 pb-0'
+        className='!inset-x-0 !bottom-auto !top-[7vh] !h-[min(86vh,640px)] max-h-[86vh] w-[640px] p-6 pb-0'
         data-testid='canopen-file-dialog'
       >
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
@@ -352,7 +352,7 @@ export const ExportDialog = ({
     <Modal open onOpenChange={(open) => (open ? undefined : onCancel())}>
       <ModalContent
         onClose={onCancel}
-        className='!inset-x-0 !bottom-auto !top-[7vh] !h-auto max-h-[86vh] w-[640px] p-6 pb-0'
+        className='!inset-x-0 !bottom-auto !top-[7vh] !h-[min(86vh,640px)] max-h-[86vh] w-[640px] p-6 pb-0'
         data-testid='canopen-export-dialog'
       >
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
@@ -381,7 +381,7 @@ export const ExportDialog = ({
             <p className={cn(hintClassName, 'mb-1')}>
               The project keeps these; a file read back into the editor does not bring them.
             </p>
-            <ul data-testid='canopen-export-losses' className='max-h-40 overflow-y-auto'>
+            <ul data-testid='canopen-export-losses'>
               {losses.map((l) => (
                 <Row key={l} kind='lost'>
                   {l}
