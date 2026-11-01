@@ -396,6 +396,7 @@ export function parseXdd(textIn: string, fileName: string, lang = 'en'): XddRead
       if (parentInfo?.description && !o.info?.description && subIndex > 0)
         o.info = { ...o.info, description: parentInfo.description }
       if (parentInfo?.unit && !o.info?.unit && subIndex > 0) o.info = { ...o.info, unit: parentInfo.unit }
+      if (parentInfo?.label) o.info = { ...o.info, parentLabel: parentInfo.label }
       objects.push(o)
     }
   }

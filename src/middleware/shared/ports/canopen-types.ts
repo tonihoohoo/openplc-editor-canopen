@@ -52,6 +52,8 @@ export interface CanopenValueMeaning {
 /** CiA 311 parameter details of an object. Engineering value = (raw + offset) x multiplier. */
 export interface CanopenObjectInfo {
   label?: string
+  /** Label of the array or record a sub-object belongs to. */
+  parentLabel?: string
   description?: string
   unit?: string
   multiplier?: number

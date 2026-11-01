@@ -9,10 +9,13 @@ import type {
 import {
   cannotMap,
   entryFor,
+  findObject,
   isSynchronousType,
   mappableObjects,
   MAX_PDO_BITS,
   moveItem,
+  objectOwnFileNameTitle,
+  objectOwnLabel,
   objectRef,
   pdoBits,
   type PdoDirection,
@@ -100,6 +103,16 @@ const TransmissionField = ({ pdo, direction, eds, nodeId, syncOn, onChange }: Tr
         />
       ) : null}
     </div>
+  )
+}
+
+/** A mapped entry's name: the device file's label when it has one, its name on hover. */
+const EntryName = ({ eds, entry }: { eds: CanopenEdsInfo; entry: CanopenEntry }) => {
+  const object = findObject(eds, entry.index, entry.subIndex)
+  return (
+    <td className='py-1 pr-2 [overflow-wrap:anywhere]' title={object ? objectOwnFileNameTitle(object) : undefined}>
+      {object ? objectOwnLabel(object) : entry.name}
+    </td>
   )
 }
 
@@ -283,7 +296,7 @@ const PdoCard = ({
               className='border-t border-neutral-100 dark:border-neutral-800'
             >
               <td className='py-1 font-mono'>{objectRef(entry.index, entry.subIndex)}</td>
-              <td className='py-1 pr-2 [overflow-wrap:anywhere]'>{entry.name}</td>
+              <EntryName eds={eds} entry={entry} />
               <td className='py-1'>{entry.dataType}</td>
               <td className='py-1 font-mono'>{entry.iecLocation || '-'}</td>
               <td className='py-1 pr-2'>

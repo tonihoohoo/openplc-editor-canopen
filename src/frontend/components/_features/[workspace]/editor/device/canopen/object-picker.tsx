@@ -3,7 +3,13 @@ import * as Popover from '@radix-ui/react-popover'
 import { DropdownSearchInput } from '@root/frontend/components/_atoms/dropdown-search-input'
 import { cn } from '@root/frontend/utils/cn'
 import type { CanopenObject } from '@root/middleware/shared/ports/canopen-types'
-import { matchesObjectQuery, objectLabel, objectRef, shortDescription } from '@root/middleware/shared/utils/canopen'
+import {
+  matchesObjectQuery,
+  objectFileNameTitle,
+  objectLabel,
+  objectRef,
+  shortDescription,
+} from '@root/middleware/shared/utils/canopen'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ObjectDetails } from './object-details'
@@ -168,7 +174,9 @@ const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, summary, disab
                     >
                       <span className='flex w-full items-baseline gap-2 text-xs text-neutral-850 dark:text-neutral-300'>
                         <span className='shrink-0 font-mono'>{ref}</span>
-                        <span className='min-w-0 flex-1 [overflow-wrap:anywhere]'>{objectLabel(object)}</span>
+                        <span className='min-w-0 flex-1 [overflow-wrap:anywhere]' title={objectFileNameTitle(object)}>
+                          {objectLabel(object)}
+                        </span>
                         {addedCount > 0 ? (
                           <span className='flex shrink-0 items-center gap-0.5 text-[10px] font-medium text-green-700 dark:text-green-400'>
                             <CheckIcon className='h-3 w-3' />

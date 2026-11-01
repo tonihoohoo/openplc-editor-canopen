@@ -26,6 +26,8 @@ import {
   nvmScopes,
   objectInfo,
   objectLabel,
+  objectOwnLabel,
+  objectParentLabel,
   type OnlineObject,
   onlineObjects,
   pdoMappingMeaning,
@@ -688,12 +690,15 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                         >
                           <span className='w-2.5 shrink-0 text-[9px] text-neutral-400'>{open.has(k) ? '▼' : '▶'}</span>
                           <span className={cn('min-w-0', compact ? '' : 'truncate')}>
-                            {breakable(object.parentName && !compact ? object.name : objectLabel(object))}
+                            {breakable(object.parentName && !compact ? objectOwnLabel(object) : objectLabel(object))}
                           </span>
                         </button>
                         {(object.parentName && !compact) || shortDescription(object) ? (
                           <span className={cn(hintClassName, 'block truncate pl-3.5')}>
-                            {[compact ? undefined : object.parentName, shortDescription(object)]
+                            {[
+                              compact ? undefined : (objectParentLabel(object) ?? object.parentName),
+                              shortDescription(object),
+                            ]
                               .filter(Boolean)
                               .join(' · ')}
                           </span>
