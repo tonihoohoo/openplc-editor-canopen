@@ -71,7 +71,7 @@ const NetworkSettings = ({ network, nodes, cycleUs, onChange }: NetworkSettingsP
   const windowNodes = nodes.filter((n) => n.configure && hasSyncWindow(n.eds)).length
   const { time, newNodeDefaults } = network
   return (
-    <div className='flex flex-col gap-4 overflow-auto pb-4'>
+    <div className='flex flex-col gap-4 pb-4'>
       <div className={cardClassName}>
         <h3 className={headingClassName}>CAN interface</h3>
         <div className='grid max-w-[640px] grid-cols-2 gap-4'>

@@ -121,8 +121,10 @@ test('EDS and DCF files are checked, imported and exported', async () => {
     expect(exported.text).toMatch(/\[1800sub5\][^[]*ParameterValue=100/)
 
     await page.getByRole('button', { name: 'Export...' }).click()
+    const dcfHeight = (await exportDialog.boundingBox())?.height
     await exportDialog.getByRole('radio', { name: /^EDS/ }).check()
     await expect(exportDialog.getByTestId('canopen-export-results')).toContainText('.eds')
+    expect((await exportDialog.boundingBox())?.height).toBe(dcfHeight)
     await expect(exportDialog.getByTestId('canopen-export-results')).toContainText('without its values')
     await expect(exportDialog.getByTestId('canopen-export-losses')).toContainText('node ID, name, PDO settings')
     await shot(page, 'export-node-eds')

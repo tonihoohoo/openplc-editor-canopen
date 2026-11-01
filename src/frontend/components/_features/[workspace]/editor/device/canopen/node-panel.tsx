@@ -41,6 +41,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { OnlineTab } from './online-tab'
 import { PdoSection } from './pdo-section'
+import { useScrollBackOnSwitch } from './scroll'
 import { SdoSection } from './sdo-section'
 import { NodeStatusTab } from './status-view'
 import { cardClassName, headingClassName, hintClassName, iconButtonClassName, secondaryButtonClassName } from './styles'
@@ -231,6 +232,8 @@ const NodePanel = ({
   const [tab, setTab] = useState<NodeTab>('general')
   const [expert, setExpert] = useCanopenExpertView()
   const shownTab: NodeTab = (tab === 'status' && !live) || (tab === 'online' && !online) ? 'general' : tab
+  const tabsAnchor = useRef<HTMLDivElement>(null)
+  useScrollBackOnSwitch(tabsAnchor, `${node.id}:${shownTab}`)
   useEffect(() => {
     onOnlineShown?.(shownTab === 'online')
     return () => onOnlineShown?.(false)
@@ -276,8 +279,8 @@ const NodePanel = ({
     onChange((n) => updatePdo(n, direction, pdo.number, () => pdo))
 
   return (
-    <div className='flex h-full min-w-0 flex-1 flex-col overflow-hidden' data-testid='canopen-node-panel'>
-      <div className='mb-2 flex shrink-0 items-start justify-between gap-4'>
+    <div className='flex min-w-0 flex-1 flex-col' data-testid='canopen-node-panel'>
+      <div className='mb-2 flex shrink-0 items-start justify-between gap-4 pt-2'>
         <div className='min-w-0'>
           <h3 className='truncate text-sm font-semibold text-neutral-1000 dark:text-neutral-100'>
             Node {node.nodeId}: {node.name}
@@ -337,14 +340,15 @@ const NodePanel = ({
         </div>
       </div>
 
+      <div ref={tabsAnchor} />
       <Tabs.Root
         value={shownTab}
         onValueChange={(v) => {
           if (isNodeTab(v)) setTab(v)
         }}
-        className='flex min-h-0 flex-1 flex-col'
+        className='flex flex-col'
       >
-        <Tabs.List className='mb-3 flex shrink-0 border-b border-neutral-200 dark:border-neutral-800'>
+        <Tabs.List className='sticky -top-4 z-10 mb-3 flex shrink-0 border-b border-neutral-200 bg-white pt-2 dark:border-neutral-800 dark:bg-neutral-950'>
           <TabButton value='general' label='General' active={shownTab === 'general'} />
           <TabButton value='inputs' label={`Inputs (${mappedInputs})`} active={shownTab === 'inputs'} />
           <TabButton value='outputs' label={`Outputs (${mappedOutputs})`} active={shownTab === 'outputs'} />
@@ -353,7 +357,7 @@ const NodePanel = ({
           {online ? <TabButton value='online' label='Online' active={shownTab === 'online'} /> : null}
         </Tabs.List>
 
-        <Tabs.Content value='general' className='min-h-0 flex-1 overflow-auto pb-4'>
+        <Tabs.Content value='general' className='pb-4'>
           <div className='flex flex-col gap-4'>
             <Card title='Node'>
               <div className='grid max-w-[640px] grid-cols-2 gap-4'>
@@ -723,7 +727,7 @@ const NodePanel = ({
           </div>
         </Tabs.Content>
 
-        <Tabs.Content value='inputs' className='min-h-0 flex-1 overflow-auto pb-4'>
+        <Tabs.Content value='inputs' className='pb-4'>
           <PdoSection
             pdos={node.tpdos}
             direction='input'
@@ -738,7 +742,7 @@ const NodePanel = ({
           />
         </Tabs.Content>
 
-        <Tabs.Content value='outputs' className='min-h-0 flex-1 overflow-auto pb-4'>
+        <Tabs.Content value='outputs' className='pb-4'>
           <PdoSection
             pdos={node.rpdos}
             direction='output'
@@ -753,7 +757,7 @@ const NodePanel = ({
           />
         </Tabs.Content>
 
-        <Tabs.Content value='sdos' className='min-h-0 flex-1 overflow-auto pb-4'>
+        <Tabs.Content value='sdos' className='pb-4'>
           <SdoSection
             node={node}
             warnings={sdoWarnings}
@@ -762,7 +766,7 @@ const NodePanel = ({
         </Tabs.Content>
 
         {live ? (
-          <Tabs.Content value='status' className='min-h-0 flex-1 overflow-auto pb-4'>
+          <Tabs.Content value='status' className='pb-4'>
             <NodeStatusTab
               live={live}
               nodeId={node.nodeId}
@@ -772,7 +776,7 @@ const NodePanel = ({
         ) : null}
 
         {online ? (
-          <Tabs.Content value='online' className='min-h-0 flex-1 overflow-auto pb-4'>
+          <Tabs.Content value='online' className='pb-4'>
             <OnlineTab
               node={node}
               network={network}

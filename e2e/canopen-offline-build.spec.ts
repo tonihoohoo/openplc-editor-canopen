@@ -76,7 +76,7 @@ test('a node added from an EDS file builds into conf/canopen.json', async () => 
       .first()
     await inputAlias.fill('io_outputs')
     await inputAlias.press('Enter')
-    await expect(page.getByText(/"io_outputs" is already assigned to/)).toBeVisible()
+    await expect(page.getByText(/"io_outputs" is already assigned to/)).toBeInViewport()
     await shot(page, 'offline-build-alias-in-use')
     await inputAlias.fill('')
     await inputAlias.press('Enter')
