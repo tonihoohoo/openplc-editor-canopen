@@ -7,44 +7,54 @@
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { expect, type Page, test } from '@playwright/test'
+import { type ElectronApplication, expect, test } from '@playwright/test'
 
 import { EDS_TEXT, EMPTY_STATION, openNetwork, windowSize, writeEds } from './helpers/canopen-project'
 import { shot } from './helpers/canopen-shots'
 import { launch, quitApp, writeEthercatProject } from './helpers/ethercat-project'
 
-const DCF_TEXT = EDS_TEXT.replace(
-  /(\[1800sub5\][^[]*DefaultValue=20)/,
-  '$1\nParameterValue=100',
-)
+const DCF_TEXT = EDS_TEXT.replace(/(\[1800sub5\][^[]*DefaultValue=20)/, '$1\nParameterValue=100')
   .replace('[2100]\nParameterName=Parameter', '[2100]\nParameterName=Parameter\nParameterValue=7')
   .concat('\n[DeviceComissioning]\nNodeID=5\nNodeName=io5\nBaudrate=250\nNetNumber=1\nCANopenManager=0\n')
 
-const BROKEN_TEXT = EDS_TEXT.replace(
-  /(\[1A00sub0\][^[]*DataType=)0x0005/,
-  '$10x0007',
-)
+const BROKEN_TEXT = EDS_TEXT.replace(/(\[1A00sub0\][^[]*DataType=)0x0005/, '$10x0007')
 
-/** Keeps the files the editor saves in the page instead of downloading them. */
-async function captureSaves(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const saved: Blob[] = []
-    Reflect.set(window, '__dcfSaved', saved)
-    URL.createObjectURL = (blob: Blob | MediaSource) => {
-      if (blob instanceof Blob) saved.push(blob)
-      return 'blob:dcf'
-    }
-    HTMLAnchorElement.prototype.click = () => undefined
+type SavedFile = { name: string; extensions: string[]; text: string; zip: boolean }
+
+/** Answers the save dialog in the main process and keeps what the editor saves. */
+async function captureSaves(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ ipcMain }) => {
+    const saved: Array<{ name: string; extensions: string[]; bytes: number[] }> = []
+    Reflect.set(globalThis, '__dcfSaved', saved)
+    ipcMain.removeHandler('project:export-file')
+    ipcMain.handle(
+      'project:export-file',
+      (_event, name: string, bytes: Uint8Array, filter: { name: string; extensions: string[] }) => {
+        saved.push({ name, extensions: filter.extensions, bytes: Array.from(bytes) })
+        return { success: true }
+      },
+    )
   })
 }
 
-async function savedFile(page: Page, index: number): Promise<{ type: string; text: string }> {
-  return page.evaluate(async (i) => {
-    const saved: unknown = Reflect.get(window, '__dcfSaved')
-    const blob = Array.isArray(saved) ? saved[i] : undefined
-    if (!(blob instanceof Blob)) return { type: '', text: '' }
-    return { type: blob.type, text: await blob.text() }
+function isSaved(v: unknown): v is { name: string; extensions: string[]; bytes: number[] } {
+  return typeof v === 'object' && v !== null && 'name' in v && 'extensions' in v && 'bytes' in v
+}
+
+async function savedFile(app: ElectronApplication, index: number): Promise<SavedFile> {
+  const json = await app.evaluate((_electron, i) => {
+    const saved: unknown = Reflect.get(globalThis, '__dcfSaved')
+    return JSON.stringify(Array.isArray(saved) ? (saved[i] ?? null) : null)
   }, index)
+  const file: unknown = JSON.parse(json)
+  if (!isSaved(file)) return { name: '', extensions: [], text: '', zip: false }
+  const bytes = Buffer.from(file.bytes)
+  return {
+    name: file.name,
+    extensions: file.extensions,
+    text: bytes.toString('utf-8'),
+    zip: bytes.subarray(0, 2).toString('latin1') === 'PK',
+  }
 }
 
 test('EDS and DCF files are checked, imported and exported', async () => {
@@ -77,17 +87,35 @@ test('EDS and DCF files are checked, imported and exported', async () => {
     await dialog.getByRole('button', { name: 'Close', exact: true }).click()
     await expect(dialog).toHaveCount(0)
 
+    const noisy = writeEds(
+      join(userData, 'noisy-module.eds'),
+      EDS_TEXT.replace(
+        '[DeviceInfo]',
+        '[DeviceInfo]\n' + Array.from({ length: 30 }, (_, i) => `stray line ${i}`).join('\n'),
+      ),
+    )
+    await page.getByTestId('canopen-eds-input').setInputFiles(noisy)
+    await expect(dialog).toContainText('warnings that do not block')
+    await dialog.getByText(/: 30 findings/).click()
+    await expect(dialog).toContainText('stray line 29')
+    await expect(page.getByTestId('canopen-file-dialog-confirm')).toBeInViewport()
+    await shot(page, 'dcf-import-many-warnings')
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+
     await expect(page.getByRole('button', { name: 'Replace EDS...' })).toBeVisible()
     await shot(page, 'dcf-node-page')
 
-    await captureSaves(page)
+    await captureSaves(app)
     await page.getByRole('button', { name: 'Export...' }).click()
     const exportDialog = page.getByTestId('canopen-export-dialog')
     await expect(exportDialog.getByTestId('canopen-export-results')).toContainText('node_5.dcf')
     await shot(page, 'dcf-export-node')
     await exportDialog.getByTestId('canopen-export-save').click()
     await expect(exportDialog).toHaveCount(0)
-    const exported = await savedFile(page, 0)
+    const exported = await savedFile(app, 0)
+    expect(exported.name).toBe('node_5.dcf')
+    expect(exported.extensions).toEqual(['dcf'])
     expect(exported.text).toContain('[DeviceComissioning]')
     expect(exported.text).toContain('NodeID=5')
     expect(exported.text).toMatch(/\[1800sub5\][^[]*ParameterValue=100/)
@@ -100,7 +128,8 @@ test('EDS and DCF files are checked, imported and exported', async () => {
     await shot(page, 'export-node-eds')
     await exportDialog.getByTestId('canopen-export-save').click()
     await expect(exportDialog).toHaveCount(0)
-    const eds = await savedFile(page, 1)
+    const eds = await savedFile(app, 1)
+    expect(eds.extensions).toEqual(['eds'])
     expect(eds.text).not.toContain('ParameterValue=')
     expect(eds.text).not.toContain('[DeviceComissioning]')
 
@@ -112,7 +141,8 @@ test('EDS and DCF files are checked, imported and exported', async () => {
     await shot(page, 'dcf-export-network')
     await exportDialog.getByTestId('canopen-export-save').click()
     await expect(exportDialog).toHaveCount(0)
-    expect((await savedFile(page, 2)).type).toBe('application/zip')
+    const zip = await savedFile(app, 2)
+    expect(zip).toMatchObject({ name: 'canopen_1-dcf.zip', extensions: ['zip'], zip: true })
 
     await page.getByRole('tab', { name: 'Nodes' }).click()
     const again = writeEds(join(userData, 'node_5.dcf'), exported.text)

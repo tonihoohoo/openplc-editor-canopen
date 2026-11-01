@@ -598,8 +598,10 @@ export function buildNetworkExport(
 }
 
 /** A zip of the files, for a network export. */
-export async function deviceFileZip(files: readonly DeviceFileExport[]): Promise<Uint8Array> {
+export async function deviceFileZip(files: readonly DeviceFileExport[], now = new Date()): Promise<Uint8Array> {
   const zip = new JSZip()
-  for (const f of files) zip.file(f.fileName, f.text)
+  // Zip entry times have no zone and JSZip writes UTC; shift so unzip tools show local time.
+  const date = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+  for (const f of files) zip.file(f.fileName, f.text, { date })
   return zip.generateAsync({ type: 'uint8array' })
 }

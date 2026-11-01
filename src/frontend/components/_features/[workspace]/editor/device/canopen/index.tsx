@@ -12,6 +12,7 @@ import type {
   CanopenNetworkSettings,
   CanopenNode,
 } from '@root/middleware/shared/ports/canopen-types'
+import { useProject } from '@root/middleware/shared/providers'
 import {
   buildNetworkExport,
   buildNodeExport,
@@ -59,10 +60,11 @@ type ExportRequest = {
   missing: CanopenNode[]
   losses: string[]
   saveLabel: string
-  save: () => Promise<void>
+  /** `false` when the user dismissed the save dialog. */
+  save: () => Promise<boolean>
 }
 
-/** Same anchor-download approach as the other editor exports. */
+/** Fallback when the platform has no save dialog: an anchor download. */
 const downloadFile = (fileName: string, content: BlobPart, mimeType: string) => {
   const url = URL.createObjectURL(new Blob([content], { type: mimeType }))
   const anchor = document.createElement('a')
@@ -263,6 +265,21 @@ const CanopenEditor = () => {
   const [exportTarget, setExportTarget] = useState<ExportTarget | null>(null)
   const [exportFormat, setExportFormat] = useState<ExportFormat>('dcf')
 
+  const project = useProject()
+  const saveExport = useCallback(
+    async (fileName: string, bytes: Uint8Array, filter: { name: string; extensions: string[] }, mime: string) => {
+      if (!project.exportFile) {
+        downloadFile(fileName, bytes, mime)
+        return true
+      }
+      const result = await project.exportFile(fileName, bytes, filter)
+      if (result.canceled) return false
+      if (!result.success) throw new Error(result.error ?? `Cannot write ${fileName}`)
+      return true
+    },
+    [project],
+  )
+
   const exportRequest = useMemo((): ExportRequest | null => {
     if (!exportTarget) return null
     const options = { now: new Date(), networkName: deviceName }
@@ -277,10 +294,15 @@ const CanopenEditor = () => {
         missing: text ? [] : [node],
         losses: exportLosses(exportFormat, [node], false),
         saveLabel: `Save ${files[0]?.fileName ?? ext}...`,
-        save: () => {
-          if (files[0]) downloadFile(files[0].fileName, files[0].text, 'text/plain;charset=utf-8')
-          return Promise.resolve()
-        },
+        save: () =>
+          files[0]
+            ? saveExport(
+                files[0].fileName,
+                new TextEncoder().encode(files[0].text),
+                { name: `${ext} file`, extensions: [exportFormat] },
+                'text/plain;charset=utf-8',
+              )
+            : Promise.resolve(true),
       }
     }
     const { files, missing } = buildNetworkExport(exportFormat, config, options)
@@ -291,9 +313,15 @@ const CanopenEditor = () => {
       missing,
       losses: exportLosses(exportFormat, config.nodes, true),
       saveLabel: `Save ${zipName}...`,
-      save: async () => downloadFile(zipName, await deviceFileZip(files), 'application/zip'),
+      save: async () =>
+        saveExport(
+          zipName,
+          await deviceFileZip(files),
+          { name: 'Zip archive', extensions: ['zip'] },
+          'application/zip',
+        ),
     }
-  }, [exportTarget, exportFormat, config, deviceName])
+  }, [exportTarget, exportFormat, config, deviceName, saveExport])
 
   const changeAlias = useCallback(
     (node: CanopenNode, entry: CanopenEntry, alias: string): string | null => {
@@ -496,7 +524,9 @@ const CanopenEditor = () => {
           onSave={() => {
             exportRequest
               .save()
-              .then(() => setExportTarget(null))
+              .then((saved) => {
+                if (saved) setExportTarget(null)
+              })
               .catch((error: unknown) =>
                 toast({ title: 'Cannot save the exported files', description: String(error), variant: 'fail' }),
               )
