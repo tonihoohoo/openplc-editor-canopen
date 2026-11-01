@@ -81,7 +81,8 @@ test('the CANopen editor scrolls as one area with the tab bar and node list in v
     const barHeight = (await tabBar.boundingBox())?.height ?? 0
     const pdoTop = await topIn(editor, page.getByTestId('canopen-pdo-input-1'))
     expect(pdoTop - barTop).toBeGreaterThan(0)
-    expect(pdoTop - barTop).toBeLessThan(barHeight + 60)
+    // Room for the section's hint and Add TPDO row above the first PDO card.
+    expect(pdoTop - barTop).toBeLessThan(barHeight + 120)
     await shot(page, 'scrolled-switch-to-inputs')
 
     await page.getByRole('tab', { name: 'Network', exact: true }).click()
