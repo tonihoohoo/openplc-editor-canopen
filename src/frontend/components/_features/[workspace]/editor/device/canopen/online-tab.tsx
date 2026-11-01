@@ -646,7 +646,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                           <div className='mt-1 flex items-center gap-1 font-sans'>{writeCell}</div>
                         ) : null}
                       </td>
-                      <td className='py-1'>
+                      <td className={cn('py-1', compact && canWrite(object) && 'align-bottom')}>
                         <div className='flex items-center justify-end gap-1'>
                           {canWrite(object) && !compact ? writeCell : null}
                           {isReadable(object) ? (
