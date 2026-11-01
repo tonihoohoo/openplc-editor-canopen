@@ -1,5 +1,6 @@
 import { WEB_CAPABILITIES } from '../../../../ports/platform-capabilities'
 import type { RuntimePort } from '../../../../ports/runtime-port'
+import type { ProjectPort } from '../../../../ports/project-port'
 import type { PlatformPorts } from '../../../../providers/types'
 
 export const NOW = Date.UTC(2026, 9, 29, 12, 0, 0)
@@ -80,13 +81,17 @@ function stubPort<T extends object>(overrides: Partial<T> = {}): T {
 }
 
 /** Ports for component tests; only the given runtime methods exist on the runtime port. */
-export function portsWithRuntime(runtime: Partial<RuntimePort> = {}): PlatformPorts {
+export function portsWithRuntime(
+  runtime: Partial<RuntimePort> = {},
+  project: Partial<ProjectPort> = {},
+): PlatformPorts {
   return {
     compiler: stubPort(),
     runtime: runtime as RuntimePort,
     debugger: stubPort(),
     simulator: stubPort(),
-    project: stubPort(),
+    // Optional methods stay absent unless given, so callers take their fallback.
+    project: stubPort<ProjectPort>({ exportFile: undefined, ...project }),
     device: stubPort(),
     orchestrator: stubPort(),
     system: stubPort(),

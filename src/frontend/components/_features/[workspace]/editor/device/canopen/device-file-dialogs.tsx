@@ -48,7 +48,10 @@ const BADGE: Record<BadgeKind, { label: string; className: string }> = {
     className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
   },
   dropped: { label: 'Dropped', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
-  lost: { label: 'Not in file', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
+  lost: {
+    label: 'Not in file',
+    className: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
+  },
   ok: { label: 'OK', className: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
 }
 
@@ -119,7 +122,9 @@ const FileCheck = ({ prepared }: { prepared: PreparedDeviceFile }) => {
       {errors === 0 ? (
         <p className='mb-1 text-xs text-green-700 dark:text-green-400'>
           Readable, no errors in the communication objects
-          {prepared.check.findings.length > 0 ? `; ${prepared.check.findings.length} warnings that do not block` : ''}
+          {prepared.check.findings.length > 0
+            ? `; ${prepared.check.findings.length} warning${prepared.check.findings.length === 1 ? '' : 's'} that do${prepared.check.findings.length === 1 ? 'es' : ''} not block`
+            : ''}
         </p>
       ) : (
         <p className='mb-1 text-xs text-red-700 dark:text-red-400'>
@@ -231,7 +236,7 @@ export const DeviceFileDialog = ({
     <Modal open onOpenChange={(open) => (open ? undefined : onCancel())}>
       <ModalContent
         onClose={onCancel}
-        className='!inset-x-0 !bottom-auto !top-1/2 !h-auto max-h-[86vh] w-[640px] !-translate-y-1/2 p-6'
+        className='!inset-x-0 !bottom-auto !top-[7vh] !h-auto max-h-[86vh] w-[640px] p-6 pb-0'
         data-testid='canopen-file-dialog'
       >
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
@@ -292,7 +297,7 @@ export const DeviceFileDialog = ({
         {request.kind === 'replace' && preview && preview.lines.length === 0 ? (
           <p className='text-xs text-neutral-700 dark:text-neutral-300'>Everything is kept.</p>
         ) : null}
-        <div className='flex justify-end gap-2'>
+        <div className='sticky bottom-0 -mx-6 mt-auto flex shrink-0 justify-end gap-2 border-t border-neutral-200 bg-white px-6 py-4 dark:border-neutral-800 dark:bg-neutral-950'>
           <button type='button' className={secondaryButtonClassName} onClick={onCancel}>
             {refused ? 'Close' : 'Cancel'}
           </button>
@@ -347,7 +352,7 @@ export const ExportDialog = ({
     <Modal open onOpenChange={(open) => (open ? undefined : onCancel())}>
       <ModalContent
         onClose={onCancel}
-        className='!inset-x-0 !bottom-auto !top-1/2 !h-auto max-h-[86vh] w-[640px] !-translate-y-1/2 p-6'
+        className='!inset-x-0 !bottom-auto !top-[7vh] !h-auto max-h-[86vh] w-[640px] p-6 pb-0'
         data-testid='canopen-export-dialog'
       >
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
@@ -417,7 +422,7 @@ export const ExportDialog = ({
           </ul>
           {ok ? null : <p className={cn(hintClassName, 'mt-2')}>Nothing is saved while a file has an error.</p>}
         </div>
-        <div className='flex justify-end gap-2'>
+        <div className='sticky bottom-0 -mx-6 mt-auto flex shrink-0 justify-end gap-2 border-t border-neutral-200 bg-white px-6 py-4 dark:border-neutral-800 dark:bg-neutral-950'>
           <button type='button' className={secondaryButtonClassName} onClick={onCancel}>
             Cancel
           </button>
