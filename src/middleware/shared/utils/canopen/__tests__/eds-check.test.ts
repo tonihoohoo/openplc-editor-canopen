@@ -381,6 +381,37 @@ describe('checkEds', () => {
     ])
   })
 
+  it('accepts 0 and 1 written as hexadecimal or octal numbers', () => {
+    let text = edit(CLEAN_EDS, '6401sub1', 'PDOMapping', '0x1')
+    text = edit(text, '1000', 'PDOMapping', '0x0')
+    text = edit(text, '1001', 'PDOMapping', '00')
+    text = edit(text, 'DeviceInfo', 'BaudRate_125', '0x1')
+    text = edit(text, 'DeviceInfo', 'LSS_Supported', '0x0')
+    expect(rules(`${text}\n[DummyUsage]\nDummy0002=0x1\n`)).toEqual([])
+    expect(rules(edit(CLEAN_EDS, '6401sub1', 'PDOMapping', '0x2'))).toEqual(['warning pdo-mapping 6401sub1'])
+    expect(rules(edit(CLEAN_EDS, 'DeviceInfo', 'BaudRate_125', 'yes'))).toEqual([
+      'warning device-info-value DeviceInfo',
+    ])
+  })
+
+  it('does not compare a value with a limit that limit-syntax rejects', () => {
+    let text = edit(CLEAN_EDS, '6401sub1', 'LowLimit', '0x8000')
+    text = edit(text, '6401sub1', 'HighLimit', '0x7FFF')
+    expect(rules(text)).toEqual(['warning limit-syntax 6401sub1'])
+    expect(rules(edit(CLEAN_EDS, '6401sub1', 'HighLimit', '-5'))).toEqual(['warning value-limits 6401sub1'])
+  })
+
+  it('warns about a gap in the sub-indexes of a PDO mapping', () => {
+    const entry = (sub: number): string =>
+      `\n[1A00sub${sub}]\nParameterName=Mapped object ${sub}\nDataType=0x0007\nAccessType=rw\nDefaultValue=0\n`
+    const gap = CLEAN_EDS + entry(3) + entry(5)
+    expect(rules(gap)).toContainEqual('warning pdo-mapping-gap 1A00')
+    expect(check(gap).findings.find((f) => f.rule === 'pdo-mapping-gap')?.message).toBe(
+      '0x1A00 describes sub-index 5 but not sub-index 2, 4',
+    )
+    expect(rules(CLEAN_EDS + entry(2))).not.toContainEqual(expect.stringMatching(/pdo-mapping-gap/))
+  })
+
   it('warns about a minus sign before 0x', () => {
     expect(rules(edit(CLEAN_EDS, '6401sub1', 'LowLimit', '-0x64'))).toEqual(['warning negative-hex 6401sub1'])
   })
