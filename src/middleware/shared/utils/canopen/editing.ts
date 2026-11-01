@@ -80,7 +80,7 @@ export function transmissionChoices(
   const rawDefault = object?.defaultValue !== undefined ? parseEdsInteger(object.defaultValue, nodeId) : null
   const replaced = rawDefault !== null && RTR_TRANSMISSION_TYPES.includes(rawDefault)
   const defaultMode = transmissionMode(replaced ? 255 : (rawDefault ?? 255))
-  const outside = 'Outside the range the EDS allows'
+  const outside = 'Outside the range the device file allows'
   const inRange = (v: number): boolean => v >= low && v <= high
   const cyclicMin = Math.max(1, low)
   const cyclicMax = Math.min(240, high)
@@ -91,8 +91,8 @@ export function transmissionChoices(
     ['event_profile', inRange(255)],
   ]
   let readOnlyReason: string | null = null
-  if (!object) readOnlyReason = 'The EDS has no transmission type for this PDO, so it is not written'
-  else if (!isWritableObject(eds, comm, 2)) readOnlyReason = 'Read-only in the EDS, not written'
+  if (!object) readOnlyReason = 'The device file has no transmission type for this PDO, so it is not written'
+  else if (!isWritableObject(eds, comm, 2)) readOnlyReason = 'Read-only in the device file, not written'
   return {
     readOnlyReason,
     choices: modes.map(([mode, allowed]) => ({
@@ -146,8 +146,9 @@ export function pdoParameterState(
 /** Where a node parameter lives and whether the master writes it. */
 export function objectParameterState(eds: CanopenEdsInfo, index: number, subIndex: number): ParameterState {
   const ref = objectRef(index, subIndex)
-  if (!findObject(eds, index, subIndex)) return { ref, notWrittenReason: 'not in the EDS, not written' }
-  if (!isWritableObject(eds, index, subIndex)) return { ref, notWrittenReason: 'read-only in the EDS, not written' }
+  if (!findObject(eds, index, subIndex)) return { ref, notWrittenReason: 'not in the device file, not written' }
+  if (!isWritableObject(eds, index, subIndex))
+    return { ref, notWrittenReason: 'read-only in the device file, not written' }
   return { ref, notWrittenReason: null }
 }
 
@@ -156,7 +157,7 @@ export function objectLabel(object: CanopenObject): string {
   return object.parentName && object.parentName !== object.name ? `${object.parentName} / ${object.name}` : object.name
 }
 
-/** Whether the object matches a search: index ("6401", "0x6401", "6401:1") or words of its names. */
+/** Whether the object matches a search: index ("6401", "0x6401", "6401:1") or words of its names, label, group, unit or description. */
 export function matchesObjectQuery(object: CanopenObject, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (q === '') return true
@@ -166,7 +167,11 @@ export function matchesObjectQuery(object: CanopenObject, query: string): boolea
     const indexHit = ref[1].length === 4 ? object.index === index : object.index.toString(16).startsWith(ref[1])
     if (indexHit && (ref[2] === undefined || object.subIndex === parseInt(ref[2], 16))) return true
   }
-  const text = objectLabel(object).toLowerCase()
+  const info = object.info
+  const text = [objectLabel(object), info?.label, info?.group, info?.unit, info?.description?.split('\n')[0]]
+    .filter((t) => t !== undefined)
+    .join(' ')
+    .toLowerCase()
   return q.split(/\s+/).every((word) => text.includes(word))
 }
 

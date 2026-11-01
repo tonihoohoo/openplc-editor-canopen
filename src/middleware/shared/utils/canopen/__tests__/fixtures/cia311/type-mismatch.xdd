@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<c:ISO15745ProfileContainer xmlns:c="http://www.canopen.org/xml/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<c:ISO15745Profile>
+<ProfileHeader><ProfileIdentification>CANopen device profile</ProfileIdentification><ProfileRevision>1.1</ProfileRevision><ProfileName>Generic I/O module</ProfileName><ProfileSource>OpenPLC Editor</ProfileSource><ProfileClassID>Device</ProfileClassID><ProfileDate>2026-11-01</ProfileDate><AdditionalInformation/><ISO15745Reference><ISO15745Part>1</ISO15745Part><ISO15745Edition>1</ISO15745Edition><ProfileTechnology>CANopen</ProfileTechnology></ISO15745Reference></ProfileHeader>
+<ProfileBody xsi:type="c:ProfileBody_Device_CANopen" formatName="CANopen" formatVersion="1.0" fileName="type-mismatch.xdd" fileCreator="OpenPLC Editor" fileCreationDate="2026-11-01" fileCreationTime="12:00:00" fileVersion="1">
+<c:DeviceIdentity>
+<c:vendorName>Simulated</c:vendorName>
+<c:vendorID>00000001</c:vendorID>
+<c:productName>Generic I/O module</c:productName>
+<c:productID>00000002</c:productID>
+</c:DeviceIdentity>
+<c:DeviceFunction><c:capabilities><c:characteristicsList><c:characteristic><c:characteristicName><label lang="en">Product</label></c:characteristicName><c:characteristicContent><label lang="en">Generic I/O module</label></c:characteristicContent></c:characteristic></c:characteristicsList></c:capabilities></c:DeviceFunction><c:ApplicationProcess><c:parameterList><c:parameter uniqueID="UID_640101" access="read"><label lang="en">Analogue input 1</label><UDINT/></c:parameter></c:parameterList></c:ApplicationProcess>
+</ProfileBody>
+</c:ISO15745Profile>
+<c:ISO15745Profile>
+<ProfileHeader><ProfileIdentification>CANopen communication network profile</ProfileIdentification><ProfileRevision>1.1</ProfileRevision><ProfileName>Generic I/O module</ProfileName><ProfileSource>OpenPLC Editor</ProfileSource><ProfileClassID>CommunicationNetwork</ProfileClassID><ProfileDate>2026-11-01</ProfileDate><AdditionalInformation/><ISO15745Reference><ISO15745Part>1</ISO15745Part><ISO15745Edition>1</ISO15745Edition><ProfileTechnology>CANopen</ProfileTechnology></ISO15745Reference></ProfileHeader>
+<ProfileBody xsi:type="c:ProfileBody_CommunicationNetwork_CANopen" formatName="CANopen" formatVersion="1.0" fileName="type-mismatch.xdd" fileCreator="OpenPLC Editor" fileCreationDate="2026-11-01" fileCreationTime="12:00:00" fileVersion="1">
+<ApplicationLayers>
+<c:CANopenObjectList>
+<CANopenObject index="1000" name="Device type" objectType="7" dataType="0007" accessType="ro" defaultValue="0x00000191" PDOmapping="no"/>
+<CANopenObject index="1001" name="Error register" objectType="7" dataType="0005" accessType="ro" PDOmapping="no"/>
+<CANopenObject index="1008" name="Manufacturer device name" objectType="7" dataType="0009" accessType="const" defaultValue="Generic I/O" PDOmapping="no"/>
+<CANopenObject index="1014" name="COB-ID EMCY" objectType="7" dataType="0007" accessType="rw" defaultValue="$NODEID+0x80" PDOmapping="no"/>
+<CANopenObject index="1016" name="Consumer heartbeat time" objectType="8" subNumber="2">
+<CANopenSubObject subIndex="00" name="Highest sub-index supported" objectType="7" dataType="0005" accessType="ro" defaultValue="1" PDOmapping="no"/>
+<CANopenSubObject subIndex="01" name="Consumer heartbeat time" objectType="7" dataType="0007" accessType="rw" defaultValue="0" PDOmapping="no"/>
+</CANopenObject>
+<CANopenObject index="1017" name="Producer heartbeat time" objectType="7" dataType="0006" accessType="rw" defaultValue="0" PDOmapping="no"/>
+<CANopenObject index="1018" name="Identity object" objectType="8" subNumber="5">
+<CANopenSubObject subIndex="00" name="Highest sub-index supported" objectType="7" dataType="0005" accessType="ro" defaultValue="4" PDOmapping="no"/>
+<CANopenSubObject subIndex="01" name="Vendor-ID" objectType="7" dataType="0007" accessType="ro" defaultValue="0x00000001" PDOmapping="no"/>
+<CANopenSubObject subIndex="02" name="Product code" objectType="7" dataType="0007" accessType="ro" defaultValue="0x00000002" PDOmapping="no"/>
+<CANopenSubObject subIndex="03" name="Revision number" objectType="7" dataType="0007" accessType="ro" defaultValue="0x00000003" PDOmapping="no"/>
+<CANopenSubObject subIndex="04" name="Serial number" objectType="7" dataType="0007" accessType="ro" defaultValue="0" PDOmapping="no"/>
+</CANopenObject>
+<CANopenObject index="1029" name="Error behaviour" objectType="8" subNumber="2">
+<CANopenSubObject subIndex="00" name="Highest sub-index supported" objectType="7" dataType="0005" accessType="ro" defaultValue="1" PDOmapping="no"/>
+<CANopenSubObject subIndex="01" name="Communication error" objectType="7" dataType="0005" accessType="rw" defaultValue="0" PDOmapping="no"/>
+</CANopenObject>
+<CANopenObject index="1400" name="RPDO 1 communication parameter" objectType="9" subNumber="3">
+<CANopenSubObject subIndex="00" name="Highest sub-index supported" objectType="7" dataType="0005" accessType="ro" defaultValue="2" PDOmapping="no"/>
+<CANopenSubObject subIndex="01" name="COB-ID" objectType="7" dataType="0007" accessType="rw" defaultValue="$NODEID+0x200" PDOmapping="no"/>
+<CANopenSubObject subIndex="02" name="Transmission type" objectType="7" dataType="0005" accessType="rw" defaultValue="255" PDOmapping="no"/>
+</CANopenObject>
+<CANopenObject index="1600" name="RPDO 1 mapping parameter" objectType="8" subNumber="2">
+<CANopenSubObject subIndex="00" name="Number of mapped objects" objectType="7" dataType="0005" accessType="rw" defaultValue="1" PDOmapping="no"/>
+<CANopenSubObject subIndex="01" name="Mapped object 1" objectType="7" dataType="0007" accessType="rw" defaultValue="0x62000108" PDOmapping="no"/>
+</CANopenObject>
+<CANopenObject index="1800" name="TPDO 1 communication parameter" objectType="9" subNumber="5">
+<CANopenSubObject subIndex="00" name="Highest sub-index supported" objectType="7" dataType="0005" accessType="ro" defaultValue="5" PDOmapping="no"/>
+<CANopenSubObject subIndex="01" name="COB-ID" objectType="7" dataType="0007" accessType="rw" defaultValue="$NODEID+0x180" PDOmapping="no"/>
+<CANopenSubObject subIndex="02" name="Transmission type" objectType="7" dataType="0005" accessType="rw" defaultValue="255" PDOmapping="no"/>
+<CANopenSubObject subIndex="03" name="Inhibit time" objectType="7" dataType="0006" accessType="rw" defaultValue="0" PDOmapping="no"/>
+<CANopenSubObject subIndex="05" name="Event timer" objectType="7" dataType="0006" accessType="rw" defaultValue="20" PDOmapping="no"/>
+</CANopenObject>
+<CANopenObject index="1A00" name="TPDO 1 mapping parameter" objectType="8" subNumber="3">
+<CANopenSubObject subIndex="00" name="Number of mapped objects" objectType="7" dataType="0005" accessType="rw" defaultValue="2" PDOmapping="no"/>
+<CANopenSubObject subIndex="01" name="Mapped object 1" objectType="7" dataType="0007" accessType="rw" defaultValue="0x60000108" PDOmapping="no"/>
+<CANopenSubObject subIndex="02" name="Mapped object 2" objectType="7" dataType="0007" accessType="rw" defaultValue="0x64010110" PDOmapping="no"/>
+</CANopenObject>
+<CANopenObject index="2100" name="Parameter" objectType="7" dataType="0007" accessType="rw" defaultValue="0" PDOmapping="no"/>
+<CANopenObject index="2200" name="Counters" objectType="8" subNumber="3">
+<CANopenSubObject subIndex="00" name="Highest sub-index supported" objectType="7" dataType="0005" accessType="ro" defaultValue="2" PDOmapping="no"/>
+<CANopenSubObject subIndex="01" name="First counter" objectType="7" dataType="0006" accessType="ro" PDOmapping="optional"/>
+<CANopenSubObject subIndex="02" name="Counters 2" objectType="7" dataType="0006" accessType="ro" PDOmapping="optional"/>
+</CANopenObject>
+<CANopenObject index="6000" name="Digital inputs" objectType="8" subNumber="2">
+<CANopenSubObject subIndex="00" name="Number of inputs" objectType="7" dataType="0005" accessType="ro" defaultValue="1" PDOmapping="no"/>
+<CANopenSubObject subIndex="01" name="Inputs 1-8" objectType="7" dataType="0005" accessType="ro" PDOmapping="optional"/>
+</CANopenObject>
+<CANopenObject index="6200" name="Digital outputs" objectType="8" subNumber="2">
+<CANopenSubObject subIndex="00" name="Number of outputs" objectType="7" dataType="0005" accessType="ro" defaultValue="1" PDOmapping="no"/>
+<CANopenSubObject subIndex="01" name="Outputs 1-8" objectType="7" dataType="0005" accessType="rw" PDOmapping="optional"/>
+</CANopenObject>
+<CANopenObject index="6401" name="Analogue inputs" objectType="8" subNumber="2">
+<CANopenSubObject subIndex="00" name="Number of inputs" objectType="7" dataType="0005" accessType="ro" defaultValue="1" PDOmapping="no"/>
+<CANopenSubObject subIndex="01" name="Input 1" objectType="7" dataType="0003" accessType="ro" PDOmapping="optional" uniqueIDRef="UID_640101"/>
+</CANopenObject>
+</c:CANopenObjectList>
+</ApplicationLayers>
+<TransportLayers><PhysicalLayer><baudRate defaultValue="250 Kbps"><supportedBaudRate value="10 Kbps"/><supportedBaudRate value="20 Kbps"/><supportedBaudRate value="50 Kbps"/><supportedBaudRate value="125 Kbps"/><supportedBaudRate value="250 Kbps"/><supportedBaudRate value="500 Kbps"/><supportedBaudRate value="800 Kbps"/><supportedBaudRate value="1000 Kbps"/></baudRate></PhysicalLayer></TransportLayers>
+<NetworkManagement>
+<CANopenGeneralFeatures granularity="8" nrOfRxPDO="1" nrOfTxPDO="1"/>
+</NetworkManagement>
+</ProfileBody>
+</c:ISO15745Profile>
+</c:ISO15745ProfileContainer>

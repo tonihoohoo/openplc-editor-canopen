@@ -1,12 +1,13 @@
 # CANopen — OpenPLC Editor
 
 A CANopen network is a remote device with protocol `canopen`. The editor builds each node from its
-EDS file, maps its PDOs to IEC locations, and writes everything the runtime's `canopen` plugin
+device file (EDS, DCF, XDD or XDC), maps its PDOs to IEC locations, and writes everything the runtime's `canopen` plugin
 needs into `conf/canopen.json`. The runtime never reads an EDS; its side, and the file format, are
 described in the runtime's `docs/CANOPEN.md`.
 
 ```
-EDS or DCF file → checkEds (CiA 306) → parseEds → createCanopenNode → project (remote device JSON)
+EDS or DCF file → checkEds (CiA 306) → parseEds ┐
+XDD or XDC file → checkXdd (CiA 311) → parseXdd ┴→ createCanopenNode → project (remote device JSON)
                                                ↓
                build: validateCanopenProject → generateCanopenConfig → conf/canopen.json
 ```
@@ -22,9 +23,10 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
    (1 to 97, default 90, above the PLC tasks), SYNC (none, once per PLC cycle, or a fixed period)
    and the NMT state the nodes get when the PLC stops. Further groups set the startup and error
    behaviour, TIME and the defaults for new nodes (see "Startup and supervision options").
-3. **Nodes** tab: **Add node from EDS or DCF...** reads the file, picks the lowest free node ID and
-   maps the PDOs the EDS defines by default. Set the node ID to the one set on the device. The file
-   is checked first (see "EDS and DCF files"), and a dialog shows the result before the node is added.
+3. **Nodes** tab: **Add node from device file...** reads an EDS, DCF, XDD or XDC file, picks the
+   lowest free node ID and maps the PDOs the file defines by default. Set the node ID to the one set
+   on the device. The file is checked first (see "Device files"), and a dialog shows the result
+   before the node is added.
 4. For each node:
    - **General**: name, node ID, **Optional node**, which identity values the master checks at boot
      (vendor ID and product code by default; the revision is off so newer firmware still boots),
@@ -83,7 +85,7 @@ read 0 and its outputs go nowhere. Its problems are still listed, under "Fix the
 network on", but do not stop the build, and checks between networks leave it out. The project tree
 shows it dimmed with an **Off** tag.
 
-## EDS and DCF files
+## Device files
 
 **Check.** Every EDS or DCF file is checked against CiA 306 (`checkEds`) before a node is made from
 it. The dialog lists the findings by rule, each with its clause, section, key and line; rules with
@@ -108,8 +110,36 @@ entries into aliases. The dialog lists what is taken and what is not (for exampl
 which are never written, or a heartbeat consumer for a node the network does not have), and warns
 when the file's bit rate differs from the network's.
 
+**XDD and XDC files (CiA 311).** An XDD is the XML counterpart of an EDS and an XDC that of a DCF.
+The editor reads CiA 311 version 1.1 and 1.0 files (`parseXdd`): the identity, the object list of the
+communication network profile and, from the device profile, each object's label and description (in
+English when the file has it, else its first language), unit and multiplier, range, value meanings,
+bit fields (`struct` data types) and parameter group, and for the device the order number, product
+text, file version and dates, languages and characteristics. An object's type, access and default
+come from its parameter when the object list leaves them out. A DOMAIN is read like a VAR, and a VAR
+that has sub-objects like a RECORD. The CiA 311 check (`checkXdd`) looks at the XML, the profile
+container and bodies, every `uniqueIDRef`, data type codes against the parameters' types, access,
+PDO mapping, object types, values and limits, `subNumber` and sub-index 0, PDO mapping entries,
+`deviceCommissioning` and the CiA 301 types of the communication objects. As for an EDS, only errors
+in the communication area that are not about limits refuse the file; the version 1.0 namespace, a
+missing namespace and unknown attributes are warnings. The import dialog shows a device card with
+what the file holds, and leaves out rows the file has nothing for. An XDC with actual values,
+denotations or `deviceCommissioning` offers its settings like a DCF; a `nodeID` outside 1 to 127
+counts as not set and a bit rate without a unit is read as kbit/s.
+
+**Object information.** Wherever the editor names an object, it shows what the file says about it:
+the object pickers show group, unit and description, find objects by them, and show the highlighted
+object's details in a pane beside the list; a startup SDO shows the file default with its meaning and
+offers the file's value list; the Online tab shows a read value's meaning, scaled value and unit, or
+its set bits and fields, below the value. Clicking the name of a startup SDO or an Online row opens
+all of it. Where the file says nothing, the editor shows the meanings of the CiA 301 communication
+objects and the CiA 401 generic I/O objects (`standard-meanings.ts`, in our own words), marked with
+the standard's name.
+
 **Export.** **Export...** on a node page and **Export network...** at the top of the Network tab open
-a dialog that asks for the format (`EXPORT_FORMATS` in `dcf-export.ts`; more formats are added there).
+a dialog that asks for the format (`EXPORT_FORMATS` in `device-export.ts`). Any node can be exported
+in any format, whatever file it was added from; the dialog lists what the picked format does not hold
+(`exportLosses`).
 
 - **DCF** writes `node_<id>.dcf`: the node's EDS with a `ParameterValue` for every value the master
   writes at boot, `Denotation` for aliases, `[DeviceComissioning]` (node ID, name, bit rate, network
@@ -119,11 +149,20 @@ a dialog that asks for the format (`EXPORT_FORMATS` in `dcf-export.ts`; more for
 - **EDS** writes the stored file as it was added, unchanged, under its own name. A node added from a
   DCF gets that DCF without its values, names, commissioning and export comments, named after its
   `LastEDS`.
+- **XDC** writes `node_<id>.xdc`: the node's XDD with `actualValue` on every object the master writes
+  at boot (the same values a DCF gets), `denotation` for aliases and a `deviceCommissioning` (node
+  ID, name, bit rate, network name).
+- **XDD** writes a stored XDD unchanged, a stored XDC without its actual values, denotations and
+  commissioning, or, for a node from an EDS or DCF, a CiA 311 v1.1 XDD written from the description
+  (`writeXdd` in `device-writer.ts`). A node from an XDD or XDC exported as EDS or DCF gets an EDS
+  written from its description (`writeEds`), so the descriptions, units, value meanings and bit names
+  of the XDD are lost, as the dialog says.
 
-A network export writes one zip: a DCF per node, or an EDS per stored file. Each exported file is
+A network export writes one zip: a DCF or XDC per node, or an EDS or XDD per stored file. Each exported file is
 checked again; the dialog shows the result per file and **Save** is disabled when one has an error. **Save** opens the system save dialog attached to the editor window (`ProjectPort.exportFile`); a platform without it downloads the file.
 
-**Replace EDS...** on a node page swaps the node's file for a newer one. The node keeps its ID, name,
+**Replace device file...** on a node page swaps the node's file for a newer one, in any of the four
+formats. The node keeps its ID, name,
 PDO entries, aliases, startup SDOs and options where the new file still allows them; the dialog lists
 what is not kept before anything changes.
 
@@ -137,11 +176,15 @@ editor exports, with two independent checkers pinned to a commit: Lely's dcf-too
 EdsDcfNet checker, and reads the exported DCFs back with EdsDcfNet
 (`.github/scripts/canopen-dcf-roundtrip/`) to compare their values and `[DeviceComissioning]` with the
 editor's. EdsDcfNet follows CiA 306-1 v1.4.0; its warnings without an editor finding are listed as
-notes in the job summary and do not fail it. It runs on pull requests to `canopen` that change the check, the parser, the DCF
+notes in the job summary and do not fail it. It runs on pull requests to `canopen` that change the checks, the parsers, the
 import or export code, their fixtures or the cross-check files; otherwise the job is skipped. The
 corpus and the editor's verdicts come from `__tests__/dcf-crosscheck-writer.test.ts`; the comparison
 rules are in `.github/scripts/canopen_dcf_crosscheck.py`, and accepted differences, each with its
-CiA 306 clause, in `.github/scripts/canopen-dcf-crosscheck-exceptions.json`.
+CiA 306 clause, in `.github/scripts/canopen-dcf-crosscheck-exceptions.json`. The same job validates
+the CiA 311 fixtures (`__tests__/fixtures/cia311/`, each with its expected schema verdict in
+`expected.json`) and every XDD and XDC the export writes against the CiA 311 v1.1 schema, taken at run
+time from the pinned EdsDcfNet commit and never added to this repository, and reads the exports back
+with EdsDcfNet (`.github/scripts/canopen_xdd_crosscheck.py`).
 
 ## Startup and supervision options
 
@@ -333,7 +376,10 @@ entry of a switched-off PDO has no address and no alias.
 | Project schema                                            | `CanopenConfigSchema` in `src/backend/shared/types/PLC/open-plc.ts`    |
 | EDS parser                                                | `src/middleware/shared/utils/canopen/eds-parser.ts`                    |
 | CiA 306 check (rules, file reader, values)                | `src/middleware/shared/utils/canopen/eds-check.ts`, `eds-document.ts`, `eds-values.ts` |
-| DCF import, export and Replace EDS                        | `src/middleware/shared/utils/canopen/dcf-import.ts`, `dcf-export.ts`, `device-import.ts` |
+| DCF import, export and Replace device file                | `src/middleware/shared/utils/canopen/dcf-import.ts`, `dcf-export.ts`, `device-import.ts` |
+| XDD and XDC reader, CiA 311 check, export                 | `src/middleware/shared/utils/canopen/xdd-parser.ts`, `xdd-check.ts`, `xdd-export.ts` |
+| Export formats and losses, files written from a description | `src/middleware/shared/utils/canopen/device-export.ts`, `device-writer.ts` |
+| Object information (meanings, units, bits) and standard meanings | `src/middleware/shared/utils/canopen/object-info.ts`, `standard-meanings.ts` |
 | Node construction and edits                               | `src/middleware/shared/utils/canopen/model.ts`                         |
 | Editing rules (transmission types, SDO objects, search)   | `src/middleware/shared/utils/canopen/editing.ts`                       |
 | Build checks and editor warnings                          | `src/middleware/shared/utils/canopen/validate-canopen-config.ts`       |
@@ -359,7 +405,8 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
 ## Tests
 
 - Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, CiA 306 check with the fixtures in
-  `fixtures/cia306/`, DCF import and export, model, editing rules, generator, validator,
+  `fixtures/cia306/`, DCF import and export, XDD and XDC reading, the CiA 311 check with the fixtures
+  in `fixtures/cia311/`, XDD and XDC export, object information, model, editing rules, generator, validator,
   receive timeout, node options and checks, status schema and texts, online tools), the status polling in
   `src/frontend/hooks/__tests__/use-canopen-status.test.ts`
   with the generic I/O module EDS in `__tests__/fixtures/`, the store action in

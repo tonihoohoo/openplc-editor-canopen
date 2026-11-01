@@ -1,0 +1,70 @@
+{
+  "generic-io-module-full.xdc": {
+    "ok": true,
+    "schemaValid": true,
+    "findings": [
+      "warning value-limits 0x1280 sub 3"
+    ]
+  },
+  "generic-io-module-full.xdd": {
+    "ok": true,
+    "schemaValid": true,
+    "findings": [
+      "warning value-limits 0x1280 sub 3"
+    ]
+  },
+  "generic-io-module.xdd": {
+    "ok": true,
+    "schemaValid": true,
+    "findings": []
+  },
+  "missing-ref.xdd": {
+    "ok": true,
+    "schemaValid": false,
+    "findings": [
+      "warning unique-id-ref 0x2100",
+      "warning unknown-attribute 0x2200"
+    ]
+  },
+  "no-namespace.xdd": {
+    "ok": true,
+    "schemaValid": false,
+    "findings": [
+      "warning namespace"
+    ]
+  },
+  "no-node-id.xdc": {
+    "ok": true,
+    "schemaValid": false,
+    "findings": [
+      "warning commissioning deviceCommissioning",
+      "warning commissioning deviceCommissioning"
+    ]
+  },
+  "other-fieldbus.xdd": {
+    "ok": false,
+    "schemaValid": false,
+    "findings": [
+      "error profile-container"
+    ]
+  },
+  "settings.xdc": {
+    "ok": true,
+    "schemaValid": true,
+    "findings": []
+  },
+  "type-mismatch.xdd": {
+    "ok": true,
+    "schemaValid": true,
+    "findings": [
+      "warning type-mismatch 0x6401 sub 1"
+    ]
+  },
+  "version-1-0.xdd": {
+    "ok": true,
+    "schemaValid": false,
+    "findings": [
+      "warning namespace"
+    ]
+  }
+}

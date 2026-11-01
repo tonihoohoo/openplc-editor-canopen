@@ -274,7 +274,7 @@ describe('checkCanopenNetwork', () => {
       },
     }
     expect(restore(configWith(readOnly))?.text).toBe(
-      'restores its defaults with 0x1011 sub 3, which its EDS does not define as writable',
+      'restores its defaults with 0x1011 sub 3, which its device file does not define as writable',
     )
   })
 
@@ -365,7 +365,7 @@ describe('checkCanopenNetwork fixes', () => {
       'is supervised by heartbeat with a heartbeat time of 0',
     )
     const asIs = { ...fullNode(4), configure: false }
-    expect(checkCanopenNetwork(configWith(asIs), null)[0].text).toContain('its EDS default heartbeat time is 0')
+    expect(checkCanopenNetwork(configWith(asIs), null)[0].text).toContain('its file default heartbeat time is 0')
   })
 
   it('removes heartbeats a node cannot watch', () => {

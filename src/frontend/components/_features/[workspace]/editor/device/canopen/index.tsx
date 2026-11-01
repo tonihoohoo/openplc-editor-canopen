@@ -24,6 +24,7 @@ import {
   defaultCanopenConfig,
   type DeviceFileExport,
   deviceFileZip,
+  exportFileType,
   type ExportFormat,
   exportLosses,
   fixAllCanopenProblems,
@@ -122,11 +123,11 @@ const CheckList = ({ checks, onFix, onFixAll, onShow, on }: CheckListProps) => {
         <p className='font-medium'>
           {errors > 0
             ? on
-              ? `${errors} problem${errors === 1 ? '' : 's'} stop the build`
+              ? `${errors} ${errors === 1 ? 'problem stops' : 'problems stop'} the build`
               : `${errors} problem${errors === 1 ? '' : 's'} to fix before turning the network on`
-            : 'Warnings'}
+            : ''}
           {checks.length > errors
-            ? `, ${checks.length - errors} warning${checks.length - errors === 1 ? '' : 's'}`
+            ? `${errors > 0 ? ', ' : ''}${checks.length - errors} warning${checks.length - errors === 1 ? '' : 's'}`
             : ''}
         </p>
         {fixable > 1 ? (
@@ -281,6 +282,7 @@ const CanopenEditor = () => {
     if (!exportTarget) return null
     const options = { now: new Date(), networkName: deviceName }
     const ext = exportFormat.toUpperCase()
+    const fileType = exportFileType(exportFormat)
     if (exportTarget.kind === 'node') {
       const node = config.nodes.find((n) => n.id === exportTarget.node.id) ?? exportTarget.node
       const text = storedFileText(config, node)
@@ -296,8 +298,8 @@ const CanopenEditor = () => {
             ? saveExport(
                 files[0].fileName,
                 new TextEncoder().encode(files[0].text),
-                { name: `${ext} file`, extensions: [exportFormat] },
-                'text/plain;charset=utf-8',
+                { name: fileType.name, extensions: fileType.extensions },
+                fileType.mime,
               )
             : Promise.resolve(true),
       }
@@ -450,8 +452,8 @@ const CanopenEditor = () => {
             <div className='flex flex-1 flex-col items-center justify-center gap-2 text-center'>
               <p className='text-sm font-medium text-neutral-700 dark:text-neutral-300'>No nodes yet</p>
               <p className={cn(hintClassName, 'max-w-[360px]')}>
-                Add a node from the EDS file its manufacturer provides. Its PDOs are mapped to PLC inputs and outputs
-                from the file&apos;s defaults, and you can change them afterwards.
+                Add a node from the device file (EDS, DCF, XDD or XDC) its manufacturer provides. Its PDOs are mapped to
+                PLC inputs and outputs from the file&apos;s defaults, and you can change them afterwards.
               </p>
             </div>
           )}
@@ -460,7 +462,8 @@ const CanopenEditor = () => {
         <Tabs.Content value='network' className='min-h-0 flex-1 overflow-y-auto data-[state=inactive]:hidden'>
           <div className='mb-4 flex items-center justify-between gap-4'>
             <p className={hintClassName}>
-              The device files of all nodes, as DCF files with the values the master writes, or as EDS files.
+              The device files of all nodes, as DCF or XDC files with the values the master writes, or as EDS or XDD
+              files.
             </p>
             <button
               type='button'

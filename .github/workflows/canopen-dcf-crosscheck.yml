@@ -2,8 +2,11 @@ name: CANopen DCF cross-check
 
 # Compares the editor's CiA 306 check of EDS and DCF files, and the DCF files it exports, with two
 # independent checkers: Lely's dcf-tools lint and the EdsDcfNet checker, each pinned to a commit,
-# and reads the exported DCFs back with EdsDcfNet to compare their values.
-# Runs only when a pull request changes the check, the EDS parser, the DCF import or export code,
+# and reads the exported DCFs back with EdsDcfNet to compare their values. It also validates the
+# CiA 311 fixtures and every exported XDD and XDC against the CiA 311 v1.1 schema, which is taken
+# from the pinned EdsDcfNet commit at run time and never added to this repository, and reads the
+# exports back with EdsDcfNet.
+# Runs only when a pull request changes the checks, the EDS or XDD parser, the import or export code,
 # their fixtures or these CI files (see .github/scripts/canopen-dcf-changed.sh); otherwise the
 # job is skipped, which counts as passed. Accepted differences are listed with their CiA 306
 # clause in .github/scripts/canopen-dcf-crosscheck-exceptions.json.
@@ -109,6 +112,26 @@ jobs:
           dotnet run -c Release --no-build -p:EdsDcfNetDir="$RUNNER_TEMP/edsdcfnet" --project "$project" -- \
             "$CORPUS"/*.dcf > "$RUNNER_TEMP/roundtrip.json"
 
+      - name: CiA 311 schema and EdsDcfNet read-back of the XDD and XDC files
+        run: |
+          schemas="$RUNNER_TEMP/edsdcfnet/tests/EdsDcfNet.Tests/Fixtures/Schemas/cia-311"
+          echo "CiA 311 v1.1 schema from $EDSDCFNET_REPO at $EDSDCFNET_COMMIT"
+          ls "$schemas"
+          command -v xmllint >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q libxml2-utils; }
+          {
+            echo '<?xml version="1.0"?>'
+            echo '<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.canopen.org/xml/1.1" xmlns="http://www.canopen.org/xml/1.1" elementFormDefault="unqualified">'
+            for f in ISO15745ProfileContainer ProfileBody_Device_CANopen ProfileBody_Network_CANopen; do
+              echo "<xsd:include schemaLocation=\"$schemas/$f.xsd\"/>"
+            done
+            echo '</xsd:schema>'
+          } > "$RUNNER_TEMP/cia311.xsd"
+          project=.github/scripts/canopen-dcf-roundtrip
+          dotnet run -c Release --no-build -p:EdsDcfNetDir="$RUNNER_TEMP/edsdcfnet" --project "$project" -- \
+            "$CORPUS"/xdd/*-export.xdd "$CORPUS"/xdd/*-export.xdc > "$RUNNER_TEMP/roundtrip-xdd.json"
+          python -I .github/scripts/canopen_xdd_crosscheck.py "$CORPUS/xdd" --schema "$RUNNER_TEMP/cia311.xsd" \
+            --roundtrip "$RUNNER_TEMP/roundtrip-xdd.json"
+
       - name: Compare
         run: |
           python -I .github/scripts/canopen_dcf_crosscheck.py compare "$CORPUS" \
@@ -126,4 +149,5 @@ jobs:
             ${{ runner.temp }}/lely.json
             ${{ runner.temp }}/edsdcfnet.json
             ${{ runner.temp }}/roundtrip.json
+            ${{ runner.temp }}/roundtrip-xdd.json
           if-no-files-found: ignore

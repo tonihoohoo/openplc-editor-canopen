@@ -182,7 +182,7 @@ type NodePanelProps = {
   onNodeIdChange: (nodeId: number) => void
   onRemove: () => void
   onExport: () => void
-  /** Called with the chosen EDS or DCF file's name and bytes. */
+  /** Called with the chosen device file's name and bytes. */
   onReplaceFile: (fileName: string, bytes: Uint8Array) => void
   onAliasChange: (entry: CanopenEntry, alias: string) => string | null
 }
@@ -263,7 +263,7 @@ const NodePanel = ({
   const others = nodes.filter((n) => n.id !== node.id)
   const freeSlots = consumerSlots(eds) - (canWatchMaster(eds) && node.watchMaster.enabled ? 1 : 0)
   const guarding = effectiveGuarding(node)
-  const notWritten = 'From the EDS: the master does not configure this node'
+  const notWritten = 'From the device file: the master does not configure this node'
   const noInit = node.configure ? null : 'Not with No initialization'
   const emcySupported = emcySupport(eds)
   const emcy = effectiveEmcy(node)
@@ -285,6 +285,19 @@ const NodePanel = ({
           <p className={cn(hintClassName, 'truncate')} title={eds.fileName}>
             {[eds.vendorName, eds.productName].filter((s) => s !== '').join(' - ') || 'Unnamed device'} ({eds.fileName})
           </p>
+          {eds.details ? (
+            <p className={cn(hintClassName, 'truncate')} data-testid='canopen-node-details'>
+              {[
+                eds.source ? eds.source.format.toUpperCase() : undefined,
+                eds.details.orderNumber ? `order no. ${eds.details.orderNumber}` : undefined,
+                eds.details.fileVersion ? `file version ${eds.details.fileVersion}` : undefined,
+                eds.details.fileModificationDate ?? eds.details.fileCreationDate,
+                `${eds.objects.filter((o) => o.info?.description).length} of ${eds.objects.length} objects described`,
+              ]
+                .filter((s) => s !== undefined)
+                .join(' · ')}
+            </p>
+          ) : null}
         </div>
         <div className='flex shrink-0 items-center gap-3'>
           <label className='flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300'>
@@ -302,13 +315,13 @@ const NodePanel = ({
             Export...
           </button>
           <button type='button' className={secondaryButtonClassName} onClick={() => replaceInput.current?.click()}>
-            Replace EDS...
+            Replace device file...
           </button>
           <input
             ref={replaceInput}
             type='file'
-            accept='.eds,.EDS,.dcf,.DCF'
-            aria-label='Replacement EDS or DCF file'
+            accept='.eds,.EDS,.dcf,.DCF,.xdd,.XDD,.xdc,.XDC'
+            aria-label='Replacement device file'
             data-testid='canopen-replace-input'
             className='hidden'
             onChange={(e) => {
@@ -407,7 +420,7 @@ const NodePanel = ({
                         disabledReason={
                           noInit ??
                           (restores.length === 0 && node.restoreDefaults === 0
-                            ? 'The device cannot restore its defaults: its EDS has no 0x1011'
+                            ? 'The device cannot restore its defaults: its device file has no 0x1011'
                             : null)
                         }
                         objectRef='0x1011'
@@ -517,7 +530,7 @@ const NodePanel = ({
                   label='Watch the master'
                   checked={canWatch && node.watchMaster.enabled}
                   disabledReason={
-                    canWatch ? noInit : 'The device cannot watch the master: its EDS has no writable 0x1016'
+                    canWatch ? noInit : 'The device cannot watch the master: its device file has no writable 0x1016'
                   }
                   hint="The node reacts when the master's heartbeat stops, for example when the PLC runtime stops. What it does with its outputs then is set in the device's own objects (for I/O modules usually 0x6206 and 0x6207). Written to 0x1016"
                   onChange={(enabled) => onChange((n) => ({ ...n, watchMaster: { ...n.watchMaster, enabled } }))}
@@ -634,7 +647,7 @@ const NodePanel = ({
                         checked={emcy.enabled}
                         disabledReason={
                           emcySupported === 'none'
-                            ? 'The device sends no emergency messages: its EDS has no 0x1014'
+                            ? 'The device sends no emergency messages: its device file has no 0x1014'
                             : null
                         }
                         hint="The master logs the node's emergency messages and shows them in its status"
@@ -649,7 +662,9 @@ const NodePanel = ({
                             max={0x7ff}
                             hex
                             disabledReason={
-                              emcySupported === 'fixed' ? 'Fixed by the device: its EDS marks 0x1014 read-only' : null
+                              emcySupported === 'fixed'
+                                ? 'Fixed by the device: its device file marks 0x1014 read-only'
+                                : null
                             }
                             objectRef={
                               emcySupported === 'fixed' || (emcySupported === 'writable' && node.configure)
@@ -672,7 +687,9 @@ const NodePanel = ({
                       label='Receive TIME'
                       checked={node.receiveTime}
                       disabledReason={
-                        canReceiveTime(eds) ? noInit : 'The device cannot consume TIME: its EDS has no writable 0x1012'
+                        canReceiveTime(eds)
+                          ? noInit
+                          : 'The device cannot consume TIME: its device file has no writable 0x1012'
                       }
                       hint={
                         timeOn

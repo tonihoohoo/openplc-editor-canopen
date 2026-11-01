@@ -4,7 +4,7 @@
  */
 
 export type DeviceFileEncoding = 'utf-8' | 'utf-8-bom' | 'windows-1252'
-export type DeviceFileFormat = 'eds' | 'dcf'
+export type DeviceFileFormat = 'eds' | 'dcf' | 'xdd' | 'xdc'
 
 export interface DecodedDeviceFile {
   text: string
@@ -44,5 +44,7 @@ export async function deviceFileHash(text: string): Promise<string> {
 
 /** "dcf" for a .dcf file name, else "eds". */
 export function deviceFileFormat(fileName: string): DeviceFileFormat {
+  if (/\.xdd$/i.test(fileName)) return 'xdd'
+  if (/\.xdc$/i.test(fileName)) return 'xdc'
   return /\.dcf$/i.test(fileName) ? 'dcf' : 'eds'
 }
