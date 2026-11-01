@@ -32,6 +32,7 @@ import type {
   PLCRemoteDevice,
   PLCVariable,
 } from '../../../middleware/shared/ports/types'
+import { serializeCanopenConstantsToST } from '../../../middleware/shared/utils/canopen'
 import { serializeSoftMotionAxisGlobalsToST } from '../../../middleware/shared/utils/ethercat'
 import type { OpenPLCStore } from '../../store'
 import { serializeDataTypesToST } from '../../utils/PLC/data-type-serializer'
@@ -45,6 +46,7 @@ import { serializePouSignatureToSTWithBodyOffset } from '../../utils/PLC/pou-sig
 import { serializeResourceGlobalsToST } from '../../utils/PLC/resource-globals-serializer'
 import { deleteBodyLineOffset, setBodyLineOffset } from '../lsp-shared/body-offsets'
 import {
+  CANOPEN_NAMES_URI,
   DATA_TYPES_URI,
   GLOBAL_VARIABLE_LISTS_URI,
   pouUri,
@@ -212,6 +214,20 @@ export function attachProjectSync(store: OpenPLCStore, service: StLspService): P
 
   function reconcileSoftMotionGlobals(remoteDevices: PLCRemoteDevice[] | undefined): void {
     reconcileSyntheticDoc(SOFTMOTION_GLOBALS_URI, serializeSoftMotionAxisGlobalsToST({ remoteDevices } as never))
+    // A POU is analysed against the names as they were when it was last sent, so re-send them all.
+    if (reconcileSyntheticDoc(CANOPEN_NAMES_URI, serializeCanopenConstantsToST(remoteDevices, false))) republishPous()
+  }
+
+  /** Re-sends every POU document unchanged, with a new version, so the worker analyses it again. */
+  function republishPous(): void {
+    if (disposed) return
+    for (const pou of store.getState().project.data.pous) {
+      const uri = snapshot.uriByName.get(pou.name)
+      const text = uri === undefined ? undefined : snapshot.contentByUri.get(uri)
+      if (uri === undefined || text === undefined) continue
+      snapshot.version += 1
+      service.changeDocument(uri, text, snapshot.version)
+    }
   }
 
   function reconcile(pous: PLCPou[]): void {
@@ -227,6 +243,7 @@ export function attachProjectSync(store: OpenPLCStore, service: StLspService): P
     seenUris.add(DATA_TYPES_URI)
     seenUris.add(RESOURCE_GLOBALS_URI)
     seenUris.add(SOFTMOTION_GLOBALS_URI)
+    seenUris.add(CANOPEN_NAMES_URI)
     seenUris.add(GLOBAL_VARIABLE_LISTS_URI)
 
     for (const pou of pous) {

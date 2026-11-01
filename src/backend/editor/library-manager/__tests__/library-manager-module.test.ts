@@ -102,11 +102,13 @@ function makePublicLibrary(overrides: Partial<PublicLibrary> = {}): PublicLibrar
 let testRoot: string
 let librariesDir: string
 let bundledDir: string
+let shippedDir: string
 
 beforeEach(() => {
   testRoot = mkdtempSync(join(tmpdir(), 'library-manager-test-'))
   librariesDir = join(testRoot, 'libraries')
   bundledDir = join(testRoot, 'bundled')
+  shippedDir = join(testRoot, 'shipped')
 })
 
 afterEach(() => {
@@ -116,7 +118,7 @@ afterEach(() => {
 function makeModule(): LibraryManagerModule {
   // Constructor calls mkdirSync(librariesDir, { recursive: true });
   // bundledDir is consulted lazily, so it can be empty/missing.
-  return new LibraryManagerModule({ librariesDir, bundledDir })
+  return new LibraryManagerModule({ librariesDir, bundledDir, shippedDir })
 }
 
 function writeBundled(archive: ReturnType<typeof makeArchive>): void {
@@ -373,6 +375,51 @@ describe('LibraryManagerModule', () => {
     })
   })
 
+  describe('libraries shipped with the editor', () => {
+    function writeShipped(archive: ReturnType<typeof makeArchive>): void {
+      require('fs').mkdirSync(shippedDir, { recursive: true })
+      writeFileSync(join(shippedDir, `${archive.manifest.name}.stlib`), JSON.stringify(archive), 'utf-8')
+    }
+
+    it('lists a shipped library as installed and loads it only when the project enables it', () => {
+      writeShipped(makeArchive('canopen'))
+      const mod = makeModule()
+      expect(mod.listInstalled().map((r) => r.name)).toEqual(['canopen'])
+      expect(mod.loadEnabledArchives([]).archives).toEqual([])
+      const enabled = mod.loadEnabledArchives(['canopen'])
+      expect(enabled.archives.map((a) => a.manifest.name)).toEqual(['canopen'])
+      expect(enabled.missing).toEqual([])
+      expect(mod.loadAll().map((a) => a.manifest.name)).toEqual(['canopen'])
+      expect(JSON.parse(mod.readArchiveText('canopen') ?? '{}').manifest.name).toBe('canopen')
+    })
+
+    it('refuses to uninstall a shipped library', () => {
+      writeShipped(makeArchive('canopen'))
+      expect(makeModule().uninstall('canopen')).toEqual({
+        success: false,
+        error: expect.stringContaining('ships with the editor'),
+      })
+    })
+
+    it('lets a user-installed library of the same name win', async () => {
+      writeShipped(makeArchive('canopen', '1.0.0'))
+      const mod = makeModule()
+      const tmp = join(testRoot, 'canopen.stlib')
+      writeFileSync(tmp, JSON.stringify(makeArchive('canopen', '2.0.0')), 'utf-8')
+      await mod.installFromFile(tmp)
+      expect(mod.listInstalled().map((r) => `${r.name}@${r.version}`)).toEqual(['canopen@2.0.0'])
+      expect(mod.loadEnabledArchives(['canopen']).archives.map((a) => a.manifest.version)).toEqual(['2.0.0'])
+    })
+
+    it('skips a malformed shipped archive and one that shadows a bundled library', () => {
+      writeBundled(makeArchive('iec-standard-fb'))
+      writeShipped(makeArchive('iec-standard-fb'))
+      writeFileSync(join(shippedDir, 'broken.stlib'), '{not json', 'utf-8')
+      const mod = makeModule()
+      expect(mod.listInstalled().filter((r) => r.origin !== 'bundled')).toEqual([])
+    })
+  })
+
   describe('registry resilience', () => {
     it('treats a missing registry.json as an empty registry', () => {
       const mod = makeModule()
@@ -414,7 +461,7 @@ describe('LibraryManagerModule', () => {
         'pub-1': makeArchive('alpha-lib', '1.0.0'),
         'pub-2': makeArchive('beta-lib', '2.0.0'),
       })
-      const mod = new LibraryManagerModule({ librariesDir, bundledDir, catalogTransport: transport })
+      const mod = new LibraryManagerModule({ librariesDir, bundledDir, shippedDir, catalogTransport: transport })
 
       const batch = await mod.installFromCatalog([
         makePublicLibrary({ id: 'pub-1', name: 'alpha-lib' }),
@@ -438,7 +485,7 @@ describe('LibraryManagerModule', () => {
       // separate metadata store on this platform — so the override
       // has to land inside the .stlib file itself to be visible.
       const transport = makeStubTransport({ 'pub-1': makeArchive('alpha-lib', '1.0.0') })
-      const mod = new LibraryManagerModule({ librariesDir, bundledDir, catalogTransport: transport })
+      const mod = new LibraryManagerModule({ librariesDir, bundledDir, shippedDir, catalogTransport: transport })
 
       await mod.installFromCatalog([
         makePublicLibrary({
@@ -460,7 +507,7 @@ describe('LibraryManagerModule', () => {
     it('leaves the archive untouched when catalog metadata matches the manifest already', async () => {
       const archive = makeArchive('alpha-lib', '1.0.0')
       const transport = makeStubTransport({ 'pub-1': archive })
-      const mod = new LibraryManagerModule({ librariesDir, bundledDir, catalogTransport: transport })
+      const mod = new LibraryManagerModule({ librariesDir, bundledDir, shippedDir, catalogTransport: transport })
 
       await mod.installFromCatalog([
         makePublicLibrary({
@@ -480,7 +527,7 @@ describe('LibraryManagerModule', () => {
         { 'pub-good': makeArchive('good-lib', '1.0.0') },
         { 'pub-bad': 'Catalog request failed: 503 Service Unavailable' },
       )
-      const mod = new LibraryManagerModule({ librariesDir, bundledDir, catalogTransport: transport })
+      const mod = new LibraryManagerModule({ librariesDir, bundledDir, shippedDir, catalogTransport: transport })
 
       const batch = await mod.installFromCatalog([
         makePublicLibrary({ id: 'pub-bad' }),
@@ -504,7 +551,7 @@ describe('LibraryManagerModule', () => {
 
     it('returns an empty batch when called with no ids', async () => {
       const transport = makeStubTransport({})
-      const mod = new LibraryManagerModule({ librariesDir, bundledDir, catalogTransport: transport })
+      const mod = new LibraryManagerModule({ librariesDir, bundledDir, shippedDir, catalogTransport: transport })
 
       const batch = await mod.installFromCatalog([])
 
@@ -517,7 +564,7 @@ describe('LibraryManagerModule', () => {
       const transport = makeStubTransport({
         'pub-x': makeArchive('iec-standard-fb', '9.9.9'),
       })
-      const mod = new LibraryManagerModule({ librariesDir, bundledDir, catalogTransport: transport })
+      const mod = new LibraryManagerModule({ librariesDir, bundledDir, shippedDir, catalogTransport: transport })
 
       const batch = await mod.installFromCatalog([makePublicLibrary({ id: 'pub-x', name: 'iec-standard-fb' })])
 

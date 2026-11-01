@@ -145,17 +145,17 @@ supervision, inputs on loss, watch the master with its timeout, and the state ch
 view adds the settings below. An expert setting that is not at its default stays visible in the
 basic view, marked "expert".
 
-| Node setting                          | Effect                                                                                                      |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Identity check (expert)               | Vendor ID, product code and revision checked at boot                                                        |
-| Optional node                         | The network runs without it; the master keeps looking for it and starts it when it appears                  |
-| No initialization (expert)            | No identity check, restore or configuration SDOs; the master only starts the node, which keeps its settings |
-| Restore defaults (expert)             | Restores defaults through a writable 0x1011 sub (1 all, 2 comm, 3 app, 4+ manufacturer), resets, then configures the node |
-| Node guarding                         | Writes 0x100C and 0x100D (and 0x1017 = 0); the master guards the node and loses it when it stops answering  |
-| Heartbeats this node watches (expert) | Extra 0x1016 entries after the master's, for heartbeats of other nodes                                      |
-| When the master is gone (expert)      | 0x1029:1 for a node that watches the master                                                                 |
+| Node setting                          | Effect                                                                                                                                                                                                          |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity check (expert)               | Vendor ID, product code and revision checked at boot                                                                                                                                                            |
+| Optional node                         | The network runs without it; the master keeps looking for it and starts it when it appears                                                                                                                      |
+| No initialization (expert)            | No identity check, restore or configuration SDOs; the master only starts the node, which keeps its settings                                                                                                     |
+| Restore defaults (expert)             | Restores defaults through a writable 0x1011 sub (1 all, 2 comm, 3 app, 4+ manufacturer), resets, then configures the node                                                                                       |
+| Node guarding                         | Writes 0x100C and 0x100D (and 0x1017 = 0); the master guards the node and loses it when it stops answering                                                                                                      |
+| Heartbeats this node watches (expert) | Extra 0x1016 entries after the master's, for heartbeats of other nodes                                                                                                                                          |
+| When the master is gone (expert)      | 0x1029:1 for a node that watches the master                                                                                                                                                                     |
 | Emergency messages (expert)           | On by default; the COB-ID the master listens on, written to 0x1014 when it differs from the EDS. Off and greyed out when the EDS has no 0x1014; with a read-only 0x1014 the COB-ID is the EDS value, greyed out |
-| Receive TIME (expert)                 | Writes 0x1012 so the node takes the network's TIME                                                          |
+| Receive TIME (expert)                 | Writes 0x1012 so the node takes the network's TIME                                                                                                                                                              |
 
 With **No initialization** the heartbeat or guarding values shown are the EDS defaults, read-only.
 A setting the node cannot take is greyed out, and hovering it says why (the missing object, or No
@@ -242,6 +242,52 @@ editor opened.
   **Close bus** closes it, and so does closing the device editor; the runtime closes it before the
   PLC starts and after 5 minutes without a request.
 
+## PLC function blocks
+
+The editor ships the **canopen** library ("CANopen" in the library tree) with CiA 405 function blocks for the
+project's CANopen networks. The project's first CANopen network turns it on; it can be turned off and
+on in the project's libraries like any other. The blocks are C++ blocks that run inside the program and
+hand each request to the runtime's canopen plugin, so a call never waits for the bus.
+
+| Block                                 | What it does                                                       |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| `SDO_READ4`, `SDO_WRITE4`             | Read or write an object of 1 to 4 bytes (`DATA : DWORD`)           |
+| `SDO_READ_DATA`, `SDO_WRITE_DATA`     | Read or write up to 256 bytes (`DATA : ARRAY[0..255] OF BYTE`)     |
+| `SDO_READ_STRING`, `SDO_WRITE_STRING` | Read or write a text object of up to 254 characters                |
+| `NMT`                                 | Send an NMT command to a node, or with `DEVICE := 0` to every node |
+| `GET_STATE`                           | A node's NMT state as the master sees it                           |
+| `GET_LOCAL_NODE_ID`                   | The master's node ID                                               |
+| `GET_CANOPEN_KERNEL_STATE`            | The bus state (no error, error passive, bus off, no driver)        |
+| `RECV_EMCY`, `RECV_EMCY_DEV`          | Emergency messages of the network, or of one node, oldest first    |
+
+- **Addressing.** `NETWORK` counts the networks that are on from 1 (default 1) and `DEVICE` is the node
+  ID. Each network and node name is also a constant of the program, so `DEVICE := io2` and
+  `NETWORK := line_1` work. A name must be an identifier, unique across the networks (case does not
+  matter) and must not be a name of the project or of the library; the node page lists a clash and
+  the build refuses it.
+- **Handshake.** A rising edge of `ENABLE` starts a request. `BUSY` is TRUE until it ends, then
+  `CONFIRM` or `ERROR` stays until `ENABLE` goes FALSE. `TIMEOUT := T#0s` uses the network's SDO
+  timeout. The state blocks answer in the same call while `ENABLE` is TRUE. Instances are independent,
+  so one block type can be used many times with different names.
+- **Errors.** `ERROR` is a `CANOPEN_KERNEL_*` constant; `ERRORINFO` holds the SDO abort code when the
+  node refused (`CANOPEN_KERNEL_OTHER_ERROR`) and `ERRORTEXT` says the same in words with the network,
+  node and object. A runtime without the canopen plugin, or one too old, gives
+  `CANOPEN_KERNEL_NO_DRIVER`.
+- **Types.** STruC++ does not export a library's enumerations, so the CiA 405 enumerations are `USINT`
+  types (`CANOPEN_KERNEL_ERROR`, `DEVICE_STATE`, `TRANSITION_STATE`) with their values as constants
+  (`STOPPED`, `START_REMOTE_NODE`, ...). `CANOPEN_DWORD_TO_REAL` and `CANOPEN_REAL_TO_DWORD` keep every
+  bit for REAL32 objects.
+- **PLC stop and start.** A request in progress when the PLC stops is cancelled; after a start the
+  blocks begin again from idle. `SDO_WRITE4` with `DATALENGTH := 0` takes the object's size from the
+  node's EDS.
+
+The library's sources are in `resources/libraries/canopen/` (`library.json`, `src/types.st`,
+`src/shared.inc`) and the block templates in `src/backend/shared/canopen/library-blocks.ts`;
+`npm run build:canopen-lib` writes `resources/libraries/canopen/blocks/` and
+`resources/libraries/canopen.stlib`, and a unit test fails while they are stale. The names, the
+constants and the EDS size table come from `src/middleware/shared/utils/canopen/plc-names.ts` and are
+appended to the program at build time.
+
 ## Installing a release and the runtime check
 
 This fork's releases are on its GitHub Releases page (`v<upstream version>-canopen.<N>`); installing one
@@ -305,7 +351,7 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
   node from an EDS and building it, PDO and startup SDO editing, aliases, the Network tab settings and
   the bit rates the nodes support, the defaults for new nodes, the checks that stop a build and their
   fixes, receive timeouts, node options, EDS and DCF import and export, the basic and expert view, heartbeat consuming, emergency and
-  TIME settings, turning a network off, the upload check against a runtime without CANopen, and,
+  TIME settings, turning a network off, the PLC block library and node names in a program, the upload check against a runtime without CANopen, and,
   against a fake runtime on port 8443 (`e2e/helpers/canopen-runtime.ts`), the live status, the Online
   tab, Save to node and Restore defaults, and service mode. Run them locally with
   `npx playwright test e2e/canopen-` after the build steps in CLAUDE.md ("Electron e2e").
@@ -320,4 +366,10 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
   intended change, take the new images from the run's `canopen-ui-results` artifact
   (`<view>-actual.png`), save them as `e2e/<spec>-snapshots/<view>-chromium-linux.png` and commit.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
-  against a simulated node on a virtual CAN bus.
+  against a simulated node on a virtual CAN bus, and runs `e2e/fixtures/canopen-plc-blocks/`, a
+  program that calls every block, against the same node across PLC stops and starts.
+- PLC blocks: the names and constants in
+  `src/middleware/shared/utils/canopen/__tests__/plc-names.test.ts`, the library build in
+  `src/backend/shared/canopen/__tests__/build-library.test.ts` (it also fails while the committed
+  archive is stale), the shipped libraries in the library manager's tests and the auto-enable in
+  `src/frontend/store/__tests__/shared-slice.test.ts`.
