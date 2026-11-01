@@ -74,6 +74,7 @@ test('the first CANopen network turns the block library on, and a program calls 
     await expect(page.getByText('No nodes yet')).toBeVisible({ timeout: 30000 })
 
     await page.getByTestId('canopen-eds-input').setInputFiles(EDS)
+    await page.getByTestId('canopen-file-dialog-confirm').click()
     await expect(page.getByText('Node 1: Generic_I_O_module')).toBeVisible({ timeout: 15000 })
     const nodeId = page.getByLabel('Node ID', { exact: true })
     await nodeId.fill('2')

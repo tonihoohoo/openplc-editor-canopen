@@ -5,8 +5,10 @@ import {
   CIA306_RULES,
   type Cia306Finding,
   createCanopenNode,
-  type DcfExport,
   type DcfImportLine,
+  type DeviceFileExport,
+  EXPORT_FORMATS,
+  type ExportFormat,
   findingPlace,
   importDcfSettings,
   lowestFreeNodeId,
@@ -34,7 +36,7 @@ const ENCODING_NAMES = {
   'windows-1252': 'Windows-1252',
 } as const
 
-type BadgeKind = 'error' | 'warning' | 'fixed' | 'taken' | 'not-taken' | 'ok' | 'dropped'
+type BadgeKind = 'error' | 'warning' | 'fixed' | 'taken' | 'not-taken' | 'ok' | 'dropped' | 'lost'
 
 const BADGE: Record<BadgeKind, { label: string; className: string }> = {
   error: { label: 'Error', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
@@ -46,6 +48,7 @@ const BADGE: Record<BadgeKind, { label: string; className: string }> = {
     className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
   },
   dropped: { label: 'Dropped', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
+  lost: { label: 'Not in file', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
   ok: { label: 'OK', className: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' },
 }
 
@@ -314,33 +317,77 @@ export const DeviceFileDialog = ({
   )
 }
 
-type DcfExportDialogProps = {
+type ExportDialogProps = {
   title: string
-  files: readonly DcfExport[]
+  format: ExportFormat
+  files: readonly DeviceFileExport[]
   missing: readonly CanopenNode[]
+  /** What the files do not hold. */
+  losses: readonly string[]
   saveLabel: string
+  onFormatChange: (format: ExportFormat) => void
   onCancel: () => void
   onSave: () => void
 }
 
-/** The check of the DCF files about to be saved; nothing is saved while one has an error. */
-export const DcfExportDialog = ({ title, files, missing, saveLabel, onCancel, onSave }: DcfExportDialogProps) => {
+/** Format choice and the check of the files about to be saved; nothing is saved while one has an error. */
+export const ExportDialog = ({
+  title,
+  format,
+  files,
+  missing,
+  losses,
+  saveLabel,
+  onFormatChange,
+  onCancel,
+  onSave,
+}: ExportDialogProps) => {
   const ok = missing.length === 0 && files.every((f) => f.errors.length === 0 && f.problems.length === 0)
   return (
     <Modal open onOpenChange={(open) => (open ? undefined : onCancel())}>
       <ModalContent
         onClose={onCancel}
         className='!inset-x-0 !bottom-auto !top-1/2 !h-auto max-h-[86vh] w-[640px] !-translate-y-1/2 p-6'
-        data-testid='canopen-dcf-export-dialog'
+        data-testid='canopen-export-dialog'
       >
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
-        <p className='text-xs text-neutral-600 dark:text-neutral-400'>
-          Each file is the node&apos;s device file with ParameterValue on every object the master writes when it
-          configures the node.
-        </p>
+        <fieldset className={cardClassName} data-testid='canopen-export-format'>
+          <legend className={cn(headingClassName, 'mb-1')}>Format</legend>
+          {EXPORT_FORMATS.map((f) => (
+            <label key={f.format} className='flex cursor-pointer items-start gap-2 py-1 text-xs'>
+              <input
+                type='radio'
+                name='canopen-export-format'
+                value={f.format}
+                checked={format === f.format}
+                onChange={() => onFormatChange(f.format)}
+                className='mt-0.5 accent-brand'
+              />
+              <span>
+                <span className='font-medium'>{f.label}</span>
+                <span className={cn(hintClassName, 'block')}>{f.description}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        {losses.length > 0 ? (
+          <div className={cardClassName}>
+            <h4 className={headingClassName}>Not in the exported files</h4>
+            <p className={cn(hintClassName, 'mb-1')}>
+              The project keeps these; a file read back into the editor does not bring them.
+            </p>
+            <ul data-testid='canopen-export-losses' className='max-h-40 overflow-y-auto'>
+              {losses.map((l) => (
+                <Row key={l} kind='lost'>
+                  {l}
+                </Row>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className={cardClassName}>
           <h4 className={headingClassName}>Check of the files (CiA 306)</h4>
-          <ul data-testid='canopen-dcf-export-results'>
+          <ul data-testid='canopen-export-results'>
             {missing.map((node) => (
               <Row key={node.id} kind='error'>
                 node {node.nodeId} ({node.name}): no device file is stored for it. Use Replace EDS... to add it.
@@ -350,9 +397,7 @@ export const DcfExportDialog = ({ title, files, missing, saveLabel, onCancel, on
               f.errors.length === 0 && f.problems.length === 0 ? (
                 <Row key={f.fileName} kind='ok'>
                   <code className='font-mono text-[11px]'>{f.fileName}</code>{' '}
-                  <span className={hintClassName}>
-                    {f.text.split('\n').filter((l) => l.startsWith('ParameterValue=')).length} ParameterValues
-                  </span>
+                  <span className={hintClassName}>{f.summary}</span>
                 </Row>
               ) : (
                 [
@@ -380,7 +425,7 @@ export const DcfExportDialog = ({ title, files, missing, saveLabel, onCancel, on
             type='button'
             className={primaryButtonClassName}
             disabled={!ok}
-            data-testid='canopen-dcf-export-save'
+            data-testid='canopen-export-save'
             onClick={onSave}
           >
             {saveLabel}

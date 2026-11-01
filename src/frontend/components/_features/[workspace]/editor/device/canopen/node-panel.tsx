@@ -176,7 +176,7 @@ type NodePanelProps = {
   onChange: (update: (node: CanopenNode) => CanopenNode) => void
   onNodeIdChange: (nodeId: number) => void
   onRemove: () => void
-  onExportDcf: () => void
+  onExport: () => void
   /** Called with the chosen EDS or DCF file's name and bytes. */
   onReplaceFile: (fileName: string, bytes: Uint8Array) => void
   onAliasChange: (entry: CanopenEntry, alias: string) => string | null
@@ -216,7 +216,7 @@ const NodePanel = ({
   onChange,
   onNodeIdChange,
   onRemove,
-  onExportDcf,
+  onExport,
   onReplaceFile,
   onAliasChange,
 }: NodePanelProps) => {
@@ -287,8 +287,8 @@ const NodePanel = ({
             />
             Expert view
           </label>
-          <button type='button' className={secondaryButtonClassName} onClick={onExportDcf}>
-            Export DCF...
+          <button type='button' className={secondaryButtonClassName} onClick={onExport}>
+            Export...
           </button>
           <button type='button' className={secondaryButtonClassName} onClick={() => replaceInput.current?.click()}>
             Replace EDS...

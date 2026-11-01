@@ -501,11 +501,11 @@ describe('CanopenEditor', () => {
       const files = config()?.files ?? {}
       expect(Object.keys(files)).toHaveLength(1)
       expect(config()?.nodes[0].eds.source?.sha256).toBe(Object.keys(files)[0])
-      fireEvent.click(screen.getByRole('button', { name: 'Export DCF...' }))
-      const dialog = screen.getByTestId('canopen-dcf-export-dialog')
-      expect(within(dialog).getByTestId('canopen-dcf-export-results').textContent).toContain('node_1.dcf')
+      fireEvent.click(screen.getByRole('button', { name: 'Export...' }))
+      const dialog = screen.getByTestId('canopen-export-dialog')
+      expect(within(dialog).getByTestId('canopen-export-results').textContent).toContain('node_1.dcf')
       await act(async () => {
-        fireEvent.click(within(dialog).getByTestId('canopen-dcf-export-save'))
+        fireEvent.click(within(dialog).getByTestId('canopen-export-save'))
         await Promise.resolve()
       })
       expect(saved).toHaveLength(1)
@@ -516,6 +516,26 @@ describe('CanopenEditor', () => {
       })
       expect(text).toContain('[DeviceComissioning]\nNodeID=1\n')
       expect(text).toContain('LastEDS=generic-io-module.eds')
+    })
+
+    it('exports a node as its EDS unchanged when EDS is picked', async () => {
+      await importEds()
+      fireEvent.click(screen.getByRole('button', { name: 'Export...' }))
+      const dialog = screen.getByTestId('canopen-export-dialog')
+      fireEvent.click(within(dialog).getByRole('radio', { name: /^EDS/ }))
+      expect(within(dialog).getByTestId('canopen-export-results').textContent).toContain('generic-io-module.eds')
+      expect(within(dialog).getByTestId('canopen-export-save').textContent).toBe('Save generic-io-module.eds...')
+      expect(within(dialog).getByTestId('canopen-export-losses').textContent).toContain('node ID, name, PDO settings')
+      await act(async () => {
+        fireEvent.click(within(dialog).getByTestId('canopen-export-save'))
+        await Promise.resolve()
+      })
+      const text = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.readAsText(saved[0])
+      })
+      expect(text).toBe(GENERIC_IO_EDS)
     })
 
     it('adds a node from a DCF and takes its settings', async () => {
@@ -570,10 +590,10 @@ describe('CanopenEditor', () => {
     it('exports the network as a zip of DCF files from the Network tab', async () => {
       await importEds()
       openTab('Network')
-      fireEvent.click(screen.getByRole('button', { name: 'Export network as DCF files...' }))
-      const dialog = screen.getByTestId('canopen-dcf-export-dialog')
+      fireEvent.click(screen.getByRole('button', { name: 'Export network...' }))
+      const dialog = screen.getByTestId('canopen-export-dialog')
       await act(async () => {
-        fireEvent.click(within(dialog).getByTestId('canopen-dcf-export-save'))
+        fireEvent.click(within(dialog).getByTestId('canopen-export-save'))
         await new Promise((resolve) => setTimeout(resolve, 50))
       })
       expect(saved).toHaveLength(1)

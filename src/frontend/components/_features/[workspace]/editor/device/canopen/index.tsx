@@ -13,16 +13,18 @@ import type {
   CanopenNode,
 } from '@root/middleware/shared/ports/canopen-types'
 import {
-  buildNetworkDcfs,
-  buildNodeDcf,
+  buildNetworkExport,
+  buildNodeExport,
   type CanopenCheck,
   canopenNameProblems,
   canopenSdoWarnings,
   checkCanopenNetwork,
   checkText,
-  type DcfExport,
-  dcfZip,
   defaultCanopenConfig,
+  type DeviceFileExport,
+  deviceFileZip,
+  type ExportFormat,
+  exportLosses,
   fixAllCanopenProblems,
   lowestFreeNodeId,
   plcCycleUs,
@@ -39,7 +41,7 @@ import {
 import { describeAliasRejection, validateAliasEdit } from '@root/middleware/shared/utils/iec-address'
 import { useCallback, useMemo, useState } from 'react'
 
-import { DcfExportDialog, DeviceFileDialog, type DeviceFileRequest } from './device-file-dialogs'
+import { DeviceFileDialog, type DeviceFileRequest, ExportDialog } from './device-file-dialogs'
 import { NetworkSettings } from './network-settings'
 import { NetworkSwitch } from './network-switch'
 import { NodeList } from './node-list'
@@ -48,10 +50,13 @@ import { ConfirmBar, type ConfirmRequest, NmtButtons, ServiceBus } from './onlin
 import { BusStatusLine } from './status-view'
 import { cardClassName, headingClassName, hintClassName, secondaryButtonClassName } from './styles'
 
+type ExportTarget = { kind: 'node'; node: CanopenNode } | { kind: 'network' }
+
 type ExportRequest = {
   title: string
-  files: DcfExport[]
+  files: DeviceFileExport[]
   missing: CanopenNode[]
+  losses: string[]
   saveLabel: string
   save: () => Promise<void>
 }
@@ -237,7 +242,6 @@ const CanopenEditor = () => {
   )
 
   const [fileRequest, setFileRequest] = useState<DeviceFileRequest | null>(null)
-  const [exportRequest, setExportRequest] = useState<ExportRequest | null>(null)
 
   const chooseFile = useCallback((fileName: string, bytes: Uint8Array, replacing?: CanopenNode) => {
     prepareDeviceFile(fileName, bytes)
@@ -254,35 +258,40 @@ const CanopenEditor = () => {
     [registry, deviceName],
   )
 
-  const exportNode = useCallback(
-    (node: CanopenNode) => {
+  const [exportTarget, setExportTarget] = useState<ExportTarget | null>(null)
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('dcf')
+
+  const exportRequest = useMemo((): ExportRequest | null => {
+    if (!exportTarget) return null
+    const options = { now: new Date(), networkName: deviceName }
+    const ext = exportFormat.toUpperCase()
+    if (exportTarget.kind === 'node') {
+      const node = config.nodes.find((n) => n.id === exportTarget.node.id) ?? exportTarget.node
       const text = storedFileText(config, node)
-      const files = text ? [buildNodeDcf(node, text, config, { now: new Date(), networkName: deviceName })] : []
-      setExportRequest({
-        title: `Export node ${node.nodeId} as a DCF file`,
+      const files = text ? [buildNodeExport(exportFormat, node, text, config, options)] : []
+      return {
+        title: `Export node ${node.nodeId}`,
         files,
         missing: text ? [] : [node],
-        saveLabel: `Save ${files[0]?.fileName ?? 'DCF'}...`,
+        losses: exportLosses(exportFormat, [node], false),
+        saveLabel: `Save ${files[0]?.fileName ?? ext}...`,
         save: () => {
           if (files[0]) downloadFile(files[0].fileName, files[0].text, 'text/plain;charset=utf-8')
           return Promise.resolve()
         },
-      })
-    },
-    [config, deviceName],
-  )
-
-  const exportNetwork = useCallback(() => {
-    const { files, missing } = buildNetworkDcfs(config, { now: new Date(), networkName: deviceName })
-    const zipName = `${deviceName}-dcf.zip`
-    setExportRequest({
-      title: `Export network ${deviceName} as DCF files`,
+      }
+    }
+    const { files, missing } = buildNetworkExport(exportFormat, config, options)
+    const zipName = `${deviceName}-${exportFormat}.zip`
+    return {
+      title: `Export network ${deviceName}`,
       files,
       missing,
+      losses: exportLosses(exportFormat, config.nodes, true),
       saveLabel: `Save ${zipName}...`,
-      save: async () => downloadFile(zipName, await dcfZip(files), 'application/zip'),
-    })
-  }, [config, deviceName])
+      save: async () => downloadFile(zipName, await deviceFileZip(files), 'application/zip'),
+    }
+  }, [exportTarget, exportFormat, config, deviceName])
 
   const changeAlias = useCallback(
     (node: CanopenNode, entry: CanopenEntry, alias: string): string | null => {
@@ -404,7 +413,7 @@ const CanopenEditor = () => {
                 commit((c) => pruneStoredFiles({ ...c, nodes: c.nodes.filter((n) => n.id !== selected.id) }))
                 setSelectedId(null)
               }}
-              onExportDcf={() => exportNode(selected)}
+              onExport={() => setExportTarget({ kind: 'node', node: selected })}
               onReplaceFile={(fileName, bytes) => chooseFile(fileName, bytes, selected)}
               onAliasChange={(entry, alias) => changeAlias(selected, entry, alias)}
             />
@@ -430,15 +439,15 @@ const CanopenEditor = () => {
           ) : null}
           <div className='mb-4 flex items-center justify-between gap-4'>
             <p className={hintClassName}>
-              One CiA 306 DCF per node: its device file with the values the master writes when it configures it.
+              The device files of all nodes, as DCF files with the values the master writes, or as EDS files.
             </p>
             <button
               type='button'
               className={secondaryButtonClassName}
               disabled={config.nodes.length === 0}
-              onClick={exportNetwork}
+              onClick={() => setExportTarget({ kind: 'network' })}
             >
-              Export network as DCF files...
+              Export network...
             </button>
           </div>
           <NetworkSettings network={config.network} nodes={config.nodes} cycleUs={cycleUs} onChange={changeNetwork} />
@@ -474,18 +483,21 @@ const CanopenEditor = () => {
         />
       ) : null}
       {exportRequest ? (
-        <DcfExportDialog
+        <ExportDialog
           title={exportRequest.title}
+          format={exportFormat}
           files={exportRequest.files}
           missing={exportRequest.missing}
+          losses={exportRequest.losses}
           saveLabel={exportRequest.saveLabel}
-          onCancel={() => setExportRequest(null)}
+          onFormatChange={setExportFormat}
+          onCancel={() => setExportTarget(null)}
           onSave={() => {
             exportRequest
               .save()
-              .then(() => setExportRequest(null))
+              .then(() => setExportTarget(null))
               .catch((error: unknown) =>
-                toast({ title: 'Cannot save the DCF files', description: String(error), variant: 'fail' }),
+                toast({ title: 'Cannot save the exported files', description: String(error), variant: 'fail' }),
               )
           }}
         />

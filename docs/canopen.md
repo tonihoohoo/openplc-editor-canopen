@@ -108,14 +108,20 @@ entries into aliases. The dialog lists what is taken and what is not (for exampl
 which are never written, or a heartbeat consumer for a node the network does not have), and warns
 when the file's bit rate differs from the network's.
 
-**Export.** **Export DCF...** on a node page writes `node_<id>.dcf`: the node's EDS with a
-`ParameterValue` for every value the master writes at boot, `Denotation` for aliases,
-`[DeviceComissioning]` (node ID, name, bit rate, network name) and an updated `[FileInfo]`. Leading
-comments say that the master writes these values at each boot and that a node is reset to its
-defaults with 0x1011 sub 1 before taking them over. A mapping the device fixes is written too, so
-the DCF read back gives the same entries. **Export network as DCF files...** at the top of
-the Network tab writes one zip with a DCF per node. Each exported file is checked again; a dialog
-shows the result per file and **Save** is disabled when one has an error.
+**Export.** **Export...** on a node page and **Export network...** at the top of the Network tab open
+a dialog that asks for the format (`EXPORT_FORMATS` in `dcf-export.ts`; more formats are added there).
+
+- **DCF** writes `node_<id>.dcf`: the node's EDS with a `ParameterValue` for every value the master
+  writes at boot, `Denotation` for aliases, `[DeviceComissioning]` (node ID, name, bit rate, network
+  name) and an updated `[FileInfo]`. Leading comments say that the master writes these values at each
+  boot and that a node is reset to its defaults with 0x1011 sub 1 before taking them over. A mapping
+  the device fixes is written too, so the DCF read back gives the same entries.
+- **EDS** writes the stored file as it was added, unchanged, under its own name. A node added from a
+  DCF gets that DCF without its values, names, commissioning and export comments, named after its
+  `LastEDS`.
+
+A network export writes one zip: a DCF per node, or an EDS per stored file. Each exported file is
+checked again; the dialog shows the result per file and **Save** is disabled when one has an error.
 
 **Replace EDS...** on a node page swaps the node's file for a newer one. The node keeps its ID, name,
 PDO entries, aliases, startup SDOs and options where the new file still allows them; the dialog lists

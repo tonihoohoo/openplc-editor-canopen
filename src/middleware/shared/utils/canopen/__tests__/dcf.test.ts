@@ -1,5 +1,14 @@
 import type { CanopenConfig, CanopenNode } from '../../../ports/canopen-types'
-import { buildNetworkDcfs, buildNodeDcf, dcfExportOk, parameterValueText } from '../dcf-export'
+import {
+  buildNetworkDcfs,
+  buildNetworkExport,
+  buildNodeDcf,
+  buildNodeExport,
+  dcfExportOk,
+  edsFileName,
+  exportLosses,
+  parameterValueText,
+} from '../dcf-export'
 import { importDcfSettings, readDcfContent } from '../dcf-import'
 import {
   prepareDeviceFile,
@@ -252,6 +261,74 @@ describe('DCF export', () => {
   })
 })
 
+describe('EDS export', () => {
+  it('gives the stored EDS back byte for byte', async () => {
+    const config = await network(withTimerAndSdo)
+    const node = config.nodes[0]
+    const file = buildNodeExport('eds', node, storedFileText(config, node) ?? '', config, { now: NOW })
+    expect(file).toMatchObject({ fileName: 'generic-io-module.eds', text: GENERIC_IO_EDS, errors: [], problems: [] })
+  })
+
+  it('strips the values of a stored DCF and keeps a clean description', async () => {
+    const config = await network(withTimerAndSdo)
+    const dcf = exportNode(config).text
+    const prepared = await prepareDeviceFile('node_2.dcf', bytes(dcf))
+    if (!prepared.eds) throw new Error('export does not load')
+    const node = createCanopenNode(prepared.eds, {
+      id: 'd',
+      name: 'd',
+      nodeId: 2,
+      newId,
+      allocate: sequentialAllocator(),
+    })
+    const fromDcf = withStoredFile({ ...defaultCanopenConfig(), nodes: [node] }, prepared)
+    const file = buildNodeExport('eds', node, storedFileText(fromDcf, node) ?? '', fromDcf, { now: NOW })
+    expect(file.fileName).toBe('generic-io-module.eds')
+    expect(file.errors).toEqual([])
+    expect(file.text).not.toMatch(/ParameterValue=|Denotation=|DeviceComissioning|^; DCF:/m)
+    expect(sectionOf(file.text, 'FileInfo')).toContain('FileName=generic-io-module.eds')
+    const again = await prepareDeviceFile(file.fileName, bytes(file.text))
+    expect(again.check.ok).toBe(true)
+  })
+
+  it('names the EDS of a DCF without LastEDS after the DCF', async () => {
+    const config = await network()
+    const node = {
+      ...config.nodes[0],
+      eds: { ...config.nodes[0].eds, source: { format: 'dcf' as const, fileName: 'dir/io.dcf', sha256: 'x' } },
+    }
+    expect(edsFileName(node, '[FileInfo]\nFileName=io.dcf\n')).toBe('io.eds')
+    expect(edsFileName({ ...node, eds: { ...node.eds, source: undefined, fileName: '' } }, '')).toBe('node_2.eds')
+  })
+
+  it('exports one EDS per stored file for the network', async () => {
+    const config = await network()
+    const second = { ...config.nodes[0], id: 'n3', nodeId: 3, name: 'io3' }
+    const other = await prepareDeviceFile(
+      'generic-io-module.eds',
+      bytes(GENERIC_IO_EDS.replace('RevisionNumber=0x00000003', 'RevisionNumber=0x00000004')),
+    )
+    if (!other.eds) throw new Error('fixture does not load')
+    const third = createCanopenNode(other.eds, {
+      id: 'n4',
+      name: 'io4',
+      nodeId: 4,
+      newId,
+      allocate: sequentialAllocator(),
+    })
+    const all = withStoredFile({ ...config, nodes: [...config.nodes, second, third] }, other)
+    const bare = { ...config.nodes[0], id: 'n5', nodeId: 5, eds: { ...config.nodes[0].eds, source: undefined } }
+    const { files, missing } = buildNetworkExport('eds', { ...all, nodes: [...all.nodes, bare] }, { now: NOW })
+    expect(files.map((f) => f.fileName)).toEqual(['generic-io-module.eds', 'generic-io-module_2.eds'])
+    expect(missing).toEqual([bare])
+    expect(buildNetworkExport('dcf', all, { now: NOW }).files.map((f) => f.fileName)).toEqual([
+      'node_2.dcf',
+      'node_3.dcf',
+      'node_4.dcf',
+    ])
+  })
+})
+
 describe('DCF import', () => {
   async function importText(text: string, config: CanopenConfig = defaultCanopenConfig()) {
     const prepared = await prepareDeviceFile('io.dcf', bytes(text))
@@ -467,5 +544,34 @@ describe('replaceDeviceFile', () => {
     const { node: replaced, dropped } = replaceDeviceFile(node, node.eds, newId, sequentialAllocator())
     expect(replaced.supervision).toBe('none')
     expect(dropped).toContainEqual(expect.objectContaining({ what: 'Supervision' }))
+  })
+})
+
+describe('export losses', () => {
+  it('says what each format leaves out', async () => {
+    const config = await network((n) => ({
+      ...updatePdo(n, 'input', 1, (p) => ({ ...p, receiveTimeoutMs: 50 })),
+      restoreDefaults: 1,
+    }))
+    const node = config.nodes[0]
+    const dcf = exportLosses('dcf', [node], false)
+    expect(dcf.join('\n')).toMatch(/IEC addresses of \d+ mapped entr/)
+    expect(dcf).toContain('receive timeouts on 1 PDO')
+    expect(dcf.join('\n')).toContain('0x1011 sub 1')
+    expect(dcf.join('\n')).not.toContain('node ID, name')
+    const eds = exportLosses('eds', [node], false)
+    expect(eds[0]).toContain('node ID, name, PDO settings')
+    expect(eds.join('\n')).not.toContain('0x1011')
+    expect(exportLosses('dcf', [{ ...node, configure: false }], false).join('\n')).toContain('does not configure')
+  })
+
+  it('adds the network settings and shared files for a network', async () => {
+    const config = await network()
+    const nodes = [config.nodes[0], { ...config.nodes[0], id: 'n3', nodeId: 3 }]
+    const eds = exportLosses('eds', nodes, true)
+    expect(eds[0]).toContain('bit rate')
+    expect(eds[1]).toContain('share one EDS')
+    expect(eds.some((l) => l.startsWith('node 3: '))).toBe(true)
+    expect(exportLosses('dcf', nodes, true)[0]).toContain('each DCF keeps the bit rate')
   })
 })
