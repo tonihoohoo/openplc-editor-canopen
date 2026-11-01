@@ -1,6 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { useCanopenExpertView } from '@root/frontend/hooks/use-canopen-expert-view'
 import type { CanopenOnlineContext } from '@root/frontend/hooks/use-canopen-online'
+import type { CanopenOnlineReads } from '@root/frontend/hooks/use-canopen-online-reads'
 import type { CanopenLiveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { cn } from '@root/frontend/utils/cn'
 import type {
@@ -34,7 +35,7 @@ import {
   updatePdo,
   watchMasterProblem,
 } from '@root/middleware/shared/utils/canopen'
-import { type ReactNode, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
@@ -172,6 +173,10 @@ type NodePanelProps = {
   live: CanopenLiveStatus | null
   /** The online tools; null hides the Online tab. */
   online: CanopenOnlineContext | null
+  /** Told whether the Online tab is the one shown, and false when the panel goes away. */
+  onOnlineShown?: (shown: boolean) => void
+  /** Values read from the nodes, kept across tabs and nodes. */
+  reads: CanopenOnlineReads
   network: CanopenNetworkSettings
   onChange: (update: (node: CanopenNode) => CanopenNode) => void
   onNodeIdChange: (nodeId: number) => void
@@ -212,6 +217,8 @@ const NodePanel = ({
   sdoWarnings,
   live,
   online,
+  onOnlineShown,
+  reads,
   network,
   onChange,
   onNodeIdChange,
@@ -224,6 +231,10 @@ const NodePanel = ({
   const [tab, setTab] = useState<NodeTab>('general')
   const [expert, setExpert] = useCanopenExpertView()
   const shownTab: NodeTab = (tab === 'status' && !live) || (tab === 'online' && !online) ? 'general' : tab
+  useEffect(() => {
+    onOnlineShown?.(shownTab === 'online')
+    return () => onOnlineShown?.(false)
+  }, [shownTab, onOnlineShown])
   const { eds } = node
   const canHeartbeat = findObject(eds, 0x1017, 0) !== undefined
   const heartbeatObject = objectParameterState(eds, 0x1017, 0)
@@ -749,10 +760,9 @@ const NodePanel = ({
               node={node}
               network={network}
               online={online}
+              reads={reads}
+              status={live?.network?.nodes.find((n) => n.node_id === node.nodeId)}
               expert={expert}
-              onAddStartupSdo={(index, subIndex, dataType, value) =>
-                onChange((n) => ({ ...n, sdos: [...n.sdos, { id: uuidv4(), index, subIndex, dataType, value }] }))
-              }
             />
           </Tabs.Content>
         ) : null}

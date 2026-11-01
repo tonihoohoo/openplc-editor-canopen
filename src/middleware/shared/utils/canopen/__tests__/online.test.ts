@@ -80,6 +80,24 @@ describe('createCanopenOnline', () => {
     expect(await online.closeService()).toMatchObject({ ok: false, reason: 'error' })
   })
 
+  it('polls a job soon at first, then less often', async () => {
+    const waits: number[] = []
+    const answers: unknown[] = [
+      { job: 4 },
+      ...Array.from({ length: 6 }, () => ({ state: 'pending' })),
+      { state: 'done' },
+    ]
+    const online = createCanopenOnline(fakeRoute(answers).send, {
+      pollMs: 100,
+      sleep: (ms) => {
+        waits.push(ms)
+        return Promise.resolve()
+      },
+    })
+    await online.read(0, 2, 0x1000, 0)
+    expect(waits).toEqual([10, 20, 50, 100, 100, 100])
+  })
+
   it('gives up on a job that stays pending', async () => {
     const answers: unknown[] = [{ job: 3 }, ...Array.from({ length: 40 }, () => ({ state: 'pending' }))]
     const online = createCanopenOnline(fakeRoute(answers).send, { ...noSleep, timeoutMs: 1000 })

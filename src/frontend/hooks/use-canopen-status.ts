@@ -23,6 +23,8 @@ export interface CanopenLiveStatus {
   now: number
   /** The last read failed; `network` is the last good answer. */
   stale: boolean
+  /** Reads failed in a row since the last good answer. */
+  failures: number
   error: string | null
 }
 
@@ -33,6 +35,7 @@ const EMPTY: CanopenLiveStatus = {
   features: [],
   now: 0,
   stale: false,
+  failures: 0,
   error: null,
 }
 
@@ -75,7 +78,7 @@ export function useCanopenStatus(networkName: string, enabled = true): CanopenLi
     if (!supported || !connected || !enabled || !read) return
     let cancelled = false
     let busy = false
-    const fail = (error: string) => setStatus((prev) => ({ ...prev, stale: true, error }))
+    const fail = (error: string) => setStatus((prev) => ({ ...prev, stale: true, failures: prev.failures + 1, error }))
     const tick = async () => {
       if (busy) return
       busy = true

@@ -214,37 +214,48 @@ The network is matched by the device's name. A network that is off is not read: 
 ## Online tools
 
 While the editor is connected to a runtime that lists `"sdo"` in `canopen.features`, each node has an
-**Online** tab. It sends its requests to `POST /api/canopen/request`; SDO requests are jobs the editor
-polls every 100 ms. The network is the device's network in the runtime's status. A network that is
-off in the project has no Online tab and no Open bus, and turning it off closes the service mode the
-editor opened.
+**Online** tab. It sends its requests to `POST /api/canopen/request`;
+SDO requests are jobs the editor polls after 10, 20 and 50 ms and then every 100 ms. The network is
+the device's network in the runtime's status. A network that is off in the project has no Online tab
+and no Open bus, and turning it off closes the service mode the editor opened.
 
 - **Basic view (read only).** Every object of the node's EDS with index, name, type, access, the value
-  in the project (the value the master writes at boot, marked "written at boot", else the EDS
-  default) and the value read from the node. Search over index and name; filters for all objects,
-  "Differs from project" (highlighted), writable objects and objects mapped in a PDO; Read per
-  object and Read all with progress and Cancel; decimal or hex; strings decoded. A refused read
-  shows the abort code in words in the row.
+  in the project (the value the master writes at boot, marked with `*`, else the EDS default) and the
+  value read from the node, in fixed columns that do not move while values load; long values wrap.
+  When the tab is too narrow for a readable name, type and access move under the name and, in the
+  expert view, the Write field under the node's value; narrower still, the project value moves under
+  the node's value too. Search over index
+  and name; filters for all objects, "Differs from project" (highlighted), writable objects and
+  objects mapped in a PDO; Read per object and Read all with progress and Stop; decimal or hex;
+  strings decoded. Read all goes on while another tab or node is shown and ends when done or stopped.
+  A refused read shows a short text in the row and the abort code in words on hover.
+  **Any object…** opens a reader for any index and sub-index, by data type or as raw hex bytes; an
+  object the EDS lists starts with its EDS data type.
+  The tools stay usable through two failed status reads in a row and grey out from the third.
+  Refusals and failures show in red, a value that differs from the project on a light blue ground,
+  and questions in an amber box.
 - **Expert view.** A Write field on each writable object, with the same typed parsing and EDS limits
-  as startup SDOs; the object is read back after the write. A write to an object the master writes
-  at boot says that the value lasts until the node boots again; any other written value can be kept
-  with **Add as startup SDO**. When the node refuses a write with 0x08000022 (not in its present
-  state), the row offers to switch the node to pre-operational and write again.
-  NMT buttons (Start, Pre-operational, Stop, Reset node, Reset communication) for the node, and the
-  same for all nodes on the Network tab; all but Start ask first. **Node memory** offers Save to node
-  (0x1010) and Restore defaults (0x1011) for the scopes the EDS lists as writable sub-indexes. Each
-  save scope is read when the tab opens: a node that saves on command gets the button, one that saves
-  by itself shows "saves automatically", and one that does neither has the button greyed; when the
-  read fails the button stays. Both ask first, and after a restore the editor offers the reset that
-  makes it take effect (reset communication for the communication scope, else reset node). When the
-  node refuses a save or restore with 0x08000022, the card offers to switch it to pre-operational and
-  try once more; after a retried restore the reset brings the node back, and after a retried save the
-  card offers Start.
-  **Any object** reads or writes any index and sub-index by data type or as raw hex bytes; it never
-  writes 0x1010 or 0x1011 and points to the buttons above instead.
+  as startup SDOs; the object is read back after the write, and the project is not changed. A write
+  to an object the master writes at boot says that the value lasts until the node boots again.
+  Problems and refusals show on a line under the row; when the node refuses a write with 0x08000022
+  (not in its present state), that line offers to switch the node to pre-operational and write again.
+  **Node state** shows the node's state and NMT state with the NMT buttons (Start, Pre-operational,
+  Stop, Reset node, Reset communication); all but Start ask first. With **Send to all nodes of the
+  network** ticked, the buttons send to every node and the question says so. Questions and results
+  show to the right of the buttons, so the card keeps its size.
+  **Node memory** has one Save to node (0x1010) and one Restore defaults (0x1011), each with a scope
+  list holding only the scopes the EDS lists as writable sub-indexes. Each save scope is read when the
+  tab opens: a scope the node does not save on command is left out, and one it saves by itself shows
+  "(saves automatically)" with the button greyed; when the read fails the scope stays. Both ask first,
+  to the right of the buttons, and after a restore the editor offers the reset that makes it take effect (reset
+  communication for the communication scope, else reset node). When the node refuses a save or
+  restore with 0x08000022, the card offers to switch it to pre-operational and try once more; after a
+  retried restore the reset brings the node back, and after a retried save the card offers Start.
+  Any object also writes; it never writes 0x1010 or 0x1011 and points to Node memory instead.
 - **Service mode.** With the runtime's `"service"` feature and the PLC stopped, the network header
-  and the Online tab offer **Open bus**, which opens service mode with the network's settings and
-  nodes; the online tools then work as with a running PLC while the master sends nothing of its own.
+  offers **Open bus** (the node's Online tab offers it instead while that tab is shown), which opens
+  service mode with the network's settings and nodes; the online tools then work as with a running PLC while the master sends nothing of its own.
+  The NMT state follows the commands sent and the nodes' heartbeats and boot-ups.
   **Close bus** closes it, and so does closing the device editor; the runtime closes it before the
   PLC starts and after 5 minutes without a request.
 
@@ -335,6 +346,7 @@ entry of a switched-off PDO has no address and no alias.
 | Online requests and answers                               | `src/middleware/shared/ports/canopen-online.ts`                        |
 | Online tools (jobs, values, scopes)                       | `src/middleware/shared/utils/canopen/online.ts`                        |
 | Online tools and service mode in the editor               | `src/frontend/hooks/use-canopen-online.ts`                             |
+| Values read online and Read all, kept across tabs         | `src/frontend/hooks/use-canopen-online-reads.ts`                       |
 | Device editor                                             | `src/frontend/components/_features/[workspace]/editor/device/canopen/` |
 
 The parsed EDS (identity, PDO counts, object dictionary) is stored on the node, so a project opens
@@ -371,6 +383,8 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
   differs fails the job, and the comment shows the baseline, the new image and the difference. For an
   intended change, take the new images from the run's `canopen-ui-results` artifact
   (`<view>-actual.png`), save them as `e2e/<spec>-snapshots/<view>-chromium-linux.png` and commit.
+- `e2e/layout-canopen-online.spec.ts` (local only, outside the CI glob) takes screenshots of the Online
+  tab at a wide and a narrow window for a layout review, into `SCREENSHOT_DIR`.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
   against a simulated node on a virtual CAN bus, and runs `e2e/fixtures/canopen-plc-blocks/`, a
   program that calls every block, against the same node across PLC stops and starts.

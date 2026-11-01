@@ -1,12 +1,9 @@
 import type { CanopenOnlineContext } from '@root/frontend/hooks/use-canopen-online'
+import { type CanopenOnlineReads, type CanopenRowValue, objectKey } from '@root/frontend/hooks/use-canopen-online-reads'
 import { cn } from '@root/frontend/utils/cn'
 import type { CanopenNmtCommand } from '@root/middleware/shared/ports/canopen-online'
-import type {
-  CanopenDataType,
-  CanopenNetworkSettings,
-  CanopenNode,
-  CanopenObject,
-} from '@root/middleware/shared/ports/canopen-types'
+import type { CanopenNodeStatus } from '@root/middleware/shared/ports/canopen-status'
+import type { CanopenNetworkSettings, CanopenNode, CanopenObject } from '@root/middleware/shared/ports/canopen-types'
 import {
   CANOPEN_DATA_TYPES,
   type CanopenOnlineResult,
@@ -22,6 +19,10 @@ import {
   matchesObjectQuery,
   NEVER_WRITTEN_INDICES,
   nmtCommandLabel,
+  nmtStateLabel,
+  nodeDot,
+  nodeStateLabel,
+  type NvmScope,
   nvmScopes,
   objectLabel,
   type OnlineObject,
@@ -31,12 +32,12 @@ import {
   SAVE_SIGNATURE,
   type SaveSupport,
   saveSupport,
-  toCanopenDataType,
   valueDiffers,
   type ValueDisplay,
 } from '@root/middleware/shared/utils/canopen'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { StatusDot } from './status-view'
 import { cardClassName, headingClassName, hintClassName, inputClassName, secondaryButtonClassName } from './styles'
 
 /** Abort 0x08000022: the node does not take the write in its present state. */
@@ -44,10 +45,16 @@ const ABORT_DEVICE_STATE = 0x08000022
 
 type Filter = 'all' | 'differs' | 'writable' | 'mapped'
 
-type RowValue = { pending: true } | { pending: false; result: CanopenOnlineResult }
-
-const key = (o: CanopenObject): string => `${o.index}:${o.subIndex}`
 const ref = (o: { index: number; subIndex: number }): string => `${hex(o.index, 4)}:${hex(o.subIndex, 2).slice(2)}`
+
+const smallButtonClassName = cn(secondaryButtonClassName, 'px-2 py-1')
+const errorTextClassName = 'text-red-600 dark:text-red-400'
+/** A node value that differs from the project. */
+const differsClassName = 'rounded bg-sky-100 px-1 -mx-1 dark:bg-sky-900/40'
+
+/** A name with a break opportunity after each underscore, so long identifiers wrap between words. */
+const breakable = (name: string): ReactNode[] =>
+  name.split('_').flatMap((part, i, parts) => (i < parts.length - 1 ? [part, '_', <wbr key={i} />] : [part]))
 
 const CONFIRM: Readonly<Record<CanopenNmtCommand, string | null>> = {
   start: null,
@@ -55,6 +62,14 @@ const CONFIRM: Readonly<Record<CanopenNmtCommand, string | null>> = {
   stop: 'Stop the node? It stops its PDOs and answers only NMT and heartbeat.',
   reset_node: 'Reset the node? It restarts; the master boots and configures it again.',
   reset_communication: "Reset the node's communication? The master boots and configures it again.",
+}
+
+const ALL_CONFIRM: Readonly<Record<CanopenNmtCommand, string>> = {
+  start: 'Start every node of the network?',
+  pre_operational: 'Put every node in pre-operational? They stop their PDOs while the PLC runs.',
+  stop: 'Stop every node? They stop their PDOs and answer only NMT and heartbeat.',
+  reset_node: 'Reset every node? They restart; the master boots and configures them again.',
+  reset_communication: "Reset every node's communication? The master boots and configures them again.",
 }
 
 export type ConfirmRequest = { text: string; action: () => void; label: string }
@@ -65,12 +80,12 @@ export const ConfirmBar = ({ confirm, onClose }: { confirm: ConfirmRequest | nul
     <div
       role='alertdialog'
       aria-label={confirm.text}
-      className='mb-3 flex items-center gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-neutral-850 dark:border-amber-700 dark:bg-amber-900/20 dark:text-neutral-200'
+      className='mt-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-neutral-850 dark:border-amber-700 dark:bg-amber-900/20 dark:text-neutral-200'
     >
-      <span className='flex-1'>{confirm.text}</span>
+      <span className='min-w-0 flex-1'>{confirm.text}</span>
       <button
         type='button'
-        className={secondaryButtonClassName}
+        className={smallButtonClassName}
         onClick={() => {
           onClose()
           confirm.action()
@@ -78,11 +93,81 @@ export const ConfirmBar = ({ confirm, onClose }: { confirm: ConfirmRequest | nul
       >
         {confirm.label}
       </button>
-      <button type='button' className={secondaryButtonClassName} onClick={onClose}>
+      <button type='button' className={smallButtonClassName} onClick={onClose}>
         Cancel
       </button>
     </div>
   ) : null
+
+/** The width of an element, kept up to date while it is mounted; 0 before the first measure. */
+function useElementWidth<T extends HTMLElement>(): [(el: T | null) => void, number] {
+  const [width, setWidth] = useState(0)
+  const observer = useRef<ResizeObserver | null>(null)
+  const ref = useCallback((el: T | null) => {
+    observer.current?.disconnect()
+    observer.current = null
+    if (!el) return
+    setWidth(el.getBoundingClientRect().width)
+    if (typeof ResizeObserver === 'undefined') return
+    observer.current = new ResizeObserver((entries) => setWidth(entries[0]?.contentRect.width ?? 0))
+    observer.current.observe(el)
+  }, [])
+  return [ref, width]
+}
+
+/** Below this width left for Name, Type and Access move under the name to keep it readable. */
+const MIN_NAME_PX = 220
+/** In the compact table, width beyond this name width goes to the Project and Node columns. */
+const COMPACT_NAME_PX = 320
+const FIXED_PX = {
+  index: 84,
+  type: 112,
+  access: 60,
+  value: 150,
+  project: 110,
+  node: 110,
+  nodeWrite: 142,
+  read: 56,
+  write: 196,
+}
+
+/** A card's controls with its feedback to their right, so the card keeps its size as feedback comes and goes. */
+const WithFeedback = ({ children, feedback }: { children: ReactNode; feedback: ReactNode }) => (
+  <div className='flex flex-wrap items-start gap-x-6 gap-y-2'>
+    <div className='shrink-0'>{children}</div>
+    <div className='min-w-[260px] flex-1 [&>*:first-child]:mt-0'>{feedback}</div>
+  </div>
+)
+
+/** A card's own confirmation and result line, cleared when @p ready turns false so no stale result stays. */
+export function useCardFeedback(ready: boolean) {
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
+  const [message, setFeedback] = useState<{ text: string; error: boolean } | null>(null)
+  useEffect(() => {
+    if (ready) return
+    setConfirm(null)
+    setFeedback(null)
+  }, [ready])
+  const setMessage = (text: string | null, error = false) => setFeedback(text === null ? null : { text, error })
+  const view: ReactNode = (
+    <>
+      <ConfirmBar confirm={confirm} onClose={() => setConfirm(null)} />
+      {message ? (
+        <p
+          role='status'
+          className={cn('mt-2 text-xs', message.error ? errorTextClassName : 'text-neutral-850 dark:text-neutral-200')}
+        >
+          {message.text}
+        </p>
+      ) : null}
+    </>
+  )
+  const ask = (c: ConfirmRequest) => {
+    setMessage(null)
+    setConfirm(c)
+  }
+  return { ask, setMessage, view }
+}
 
 const NMT_BUTTONS: readonly CanopenNmtCommand[] = [
   'start',
@@ -102,24 +187,24 @@ export const NmtButtons = ({
   online: CanopenOnlineContext
   node: number
   onConfirm: (c: ConfirmRequest) => void
-  onResult: (text: string) => void
+  onResult: (text: string, error?: boolean) => void
 }) => {
   const send = (command: CanopenNmtCommand) => {
     void online.client.nmt(online.networkIndex, node, command).then((r) => {
       const label = nmtCommandLabel(command)
-      onResult(r.ok ? `${label} sent.` : `${label} failed: ${r.message}.`)
+      const to = node === 0 ? ' to every node' : ''
+      onResult(r.ok ? `${label} sent${to}.` : `${label} failed: ${r.message}.`, !r.ok)
     })
   }
   return (
     <div className='flex flex-wrap gap-2'>
       {NMT_BUTTONS.map((command) => {
-        const question =
-          node === 0 ? `${nmtCommandLabel(command)}: send to every node of the network?` : CONFIRM[command]
+        const question = node === 0 ? ALL_CONFIRM[command] : CONFIRM[command]
         return (
           <button
             key={command}
             type='button'
-            className={secondaryButtonClassName}
+            className={smallButtonClassName}
             disabled={!online.ready || !online.nmt}
             onClick={() =>
               question
@@ -136,24 +221,23 @@ export const NmtButtons = ({
 }
 
 /** Open or close the bus in service mode while the PLC is stopped. */
-export const ServiceBus = ({ online }: { online: CanopenOnlineContext }) => {
+export const ServiceBus = ({ online, bare = false }: { online: CanopenOnlineContext; bare?: boolean }) => {
   const { service } = online
   if (!service.available) return null
   return (
-    <div className='flex items-center gap-3' data-testid='canopen-service-bus'>
+    <div className='flex flex-wrap items-center gap-3' data-testid='canopen-service-bus'>
       {service.open ? (
         <>
-          <span className='text-xs text-neutral-850 dark:text-neutral-200'>
-            Service mode: the PLC is stopped and the master does not run the nodes.
-          </span>
-          <button type='button' className={secondaryButtonClassName} disabled={service.busy} onClick={service.closeBus}>
+          <button type='button' className={smallButtonClassName} disabled={service.busy} onClick={service.closeBus}>
             Close bus
           </button>
         </>
       ) : (
         <>
-          <span className={hintClassName}>The PLC is stopped. Open the bus to read and set the nodes.</span>
-          <button type='button' className={secondaryButtonClassName} disabled={service.busy} onClick={service.openBus}>
+          {bare ? null : (
+            <span className={hintClassName}>The PLC is stopped. Open the bus to read and set the nodes.</span>
+          )}
+          <button type='button' className={smallButtonClassName} disabled={service.busy} onClick={service.openBus}>
             Open bus
           </button>
         </>
@@ -163,81 +247,160 @@ export const ServiceBus = ({ online }: { online: CanopenOnlineContext }) => {
   )
 }
 
-const resultText = (row: OnlineObject, value: RowValue | undefined, display: ValueDisplay): string => {
-  if (!value) return ''
-  if (value.pending) return '...'
-  const { result } = value
-  return result.ok ? formatCanopenValue(row.object.dataType, result.bytes, display) : result.message
+/** Why the online buttons are greyed, or null when requests reach the nodes. */
+export function notReadyText(online: CanopenOnlineContext): string | null {
+  if (online.ready) return null
+  return online.service.available
+    ? 'The PLC is stopped, so CANopen is not running. Open the bus to read and set the nodes.'
+    : 'The buttons are greyed because CANopen does not run on the runtime, or its program has no network by this name.'
 }
+
+/** A node's state and NMT state, as on the Status tab. */
+export const NodeStateLine = ({ status }: { status: CanopenNodeStatus | undefined }) =>
+  status ? (
+    <span className='flex items-center gap-2 text-xs text-neutral-850 dark:text-neutral-200'>
+      <StatusDot dot={nodeDot(status)} title={nodeStateLabel(status.state)} />
+      <span>{nodeStateLabel(status.state)}</span>
+      <span className={hintClassName}>NMT state: {nmtStateLabel(status.nmt)}</span>
+    </span>
+  ) : (
+    <span className={hintClassName}>No state from the runtime</span>
+  )
+
+/** Short cell text for the common SDO aborts; the full message is in the cell's title. */
+const SHORT_ABORTS: ReadonlyMap<number, string> = new Map([
+  [0x05040000, 'Timed out'],
+  [0x06010001, 'Write-only'],
+  [0x06020000, 'Not on node'],
+  [0x06090011, 'Not on node'],
+  [0x08000022, 'Refused in this state'],
+])
+
+const shortFailure = (result: Extract<CanopenOnlineResult, { ok: false }>): string =>
+  result.abortCode === undefined
+    ? 'Failed'
+    : (SHORT_ABORTS.get(result.abortCode) ?? `Abort ${hex(result.abortCode, 8)}`)
+
+const valueText = (row: OnlineObject, value: CanopenRowValue | undefined, display: ValueDisplay): string => {
+  if (!value) return ''
+  if (value.pending) return '…'
+  const { result } = value
+  return result.ok ? formatCanopenValue(row.object.dataType, result.bytes, display) : shortFailure(result)
+}
+
+const valueTitle = (row: OnlineObject, value: CanopenRowValue | undefined, display: ValueDisplay): string =>
+  value && !value.pending && !value.result.ok ? value.result.message : valueText(row, value, display)
+
+type RowNote = { text: string; error?: boolean; retry?: () => void }
 
 type WriteCellProps = {
   row: OnlineObject
   nodeId: number
-  onWrite: (row: OnlineObject, bytes: number[], text: string) => void
+  disabled: boolean
+  onWrite: (row: OnlineObject, bytes: number[]) => void
+  onProblem: (text: string) => void
 }
 
-const WriteCell = ({ row, nodeId, onWrite }: WriteCellProps) => {
+const WriteCell = ({ row, nodeId, disabled, onWrite, onProblem }: WriteCellProps) => {
   const [text, setText] = useState('')
-  const [problem, setProblem] = useState<string | null>(null)
   const submit = () => {
     const encoded = encodeForObject(row.object, text, nodeId)
-    if (!encoded.ok) return setProblem(encoded.message)
-    setProblem(null)
-    onWrite(row, encoded.bytes, text.trim())
+    if (!encoded.ok) return onProblem(encoded.message)
+    onWrite(row, encoded.bytes)
   }
   return (
-    <div className='flex flex-col gap-0.5'>
-      <div className='flex gap-1'>
-        <input
-          aria-label={`New value for ${ref(row.object)}`}
-          className={cn(inputClassName, 'w-[110px]')}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') submit()
-          }}
-        />
-        <button type='button' className={secondaryButtonClassName} disabled={text.trim() === ''} onClick={submit}>
-          Write
-        </button>
-      </div>
-      {problem ? <span className='text-[10px] text-red-600 dark:text-red-400'>{problem}</span> : null}
-    </div>
+    <>
+      <input
+        aria-label={`New value for ${ref(row.object)}`}
+        placeholder='Value'
+        className={cn(inputClassName, 'h-[26px] w-[84px] min-w-0')}
+        value={text}
+        disabled={disabled}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit()
+        }}
+      />
+      <button
+        type='button'
+        className={cn(smallButtonClassName, 'shrink-0 whitespace-nowrap')}
+        disabled={disabled || text.trim() === ''}
+        onClick={submit}
+      >
+        Write
+      </button>
+    </>
   )
 }
 
-type RowNote = { text: string; retry?: () => void; addStartup?: () => void }
+/** The note under a row; a retry asks first, on the same line. */
+const NoteLine = ({ note, onClose }: { note: RowNote; onClose: () => void }) => {
+  const [asking, setAsking] = useState(false)
+  const retry = note.retry
+  return (
+    <div className='flex flex-wrap items-center gap-2 text-[11px]'>
+      <span className={cn('min-w-0', note.error && errorTextClassName)}>{note.text}</span>
+      {retry && !asking ? (
+        <button type='button' className={smallButtonClassName} onClick={() => setAsking(true)}>
+          Switch to pre-operational and retry
+        </button>
+      ) : null}
+      {retry && asking ? (
+        <span role='alertdialog' aria-label='Put the node in pre-operational and write again?' className='flex gap-2'>
+          <span>Put the node in pre-operational and write again?</span>
+          <button
+            type='button'
+            className={smallButtonClassName}
+            onClick={() => {
+              setAsking(false)
+              retry()
+            }}
+          >
+            Switch and retry
+          </button>
+          <button type='button' className={smallButtonClassName} onClick={() => setAsking(false)}>
+            Cancel
+          </button>
+        </span>
+      ) : null}
+      <button type='button' className={cn(hintClassName, 'underline')} onClick={onClose}>
+        Dismiss
+      </button>
+    </div>
+  )
+}
 
 type OnlineTabProps = {
   node: CanopenNode
   network: CanopenNetworkSettings
   online: CanopenOnlineContext
+  reads: CanopenOnlineReads
+  /** The node's live status, for its state and NMT state. */
+  status: CanopenNodeStatus | undefined
   expert: boolean
-  /** Appends a startup SDO to the node. */
-  onAddStartupSdo: (index: number, subIndex: number, dataType: CanopenDataType, value: string) => void
 }
 
 /** The Online tab of a node: its objects read from the node, and in the expert view writes, NMT and saving. */
-export const OnlineTab = ({ node, network, online, expert, onAddStartupSdo }: OnlineTabProps) => {
+export const OnlineTab = ({ node, network, online, reads, status, expert }: OnlineTabProps) => {
   const rows = useMemo(() => onlineObjects(node, network), [node, network])
-  const [values, setValues] = useState<ReadonlyMap<string, RowValue>>(new Map())
   const [notes, setNotes] = useState<ReadonlyMap<string, RowNote>>(new Map())
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [display, setDisplay] = useState<ValueDisplay>('decimal')
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
-  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
-  const cancelRef = useRef(false)
-  const { client, networkIndex } = online
+  const [anyObject, setAnyObject] = useState(false)
+  const nmtFeedback = useCardFeedback(online.ready)
+  const [allNodes, setAllNodes] = useState(false)
+  const { client, networkIndex, ready } = online
   const nodeId = node.nodeId
+  const { values, progress } = reads.of(nodeId)
+  const notReady = notReadyText(online)
+  const nmtReady = online.ready
 
   const mapped = useMemo(
-    () => new Set([...node.tpdos, ...node.rpdos].flatMap((p) => p.entries.map((e) => `${e.index}:${e.subIndex}`))),
+    () => new Set([...node.tpdos, ...node.rpdos].flatMap((p) => p.entries.map((e) => objectKey(e)))),
     [node],
   )
 
-  const setValue = (k: string, v: RowValue) => setValues((prev) => new Map(prev).set(k, v))
   const setNote = (k: string, note: RowNote | null) =>
     setNotes((prev) => {
       const next = new Map(prev)
@@ -246,26 +409,9 @@ export const OnlineTab = ({ node, network, online, expert, onAddStartupSdo }: On
       return next
     })
 
-  const read = async (object: CanopenObject): Promise<void> => {
-    const k = key(object)
-    setValue(k, { pending: true })
-    setValue(k, { pending: false, result: await client.read(networkIndex, nodeId, object.index, object.subIndex) })
-  }
-
-  const readable = rows.filter((r) => isReadable(r.object))
-  const readAll = async () => {
-    cancelRef.current = false
-    setProgress({ done: 0, total: readable.length })
-    for (let i = 0; i < readable.length && !cancelRef.current; i++) {
-      await read(readable[i].object)
-      setProgress({ done: i + 1, total: readable.length })
-    }
-    setProgress(null)
-  }
-
-  const write = async (row: OnlineObject, bytes: number[], text: string, retried = false): Promise<void> => {
+  const write = async (row: OnlineObject, bytes: number[], retried = false): Promise<void> => {
     const { object } = row
-    const k = key(object)
+    const k = objectKey(object)
     setNote(k, null)
     const result = await client.write(networkIndex, nodeId, object.index, object.subIndex, bytes)
     if (!result.ok) {
@@ -273,31 +419,23 @@ export const OnlineTab = ({ node, network, online, expert, onAddStartupSdo }: On
         result.abortCode === ABORT_DEVICE_STATE && !retried
           ? () => {
               void client.nmt(networkIndex, nodeId, 'pre_operational').then((r) => {
-                if (!r.ok) return setNote(k, { text: `Pre-operational failed: ${r.message}` })
-                void write(row, bytes, text, true)
+                if (!r.ok) return setNote(k, { text: `Pre-operational failed: ${r.message}`, error: true })
+                void write(row, bytes, true)
               })
             }
           : undefined
       setNote(k, {
         text: `Write refused: ${result.message}.${retry ? ' The node may take it in pre-operational.' : ''}`,
+        error: true,
         retry,
       })
       return
     }
-    await read(object)
-    const type = toCanopenDataType(object.dataType)
-    const canKeep = !row.masterWrites && type !== undefined && !NEVER_WRITTEN_INDICES.has(object.index)
+    await reads.read(nodeId, object)
     setNote(k, {
       text: row.masterWrites
         ? 'Written. The master writes this object at boot, so the value lasts until the node boots again.'
         : 'Written.',
-      addStartup:
-        canKeep && type
-          ? () => {
-              onAddStartupSdo(object.index, object.subIndex, type, text)
-              setNote(k, { text: 'Added as a startup SDO.' })
-            }
-          : undefined,
     })
   }
 
@@ -305,52 +443,85 @@ export const OnlineTab = ({ node, network, online, expert, onAddStartupSdo }: On
     const { object } = row
     if (!matchesObjectQuery(object, query)) return false
     if (filter === 'writable') return isWritable(object)
-    if (filter === 'mapped') return mapped.has(key(object))
+    if (filter === 'mapped') return mapped.has(objectKey(object))
     if (filter === 'differs') {
-      const v = values.get(key(object))
+      const v = values.get(objectKey(object))
       return v !== undefined && !v.pending && v.result.ok && valueDiffers(row.project, v.result.bytes)
     }
     return true
   })
 
+  const readable = rows.filter((r) => isReadable(r.object)).map((r) => r.object)
+  const canWrite = (object: CanopenObject) => expert && isWritable(object) && !NEVER_WRITTEN_INDICES.has(object.index)
+  const [tableRef, tableWidth] = useElementWidth<HTMLDivElement>()
+  const fullPx =
+    FIXED_PX.index + FIXED_PX.type + FIXED_PX.access + 2 * FIXED_PX.value + (expert ? FIXED_PX.write : FIXED_PX.read)
+  const compact = tableWidth > 0 && tableWidth - fullPx < MIN_NAME_PX
+  const nodePx = compact ? (expert ? FIXED_PX.nodeWrite : FIXED_PX.node) : FIXED_PX.value
+  const narrow = compact && tableWidth - (FIXED_PX.index + FIXED_PX.project + nodePx + FIXED_PX.read) < MIN_NAME_PX
+  const columns = narrow ? 4 : compact ? 5 : 7
+  const spare = compact && !narrow ? (tableWidth - FIXED_PX.index - FIXED_PX.read - COMPACT_NAME_PX) / 2 : 0
+  const projectCol = compact ? Math.max(FIXED_PX.project, spare) : FIXED_PX.value
+  const nodeCol = Math.max(nodePx, spare)
+  const actionsPx = compact || !expert ? FIXED_PX.read : FIXED_PX.write
+
   return (
     <div className='flex flex-col gap-4' data-testid='canopen-online-tab'>
-      <ServiceBus online={online} />
-      {!online.ready ? (
-        <p className={hintClassName} role='status'>
-          {online.service.available
-            ? 'CANopen is not running on the runtime; open the bus to reach the node.'
-            : 'CANopen is not running on the runtime, or its program has no network by this name.'}
-        </p>
-      ) : null}
-      <ConfirmBar confirm={confirm} onClose={() => setConfirm(null)} />
-      {message ? (
-        <p role='status' className='text-xs text-neutral-850 dark:text-neutral-200'>
-          {message}
-        </p>
-      ) : null}
-
-      {expert && online.nmt ? (
-        <div className={cardClassName}>
-          <h4 className={headingClassName}>NMT</h4>
-          <NmtButtons online={online} node={nodeId} onConfirm={setConfirm} onResult={setMessage} />
+      {notReady ? (
+        <div className='flex flex-wrap items-center gap-3 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 dark:border-neutral-800 dark:bg-neutral-900/60'>
+          <p className='text-xs text-neutral-850 dark:text-neutral-200' role='status'>
+            {notReady}
+          </p>
+          {online.service.available && !online.service.open ? <ServiceBus online={online} bare /> : null}
         </div>
       ) : null}
 
-      {expert ? <NvmCard node={node} online={online} onConfirm={setConfirm} onResult={setMessage} /> : null}
+      {expert && online.nmt ? (
+        <div className={cardClassName} data-testid='canopen-online-nmt'>
+          <div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
+            <h4 className={cn(headingClassName, 'mb-0')}>Node state</h4>
+            <NodeStateLine status={status} />
+          </div>
+          <WithFeedback feedback={nmtFeedback.view}>
+            <NmtButtons
+              online={online}
+              node={allNodes ? 0 : nodeId}
+              onConfirm={nmtFeedback.ask}
+              onResult={nmtFeedback.setMessage}
+            />
+            <label
+              className={cn(
+                'mt-2 flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300',
+                !nmtReady && 'cursor-not-allowed opacity-50',
+              )}
+            >
+              <input
+                type='checkbox'
+                checked={allNodes}
+                disabled={!nmtReady}
+                onChange={(e) => setAllNodes(e.target.checked)}
+                className='h-3.5 w-3.5 accent-brand'
+              />
+              Send to all nodes of the network
+            </label>
+          </WithFeedback>
+        </div>
+      ) : null}
 
-      <div className={cardClassName}>
+      {expert ? <NvmCard node={node} online={online} /> : null}
+
+      <div className={cn(cardClassName, 'min-w-0')}>
         <div className='mb-3 flex flex-wrap items-center gap-2'>
           <input
             aria-label='Search objects'
             placeholder='Search index or name'
-            className={cn(inputClassName, 'w-[200px]')}
+            className={cn(inputClassName, 'w-[180px]')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           <select
             aria-label='Filter objects'
-            className={cn(inputClassName, 'w-[170px]')}
+            className={cn(inputClassName, 'w-[160px]')}
             value={filter}
             onChange={(e) => {
               const v = e.target.value
@@ -364,153 +535,190 @@ export const OnlineTab = ({ node, network, online, expert, onAddStartupSdo }: On
           </select>
           <select
             aria-label='Number display'
-            className={cn(inputClassName, 'w-[100px]')}
+            className={cn(inputClassName, 'w-[90px]')}
             value={display}
             onChange={(e) => setDisplay(e.target.value === 'hex' ? 'hex' : 'decimal')}
           >
             <option value='decimal'>Decimal</option>
             <option value='hex'>Hex</option>
           </select>
-          {progress ? (
-            <>
-              <span className={hintClassName}>
-                Reading {progress.done} of {progress.total}
-              </span>
-              <button type='button' className={secondaryButtonClassName} onClick={() => (cancelRef.current = true)}>
-                Cancel
+          <button
+            type='button'
+            className={smallButtonClassName}
+            aria-expanded={anyObject}
+            onClick={() => setAnyObject((v) => !v)}
+          >
+            Any object…
+          </button>
+          <div className='ml-auto flex items-center gap-2'>
+            {progress ? (
+              <>
+                <span className={hintClassName} role='status'>
+                  Reading {progress.done} of {progress.total}
+                </span>
+                <button type='button' className={smallButtonClassName} onClick={() => reads.stop(nodeId)}>
+                  Stop
+                </button>
+              </>
+            ) : (
+              <button
+                type='button'
+                className={smallButtonClassName}
+                disabled={!ready}
+                onClick={() => reads.readAll(nodeId, readable)}
+              >
+                Read all
               </button>
-            </>
-          ) : (
-            <button
-              type='button'
-              className={secondaryButtonClassName}
-              disabled={!online.ready}
-              onClick={() => void readAll()}
-            >
-              Read all
-            </button>
-          )}
+            )}
+          </div>
         </div>
-        <table className='w-full text-left text-xs'>
-          <thead className='text-neutral-500 dark:text-neutral-400'>
-            <tr>
-              <th className='py-1 pr-2 font-medium'>Index</th>
-              <th className='py-1 pr-2 font-medium'>Name</th>
-              <th className='py-1 pr-2 font-medium'>Type</th>
-              <th className='py-1 pr-2 font-medium'>Access</th>
-              <th className='py-1 pr-2 font-medium'>Project</th>
-              <th className='py-1 pr-2 font-medium'>Node</th>
-              <th className='py-1 font-medium' />
-            </tr>
-          </thead>
-          <tbody className='text-neutral-850 dark:text-neutral-200'>
-            {shown.map((row) => {
-              const { object } = row
-              const k = key(object)
-              const value = values.get(k)
-              const note = notes.get(k)
-              const differs =
-                value !== undefined &&
-                !value.pending &&
-                value.result.ok &&
-                valueDiffers(row.project, value.result.bytes)
-              const failedRead = value !== undefined && !value.pending && !value.result.ok
-              return (
-                <tr
-                  key={k}
-                  data-testid={`canopen-online-row-${k}`}
-                  className='border-t border-neutral-100 align-top dark:border-neutral-800'
-                >
-                  <td className='py-1 pr-2 font-mono'>{ref(object)}</td>
-                  <td className='py-1 pr-2'>{objectLabel(object)}</td>
-                  <td className='py-1 pr-2'>{dataTypeLabel(object.dataType)}</td>
-                  <td className='py-1 pr-2'>{object.access}</td>
-                  <td className='py-1 pr-2 font-mono'>
-                    {row.project ? formatCanopenValue(object.dataType, row.project, display) : ''}
-                    {row.masterWrites ? <span className={cn(hintClassName, 'ml-1')}>(written at boot)</span> : null}
-                  </td>
-                  <td
-                    className={cn(
-                      'py-1 pr-2 font-mono',
-                      differs && 'rounded bg-amber-100 dark:bg-amber-900/30',
-                      failedRead && 'font-sans text-red-600 dark:text-red-400',
-                    )}
-                    data-testid={`canopen-online-value-${k}`}
-                  >
-                    {resultText(row, value, display)}
-                  </td>
-                  <td className='py-1'>
-                    <div className='flex flex-col gap-1'>
-                      <div className='flex gap-1'>
-                        {isReadable(object) ? (
-                          <button
-                            type='button'
-                            className={secondaryButtonClassName}
-                            disabled={!online.ready}
-                            onClick={() => void read(object)}
-                          >
-                            Read
-                          </button>
+        {progress ? (
+          <div className='mb-3 h-1 w-full overflow-hidden rounded bg-neutral-100 dark:bg-neutral-800'>
+            <div
+              className='h-full bg-brand-medium'
+              style={{ width: `${progress.total ? (100 * progress.done) / progress.total : 0}%` }}
+            />
+          </div>
+        ) : null}
+
+        {anyObject ? <RawAccess node={node} online={online} expert={expert} /> : null}
+
+        <div ref={tableRef}>
+          <table className='w-full table-fixed text-left text-xs'>
+            <colgroup>
+              <col style={{ width: FIXED_PX.index }} />
+              <col />
+              {compact ? null : <col style={{ width: FIXED_PX.type }} />}
+              {compact ? null : <col style={{ width: FIXED_PX.access }} />}
+              {narrow ? null : <col style={{ width: projectCol }} />}
+              <col style={{ width: nodeCol }} />
+              <col style={{ width: actionsPx }} />
+            </colgroup>
+            <thead className='text-neutral-500 dark:text-neutral-400'>
+              <tr>
+                <th className='py-1 pr-2 font-medium'>Index</th>
+                <th className='py-1 pr-2 font-medium'>Name</th>
+                {compact ? null : <th className='py-1 pr-2 font-medium'>Type</th>}
+                {compact ? null : <th className='py-1 pr-2 font-medium'>Access</th>}
+                {narrow ? null : <th className='py-1 pr-2 font-medium'>Project</th>}
+                <th className='py-1 pr-2 font-medium'>Node</th>
+                <th className='py-1 font-medium'>
+                  <span className='sr-only'>Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className='text-neutral-850 dark:text-neutral-200'>
+              {shown.map((row) => {
+                const { object } = row
+                const k = objectKey(object)
+                const value = values.get(k)
+                const note = notes.get(k)
+                const differs =
+                  value !== undefined &&
+                  !value.pending &&
+                  value.result.ok &&
+                  valueDiffers(row.project, value.result.bytes)
+                const failedRead = value !== undefined && !value.pending && !value.result.ok
+                const project = row.project ? formatCanopenValue(object.dataType, row.project, display) : ''
+                const projectTitle = row.masterWrites ? `${project} (the master writes it at boot)` : project
+                const nodeValue = valueText(row, value, display)
+                const writeCell = (
+                  <WriteCell
+                    row={row}
+                    nodeId={nodeId}
+                    disabled={!ready}
+                    onWrite={(r, bytes) => void write(r, bytes)}
+                    onProblem={(text) => setNote(k, { text, error: true })}
+                  />
+                )
+                return (
+                  <RowGroup key={k}>
+                    <tr
+                      data-testid={`canopen-online-row-${k}`}
+                      className='h-[34px] border-t border-neutral-100 dark:border-neutral-800'
+                    >
+                      <td className='truncate py-1 pr-2 font-mono'>{ref(object)}</td>
+                      <td className='py-1 pr-2' title={objectLabel(object)}>
+                        <span className={cn('block', compact ? '[overflow-wrap:anywhere]' : 'truncate')}>
+                          {breakable(objectLabel(object))}
+                        </span>
+                        {compact ? (
+                          <span className={cn(hintClassName, 'block')}>
+                            {dataTypeLabel(object.dataType)}, {object.access}
+                          </span>
                         ) : null}
-                        {expert && isWritable(object) && !NEVER_WRITTEN_INDICES.has(object.index) && online.ready ? (
-                          <WriteCell
-                            row={row}
-                            nodeId={nodeId}
-                            onWrite={(r, bytes, text) => void write(r, bytes, text)}
-                          />
+                      </td>
+                      {compact ? null : <td className='truncate py-1 pr-2'>{dataTypeLabel(object.dataType)}</td>}
+                      {compact ? null : <td className='truncate py-1 pr-2'>{object.access}</td>}
+                      {narrow ? null : (
+                        <td className='py-1 pr-2 font-mono [overflow-wrap:anywhere]' title={projectTitle}>
+                          {project}
+                          {row.masterWrites ? <span className={cn(hintClassName, 'ml-1')}>*</span> : null}
+                        </td>
+                      )}
+                      <td
+                        className={cn(
+                          'py-1 pr-2 font-mono [overflow-wrap:anywhere]',
+                          failedRead && cn('font-sans', errorTextClassName),
+                        )}
+                        title={valueTitle(row, value, display)}
+                      >
+                        <span data-testid={`canopen-online-value-${k}`} className={cn(differs && differsClassName)}>
+                          {nodeValue}
+                        </span>
+                        {narrow && project ? (
+                          <span className={cn(hintClassName, 'block font-sans')} title={projectTitle}>
+                            Project: <span className='font-mono'>{project}</span>
+                            {row.masterWrites ? ' *' : ''}
+                          </span>
                         ) : null}
-                      </div>
-                      {note ? (
-                        <div className='flex flex-wrap items-center gap-2 text-[11px]'>
-                          <span>{note.text}</span>
-                          {note.retry ? (
+                        {canWrite(object) && compact ? (
+                          <div className='mt-1 flex items-center gap-1 font-sans'>{writeCell}</div>
+                        ) : null}
+                      </td>
+                      <td className={cn('py-1', compact && canWrite(object) && 'align-bottom')}>
+                        <div className='flex items-center justify-end gap-1'>
+                          {canWrite(object) && !compact ? writeCell : null}
+                          {isReadable(object) ? (
                             <button
                               type='button'
-                              className={secondaryButtonClassName}
-                              onClick={() => {
-                                const retry = note.retry
-                                setConfirm({
-                                  text: 'Put the node in pre-operational and write again?',
-                                  label: 'Switch and retry',
-                                  action: () => retry?.(),
-                                })
-                              }}
+                              className={smallButtonClassName}
+                              disabled={!ready || value?.pending === true}
+                              onClick={() => void reads.read(nodeId, object)}
                             >
-                              Switch to pre-operational and retry
-                            </button>
-                          ) : null}
-                          {note.addStartup ? (
-                            <button type='button' className={secondaryButtonClassName} onClick={note.addStartup}>
-                              Add as startup SDO
+                              Read
                             </button>
                           ) : null}
                         </div>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                      </td>
+                    </tr>
+                    {note ? (
+                      <tr data-testid={`canopen-online-note-${k}`}>
+                        <td colSpan={columns} className='pb-2 pl-[72px]'>
+                          <NoteLine note={note} onClose={() => setNote(k, null)} />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </RowGroup>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
         {shown.length === 0 ? <p className={cn(hintClassName, 'mt-2')}>No object matches.</p> : null}
+        {rows.some((r) => r.masterWrites) ? (
+          <p className={cn(hintClassName, 'mt-2')}>* The master writes this value at boot.</p>
+        ) : null}
       </div>
-
-      {expert ? <RawAccess node={node} online={online} /> : null}
     </div>
   )
 }
 
-const supportText = (support: SaveSupport | undefined): string | null => {
-  switch (support) {
-    case 'auto':
-      return 'saves automatically'
-    case 'none':
-      return 'the node does not save this on command'
-    default:
-      return null
-  }
-}
+const RowGroup = ({ children }: { children: ReactNode }) => <>{children}</>
+
+/** A save scope as the node reported it. */
+const saveScopeLabel = (scope: NvmScope, support: SaveSupport | undefined): string =>
+  support === 'auto' ? `${scope.name} (saves automatically)` : scope.name
 
 type NvmOp = 'save' | 'restore'
 
@@ -520,31 +728,27 @@ type NvmOffer =
   | { kind: 'reset'; subIndex: number; preOperational: boolean }
   | { kind: 'start' }
 
-/** Save to node (0x1010) and Restore defaults (0x1011) for the scopes the EDS lists. */
-const NvmCard = ({
-  node,
-  online,
-  onConfirm,
-  onResult,
-}: {
-  node: CanopenNode
-  online: CanopenOnlineContext
-  onConfirm: (c: ConfirmRequest) => void
-  onResult: (text: string) => void
-}) => {
-  const saves = useMemo(() => nvmScopes(node.eds, 0x1010), [node.eds])
+/** Save to node (0x1010) and Restore defaults (0x1011), each for a scope the EDS lists. */
+const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineContext }) => {
+  const allSaves = useMemo(() => nvmScopes(node.eds, 0x1010), [node.eds])
   const restores = useMemo(() => nvmScopes(node.eds, 0x1011), [node.eds])
   const [support, setSupport] = useState<ReadonlyMap<number, SaveSupport>>(new Map())
   const [offer, setOffer] = useState<NvmOffer | null>(null)
+  const [saveSub, setSaveSub] = useState<number | null>(null)
+  const [restoreSub, setRestoreSub] = useState<number | null>(restores[0]?.subIndex ?? null)
+  const feedback = useCardFeedback(online.ready)
   const { client, networkIndex, ready } = online
   const nodeId = node.nodeId
+  useEffect(() => {
+    if (!ready) setOffer(null)
+  }, [ready])
 
   useEffect(() => {
-    if (!ready || saves.length === 0) return
+    if (!ready || allSaves.length === 0) return
     let cancelled = false
     void (async () => {
       const next = new Map<number, SaveSupport>()
-      for (const scope of saves) {
+      for (const scope of allSaves) {
         next.set(scope.subIndex, saveSupport(await client.read(networkIndex, nodeId, 0x1010, scope.subIndex)))
         if (cancelled) return
       }
@@ -553,19 +757,29 @@ const NvmCard = ({
     return () => {
       cancelled = true
     }
-  }, [client, networkIndex, nodeId, ready, saves])
+  }, [client, networkIndex, nodeId, ready, allSaves])
 
-  if (saves.length === 0 && restores.length === 0) return null
+  // A scope the node does not save on command is left out.
+  const saves = allSaves.filter((s) => support.get(s.subIndex) !== 'none')
+  const saveScope = saves.find((s) => s.subIndex === saveSub) ?? saves.find((s) => support.get(s.subIndex) !== 'auto')
+  const restoreScope = restores.find((s) => s.subIndex === restoreSub) ?? restores[0]
 
+  if (allSaves.length === 0 && restores.length === 0) return null
+
+  const onResult = feedback.setMessage
   const sendNmt = (command: CanopenNmtCommand) =>
     void client
       .nmt(networkIndex, nodeId, command)
       .then((r) =>
-        onResult(r.ok ? `${nmtCommandLabel(command)} sent.` : `${nmtCommandLabel(command)} failed: ${r.message}.`),
+        onResult(
+          r.ok ? `${nmtCommandLabel(command)} sent.` : `${nmtCommandLabel(command)} failed: ${r.message}.`,
+          !r.ok,
+        ),
       )
 
   const nvmWrite = (op: NvmOp, subIndex: number, name: string, retried: boolean) => {
     setOffer(null)
+    onResult(null)
     const index = op === 'save' ? 0x1010 : 0x1011
     const signature = op === 'save' ? SAVE_SIGNATURE : LOAD_SIGNATURE
     void client.write(networkIndex, nodeId, index, subIndex, [...signature]).then((r) => {
@@ -573,19 +787,19 @@ const NvmCard = ({
       if (!r.ok) {
         const failed = `${op === 'save' ? 'Save' : 'Restore'} failed: ${r.message}.`
         if (r.abortCode === ABORT_DEVICE_STATE && !retried && online.nmt) {
-          onResult(`${failed} The node may take it in pre-operational.`)
+          onResult(failed, true)
           setOffer({ kind: 'retry', op, subIndex, name })
         } else {
-          onResult(`${failed}${inPreOp}`)
+          onResult(`${failed}${inPreOp}`, true)
         }
         return
       }
       if (op === 'save') {
-        onResult(`Saved to the node: ${name}.${inPreOp}`)
+        onResult(`Saved: ${name}.${inPreOp}`)
         if (retried) setOffer({ kind: 'start' })
         return
       }
-      onResult(`Defaults restored: ${name}. They take effect after a reset.`)
+      onResult(`Restored: ${name}. Takes effect after a reset.`)
       setOffer({ kind: 'reset', subIndex, preOperational: retried })
     })
   }
@@ -593,21 +807,18 @@ const NvmCard = ({
   const retryInPreOperational = (op: NvmOp, subIndex: number, name: string) => {
     setOffer(null)
     void client.nmt(networkIndex, nodeId, 'pre_operational').then((r) => {
-      if (!r.ok) return onResult(`Pre-operational failed: ${r.message}.`)
+      if (!r.ok) return onResult(`Pre-operational failed: ${r.message}.`, true)
       nvmWrite(op, subIndex, name, true)
     })
   }
 
-  const save = (subIndex: number, name: string) => nvmWrite('save', subIndex, name, false)
-  const restore = (subIndex: number, name: string) => nvmWrite('restore', subIndex, name, false)
-
   const offerRow = (text: string, action: { label: string; run: () => void }, onNotNow: () => void) => (
-    <div className='mb-3 flex items-center gap-2 text-xs' data-testid='canopen-online-nvm-offer'>
+    <div className='mt-2 flex flex-wrap items-center gap-2 text-xs' data-testid='canopen-online-nvm-offer'>
       <span>{text}</span>
-      <button type='button' className={secondaryButtonClassName} onClick={action.run}>
+      <button type='button' className={smallButtonClassName} onClick={action.run}>
         {action.label}
       </button>
-      <button type='button' className={secondaryButtonClassName} onClick={onNotNow}>
+      <button type='button' className={smallButtonClassName} onClick={onNotNow}>
         Not now
       </button>
     </div>
@@ -619,15 +830,17 @@ const NvmCard = ({
       case 'retry': {
         const { op, subIndex, name } = offer
         return offerRow(
-          `The node refused the ${op} in its present state.`,
+          'The node may take it in pre-operational.',
           {
             label: 'Switch to pre-operational and retry',
-            run: () =>
-              onConfirm({
+            run: () => {
+              setOffer(null)
+              feedback.ask({
                 text: `Put the node in pre-operational and ${op} again?`,
                 label: 'Switch and retry',
                 action: () => retryInPreOperational(op, subIndex, name),
-              }),
+              })
+            },
           },
           () => setOffer(null),
         )
@@ -636,7 +849,7 @@ const NvmCard = ({
         const command = resetForRestore(offer.subIndex)
         const preOperational = offer.preOperational
         return offerRow(
-          'Reset the node so the restored defaults take effect?',
+          'Reset now?',
           {
             label: nmtCommandLabel(command),
             run: () => {
@@ -672,78 +885,105 @@ const NvmCard = ({
     }
   })()
 
+  const saveAuto = saveScope !== undefined && support.get(saveScope.subIndex) === 'auto'
+
   return (
     <div className={cardClassName} data-testid='canopen-online-nvm'>
       <h4 className={headingClassName}>Node memory</h4>
-      {offerBar}
-      <div className='grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-1 text-xs'>
-        {saves.map((scope) => {
-          const s = support.get(scope.subIndex)
-          const reason = supportText(s)
-          return (
-            <div key={`save-${scope.subIndex}`} className='contents'>
-              <span>
-                Save: {scope.name} (0x1010:{scope.subIndex})
-              </span>
-              <span className={hintClassName}>{reason ?? ''}</span>
-              {s === 'auto' ? (
-                <span />
-              ) : (
-                <button
-                  type='button'
-                  className={secondaryButtonClassName}
-                  disabled={!ready || s === 'none'}
-                  title={s === 'none' ? (reason ?? undefined) : undefined}
-                  onClick={() =>
-                    onConfirm({
-                      text: `Save ${scope.name.toLowerCase()} to the node's non-volatile memory?`,
-                      label: 'Save to node',
-                      action: () => save(scope.subIndex, scope.name),
-                    })
-                  }
+      <WithFeedback
+        feedback={
+          <>
+            {feedback.view}
+            {offerBar}
+          </>
+        }
+      >
+        <div className='grid grid-cols-[max-content_minmax(0,240px)_max-content] items-center gap-x-3 gap-y-2 text-xs'>
+          {allSaves.length > 0 ? (
+            <>
+              <span>Save</span>
+              {saves.length > 0 ? (
+                <select
+                  aria-label='Scope to save'
+                  className={inputClassName}
+                  value={saveScope?.subIndex ?? ''}
+                  onChange={(e) => setSaveSub(Number(e.target.value))}
                 >
-                  Save to node
-                </button>
+                  {saves.map((s) => (
+                    <option key={s.subIndex} value={s.subIndex}>
+                      {saveScopeLabel(s, support.get(s.subIndex))}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className={hintClassName}>The node saves nothing on command.</span>
               )}
-            </div>
-          )
-        })}
-        {restores.map((scope) => (
-          <div key={`restore-${scope.subIndex}`} className='contents'>
-            <span>
-              Restore: {scope.name} (0x1011:{scope.subIndex})
-            </span>
-            <span />
-            <button
-              type='button'
-              className={secondaryButtonClassName}
-              disabled={!ready}
-              onClick={() =>
-                onConfirm({
-                  text: `Restore the node's default ${scope.name.toLowerCase()}? They take effect after a reset.`,
-                  label: 'Restore defaults',
-                  action: () => restore(scope.subIndex, scope.name),
-                })
-              }
-            >
-              Restore defaults
-            </button>
-          </div>
-        ))}
-      </div>
+              <button
+                type='button'
+                className={smallButtonClassName}
+                disabled={!ready || !saveScope || saveAuto}
+                title={saveAuto ? 'The node saves this by itself' : undefined}
+                onClick={() => {
+                  if (!saveScope) return
+                  feedback.ask({
+                    text: `Save to node ${nodeId}'s non-volatile memory: ${saveScope.name}?`,
+                    label: 'Save to node',
+                    action: () => nvmWrite('save', saveScope.subIndex, saveScope.name, false),
+                  })
+                }}
+              >
+                Save to node
+              </button>
+            </>
+          ) : null}
+          {restores.length > 0 ? (
+            <>
+              <span>Restore</span>
+              <select
+                aria-label='Scope to restore'
+                className={inputClassName}
+                value={restoreScope?.subIndex ?? ''}
+                onChange={(e) => setRestoreSub(Number(e.target.value))}
+              >
+                {restores.map((s) => (
+                  <option key={s.subIndex} value={s.subIndex}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type='button'
+                className={smallButtonClassName}
+                disabled={!ready || !restoreScope}
+                onClick={() => {
+                  if (!restoreScope) return
+                  feedback.ask({
+                    text: `Restore defaults on node ${nodeId}: ${restoreScope.name}? They take effect after a reset.`,
+                    label: 'Restore defaults',
+                    action: () => nvmWrite('restore', restoreScope.subIndex, restoreScope.name, false),
+                  })
+                }}
+              >
+                Restore defaults
+              </button>
+            </>
+          ) : null}
+        </div>
+      </WithFeedback>
     </div>
   )
 }
 
 const RAW_TYPES: readonly string[] = [...CANOPEN_DATA_TYPES, 'raw bytes']
 
-/** Read or write any index and sub-index, by data type or as raw bytes. */
-const RawAccess = ({ node, online }: { node: CanopenNode; online: CanopenOnlineContext }) => {
+/** Read, and in the expert view write, any index and sub-index by data type or as raw bytes. */
+const RawAccess = ({ node, online, expert }: { node: CanopenNode; online: CanopenOnlineContext; expert: boolean }) => {
   const [index, setIndex] = useState('')
   const [sub, setSub] = useState('0')
   const [type, setType] = useState('raw bytes')
   const [value, setValue] = useState('')
-  const [result, setResult] = useState<string | null>(null)
+  const [result, setOutcome] = useState<{ text: string; error: boolean } | null>(null)
+  const setResult = (text: string | null, error = true) => setOutcome(text === null ? null : { text, error })
   const { client, networkIndex, ready } = online
 
   const target = (): { index: number; subIndex: number } | null => {
@@ -754,11 +994,25 @@ const RawAccess = ({ node, online }: { node: CanopenNode; online: CanopenOnlineC
   }
   const dataType = type === 'raw bytes' ? '0x000A' : type
 
+  // An object the EDS lists is read and written as its EDS type until the user picks another.
+  const followEds = (nextIndex: string, nextSub: string) => {
+    const i = Number.parseInt(nextIndex.replace(/^0x/i, ''), 16)
+    const sv = nextSub.trim().toLowerCase()
+    const sn = sv.startsWith('0x') ? Number.parseInt(sv.slice(2), 16) : Number(sv)
+    const object = node.eds.objects.find((o) => o.index === i && o.subIndex === sn)
+    const label = object ? dataTypeLabel(object.dataType) : null
+    setType(label && RAW_TYPES.includes(label) ? label : 'raw bytes')
+  }
+
   const doRead = () => {
     const t = target()
     if (!t) return setResult('Give the index in hex (for example 2000) and the sub-index (0 to 255).')
+    setResult(null)
     void client.read(networkIndex, node.nodeId, t.index, t.subIndex).then((r) => {
-      setResult(r.ok ? `${ref(t)} = ${formatCanopenValue(dataType, r.bytes, 'decimal')}` : `${ref(t)}: ${r.message}`)
+      setResult(
+        r.ok ? `${ref(t)} = ${formatCanopenValue(dataType, r.bytes, 'decimal')}` : `${ref(t)}: ${r.message}`,
+        !r.ok,
+      )
     })
   }
   const doWrite = () => {
@@ -768,27 +1022,39 @@ const RawAccess = ({ node, online }: { node: CanopenNode; online: CanopenOnlineC
     if (refusal) return setResult(refusal)
     const encoded = type === 'raw bytes' ? encodeRawBytes(value) : encodeOnlineValue(type, value)
     if (!encoded.ok) return setResult(encoded.message)
+    setResult(null)
     void client.write(networkIndex, node.nodeId, t.index, t.subIndex, encoded.bytes).then((r) => {
-      setResult(r.ok ? `${ref(t)} written.` : `${ref(t)}: write refused: ${r.message}`)
+      setResult(r.ok ? `${ref(t)} written.` : `${ref(t)}: write refused: ${r.message}`, !r.ok)
     })
   }
 
   return (
-    <div className={cardClassName} data-testid='canopen-online-raw'>
-      <h4 className={headingClassName}>Any object</h4>
+    <div
+      className='mb-3 rounded-md border border-neutral-200 p-3 dark:border-neutral-800'
+      data-testid='canopen-online-raw'
+    >
+      <p className={cn(hintClassName, 'mb-2')}>
+        Any object: read{expert ? ' or write' : ''} an index and sub-index, also one the EDS does not list.
+      </p>
       <div className='flex flex-wrap items-center gap-2'>
         <input
           aria-label='Index (hex)'
           placeholder='Index (hex)'
-          className={cn(inputClassName, 'w-[100px]')}
+          className={cn(inputClassName, 'w-[96px]')}
           value={index}
-          onChange={(e) => setIndex(e.target.value)}
+          onChange={(e) => {
+            setIndex(e.target.value)
+            followEds(e.target.value, sub)
+          }}
         />
         <input
           aria-label='Sub-index'
-          className={cn(inputClassName, 'w-[70px]')}
+          className={cn(inputClassName, 'w-[64px]')}
           value={sub}
-          onChange={(e) => setSub(e.target.value)}
+          onChange={(e) => {
+            setSub(e.target.value)
+            followEds(index, e.target.value)
+          }}
         />
         <select
           aria-label='Data type'
@@ -802,28 +1068,38 @@ const RawAccess = ({ node, online }: { node: CanopenNode; online: CanopenOnlineC
             </option>
           ))}
         </select>
-        <input
-          aria-label='Value to write'
-          placeholder='Value'
-          className={cn(inputClassName, 'w-[140px]')}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        />
-        <button type='button' className={secondaryButtonClassName} disabled={!ready} onClick={doRead}>
+        <button type='button' className={smallButtonClassName} disabled={!ready} onClick={doRead}>
           Read
         </button>
-        <button
-          type='button'
-          className={secondaryButtonClassName}
-          disabled={!ready || value.trim() === ''}
-          onClick={doWrite}
-        >
-          Write
-        </button>
+        {expert ? (
+          <>
+            <input
+              aria-label='Value to write'
+              placeholder='Value'
+              className={cn(inputClassName, 'w-[140px]')}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+            <button
+              type='button'
+              className={smallButtonClassName}
+              disabled={!ready || value.trim() === ''}
+              onClick={doWrite}
+            >
+              Write
+            </button>
+          </>
+        ) : null}
       </div>
       {result ? (
-        <p role='status' className='mt-2 font-mono text-xs text-neutral-850 dark:text-neutral-200'>
-          {result}
+        <p
+          role='status'
+          className={cn(
+            'mt-2 text-xs',
+            result.error ? errorTextClassName : 'break-all font-mono text-neutral-850 dark:text-neutral-200',
+          )}
+        >
+          {result.text}
         </p>
       ) : null}
     </div>

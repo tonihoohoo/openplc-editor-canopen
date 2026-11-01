@@ -56,7 +56,11 @@ function fromHex(text: string): number[] {
   return out
 }
 
+/** Waits between job polls: short at first, since most SDOs end within a few bus cycles. */
+export const JOB_POLL_STEPS_MS: readonly number[] = [10, 20, 50]
+
 export interface CanopenOnlineOptions {
+  /** The longest wait between job polls, used after `JOB_POLL_STEPS_MS`. */
   pollMs?: number
   /** How long a job may stay pending before it counts as failed. */
   timeoutMs?: number
@@ -93,7 +97,7 @@ export function createCanopenOnline(send: CanopenRequestFn, options: CanopenOnli
     if (!('job' in first.answer)) return failed('error', 'the runtime did not start the request')
     const job = first.answer.job
     let waited = 0
-    for (;;) {
+    for (let poll = 0; ; poll++) {
       const next = await ask({ op: 'job', job })
       if (next.error) return next.error
       const a = next.answer
@@ -108,8 +112,9 @@ export function createCanopenOnline(send: CanopenRequestFn, options: CanopenOnli
         return failed(a.reason)
       }
       if (waited >= timeoutMs) return failed('timeout')
-      await sleep(pollMs)
-      waited += pollMs
+      const wait = Math.min(JOB_POLL_STEPS_MS[poll] ?? pollMs, pollMs)
+      await sleep(wait)
+      waited += wait
     }
   }
 
