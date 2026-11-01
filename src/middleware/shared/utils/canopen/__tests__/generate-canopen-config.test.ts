@@ -1,5 +1,5 @@
 import type { CanopenNode } from '../../../ports/canopen-types'
-import { generateCanopenConfig, nodeConfigurationSdos, pdoActive, watchesMaster } from '../generate-canopen-config'
+import { generateCanopenConfig, nodeConfigurationSdos, pdoConfigured, watchesMaster } from '../generate-canopen-config'
 import { defaultNetworkSettings } from '../model'
 import { canopenDevice, configWith, genericNode } from './fixtures/helpers'
 
@@ -39,8 +39,8 @@ describe('nodeConfigurationSdos', () => {
 
   it('only disables an unused PDO', () => {
     const node = genericNode(2)
-    node.rpdos[0].enabled = false
-    expect(pdoActive(node.rpdos[0])).toBe(false)
+    expect(pdoConfigured({ ...node.rpdos[0], entries: [] })).toBe(false)
+    node.rpdos = []
     const sdos = nodeConfigurationSdos(node, net()).filter((s) => s.index === 0x1400 || s.index === 0x1600)
     expect(sdos).toEqual([{ index: 0x1400, subindex: 1, data: '02020080' }])
   })
@@ -101,7 +101,7 @@ describe('generateCanopenConfig', () => {
     expect(text).not.toBeNull()
     const json: unknown = JSON.parse(text ?? '')
     expect(json).toMatchObject({
-      version: 3,
+      version: 4,
       networks: [
         {
           name: 'CANopen_1',

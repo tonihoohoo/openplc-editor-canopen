@@ -4,13 +4,15 @@
  * network, node and PDO it concerns.
  */
 
-import type { CanopenNode, CanopenPdo } from '../../ports/canopen-types'
+import type { CanopenNode, CanopenPdo, CanopenSdo } from '../../ports/canopen-types'
 import type { PLCRemoteDevice } from '../../ports/types'
 import { checkCanopenNetwork, checkText, reservedCobId } from './check-fix'
-import { CANOPEN_BITRATES, iecPrefixFor } from './data-types'
+import { CANOPEN_BITRATES, canopenTypeBits, iecPrefixFor } from './data-types'
 import { findObject } from './eds-parser'
-import { pdoActive, watchesMaster } from './generate-canopen-config'
+import { pdoConfigured, watchesMaster } from './generate-canopen-config'
 import {
+  isDummyEntry,
+  isGapEntry,
   MAX_BUS_PRIORITY,
   MAX_PDO_BITS,
   MIN_BUS_PRIORITY,
@@ -73,7 +75,7 @@ export function validateCanopenProject(
 
       const checkPdos = (pdos: CanopenPdo[], direction: PdoDirection): void => {
         for (const pdo of pdos) {
-          if (!pdoActive(pdo)) continue
+          if (!pdoConfigured(pdo)) continue
           const where = `${label} ${direction === 'input' ? 'TPDO' : 'RPDO'} ${pdo.number}`
           if (pdoBits(pdo) > MAX_PDO_BITS) errors.push(`${where}: maps ${pdoBits(pdo)} bits; a PDO holds at most 64`)
           if (RTR_TRANSMISSION_TYPES.includes(pdo.transmissionType))
@@ -82,9 +84,18 @@ export function validateCanopenProject(
             )
           else if (pdo.transmissionType > 240 && pdo.transmissionType < 252)
             errors.push(`${where}: transmission type ${pdo.transmissionType} is reserved`)
+          if (direction === 'output' && pdo.deadlineMs > 0 && cycleUs !== null && pdo.deadlineMs * 1000 < 2 * cycleUs)
+            errors.push(
+              `${where}: the deadline (${pdo.deadlineMs} ms) must be at least two PLC cycles (${(2 * cycleUs) / 1000} ms)`,
+            )
           const reserved = reservedCobId(pdo.cobId)
           if (reserved) errors.push(`${where}: COB-ID ${hex(pdo.cobId, 3)} is reserved for ${reserved}`)
-          for (const e of pdo.entries) {
+          for (const e of pdo.exchanged ? pdo.entries : []) {
+            if (isGapEntry(node.eds, e)) {
+              if (canopenTypeBits(e.dataType) > 32 && isDummyEntry(e))
+                errors.push(`${where}: a gap holds at most 32 bits`)
+              continue
+            }
             const prefix = iecPrefixFor(e.dataType, direction)
             if (!e.iecLocation.startsWith(prefix)) {
               errors.push(`${where}: ${e.name} needs a ${prefix} address, has "${e.iecLocation}"`)
@@ -112,10 +123,22 @@ export function validateCanopenProject(
         if (!node.configure) continue
         const encoded = encodeCanopenValue(sdo.dataType, sdo.value)
         if (!encoded.ok) errors.push(`${where}: ${encoded.message}`)
+        const jump = jumpTargetProblem(node, sdo)
+        if (jump) errors.push(`${where}: ${jump}`)
       }
     }
   }
   return errors
+}
+
+/** Why a startup SDO's "jump to" target cannot be used, or null (also null without a jump). */
+export function jumpTargetProblem(node: CanopenNode, sdo: CanopenSdo): string | null {
+  if (sdo.onAbort !== 'jump') return null
+  const from = node.sdos.findIndex((s) => s.id === sdo.id)
+  const to = node.sdos.findIndex((s) => s.id === sdo.jumpTo)
+  if (to < 0) return 'the line it jumps to when refused is gone; pick another'
+  if (to <= from) return 'it can jump only to a later line'
+  return null
 }
 
 /** Why the node's "Watch the master" setting cannot work with this master heartbeat, or null. */

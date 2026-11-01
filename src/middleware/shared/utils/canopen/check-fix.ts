@@ -7,8 +7,9 @@
  */
 
 import type { CanopenConfig, CanopenNode, CanopenPdo } from '../../ports/canopen-types'
+import { canopenTypeBits, objectRef } from './data-types'
 import { changeOnlyTimeoutText, timeoutOnChangeOnlyPdo } from './editing'
-import { pdoActive, watchesMaster } from './generate-canopen-config'
+import { pdoConfigured, pdoExchanged, watchesMaster } from './generate-canopen-config'
 import {
   canBeGuarded,
   consumerSlots,
@@ -16,6 +17,8 @@ import {
   effectiveEmcy,
   effectiveProducerMs,
   emcySupport,
+  isDummyEntry,
+  isGapEntry,
   type PdoDirection,
   restoreChoices,
   updateNode,
@@ -131,6 +134,8 @@ function freeCobId(used: ReadonlySet<number>, from: number, to: number, allowRes
 interface CobUse {
   cobId: number
   what: string
+  /** A receiver (an RPDO the master does not exchange) shares the COB-ID of one sender. */
+  receiver?: boolean
   nodeId?: string
   move?: (cobId: number) => (config: CanopenConfig) => CanopenConfig
   /** Where a new COB-ID is looked for. */
@@ -168,10 +173,11 @@ function cobUses(config: CanopenConfig): CobUse[] {
   for (const node of nodes) {
     const pdos = (list: CanopenPdo[], direction: PdoDirection): void => {
       for (const pdo of list) {
-        if (!pdoActive(pdo)) continue
+        if (!pdoConfigured(pdo)) continue
         uses.push({
           cobId: pdo.cobId,
           what: `${label(node)} ${direction === 'input' ? 'TPDO' : 'RPDO'} ${pdo.number}`,
+          receiver: direction === 'output' && !pdo.exchanged,
           nodeId: node.id,
           move: (cobId) => setNode(node.id, (n) => updatePdo(n, direction, pdo.number, (p) => ({ ...p, cobId }))),
           range: [0x181, 0x57f],
@@ -185,9 +191,51 @@ function cobUses(config: CanopenConfig): CobUse[] {
   return uses
 }
 
+/** The PDO ranges of the predefined connection set and beyond, in search order. */
+const PDO_COB_RANGES: ReadonlyArray<[number, number]> = [
+  [0x181, 0x57f],
+  [0x681, 0x6df],
+]
+
+/** The lowest COB-ID of the PDO ranges that nothing in the network uses and that is not reserved, or null. */
+export function freePdoCobId(config: CanopenConfig): number | null {
+  const used = new Set(cobUses(config).map((u) => u.cobId))
+  for (const [from, to] of PDO_COB_RANGES) {
+    const free = freeCobId(used, from, to, false)
+    if (free !== null) return free
+  }
+  return null
+}
+
+/**
+ * The other ends of a node-to-node PDO: for a TPDO, the RPDOs the master does not exchange on its
+ * COB-ID; for such an RPDO, the TPDO that sends its COB-ID. Labels like "node 3 (io2) RPDO 1".
+ */
+export function pdoLinkPartners(
+  config: CanopenConfig,
+  nodeId: string,
+  direction: PdoDirection,
+  pdo: CanopenPdo,
+): string[] {
+  if (!pdoConfigured(pdo)) return []
+  const uses = cobUses(config).filter((u) => u.cobId === pdo.cobId && u.nodeId !== nodeId)
+  if (direction === 'input') return uses.filter((u) => u.receiver).map((u) => u.what)
+  if (pdo.exchanged) return []
+  return uses.filter((u) => !u.receiver && /TPDO \d+$/.test(u.what)).map((u) => u.what)
+}
+
 function checkCobIds(config: CanopenConfig, out: CanopenCheck[]): void {
-  const uses = cobUses(config)
-  const used = new Set(uses.map((u) => u.cobId))
+  const all = cobUses(config)
+  const uses = all.filter((u) => !u.receiver)
+  const used = new Set(all.map((u) => u.cobId))
+  const sent = new Set(uses.map((u) => u.cobId))
+  for (const r of all.filter((u) => u.receiver && !sent.has(u.cobId)))
+    out.push({
+      level: 'warning',
+      nodeId: r.nodeId,
+      where: r.what,
+      text: `no node sends its COB-ID ${hex(r.cobId, 3)}`,
+    })
   const first = new Map<number, CobUse>()
   for (const use of uses) {
     const owner = first.get(use.cobId)
@@ -271,7 +319,7 @@ function checkCycle(config: CanopenConfig, cycleUs: number, out: CanopenCheck[])
         setNode(node.id, (n) => ({ ...n, guardTimeMs: ms })),
       )
     for (const pdo of node.tpdos) {
-      if (!pdoActive(pdo) || !off(pdo.eventTimerMs)) continue
+      if (!pdoConfigured(pdo) || !off(pdo.eventTimerMs)) continue
       warn(`${label(node)} TPDO ${pdo.number}`, 'the event timer', pdo.eventTimerMs, node.id, (ms) =>
         setNode(node.id, (n) => updatePdo(n, 'input', pdo.number, (p) => ({ ...p, eventTimerMs: ms }))),
       )
@@ -454,7 +502,7 @@ function checkOptions(config: CanopenConfig, out: CanopenCheck[]): void {
 function checkReceiveTimeouts(config: CanopenConfig, cycleUs: number | null, out: CanopenCheck[]): void {
   for (const node of config.nodes) {
     for (const pdo of node.tpdos) {
-      if (!pdoActive(pdo) || !timeoutOnChangeOnlyPdo(node, pdo)) continue
+      if (!pdoExchanged(pdo) || !timeoutOnChangeOnlyPdo(node, pdo)) continue
       const half = Math.floor(pdo.receiveTimeoutMs / 2)
       const timerMs = cycleUs === null ? half : roundDownToCycle(half, cycleUs)
       const setPdo = (change: Partial<CanopenPdo>) =>
@@ -473,6 +521,24 @@ function checkReceiveTimeouts(config: CanopenConfig, cycleUs: number | null, out
   }
 }
 
+function checkGaps(config: CanopenConfig, out: CanopenCheck[]): void {
+  for (const node of config.nodes) {
+    for (const direction of ['input', 'output'] as const) {
+      for (const pdo of direction === 'input' ? node.tpdos : node.rpdos) {
+        for (const e of pdo.entries) {
+          if (isDummyEntry(e) || !isGapEntry(node.eds, e)) continue
+          out.push({
+            level: 'warning',
+            nodeId: node.id,
+            where: `${label(node)} ${direction === 'input' ? 'TPDO' : 'RPDO'} ${pdo.number}`,
+            text: `maps ${objectRef(e.index, e.subIndex)}, which the device file does not describe; it is kept as a gap of ${canopenTypeBits(e.dataType)} bits`,
+          })
+        }
+      }
+    }
+  }
+}
+
 /** Every problem of the network that the editor can explain, with its fix where there is one. */
 export function checkCanopenNetwork(config: CanopenConfig, cycleUs: number | null): CanopenCheck[] {
   const out: CanopenCheck[] = []
@@ -481,6 +547,7 @@ export function checkCanopenNetwork(config: CanopenConfig, cycleUs: number | nul
   checkSync(config, cycleUs, out)
   checkOptions(config, out)
   checkReceiveTimeouts(config, cycleUs, out)
+  checkGaps(config, out)
   if (cycleUs !== null) checkCycle(config, cycleUs, out)
   return out
 }

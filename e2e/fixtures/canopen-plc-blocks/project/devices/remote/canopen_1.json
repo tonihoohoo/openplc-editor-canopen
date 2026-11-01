@@ -383,7 +383,8 @@
           {
             "number": 1,
             "cobId": 386,
-            "enabled": true,
+            "followsNodeId": true,
+            "exchanged": true,
             "fixedMapping": false,
             "transmissionType": 255,
             "eventTimerMs": 20,
@@ -415,7 +416,8 @@
           {
             "number": 1,
             "cobId": 514,
-            "enabled": true,
+            "followsNodeId": true,
+            "exchanged": true,
             "fixedMapping": false,
             "transmissionType": 255,
             "eventTimerMs": 0,
@@ -801,32 +803,8 @@
           "iecLocation": "%IB2",
           "alias": "io9_state"
         },
-        "tpdos": [
-          {
-            "number": 1,
-            "cobId": 393,
-            "enabled": false,
-            "fixedMapping": false,
-            "transmissionType": 255,
-            "eventTimerMs": 20,
-            "inhibitTime": 0,
-            "receiveTimeoutMs": 0,
-            "entries": []
-          }
-        ],
-        "rpdos": [
-          {
-            "number": 1,
-            "cobId": 521,
-            "enabled": false,
-            "fixedMapping": false,
-            "transmissionType": 255,
-            "eventTimerMs": 0,
-            "inhibitTime": 0,
-            "receiveTimeoutMs": 0,
-            "entries": []
-          }
-        ],
+        "tpdos": [],
+        "rpdos": [],
         "sdos": [],
         "optional": true
       }

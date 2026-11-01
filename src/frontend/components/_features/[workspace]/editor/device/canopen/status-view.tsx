@@ -14,7 +14,9 @@ import {
   nmtStateLabel,
   nodeDot,
   nodeStateLabel,
+  objectRef,
   problemText,
+  sdoAbortText,
 } from '@root/middleware/shared/utils/canopen'
 import type { ReactNode } from 'react'
 
@@ -206,6 +208,20 @@ export const NodeStatusTab = ({
               </table>
             )}
           </div>
+
+          {node.sdo_skipped.length > 0 ? (
+            <div className={cardClassName} data-testid='canopen-status-skipped'>
+              <h4 className={headingClassName}>Refused writes at boot</h4>
+              <p className={hintClassName}>The node refused these startup SDOs and their line let the boot go on.</p>
+              <ul className='text-xs text-neutral-850 dark:text-neutral-200'>
+                {node.sdo_skipped.map((k, i) => (
+                  <li key={i}>
+                    {objectRef(k.index, k.subindex)}: {sdoAbortText(k.abort_code)} ({hex(k.abort_code, 8)})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {node.late_pdos.length > 0 ? (
             <div className={cardClassName}>

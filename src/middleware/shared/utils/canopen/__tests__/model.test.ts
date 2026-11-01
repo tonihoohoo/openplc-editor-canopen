@@ -8,7 +8,6 @@ import {
   hasErrorBehaviour,
   lowestFreeNodeId,
   mappableObjects,
-  moveCobId,
   nodeEntries,
   nodeNameFromEds,
   pdoBits,
@@ -19,7 +18,7 @@ import {
   updatePdo,
   withEntryAlias,
   withNodeId,
-  withPdoEnabled,
+  withPdoExchanged,
 } from '../model'
 import { configWith, genericIoEds, genericNode } from './fixtures/helpers'
 
@@ -30,7 +29,8 @@ describe('createCanopenNode', () => {
     expect(node.tpdos[0]).toMatchObject({
       number: 1,
       cobId: 0x182,
-      enabled: true,
+      followsNodeId: true,
+      exchanged: true,
       fixedMapping: false,
       transmissionType: 255,
       eventTimerMs: 20,
@@ -41,7 +41,7 @@ describe('createCanopenNode', () => {
       [0x6000, 1, 'UNSIGNED8', '%IB1'],
       [0x6401, 1, 'INTEGER16', '%IW0'],
     ])
-    expect(node.rpdos[0]).toMatchObject({ number: 1, cobId: 0x202, enabled: true })
+    expect(node.rpdos[0]).toMatchObject({ number: 1, cobId: 0x202, followsNodeId: true, exchanged: true })
     expect(node.rpdos[0].entries.map((e) => e.iecLocation)).toEqual(['%QB0'])
     expect(node.state).toMatchObject({ channelId: 'state', iecLocation: '%IB0', dataType: 'UNSIGNED8' })
   })
@@ -85,7 +85,7 @@ describe('createCanopenNode', () => {
     expect(defaultCanopenConfig().network).toMatchObject({ heartbeatProducerMs: 100, priority: 90 })
   })
 
-  it('marks a PDO with a read-only mapping as fixed and one with COB-ID 0 as disabled', () => {
+  it('marks a PDO with a read-only mapping as fixed and leaves out one with COB-ID 0', () => {
     const eds = genericIoEds()
     eds.objects = eds.objects.map((o) =>
       o.index === 0x1a00
@@ -102,8 +102,7 @@ describe('createCanopenNode', () => {
       allocate: placeholderAddress,
     })
     expect(node.tpdos[0].fixedMapping).toBe(true)
-    expect(node.rpdos[0]).toMatchObject({ enabled: false, cobId: 0x204 })
-    expect(node.rpdos[0].entries[0].iecLocation).toBe('')
+    expect(node.rpdos).toEqual([])
   })
 
   it('lists the state and every PDO entry as entries', () => {
@@ -122,13 +121,19 @@ describe('node IDs and names', () => {
     expect(lowestFreeNodeId(full)).toBeNull()
   })
 
-  it('moves predefined COB-IDs with the node ID and keeps others', () => {
+  it('moves COB-IDs that follow the node ID and keeps fixed ones', () => {
     expect(predefinedCobId('input', 2, 5)).toBe(0x285)
     expect(predefinedCobId('output', 5, 5)).toBe(0)
-    expect(moveCobId(0x182, 2, 7, 'input')).toBe(0x187)
-    expect(moveCobId(0x300, 2, 7, 'input')).toBe(0x300)
     const moved = withNodeId(genericNode(2), 9)
     expect([moved.nodeId, moved.tpdos[0].cobId, moved.rpdos[0].cobId]).toEqual([9, 0x189, 0x209])
+    const node = genericNode(2)
+    const custom = {
+      ...node,
+      tpdos: [{ ...node.tpdos[0], cobId: 0x282, followsNodeId: true }],
+      rpdos: [{ ...node.rpdos[0], cobId: 0x202, followsNodeId: false }],
+    }
+    const next = withNodeId(custom, 5)
+    expect([next.tpdos[0].cobId, next.rpdos[0].cobId]).toEqual([0x285, 0x202])
   })
 
   it('makes node names unique and identifier-like', () => {
@@ -150,9 +155,9 @@ describe('editing', () => {
     expect(tx.tpdos[0].eventTimerMs).toBe(50)
   })
 
-  it('gives a PDO addresses when enabled and takes them, with their aliases, when disabled', () => {
+  it('gives a PDO addresses when exchanged and takes them, with their aliases, when not', () => {
     const pdo = genericNode(2).tpdos[0]
-    const off = withPdoEnabled(
+    const off = withPdoExchanged(
       { ...pdo, entries: pdo.entries.map((e) => ({ ...e, alias: 'a' })) },
       'input',
       false,
@@ -162,7 +167,7 @@ describe('editing', () => {
       ['', undefined],
       ['', undefined],
     ])
-    const on = withPdoEnabled(off, 'input', true, placeholderAddress)
+    const on = withPdoExchanged(off, 'input', true, placeholderAddress)
     expect(on.entries.map((e) => e.iecLocation)).toEqual(['%IB0', '%IW0'])
     expect(placeholderAddress('%QX', true)).toBe('%QX0.0')
   })

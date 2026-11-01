@@ -11,7 +11,7 @@ import { CANOPEN_TYPE_CODES, canopenTypeBits, objectRef } from './data-types'
 import { checkEds, type Cia306Finding } from './eds-check'
 import { readEdsDocument } from './eds-document'
 import { findObject } from './eds-parser'
-import { nodeConfigurationSdos, pdoActive } from './generate-canopen-config'
+import { nodeConfigurationSdos, pdoConfigured } from './generate-canopen-config'
 import { pdoObjectIndices, restoreChoiceName } from './model'
 import type { DeviceFileFinding } from './xdd-check'
 
@@ -335,7 +335,7 @@ export function buildNodeDcf(
   }
 
   for (const pdo of [...node.tpdos, ...node.rpdos]) {
-    if (!pdo.enabled) continue
+    if (!pdo.exchanged) continue
     for (const e of pdo.entries) {
       if (!e.alias) continue
       const id = hex4(e.index)
@@ -405,7 +405,7 @@ function fixedMappingValues(
     ...node.rpdos.map((p) => ({ p, direction: 'output' as const })),
   ]
   for (const { p, direction } of pdos) {
-    if (!pdoActive(p)) continue
+    if (!pdoConfigured(p)) continue
     const { map } = pdoObjectIndices(direction, p.number)
     if (written.has(objectRef(map, 0))) continue
     out.push({ index: map, subIndex: 0, data: leHex(p.entries.length, 1) })

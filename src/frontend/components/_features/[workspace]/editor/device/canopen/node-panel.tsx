@@ -5,13 +5,13 @@ import type { CanopenOnlineReads } from '@root/frontend/hooks/use-canopen-online
 import type { CanopenLiveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { cn } from '@root/frontend/utils/cn'
 import type {
+  CanopenConfig,
   CanopenEntry,
   CanopenHeartbeatConsumer,
   CanopenNetworkSettings,
   CanopenNode,
   CanopenOnCommError,
   CanopenOnLoss,
-  CanopenPdo,
   CanopenSdo,
   CanopenSupervision,
 } from '@root/middleware/shared/ports/canopen-types'
@@ -28,11 +28,10 @@ import {
   emcySupport,
   findObject,
   hasErrorBehaviour,
+  isGapEntry,
   objectParameterState,
-  type PdoDirection,
   restoreChoiceName,
   restoreChoices,
-  updatePdo,
   watchMasterProblem,
 } from '@root/middleware/shared/utils/canopen'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
@@ -169,6 +168,8 @@ type NodePanelProps = {
   timeOn: boolean
   /** The SYNC period, or null when unknown or off. */
   syncPeriodUs: number | null
+  /** The PLC cycle in microseconds, or null when unknown. */
+  cycleUs: number | null
   sdoWarnings: ReadonlyMap<string, string>
   /** The runtime's live status; null hides the Status tab. */
   live: CanopenLiveStatus | null
@@ -215,6 +216,7 @@ const NodePanel = ({
   heartbeatTimeoutPercent,
   timeOn,
   syncPeriodUs,
+  cycleUs,
   sdoWarnings,
   live,
   online,
@@ -272,11 +274,11 @@ const NodePanel = ({
   const emcy = effectiveEmcy(node)
   const canWatch = canWatchMaster(eds)
   const watchProblem = watchMasterProblem(node, masterHeartbeatMs)
-  const mappedInputs = node.tpdos.filter((p) => p.enabled).reduce((n, p) => n + p.entries.length, 0)
-  const mappedOutputs = node.rpdos.filter((p) => p.enabled).reduce((n, p) => n + p.entries.length, 0)
-
-  const changePdo = (direction: PdoDirection) => (pdo: CanopenPdo) =>
-    onChange((n) => updatePdo(n, direction, pdo.number, () => pdo))
+  const valueCount = (pdos: typeof node.tpdos): number =>
+    pdos.filter((p) => p.exchanged).reduce((n, p) => n + p.entries.filter((e) => !isGapEntry(eds, e)).length, 0)
+  const mappedInputs = valueCount(node.tpdos)
+  const mappedOutputs = valueCount(node.rpdos)
+  const config: CanopenConfig = { network, nodes: nodes.map((n) => (n.id === node.id ? node : n)) }
 
   return (
     <div className='flex min-w-0 flex-1 flex-col' data-testid='canopen-node-panel'>
@@ -729,30 +731,26 @@ const NodePanel = ({
 
         <Tabs.Content value='inputs' className='pb-4'>
           <PdoSection
-            pdos={node.tpdos}
+            node={node}
+            config={config}
             direction='input'
-            eds={eds}
-            nodeId={node.nodeId}
             syncOn={syncOn}
             syncPeriodUs={syncPeriodUs}
-            configure={node.configure}
-            onLoss={node.onLoss}
-            onChange={changePdo('input')}
+            cycleUs={cycleUs}
+            onNodeChange={(next) => onChange(() => next)}
             onAliasChange={onAliasChange}
           />
         </Tabs.Content>
 
         <Tabs.Content value='outputs' className='pb-4'>
           <PdoSection
-            pdos={node.rpdos}
+            node={node}
+            config={config}
             direction='output'
-            eds={eds}
-            nodeId={node.nodeId}
             syncOn={syncOn}
             syncPeriodUs={syncPeriodUs}
-            configure={node.configure}
-            onLoss={node.onLoss}
-            onChange={changePdo('output')}
+            cycleUs={cycleUs}
+            onNodeChange={(next) => onChange(() => next)}
             onAliasChange={onAliasChange}
           />
         </Tabs.Content>
@@ -760,8 +758,10 @@ const NodePanel = ({
         <Tabs.Content value='sdos' className='pb-4'>
           <SdoSection
             node={node}
+            network={network}
             warnings={sdoWarnings}
             onChange={(sdos: CanopenSdo[]) => onChange((n) => ({ ...n, sdos }))}
+            onGoTo={setTab}
           />
         </Tabs.Content>
 

@@ -200,8 +200,12 @@ export function eventText(event: CanopenEvent): string {
       return `Emergency ${hex(event.code ?? 0, 4)}: ${emcyText(event.code ?? 0)}.`
     case 'emcy_reset':
       return 'Emergency reset: the node reports no error.'
-    case 'sdo_abort':
-      return event.problem ? problemText(event.problem) : 'A configuration write was refused.'
+    case 'sdo_abort': {
+      const text = event.problem ? problemText(event.problem) : 'A configuration write was refused.'
+      if (event.policy === 'continue') return text.replace(/\.$/, '; the boot went on with the next write.')
+      if (event.policy === 'jump') return text.replace(/\.$/, '; the boot jumped to a later write.')
+      return text
+    }
     case 'pdo_late':
       return `${pdo} is late.`
     case 'pdo_back':
