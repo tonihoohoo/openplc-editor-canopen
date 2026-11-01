@@ -82,6 +82,7 @@ describe('CANopen status texts', () => {
     )
     expect(problemText({ kind: 'heartbeat' })).toBe('The node missed its heartbeat.')
     expect(problemText({ kind: 'reset' })).toContain('boot-up message')
+    expect(problemText({ kind: 'state' })).toContain('left operational')
     expect(problemText({ kind: 'boot_error', text: 'timeout' })).toBe('The boot failed: timeout.')
     expect(problemText({ kind: 'boot_error' })).toBe('The boot failed.')
   })

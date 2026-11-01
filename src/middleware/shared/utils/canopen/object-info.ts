@@ -6,6 +6,7 @@
 
 import type { CanopenObject } from '../../ports/canopen-types'
 import { objectRef } from './data-types'
+import { objectLabel } from './editing'
 import { objectInfo, standardValueMeaning } from './standard-meanings'
 
 function sameNumber(a: string, b: string): boolean {
@@ -92,8 +93,6 @@ export function pdoMappingMeaning(
   const subIndex = Math.floor(value / 0x100) % 0x100
   const bits = value % 0x100
   const mapped = objects.find((o) => o.index === index && o.subIndex === subIndex)
-  const name = mapped
-    ? ` ${mapped.parentName && mapped.parentName !== mapped.name ? `${mapped.parentName} / ${mapped.name}` : mapped.name}`
-    : ''
+  const name = mapped ? ` ${objectLabel(mapped)}` : ''
   return `${objectRef(index, subIndex)}${name}, ${bits} bits`
 }

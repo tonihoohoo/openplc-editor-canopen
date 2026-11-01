@@ -18,6 +18,7 @@ import {
   MAX_SDO_BYTES,
   moveItem,
   NEVER_WRITTEN_INDICES,
+  objectFileNameTitle,
   objectInfo,
   objectLabel,
   objectRef,
@@ -262,7 +263,7 @@ const SdoSection = ({ node, network, warnings, onChange, onGoTo }: SdoSectionPro
                         <span className='w-2.5 shrink-0 text-[9px] text-neutral-400'>
                           {open.has(sdo.id) ? '▼' : '▶'}
                         </span>
-                        <span>{objectLabel(object)}</span>
+                        <span title={objectFileNameTitle(object)}>{objectLabel(object)}</span>
                       </button>
                     ) : (
                       'Not in the device file'

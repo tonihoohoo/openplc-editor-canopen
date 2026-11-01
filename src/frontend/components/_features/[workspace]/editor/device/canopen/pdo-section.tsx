@@ -18,6 +18,7 @@ import {
   cobIdBase,
   DUMMY_TYPES,
   entryFor,
+  findObject,
   GAP_DUMMIES,
   gapEntry,
   isDummyEntry,
@@ -27,6 +28,8 @@ import {
   MAX_PDO_BITS,
   moveEntryToPdo,
   moveItem,
+  objectOwnFileNameTitle,
+  objectOwnLabel,
   objectRef,
   pdoBits,
   type PdoDirection,
@@ -261,6 +264,16 @@ const CobIdField = ({ pdo, nodeId, objectRefText, notWrittenReason, onChange }: 
         onChange={(followsNodeId) => onChange({ ...pdo, followsNodeId: followsNodeId && pdo.cobId > nodeId })}
       />
     </div>
+  )
+}
+
+/** A mapped entry's name: the device file's label when it has one, its name on hover. */
+const EntryName = ({ eds, entry }: { eds: CanopenEdsInfo; entry: CanopenEntry }) => {
+  const object = findObject(eds, entry.index, entry.subIndex)
+  return (
+    <td className='py-1 pr-2 [overflow-wrap:anywhere]' title={object ? objectOwnFileNameTitle(object) : undefined}>
+      {object ? objectOwnLabel(object) : entry.name}
+    </td>
   )
 }
 
@@ -513,9 +526,11 @@ const PdoCard = ({
                 className='border-t border-neutral-100 dark:border-neutral-800'
               >
                 <td className='py-1 font-mono'>{objectRef(entry.index, entry.subIndex)}</td>
-                <td className={cn('py-1 pr-2 [overflow-wrap:anywhere]', gap && 'italic text-neutral-500')}>
-                  {entry.name}
-                </td>
+                {gap ? (
+                  <td className='py-1 pr-2 italic text-neutral-500 [overflow-wrap:anywhere]'>{entry.name}</td>
+                ) : (
+                  <EntryName eds={eds} entry={entry} />
+                )}
                 <td className='py-1'>
                   {gap && isDummyEntry(entry) ? `${canopenTypeBits(entry.dataType)} bits` : entry.dataType}
                 </td>
