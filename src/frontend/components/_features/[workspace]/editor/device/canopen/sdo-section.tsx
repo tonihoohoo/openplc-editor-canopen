@@ -229,7 +229,7 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
                         <span className='w-2.5 shrink-0 text-[9px] text-neutral-400'>
                           {open.has(sdo.id) ? '▼' : '▶'}
                         </span>
-                        {objectLabel(object)}
+                        <span>{objectLabel(object)}</span>
                       </button>
                     ) : (
                       'Not in the device file'
