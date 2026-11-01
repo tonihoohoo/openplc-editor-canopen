@@ -69,6 +69,7 @@ test('a receive timeout on a TPDO sent only on a change is warned about and fixe
     await expect(input.getByText(/The PDO is sent only when an input changes/)).toBeVisible()
     const checks = page.getByRole('status', { name: 'Network checks' })
     await expect(checks).toContainText('has a receive timeout, but the PDO is sent only when an input changes')
+    await page.getByTestId('canopen-receive-timeout-warning-1').scrollIntoViewIfNeeded()
     await keyView(page, 'node-receive-timeout-warning')
 
     await checks.getByRole('button', { name: /^Set event timer to 100 ms/ }).click()
