@@ -39,6 +39,7 @@ test('objects are named by their XDD labels', async () => {
     await page.getByRole('tab', { name: /Inputs/ }).click()
     const cell = page.getByTestId('canopen-pdo-input-1').getByText('Digital input 1 to 8')
     await expect(cell).toHaveAttribute('title', 'Name in the device file: Read_Input_8Bit_1')
+    await cell.scrollIntoViewIfNeeded()
     await shot(page, 'xdd-labels-inputs')
 
     await page.getByRole('tab', { name: /Startup SDOs/ }).click()
