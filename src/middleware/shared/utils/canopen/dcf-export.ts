@@ -521,7 +521,7 @@ function nodeLosses(format: ExportFormat, node: CanopenNode): string[] {
   const mapped = pdos.reduce((n, p) => n + p.entries.length, 0)
   if (format === 'eds') {
     out.push(
-      'node ID, name, PDO settings and mappings, supervision, emergency, TIME, heartbeat consumers, watching the master and startup SDOs',
+      "the settings made in the editor: node ID, name, PDO settings and mappings, supervision, emergency, TIME, heartbeat consumers, watching the master and startup SDOs (the file keeps the device's defaults)",
     )
     if (pdos.some((p) => p.entries.some((e) => e.alias))) out.push('the aliases of the mapped entries')
   }
