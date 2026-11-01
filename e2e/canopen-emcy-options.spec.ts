@@ -63,6 +63,7 @@ test('emergency settings follow the EDS and greyed-out options say why', async (
     await expect(page.getByText('No nodes yet')).toBeVisible({ timeout: 30000 })
 
     await page.getByTestId('canopen-eds-input').setInputFiles(noEmcy)
+    await page.getByTestId('canopen-file-dialog-confirm').click()
     await expect(page.getByText('Node 1: Generic_I_O_module')).toBeVisible({ timeout: 15000 })
     const emcy = page.getByLabel('Emergency messages', { exact: true })
     await expect(emcy).toHaveCount(0)
@@ -94,6 +95,7 @@ test('emergency settings follow the EDS and greyed-out options say why', async (
     await expect(emcy).toHaveCount(0)
 
     await page.getByTestId('canopen-eds-input').setInputFiles(fixedEmcy)
+    await page.getByTestId('canopen-file-dialog-confirm').click()
     await expect(page.getByText('Node 2: Generic_I_O_module')).toBeVisible({ timeout: 15000 })
     await page.getByRole('switch', { name: 'Expert view' }).check()
     await expect(emcy).toBeChecked()

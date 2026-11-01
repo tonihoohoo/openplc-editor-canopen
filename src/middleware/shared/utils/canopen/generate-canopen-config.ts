@@ -14,7 +14,7 @@ import type {
 } from '../../ports/canopen-types'
 import type { PLCRemoteDevice } from '../../ports/types'
 import { canopenTypeBits } from './data-types'
-import { findObject } from './eds-parser'
+import { findObject, masterMayWrite, OBJ_FLAG_REFUSE_WRITE } from './eds-parser'
 import {
   canBeGuarded,
   canProduceHeartbeat,
@@ -61,7 +61,7 @@ function le(value: number, bytes: number): string {
 /** Whether the EDS defines this sub-object and the master may write it. */
 export function isWritableObject(eds: CanopenEdsInfo, index: number, subIndex: number): boolean {
   const o = findObject(eds, index, subIndex)
-  return o !== undefined && o.access !== 'ro' && o.access !== 'const'
+  return o !== undefined && masterMayWrite(o)
 }
 
 function writable(node: CanopenNode, index: number, subIndex: number): boolean {
@@ -145,6 +145,8 @@ export function nodeConfigurationSdos(node: CanopenNode, network: CanopenNetwork
   for (const pdo of node.tpdos) out.push(...pdoSdos(node, pdo, 'input'))
   for (const pdo of node.rpdos) out.push(...pdoSdos(node, pdo, 'output'))
   for (const sdo of node.sdos) {
+    const object = findObject(node.eds, sdo.index, sdo.subIndex)
+    if (object && ((object.objFlags ?? 0) & OBJ_FLAG_REFUSE_WRITE) !== 0) continue
     const encoded = encodeCanopenValue(sdo.dataType, sdo.value)
     if (encoded.ok) out.push({ index: sdo.index, subindex: sdo.subIndex, data: toHex(encoded.bytes) })
   }

@@ -6,7 +6,7 @@ needs into `conf/canopen.json`. The runtime never reads an EDS; its side, and th
 described in the runtime's `docs/CANOPEN.md`.
 
 ```
-EDS file → parseEds → createCanopenNode → project (remote device JSON)
+EDS or DCF file → checkEds (CiA 306) → parseEds → createCanopenNode → project (remote device JSON)
                                                ↓
                build: validateCanopenProject → generateCanopenConfig → conf/canopen.json
 ```
@@ -22,8 +22,9 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
    (1 to 97, default 90, above the PLC tasks), SYNC (none, once per PLC cycle, or a fixed period)
    and the NMT state the nodes get when the PLC stops. Further groups set the startup and error
    behaviour, TIME and the defaults for new nodes (see "Startup and supervision options").
-3. **Nodes** tab: **Add node from EDS file...** reads the file, picks the lowest free node ID and
-   maps the PDOs the EDS defines by default. Set the node ID to the one set on the device.
+3. **Nodes** tab: **Add node from EDS or DCF...** reads the file, picks the lowest free node ID and
+   maps the PDOs the EDS defines by default. Set the node ID to the one set on the device. The file
+   is checked first (see "EDS and DCF files"), and a dialog shows the result before the node is added.
 4. For each node:
    - **General**: name, node ID, **Optional node**, which identity values the master checks at boot
      (vendor ID and product code by default; the revision is off so newer firmware still boots),
@@ -81,6 +82,66 @@ names it. It keeps its nodes, mappings, addresses and aliases, so variables stay
 read 0 and its outputs go nowhere. Its problems are still listed, under "Fix these before turning the
 network on", but do not stop the build, and checks between networks leave it out. The project tree
 shows it dimmed with an **Off** tag.
+
+## EDS and DCF files
+
+**Check.** Every EDS or DCF file is checked against CiA 306 (`checkEds`) before a node is made from
+it. The dialog lists the findings by rule, each with its clause, section, key and line; rules with
+many findings are folded. Most findings are warnings and the node is added. Errors in the
+communication area (0x1000-0x1FFF) that are not about limits only, and a file without
+`[DeviceInfo]`, refuse the file: the dialog then has only **Close**. The file is read as UTF-8 (with
+or without a byte order mark) or, failing that, as Windows-1252, with a warning, since CiA 306 asks
+for ASCII. Objects whose `DataType` or `AccessType` cannot be read are left out of the node, with a
+warning. Objects with `ObjFlags` bit 0 (refuse write on download) are never written by the master.
+A `CompactPDO` file gets the PDOs it leaves implicit, numbered from the lowest free ones. PDO mapping
+entries that name an object the file does not describe, or with a length other than the object's
+type, are warned about. `[DeviceCommissioning]`, a common misspelling, is read as
+`[DeviceComissioning]` with a warning. A modular device (`[SupportedModules]`) gets a warning: only
+the base device's objects are used.
+
+**Adding a node from a DCF.** A DCF with settings (`ParameterValue`, `[DeviceComissioning]`,
+`Denotation`) offers **Take its settings** (the default) or **Use it only as a device description**.
+Taking them sets the node ID (when it is free, else the lowest free one, with a warning), the name,
+the PDOs, supervision, emergency, TIME, watching the master, heartbeat consumers and the reaction to
+errors, turns other changed writable values into startup SDOs, and turns denotations of mapped
+entries into aliases. The dialog lists what is taken and what is not (for example 0x1010 and 0x1011,
+which are never written, or a heartbeat consumer for a node the network does not have), and warns
+when the file's bit rate differs from the network's.
+
+**Export.** **Export...** on a node page and **Export network...** at the top of the Network tab open
+a dialog that asks for the format (`EXPORT_FORMATS` in `dcf-export.ts`; more formats are added there).
+
+- **DCF** writes `node_<id>.dcf`: the node's EDS with a `ParameterValue` for every value the master
+  writes at boot, `Denotation` for aliases, `[DeviceComissioning]` (node ID, name, bit rate, network
+  name) and an updated `[FileInfo]`. Leading comments say that the master writes these values at each
+  boot and that a node is reset to its defaults with 0x1011 sub 1 before taking them over. A mapping
+  the device fixes is written too, so the DCF read back gives the same entries.
+- **EDS** writes the stored file as it was added, unchanged, under its own name. A node added from a
+  DCF gets that DCF without its values, names, commissioning and export comments, named after its
+  `LastEDS`.
+
+A network export writes one zip: a DCF per node, or an EDS per stored file. Each exported file is
+checked again; the dialog shows the result per file and **Save** is disabled when one has an error.
+
+**Replace EDS...** on a node page swaps the node's file for a newer one. The node keeps its ID, name,
+PDO entries, aliases, startup SDOs and options where the new file still allows them; the dialog lists
+what is not kept before anything changes.
+
+**Storage.** The text of each file is kept in the network's device file
+(`devices/remote/<name>.json`, `files`, by SHA-256), and each node names its file in `eds.source`
+(format, file name, SHA-256), so a project exports DCFs without the original files. Files no node uses
+are removed.
+
+**Cross-check.** `.github/workflows/canopen-dcf-crosscheck.yml` compares the check, and the DCFs the
+editor exports, with two independent checkers pinned to a commit: Lely's dcf-tools lint and the
+EdsDcfNet checker, and reads the exported DCFs back with EdsDcfNet
+(`.github/scripts/canopen-dcf-roundtrip/`) to compare their values and `[DeviceComissioning]` with the
+editor's. EdsDcfNet follows CiA 306-1 v1.4.0; its warnings without an editor finding are listed as
+notes in the job summary and do not fail it. It runs on pull requests to `canopen` that change the check, the parser, the DCF
+import or export code, their fixtures or the cross-check files; otherwise the job is skipped. The
+corpus and the editor's verdicts come from `__tests__/dcf-crosscheck-writer.test.ts`; the comparison
+rules are in `.github/scripts/canopen_dcf_crosscheck.py`, and accepted differences, each with its
+CiA 306 clause, in `.github/scripts/canopen-dcf-crosscheck-exceptions.json`.
 
 ## Startup and supervision options
 
@@ -260,6 +321,8 @@ entry of a switched-off PDO has no address and no alias.
 | Types (`CanopenConfig`, `CanopenNode`, `CanopenPdo`, ...) | `src/middleware/shared/ports/canopen-types.ts`                         |
 | Project schema                                            | `CanopenConfigSchema` in `src/backend/shared/types/PLC/open-plc.ts`    |
 | EDS parser                                                | `src/middleware/shared/utils/canopen/eds-parser.ts`                    |
+| CiA 306 check (rules, file reader, values)                | `src/middleware/shared/utils/canopen/eds-check.ts`, `eds-document.ts`, `eds-values.ts` |
+| DCF import, export and Replace EDS                        | `src/middleware/shared/utils/canopen/dcf-import.ts`, `dcf-export.ts`, `device-import.ts` |
 | Node construction and edits                               | `src/middleware/shared/utils/canopen/model.ts`                         |
 | Editing rules (transmission types, SDO objects, search)   | `src/middleware/shared/utils/canopen/editing.ts`                       |
 | Build checks and editor warnings                          | `src/middleware/shared/utils/canopen/validate-canopen-config.ts`       |
@@ -283,7 +346,8 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
 
 ## Tests
 
-- Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, model, editing rules, generator, validator,
+- Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, CiA 306 check with the fixtures in
+  `fixtures/cia306/`, DCF import and export, model, editing rules, generator, validator,
   receive timeout, node options and checks, status schema and texts, online tools), the status polling in
   `src/frontend/hooks/__tests__/use-canopen-status.test.ts`
   with the generic I/O module EDS in `__tests__/fixtures/`, the store action in
@@ -292,7 +356,7 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
 - End-to-end: `e2e/canopen-*.spec.ts` drive the built app (Playwright, Electron). They cover adding a
   node from an EDS and building it, PDO and startup SDO editing, aliases, the Network tab settings and
   the bit rates the nodes support, the defaults for new nodes, the checks that stop a build and their
-  fixes, receive timeouts, node options, the basic and expert view, heartbeat consuming, emergency and
+  fixes, receive timeouts, node options, EDS and DCF import and export, the basic and expert view, heartbeat consuming, emergency and
   TIME settings, turning a network off, the PLC block library and node names in a program, the upload check against a runtime without CANopen, and,
   against a fake runtime on port 8443 (`e2e/helpers/canopen-runtime.ts`), the live status, the Online
   tab, Save to node and Restore defaults, and service mode. Run them locally with

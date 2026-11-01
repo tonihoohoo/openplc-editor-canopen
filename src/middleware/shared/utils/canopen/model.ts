@@ -17,7 +17,7 @@ import type {
   CanopenSupervision,
 } from '../../ports/canopen-types'
 import { accessFits, canopenTypeBits, iecPrefixFor, toCanopenDataType } from './data-types'
-import { findObject, parseEdsInteger } from './eds-parser'
+import { findObject, masterMayWrite, parseEdsInteger } from './eds-parser'
 
 export type PdoDirection = 'input' | 'output'
 
@@ -53,7 +53,7 @@ export function defaultEmcyCobId(nodeId: number): number {
 
 function writableObject(eds: CanopenEdsInfo, index: number, subIndex: number): boolean {
   const o = findObject(eds, index, subIndex)
-  return o !== undefined && o.access !== 'ro' && o.access !== 'const'
+  return o !== undefined && masterMayWrite(o)
 }
 
 /** Whether the node can watch the master's heartbeat (a writable 0x1016:1). */
@@ -145,8 +145,7 @@ export function hasSyncWindow(eds: CanopenEdsInfo): boolean {
 
 /** How many heartbeats the node can watch (the sub-indexes of its writable 0x1016). */
 export function consumerSlots(eds: CanopenEdsInfo): number {
-  return eds.objects.filter((o) => o.index === 0x1016 && o.subIndex >= 1 && o.access !== 'ro' && o.access !== 'const')
-    .length
+  return eds.objects.filter((o) => o.index === 0x1016 && o.subIndex >= 1 && masterMayWrite(o)).length
 }
 
 /** The supervision `auto` picks for this EDS. */
@@ -426,14 +425,19 @@ export function uniqueNodeName(config: CanopenConfig, base: string): string {
   for (let k = 2; ; k++) if (!taken.has(`${base}_${k}`)) return `${base}_${k}`
 }
 
-/** A node name from an EDS product name: letters, digits and underscores, not starting with a digit. */
-export function nodeNameFromEds(eds: CanopenEdsInfo): string {
-  const cleaned = eds.productName
+/** A node name from any text: letters, digits and underscores, not starting with a digit. */
+export function toNodeName(text: string): string {
+  const cleaned = text
     .replace(/[^A-Za-z0-9_]+/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_|_$/g, '')
   if (cleaned === '') return 'node'
   return /^[0-9]/.test(cleaned) ? `node_${cleaned}` : cleaned
+}
+
+/** A node name from an EDS product name. */
+export function nodeNameFromEds(eds: CanopenEdsInfo): string {
+  return toNodeName(eds.productName)
 }
 
 /** The config with one node replaced by `update(node)`. */

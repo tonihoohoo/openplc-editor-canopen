@@ -50,6 +50,7 @@ test('node options, a fix and the network error behaviour reach the build', asyn
     await expect(page.getByText('No nodes yet')).toBeVisible({ timeout: 30000 })
 
     await page.getByTestId('canopen-eds-input').setInputFiles(EDS)
+    await page.getByTestId('canopen-file-dialog-confirm').click()
     await expect(page.getByText('Node 1: Generic_I_O_module')).toBeVisible({ timeout: 15000 })
 
     await expect(page.getByLabel('No initialization', { exact: true })).toHaveCount(0)

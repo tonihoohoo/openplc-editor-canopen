@@ -950,6 +950,7 @@ const CanopenObjectSchema = z.object({
   parentName: z.string().optional(),
   lowLimit: z.string().optional(),
   highLimit: z.string().optional(),
+  objFlags: z.number().int().min(0).optional(),
 })
 
 const CanopenEdsInfoSchema = z.object({
@@ -964,6 +965,9 @@ const CanopenEdsInfoSchema = z.object({
   txPdoCount: z.number().int().min(0),
   unsupportedBitrates: z.array(z.number().int().min(0)).optional(),
   objects: z.array(CanopenObjectSchema),
+  source: z
+    .object({ format: z.enum(['eds', 'dcf']), fileName: z.string(), sha256: z.string().regex(/^[0-9a-f]{64}$/) })
+    .optional(),
 })
 
 const CanopenEntrySchema = z.object({
@@ -1073,6 +1077,7 @@ const CanopenNetworkSettingsSchema = z.object({
 const CanopenConfigSchema = z.object({
   network: CanopenNetworkSettingsSchema,
   nodes: z.array(CanopenNodeSchema),
+  files: z.record(z.string(), z.object({ fileName: z.string(), text: z.string() })).optional(),
 })
 type CanopenConfigData = z.infer<typeof CanopenConfigSchema>
 
