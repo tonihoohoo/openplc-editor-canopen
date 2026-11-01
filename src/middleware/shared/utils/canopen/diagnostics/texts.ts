@@ -135,6 +135,8 @@ export function problemText(problem: CanopenProblem): string {
       return 'The node did not answer node guarding.'
     case 'reset':
       return 'The node restarted: it sent a boot-up message while running.'
+    case 'state':
+      return 'The node left operational: it went pre-operational or stopped without a command from the master.'
     case 'boot_error':
       return `The boot failed${problem.text ? `: ${problem.text}` : ''}${status}.`
     default: {
