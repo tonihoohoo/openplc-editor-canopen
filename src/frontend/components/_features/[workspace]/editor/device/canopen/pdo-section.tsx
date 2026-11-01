@@ -253,7 +253,7 @@ const PdoCard = ({
 
   const [addedId, setAddedId] = useAddedHighlight()
   const timeoutWarning =
-    isInput && pdo.enabled ? receiveTimeoutWarning({ eds, nodeId, configure, onLoss }, pdo, syncPeriodUs) : null
+    isInput && pdo.exchanged ? receiveTimeoutWarning({ eds, nodeId, configure, onLoss }, pdo, syncPeriodUs) : null
 
   const addEntry = (object: (typeof candidates)[number]) => {
     const type = toCanopenDataType(object.dataType)
