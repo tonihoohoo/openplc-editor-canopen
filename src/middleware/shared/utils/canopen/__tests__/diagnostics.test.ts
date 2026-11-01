@@ -18,6 +18,8 @@ import {
   nodeStateLabel,
   problemText,
   sdoAbortText,
+  nmtCommandTarget,
+  requestedNmtLabel,
 } from '../diagnostics'
 import { CAPABILITIES_WITH_STATUS, sampleStatus } from './fixtures/status'
 
@@ -171,5 +173,17 @@ describe('the status answer', () => {
     expect(canopenFeatures({ canopen: { configVersions: [1] } })).toEqual([])
     expect(canopenFeatures({ canopen: { features: ['status', 3] } })).toEqual(['status'])
     expect(canopenFeatures(null)).toEqual([])
+  })
+})
+
+describe('requested NMT state', () => {
+  it('names the state a command asks for', () => {
+    expect(nmtCommandTarget('start')).toBe('operational')
+    expect(nmtCommandTarget('stop')).toBe('stopped')
+    expect(nmtCommandTarget('pre_operational')).toBe('pre_operational')
+    expect(nmtCommandTarget('reset_node')).toBeNull()
+    expect(requestedNmtLabel('pre_operational')).toBe('Pre-operational, requested')
+    expect(requestedNmtLabel('stop')).toBe('Stopped, requested')
+    expect(requestedNmtLabel('reset_communication')).toBe('Reset communication, requested')
   })
 })

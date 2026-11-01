@@ -56,6 +56,27 @@ export function nmtStateLabel(nmt: CanopenNodeStatus['nmt']): string {
   return NMT_STATES[nmt]
 }
 
+/** The NMT state a command puts a node in, or null for a reset, whose end state the node chooses. */
+export function nmtCommandTarget(command: CanopenNmtCommand): CanopenNodeStatus['nmt'] | null {
+  switch (command) {
+    case 'start':
+      return 'operational'
+    case 'stop':
+      return 'stopped'
+    case 'pre_operational':
+      return 'pre_operational'
+    case 'reset_node':
+    case 'reset_communication':
+      return null
+  }
+}
+
+/** An NMT state sent but not yet reported by the runtime, for example "Stopped, requested". */
+export function requestedNmtLabel(command: CanopenNmtCommand): string {
+  const target = nmtCommandTarget(command)
+  return `${target ? NMT_STATES[target] : NMT_COMMANDS[command]}, requested`
+}
+
 const BUS_STATES: Record<CanopenBusState, string> = {
   unknown: 'Bus state unknown',
   error_active: 'Bus OK (error active)',

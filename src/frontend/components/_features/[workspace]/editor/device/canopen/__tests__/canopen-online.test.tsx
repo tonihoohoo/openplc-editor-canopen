@@ -101,6 +101,15 @@ const offIf = (config: CanopenConfig, off: boolean): CanopenConfig =>
 
 let store: OpenPLCStore
 let node: FakeNode
+let statusReads = 0
+/** Node 2's NMT state in the runtime's status; null keeps the sample's. */
+let reportedNmt: string | null = null
+
+function currentStatus() {
+  const body = sampleStatus()
+  if (reportedNmt) body.networks[0].nodes[0].nmt = reportedNmt
+  return body
+}
 
 const ok = (body: unknown): Promise<CanopenRuntimeFetch> => Promise.resolve({ success: true, body })
 
@@ -122,6 +131,8 @@ async function renderEditor(
   localStorage.setItem('openplc:canopen-expert-view', options.expert ? 'on' : 'off')
   store = createTestStore()
   node = new FakeNode()
+  statusReads = 0
+  reportedNmt = null
   options.setup?.(node)
   const state = store.getState()
   const base = genericNode(2)
@@ -146,7 +157,10 @@ async function renderEditor(
   state.deviceActions.setPlcRuntimeStatus(options.status ? 'STOPPED' : 'RUNNING')
   const ports = portsWithRuntime({
     getCanopenCapabilities: () => ok(options.capabilities ?? ALL_FEATURES),
-    getCanopenStatus: () => ok(options.status ?? sampleStatus()),
+    getCanopenStatus: () => {
+      statusReads++
+      return ok(options.status ?? currentStatus())
+    },
     canopenRequest: node.handle,
   })
   render(<CanopenEditor />, { wrapper: createStoreWrapper(store, ports) })
@@ -221,9 +235,34 @@ describe('CANopen online tools', () => {
     await settle()
     const tab = screen.getByTestId('canopen-online-tab')
     expect(within(tab).getByTestId('canopen-online-row-6656:1').textContent).toContain(
-      '0x6000:01 Digital inputs / Inputs 1-8, 8 bits',
+      '0x6000:01 Digital inputs / Inputs 1-8, 8\u00a0bits',
     )
+    expect(within(tab).getByTestId('canopen-online-value-6656:1').textContent).toBe('0x60000108')
     expect(within(tab).getByTestId('canopen-online-row-6656:2').textContent).toContain('not used')
+    expect(within(tab).getByTestId('canopen-online-project-meaning-6656:2').textContent).toMatch(/^0x[0-9A-F]{4}:\d\d/)
+  })
+
+  it('shows a sent NMT command as requested and reads the status again at once', async () => {
+    await renderEditor({ expert: true })
+    openNodeOnline()
+    const card = screen.getByTestId('canopen-online-nmt')
+    const before = statusReads
+    reportedNmt = 'operational'
+    const preOperational = () => {
+      fireEvent.click(within(card).getByRole('button', { name: 'Pre-operational' }))
+      fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Pre-operational' }))
+    }
+    preOperational()
+    await settle()
+    expect(statusReads).toBeGreaterThan(before)
+    expect(within(card).getByTestId('canopen-online-nmt-requested').textContent).toBe('Pre-operational, requested')
+
+    reportedNmt = 'pre_operational'
+    preOperational()
+    await settle()
+    await settle()
+    expect(within(card).queryByTestId('canopen-online-nmt-requested')).toBeNull()
+    expect(card.textContent).toContain('NMT state: Pre-operational')
   })
 
   it('switches a node to pre-operational to retry a refused write, and leaves the project as it was', async () => {

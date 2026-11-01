@@ -69,6 +69,36 @@ describe('useCanopenStatus', () => {
     expect(read).not.toHaveBeenCalled()
   })
 
+  it('reads again at once on refresh, also while a read is under way', async () => {
+    connect()
+    let release: (() => void) | undefined
+    const read = jest.fn(
+      () =>
+        new Promise<CanopenRuntimeFetch>((resolve) => {
+          release = () => resolve({ success: true, body: sampleStatus() })
+        }),
+    )
+    const { result } = render(read)
+    await flush()
+    expect(read).toHaveBeenCalledTimes(1)
+    act(() => result.current?.refresh())
+    expect(read).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      release?.()
+      await Promise.resolve()
+    })
+    await flush()
+    expect(read).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      release?.()
+      await Promise.resolve()
+    })
+    await flush()
+    act(() => result.current?.refresh())
+    await flush()
+    expect(read).toHaveBeenCalledTimes(3)
+  })
+
   it('polls once a second and picks the network by name', async () => {
     connect()
     const read = jest.fn(() => ok(sampleStatus()))

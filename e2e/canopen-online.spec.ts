@@ -30,11 +30,15 @@ const FEATURES = ['status', 'sdo', 'nmt', 'service']
 test('the Online tab reads the node and shows what differs from the project', async () => {
   test.setTimeout(180000)
   const node = new FakeNode()
+  node.values.set('6656:1', '08010060')
+  node.values.set('6656:2', '00000000')
   const { app, page, runtime } = await openDevice(FEATURES, 'openplc-e2e-canopen-online', node)
   try {
     await page.getByRole('tab', { name: 'Online' }).click()
     await page.getByRole('button', { name: 'Read all' }).click()
     await expect(page.getByTestId('canopen-online-value-4119:0')).toHaveText('500', { timeout: 15000 })
+    await expect(page.getByTestId('canopen-online-value-6656:1')).toHaveText('0x60000108')
+    await expect(page.getByTestId('canopen-online-row-6656:2')).toContainText('not used')
     await page.getByLabel('Filter objects').selectOption('differs')
     await expect(page.getByTestId('canopen-online-row-4119:0')).toBeVisible()
     await keyView(page, 'online-differs')
@@ -156,6 +160,7 @@ test('node memory: a save refused while operational is retried in pre-operationa
       timeout: 15000,
     })
     await expect(memory).toContainText('Start the node again?')
+    await expect(page.getByTestId('canopen-online-nmt')).toContainText('NMT state: Pre-operational')
     await shot(page, 'online-save-retried')
     await memory.getByTestId('canopen-online-nvm-offer').getByRole('button', { name: 'Start' }).click()
     await expect.poll(() => node.operational).toBe(true)

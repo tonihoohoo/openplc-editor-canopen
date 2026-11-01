@@ -1,12 +1,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import type { CanopenNmtCommand } from '../../middleware/shared/ports/canopen-online'
+import type { CanopenNetworkStatus } from '../../middleware/shared/ports/canopen-status'
 import type { CanopenConfig } from '../../middleware/shared/ports/canopen-types'
 import { useRuntime } from '../../middleware/shared/providers'
-import { type CanopenOnline, createCanopenOnline } from '../../middleware/shared/utils/canopen'
+import { type CanopenOnline, createCanopenOnline, nmtCommandTarget } from '../../middleware/shared/utils/canopen'
 import { useOpenPLCStore } from '../store'
 import type { CanopenLiveStatus } from './use-canopen-status'
 
 const STALE_READS = 3
+/** How long a sent NMT command shows as requested when the runtime does not report its state. */
+export const NMT_REQUEST_HOLD_MS = 3000
+
+interface NmtRequest {
+  command: CanopenNmtCommand
+  until: number
+}
+
+/** Drops requests whose state the runtime reports, or that waited too long; @p node 0 is every node. */
+function pruneRequests(
+  requests: ReadonlyMap<number, NmtRequest>,
+  network: CanopenNetworkStatus | null,
+  now: number,
+): ReadonlyMap<number, NmtRequest> {
+  const kept = new Map<number, NmtRequest>()
+  requests.forEach((request, node) => {
+    const target = nmtCommandTarget(request.command)
+    const nodes = network?.nodes.filter((n) => node === 0 || n.node_id === node) ?? []
+    const reached = target !== null && nodes.length > 0 && nodes.every((n) => n.nmt === target)
+    if (!reached && now < request.until) kept.set(node, request)
+  })
+  return kept.size === requests.size ? requests : kept
+}
 
 export interface CanopenServiceControl {
   /** The runtime offers service mode and the PLC does not run CANopen. */
@@ -27,6 +52,8 @@ export interface CanopenOnlineContext {
   ready: boolean
   /** The runtime takes NMT commands. */
   nmt: boolean
+  /** The NMT command sent to @p node that the runtime's status does not show yet. */
+  requestedNmt: (node: number) => CanopenNmtCommand | undefined
   service: CanopenServiceControl
 }
 
@@ -46,10 +73,40 @@ export function useCanopenOnline(
   const [opened, setOpened] = useState(false)
   const openedRef = useRef(false)
 
+  const [requests, setRequests] = useState<ReadonlyMap<number, NmtRequest>>(new Map())
+  const refreshRef = useRef<() => void>(() => undefined)
+  refreshRef.current = live?.refresh ?? (() => undefined)
+
   const client = useMemo(() => {
     const send = runtime.canopenRequest?.bind(runtime)
-    return send ? createCanopenOnline(send) : null
+    if (!send) return null
+    const base = createCanopenOnline(send)
+    // A sent NMT command shows as requested and the status is read again at once.
+    const tracked: CanopenOnline = {
+      ...base,
+      nmt: (network, node, command) =>
+        base.nmt(network, node, command).then((r) => {
+          if (r.ok) {
+            setRequests((prev) => {
+              const next = new Map(prev)
+              if (node === 0) next.clear()
+              next.set(node, { command, until: Date.now() + NMT_REQUEST_HOLD_MS })
+              return next
+            })
+            refreshRef.current()
+          }
+          return r
+        }),
+    }
+    return tracked
   }, [runtime])
+
+  const network = live?.network ?? null
+  useEffect(() => {
+    setRequests((prev) => (prev.size === 0 ? prev : pruneRequests(prev, network, Date.now())))
+  }, [network])
+
+  const requestedNmt = useCallback((node: number) => (requests.get(node) ?? requests.get(0))?.command, [requests])
 
   const features = live?.features ?? []
   const hasSdo = features.includes('sdo')
@@ -123,6 +180,7 @@ export function useCanopenOnline(
     networkIndex: live.networkIndex,
     ready,
     nmt: features.includes('nmt'),
+    requestedNmt,
     service: {
       available: hasService && !plcRunning && (!live.active || serviceRuns),
       open: serviceRuns,

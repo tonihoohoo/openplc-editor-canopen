@@ -6,6 +6,7 @@
 
 import type { CanopenObject } from '../../ports/canopen-types'
 import { objectRef } from './data-types'
+import type { ValueDisplay } from './online'
 import { objectInfo, standardValueMeaning } from './standard-meanings'
 
 function sameNumber(a: string, b: string): boolean {
@@ -70,6 +71,18 @@ export function shortDescription(object: CanopenObject | undefined, max = 140): 
   return d.length > max ? `${d.slice(0, max - 1)}…` : d
 }
 
+/** A PDO mapping entry: sub-index 1 to 64 of 0x1600-0x17FF or 0x1A00-0x1BFF. */
+export function isPdoMappingEntry(object: CanopenObject): boolean {
+  const mapping =
+    (object.index >= 0x1600 && object.index <= 0x17ff) || (object.index >= 0x1a00 && object.index <= 0x1bff)
+  return mapping && object.subIndex >= 1 && object.subIndex <= 64
+}
+
+/** The number format for @p object: mapping entries read in hex when the chosen format is decimal. */
+export function displayFor(object: CanopenObject, display: ValueDisplay): ValueDisplay {
+  return display === 'decimal' && isPdoMappingEntry(object) ? 'hex' : display
+}
+
 /**
  * What a PDO mapping entry (0x1600-0x17FF or 0x1A00-0x1BFF, sub-index 1-64) holds: the mapped
  * object, its name from @p objects and its bit length, e.g. "0x6000:01 Read input 8 bits, 8 bits";
@@ -80,9 +93,7 @@ export function pdoMappingMeaning(
   raw: string,
   objects: readonly CanopenObject[],
 ): string | undefined {
-  const mapping =
-    (object.index >= 0x1600 && object.index <= 0x17ff) || (object.index >= 0x1a00 && object.index <= 0x1bff)
-  if (!mapping || object.subIndex < 1 || object.subIndex > 64) return undefined
+  if (!isPdoMappingEntry(object)) return undefined
   const text = raw.trim()
   if (!/^\d+$/.test(text)) return undefined
   const value = Number(text)
@@ -95,5 +106,5 @@ export function pdoMappingMeaning(
   const name = mapped
     ? ` ${mapped.parentName && mapped.parentName !== mapped.name ? `${mapped.parentName} / ${mapped.name}` : mapped.name}`
     : ''
-  return `${objectRef(index, subIndex)}${name}, ${bits} bits`
+  return `${objectRef(index, subIndex)}${name}, ${bits}\u00a0bits`
 }

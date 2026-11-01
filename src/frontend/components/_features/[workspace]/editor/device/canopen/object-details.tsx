@@ -13,7 +13,7 @@ export const StandardMark = ({ object }: { object: CanopenObject }) => {
   const standard = objectInfo(object)?.standard
   return standard ? (
     <span
-      className='ml-1 text-neutral-400'
+      className='ml-1 whitespace-nowrap text-neutral-400'
       title={`Standard meaning (${standard}); the device file does not describe it`}
     >
       · {standard}

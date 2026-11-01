@@ -8,6 +8,7 @@ import {
   CANOPEN_DATA_TYPES,
   type CanopenOnlineResult,
   dataTypeLabel,
+  displayFor,
   encodeForObject,
   encodeOnlineValue,
   encodeRawBytes,
@@ -30,6 +31,7 @@ import {
   onlineObjects,
   pdoMappingMeaning,
   rawWriteRefusal,
+  requestedNmtLabel,
   resetForRestore,
   SAVE_SIGNATURE,
   type SaveSupport,
@@ -262,12 +264,27 @@ export function notReadyText(online: CanopenOnlineContext): string | null {
     : 'The buttons are greyed because CANopen does not run on the runtime, or its program has no network by this name.'
 }
 
-/** A node's state and NMT state, as on the Status tab. */
-export const NodeStateLine = ({ status }: { status: CanopenNodeStatus | undefined }) =>
+/** A node's state and NMT state, as on the Status tab; a sent command shows as requested until reported. */
+export const NodeStateLine = ({
+  status,
+  requested,
+}: {
+  status: CanopenNodeStatus | undefined
+  requested?: CanopenNmtCommand
+}) =>
   status ? (
     <span className='flex items-center gap-2 text-xs text-neutral-850 dark:text-neutral-200'>
-      <StatusDot dot={nodeDot(status)} title={nodeStateLabel(status.state)} />
-      <span>{nodeStateLabel(status.state)}</span>
+      {requested ? (
+        <>
+          <StatusDot dot='grey' title={requestedNmtLabel(requested)} />
+          <span data-testid='canopen-online-nmt-requested'>{requestedNmtLabel(requested)}</span>
+        </>
+      ) : (
+        <>
+          <StatusDot dot={nodeDot(status)} title={nodeStateLabel(status.state)} />
+          <span>{nodeStateLabel(status.state)}</span>
+        </>
+      )}
       <span className={hintClassName}>NMT state: {nmtStateLabel(status.nmt)}</span>
     </span>
   ) : (
@@ -293,7 +310,7 @@ const valueText = (row: OnlineObject, value: CanopenRowValue | undefined, displa
   if (value.pending) return '…'
   const { result } = value
   if (!result.ok) return shortFailure(result)
-  const text = formatCanopenValue(row.object.dataType, result.bytes, display)
+  const text = formatCanopenValue(row.object.dataType, result.bytes, displayFor(row.object, display))
   return text
 }
 
@@ -517,7 +534,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
         <div className={cardClassName} data-testid='canopen-online-nmt'>
           <div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
             <h4 className={cn(headingClassName, 'mb-0')}>Node state</h4>
-            <NodeStateLine status={status} />
+            <NodeStateLine status={status} requested={online.requestedNmt(nodeId)} />
           </div>
           <WithFeedback feedback={nmtFeedback.view}>
             <NmtButtons
@@ -656,8 +673,18 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                   value.result.ok &&
                   valueDiffers(row.project, value.result.bytes)
                 const failedRead = value !== undefined && !value.pending && !value.result.ok
-                const project = row.project ? formatCanopenValue(object.dataType, row.project, display) : ''
+                const project = row.project
+                  ? formatCanopenValue(object.dataType, row.project, displayFor(object, display))
+                  : ''
                 const projectTitle = row.masterWrites ? `${project} (the master writes it at boot)` : project
+                const projectMeaning =
+                  differs && row.project
+                    ? pdoMappingMeaning(
+                        object,
+                        formatCanopenValue(object.dataType, row.project, 'decimal'),
+                        node.eds.objects,
+                      )
+                    : undefined
                 const nodeValue = valueText(row, value, display)
                 const writeCell = (
                   <WriteCell
@@ -710,6 +737,14 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                         <td className='py-1 pr-2 font-mono [overflow-wrap:anywhere]' title={projectTitle}>
                           {project}
                           {row.masterWrites ? <span className={cn(hintClassName, 'ml-1')}>*</span> : null}
+                          {projectMeaning ? (
+                            <span
+                              data-testid={`canopen-online-project-meaning-${k}`}
+                              className={cn(hintClassName, 'block font-sans')}
+                            >
+                              {projectMeaning}
+                            </span>
+                          ) : null}
                         </td>
                       )}
                       <td
@@ -732,6 +767,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                           <span className={cn(hintClassName, 'block font-sans')} title={projectTitle}>
                             Project: <span className='font-mono'>{project}</span>
                             {row.masterWrites ? ' *' : ''}
+                            {projectMeaning ? ` (${projectMeaning})` : ''}
                           </span>
                         ) : null}
                         {canWrite(object) && compact ? (

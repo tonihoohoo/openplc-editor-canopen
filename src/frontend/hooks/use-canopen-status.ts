@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   canopenFeatures,
@@ -26,7 +26,11 @@ export interface CanopenLiveStatus {
   /** Reads failed in a row since the last good answer. */
   failures: number
   error: string | null
+  /** Reads the status again now instead of at the next poll. */
+  refresh: () => void
 }
+
+const noRefresh = (): void => undefined
 
 const EMPTY: CanopenLiveStatus = {
   active: false,
@@ -37,6 +41,7 @@ const EMPTY: CanopenLiveStatus = {
   stale: false,
   failures: 0,
   error: null,
+  refresh: noRefresh,
 }
 
 /**
@@ -55,6 +60,8 @@ export function useCanopenStatus(networkName: string, enabled = true): CanopenLi
   const [status, setStatus] = useState<CanopenLiveStatus>(EMPTY)
   const nameRef = useRef(networkName)
   nameRef.current = networkName
+  const tickRef = useRef<() => void>(noRefresh)
+  const refresh = useCallback(() => tickRef.current(), [])
 
   useEffect(() => {
     setFeatures([])
@@ -78,10 +85,15 @@ export function useCanopenStatus(networkName: string, enabled = true): CanopenLi
     if (!supported || !connected || !enabled || !read) return
     let cancelled = false
     let busy = false
+    let again = false
     const fail = (error: string) => setStatus((prev) => ({ ...prev, stale: true, failures: prev.failures + 1, error }))
-    const tick = async () => {
-      if (busy) return
+    const tick = async (now = false) => {
+      if (busy) {
+        again ||= now
+        return
+      }
       busy = true
+      again = false
       try {
         const result = await read()
         if (cancelled) return
@@ -103,18 +115,21 @@ export function useCanopenStatus(networkName: string, enabled = true): CanopenLi
         if (!cancelled) fail(err instanceof Error ? err.message : String(err))
       } finally {
         busy = false
+        if (again && !cancelled) void tick()
       }
     }
     void tick()
+    tickRef.current = () => void tick(true)
     const timer = setInterval(() => void tick(), CANOPEN_STATUS_POLL_MS)
     return () => {
       cancelled = true
+      tickRef.current = noRefresh
       clearInterval(timer)
     }
   }, [supported, connected, enabled, runtime])
 
   return useMemo(
-    () => (supported && connected ? { ...status, features } : null),
-    [supported, connected, status, features],
+    () => (supported && connected ? { ...status, features, refresh } : null),
+    [supported, connected, status, features, refresh],
   )
 }
