@@ -131,11 +131,14 @@ const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, summary, disab
               {hasInfo ? (
                 <button
                   type='button'
-                  aria-pressed={detailsOn}
+                  aria-expanded={detailsOn}
                   onClick={toggleDetails}
-                  className={cn(secondaryButtonClassName, 'shrink-0 px-2 py-0.5 text-[11px]')}
+                  className='flex shrink-0 items-center gap-1 text-xs text-neutral-700 hover:text-brand dark:text-neutral-300'
                 >
-                  {detailsOn ? 'Hide details' : 'Show details'}
+                  <span aria-hidden className='w-2.5 shrink-0 text-[9px] text-neutral-400'>
+                    {detailsOn ? '▼' : '▶'}
+                  </span>
+                  <span>Details</span>
                 </button>
               ) : null}
             </div>

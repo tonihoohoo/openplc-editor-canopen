@@ -75,6 +75,16 @@ test('XDD and XDC files are checked, imported and exported', async () => {
     await page.getByTestId('canopen-file-dialog-confirm').click()
     await expect(page.getByText(/^Node 1: /)).toBeVisible({ timeout: 15000 })
 
+    await page.getByRole('tab', { name: /Startup SDOs/ }).click()
+    await page.getByRole('button', { name: 'Add an SDO for an object of the device' }).click()
+    await page.getByLabel('Search objects').fill('fault reaction')
+    await expect(page.getByTestId('canopen-object-details-0x2004:00')).toHaveCount(0)
+    await shot(page, 'xdd-picker')
+    await page.getByRole('button', { name: 'Details' }).click()
+    await expect(page.getByTestId('canopen-object-details-0x2004:00')).toContainText('Use the substitute value')
+    await shot(page, 'xdd-picker-details')
+    await page.keyboard.press('Escape')
+
     await page.getByTestId('canopen-eds-input').setInputFiles(xdc)
     await expect(dialog).toContainText('Add node from tank-io.xdc')
     await expect(dialog.getByRole('radio', { name: /Take its settings/ })).toBeChecked()

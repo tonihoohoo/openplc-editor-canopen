@@ -125,7 +125,7 @@ describe('CanopenEditor with XDD and XDC files', () => {
     const search = screen.getByLabelText('Search objects')
     fireEvent.change(search, { target: { value: 'fault reaction' } })
     expect(screen.queryByTestId('canopen-object-details-0x2004:00')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Show details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
     expect(localStorage.getItem('openplc:canopen-picker-details')).toBe('on')
     const pane = screen.getByTestId('canopen-object-details-0x2004:00')
     expect(pane.textContent).toContain('Use the substitute value')
