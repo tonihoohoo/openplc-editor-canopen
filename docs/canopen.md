@@ -37,19 +37,34 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
      example when the runtime dies, by going pre-operational (or stopped, or nothing, through
      0x1029:1 when the EDS has it). The master writes these after the startup SDOs. It needs a
      master heartbeat shorter than the node's timeout.
-   - **Inputs** / **Outputs**: the node's transmit PDOs (PLC inputs, `%I`) and receive PDOs (PLC
-     outputs, `%Q`). A PDO can be switched off, its COB-ID, transmission type, event timer and
-     inhibit time changed, and its entries added, removed and reordered (drag handle or the up and
-     down buttons; the order is the layout of the frame). **Add object** opens a list of the objects
-     the EDS marks as mappable, searchable by index (`6401`, `0x6401:01`) or name; an entry that
-     would take the PDO over 64 bits is listed but disabled. A mapping the EDS marks read-only is
-     fixed.
+   - **Inputs** / **Outputs**: the transmit PDOs (PLC inputs, `%I`) and receive PDOs (PLC outputs,
+     `%Q`) the node uses. A new node uses the PDOs its file makes valid and maps by default.
+     **Add TPDO** / **Add RPDO** adds the lowest PDO number the file defines and the node does not
+     use, with the file's defaults; past PDO 4, where the file gives no COB-ID, it gets the lowest
+     free COB-ID of the network (0x181-0x57F, then 0x681-0x6DF). The bin removes a PDO; a PDO the
+     file defines and the node does not use is switched off on the node at boot (COB-ID bit 31). A
+     PDO the node keeps sending because the file makes its COB-ID read-only is named under the list.
+     A PDO's COB-ID, transmission type, event timer and inhibit time can be changed, and its entries
+     added, removed and reordered (drag handle or the up and down buttons; the order is the layout
+     of the frame). The arrow of an entry moves it to the end of another PDO of the node, with its
+     address and alias; a PDO it does not fit in is listed disabled with the reason. **Add object**
+     opens a list of the objects the EDS marks as mappable, searchable by index (`6401`,
+     `0x6401:01`) or name; an entry that would take the PDO over 64 bits is listed but disabled. A
+     mapping the EDS marks read-only is fixed.
+   - **Follow the node ID**: the COB-ID is shown as the node ID plus a base (`node ID + 0x180 =
+     0x182`) and moves when the node ID changes. PDO 1 to 4 of a new node follow it; turn it off for
+     a fixed COB-ID.
+   - **Exchanged by the master** (on by default): off, the master still writes the PDO's settings
+     and mapping to the node at boot, but the PDO has no addresses and is not exchanged with the
+     PLC. Use it for a PDO between two nodes: one node's TPDO and another node's RPDO on the same
+     COB-ID. Both PDOs name the other end, the network checks accept the shared COB-ID, and they
+     warn about an RPDO whose COB-ID no node sends.
    - The transmission type is one of synchronous acyclic (0), synchronous every N SYNC (1-240),
      event-driven manufacturer specific (254) or event-driven device profile (255); choices outside
      the EDS's `LowLimit`/`HighLimit` are disabled and the EDS default is marked. Remote request
      (RTR) types 252 and 253 are not supported: an EDS default of 252 or 253 becomes 255, and the
      build refuses them. A synchronous type on a network without SYNC shows a warning.
-   - An enabled TPDO has a **Receive timeout** (off at 0): the master's RPDO event timer
+   - A TPDO the master exchanges has a **Receive timeout** (off at 0): the master's RPDO event timer
      (`0x14xx:05`). When the PDO does not arrive in that time the master reports it late, logs it and
      treats the inputs as it does for a lost node. A timeout shorter than the event timer, or shorter
      than two SYNC intervals of a synchronous PDO on a fixed SYNC period, shows a warning. So does a
@@ -162,9 +177,10 @@ A network export writes one zip: a DCF or XDC per node, or an EDS or XDD per sto
 checked again; the dialog shows the result per file and **Save** is disabled when one has an error. **Save** opens the system save dialog attached to the editor window (`ProjectPort.exportFile`); a platform without it downloads the file.
 
 **Replace device file...** on a node page swaps the node's file for a newer one, in any of the four
-formats. The node keeps its ID, name,
-PDO entries, aliases, startup SDOs and options where the new file still allows them; the dialog lists
-what is not kept before anything changes.
+formats. The node keeps its ID, name, startup SDOs and options where the new file still allows them.
+The dialog asks whether to keep the node's PDO mapping (entries with their addresses and aliases,
+the default) or to use the new file's default mapping, and lists what is not kept before anything
+changes.
 
 **Storage.** The text of each file is kept in the network's device file
 (`devices/remote/<name>.json`, `files`, by SHA-256), and each node names its file in `eds.source`
@@ -366,7 +382,7 @@ Entries take addresses from the central registry (`docs/iec-address-registry.md`
 kind is `canopen`, one consumer per node, and each entry's channel id is stable across edits. New
 entries are written with a placeholder of the right class (`%IB0`, `%QX0.0`, ...) and
 `projectActions.updateCanopenConfig` reallocates, so the placeholders land on free addresses. An
-entry of a switched-off PDO has no address and no alias.
+entry of a PDO the master does not exchange has no address and no alias.
 
 ## Data model and code
 
@@ -399,8 +415,9 @@ The parsed EDS (identity, PDO counts, object dictionary) is stored on the node, 
 and builds without the original file. For each PDO the generator writes the configuration SDOs in
 the CiA 301 order: disable the PDO (COB-ID bit 31), clear the mapping, write the entries, set the
 count, write the transmission type, inhibit time and event timer, and enable it. TPDO COB-IDs are
-written with bit 30 set (no RTR). A PDO that is
-switched off or has no entries is only disabled. Objects the EDS marks read-only are not written.
+written with bit 30 set (no RTR). A PDO the file defines and the node does not use, or one with no
+entries, is only disabled. A PDO the master does not exchange is written the same way but left out of
+the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
 
 ## Tests
 
@@ -413,7 +430,7 @@ switched off or has no entries is only disabled. Objects the EDS marks read-only
   `src/frontend/store/__tests__/canopen-config.test.ts`, and the device editor in
   `.../device/canopen/__tests__/`.
 - End-to-end: `e2e/canopen-*.spec.ts` drive the built app (Playwright, Electron). They cover adding a
-  node from an EDS and building it, PDO and startup SDO editing, aliases, the Network tab settings and
+  node from an EDS and building it, PDO and startup SDO editing, adding and removing PDOs, moving entries, PDOs between two nodes, aliases, the Network tab settings and
   the bit rates the nodes support, the defaults for new nodes, the checks that stop a build and their
   fixes, receive timeouts, node options, EDS and DCF import and export, the basic and expert view, heartbeat consuming, emergency and
   TIME settings, turning a network off, the PLC block library and node names in a program, the upload check against a runtime without CANopen, and,

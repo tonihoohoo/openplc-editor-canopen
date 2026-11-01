@@ -18,6 +18,7 @@ import {
   placeholderAddress,
   type PreparedDeviceFile,
   replaceDeviceFile,
+  type ReplaceMapping,
   uniqueNodeName,
 } from '@root/middleware/shared/utils/canopen'
 import { Fragment, type ReactNode, useMemo, useState } from 'react'
@@ -242,6 +243,7 @@ export const DeviceFileDialog = ({
 }: DeviceFileDialogProps) => {
   const { prepared } = request
   const [choice, setChoice] = useState<Choice>('settings')
+  const [mapping, setMapping] = useState<ReplaceMapping>('keep')
   const asksChoice =
     request.kind === 'add' &&
     (prepared.source.format === 'dcf' || prepared.source.format === 'xdc') &&
@@ -251,7 +253,7 @@ export const DeviceFileDialog = ({
   const preview = useMemo(() => {
     if (!eds) return null
     if (request.kind === 'replace') {
-      const result = replaceDeviceFile(request.node, eds, uuidv4, placeholderAddress)
+      const result = replaceDeviceFile(request.node, eds, uuidv4, placeholderAddress, mapping)
       return {
         node: result.node,
         lines: result.dropped.map((line) => ({ kind: 'dropped' as const, line })),
@@ -289,7 +291,7 @@ export const DeviceFileDialog = ({
       defaults: config.network.newNodeDefaults,
     })
     return { node, lines: [], warnings: [] }
-  }, [eds, request, config, asksChoice, choice, prepared.dcf, aliasTaken])
+  }, [eds, request, config, asksChoice, choice, mapping, prepared.dcf, aliasTaken])
 
   const refused = !eds
   const title =
@@ -310,7 +312,7 @@ export const DeviceFileDialog = ({
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
         <p className='text-xs text-neutral-600 dark:text-neutral-400'>
           {request.kind === 'replace'
-            ? `${prepared.fileName} takes the place of ${request.node.eds.fileName}. The node keeps its ID, name, settings, mapped entries with their IEC addresses and aliases, and startup SDOs wherever the new file allows them.`
+            ? `${prepared.fileName} takes the place of ${request.node.eds.fileName}. The node keeps its ID, name, settings and startup SDOs wherever the new file allows them.`
             : asksChoice
               ? `${prepared.source.format === 'xdc' ? 'An XDC' : 'A DCF'} of a configured node. Choose whether the node takes the settings saved in it.`
               : `${prepared.source.format.toUpperCase()} file read as ${ENCODING_NAMES[prepared.encoding]}.`}
@@ -346,6 +348,33 @@ export const DeviceFileDialog = ({
                 like {prepared.source.format === 'xdc' ? 'an XDD' : 'an EDS'}: lowest free node ID and the device
                 defaults
               </span>
+            </label>
+          </div>
+        ) : null}
+        {request.kind === 'replace' && !refused ? (
+          <div className={cardClassName} role='radiogroup' aria-label='PDO mapping'>
+            <h4 className={headingClassName}>PDO mapping</h4>
+            <label className='flex items-center gap-2 py-1 text-xs text-neutral-800 dark:text-neutral-200'>
+              <input
+                type='radio'
+                name='replace-mapping'
+                checked={mapping === 'keep'}
+                onChange={() => setMapping('keep')}
+                className='accent-brand'
+              />
+              <span className='font-medium'>Keep my mapping</span>
+              <span className={hintClassName}>PDOs and entries with their IEC addresses and aliases</span>
+            </label>
+            <label className='flex items-center gap-2 py-1 text-xs text-neutral-800 dark:text-neutral-200'>
+              <input
+                type='radio'
+                name='replace-mapping'
+                checked={mapping === 'reset'}
+                onChange={() => setMapping('reset')}
+                className='accent-brand'
+              />
+              <span className='font-medium'>Use the new file&apos;s default mapping</span>
+              <span className={hintClassName}>the entries get new addresses; their aliases are dropped</span>
             </label>
           </div>
         ) : null}

@@ -64,7 +64,7 @@ function hasXddInformation(node: CanopenNode): boolean {
 
 function nodeLosses(format: ExportFormat, node: CanopenNode): string[] {
   const out: string[] = []
-  const pdos = [...node.tpdos, ...node.rpdos].filter((p) => p.enabled)
+  const pdos = [...node.tpdos, ...node.rpdos]
   const mapped = pdos.reduce((n, p) => n + p.entries.length, 0)
   const description = format === 'eds' || format === 'xdd'
   if (description) {

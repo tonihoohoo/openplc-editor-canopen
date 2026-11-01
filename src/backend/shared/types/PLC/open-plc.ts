@@ -1018,7 +1018,10 @@ const CanopenEntrySchema = z.object({
 const CanopenPdoSchema = z.object({
   number: z.number().int().min(1).max(512),
   cobId: z.number().int().min(0).max(0x7ff),
-  enabled: z.boolean(),
+  /** Only in projects saved before PDOs could be removed; a PDO saved as off is dropped on load. */
+  enabled: z.boolean().optional(),
+  followsNodeId: z.boolean().optional(),
+  exchanged: z.boolean().default(true),
   fixedMapping: z.boolean(),
   transmissionType: z.number().int().min(0).max(255),
   eventTimerMs: z.number().int().min(0).max(65535),
@@ -1076,8 +1079,22 @@ const CanopenNodeSchema = z
     rpdos: z.array(CanopenPdoSchema),
     sdos: z.array(CanopenSdoSchema),
   })
-  // The default emergency COB-ID depends on the node ID.
-  .transform((node) => ({ ...node, emcy: node.emcy ?? { enabled: true, cobId: 0x80 + node.nodeId } }))
+  // The default emergency COB-ID and whether a PDO COB-ID follows the node ID depend on the node ID.
+  .transform(({ tpdos, rpdos, ...node }) => {
+    const pdos = (list: typeof tpdos, base: number) =>
+      list
+        .filter((p) => p.enabled !== false)
+        .map(({ enabled: _enabled, followsNodeId, ...p }) => ({
+          ...p,
+          followsNodeId: followsNodeId ?? (p.number <= 4 && p.cobId === base + 0x100 * (p.number - 1) + node.nodeId),
+        }))
+    return {
+      ...node,
+      emcy: node.emcy ?? { enabled: true, cobId: 0x80 + node.nodeId },
+      tpdos: pdos(tpdos, 0x180),
+      rpdos: pdos(rpdos, 0x200),
+    }
+  })
 
 const CanopenNetworkSettingsSchema = z.object({
   enabled: z.boolean().default(true),

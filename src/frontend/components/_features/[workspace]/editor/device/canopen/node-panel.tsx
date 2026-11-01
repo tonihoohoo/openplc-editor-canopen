@@ -5,13 +5,13 @@ import type { CanopenOnlineReads } from '@root/frontend/hooks/use-canopen-online
 import type { CanopenLiveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { cn } from '@root/frontend/utils/cn'
 import type {
+  CanopenConfig,
   CanopenEntry,
   CanopenHeartbeatConsumer,
   CanopenNetworkSettings,
   CanopenNode,
   CanopenOnCommError,
   CanopenOnLoss,
-  CanopenPdo,
   CanopenSdo,
   CanopenSupervision,
 } from '@root/middleware/shared/ports/canopen-types'
@@ -29,10 +29,8 @@ import {
   findObject,
   hasErrorBehaviour,
   objectParameterState,
-  type PdoDirection,
   restoreChoiceName,
   restoreChoices,
-  updatePdo,
   watchMasterProblem,
 } from '@root/middleware/shared/utils/canopen'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
@@ -269,11 +267,9 @@ const NodePanel = ({
   const emcy = effectiveEmcy(node)
   const canWatch = canWatchMaster(eds)
   const watchProblem = watchMasterProblem(node, masterHeartbeatMs)
-  const mappedInputs = node.tpdos.filter((p) => p.enabled).reduce((n, p) => n + p.entries.length, 0)
-  const mappedOutputs = node.rpdos.filter((p) => p.enabled).reduce((n, p) => n + p.entries.length, 0)
-
-  const changePdo = (direction: PdoDirection) => (pdo: CanopenPdo) =>
-    onChange((n) => updatePdo(n, direction, pdo.number, () => pdo))
+  const mappedInputs = node.tpdos.filter((p) => p.exchanged).reduce((n, p) => n + p.entries.length, 0)
+  const mappedOutputs = node.rpdos.filter((p) => p.exchanged).reduce((n, p) => n + p.entries.length, 0)
+  const config: CanopenConfig = { network, nodes: nodes.map((n) => (n.id === node.id ? node : n)) }
 
   return (
     <div className='flex h-full min-w-0 flex-1 flex-col overflow-hidden' data-testid='canopen-node-panel'>
@@ -725,30 +721,24 @@ const NodePanel = ({
 
         <Tabs.Content value='inputs' className='min-h-0 flex-1 overflow-auto pb-4'>
           <PdoSection
-            pdos={node.tpdos}
+            node={node}
+            config={config}
             direction='input'
-            eds={eds}
-            nodeId={node.nodeId}
             syncOn={syncOn}
             syncPeriodUs={syncPeriodUs}
-            configure={node.configure}
-            onLoss={node.onLoss}
-            onChange={changePdo('input')}
+            onNodeChange={(next) => onChange(() => next)}
             onAliasChange={onAliasChange}
           />
         </Tabs.Content>
 
         <Tabs.Content value='outputs' className='min-h-0 flex-1 overflow-auto pb-4'>
           <PdoSection
-            pdos={node.rpdos}
+            node={node}
+            config={config}
             direction='output'
-            eds={eds}
-            nodeId={node.nodeId}
             syncOn={syncOn}
             syncPeriodUs={syncPeriodUs}
-            configure={node.configure}
-            onLoss={node.onLoss}
-            onChange={changePdo('output')}
+            onNodeChange={(next) => onChange(() => next)}
             onAliasChange={onAliasChange}
           />
         </Tabs.Content>

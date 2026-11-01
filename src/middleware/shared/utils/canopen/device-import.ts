@@ -24,6 +24,8 @@ import {
   canWatchMaster,
   consumerSlots,
   defaultPdos,
+  edsPdo,
+  edsPdoNumbers,
   type PdoDirection,
   pdoObjectIndices,
   restoreChoices,
@@ -102,6 +104,9 @@ export interface ReplaceResult {
   dropped: DcfImportLine[]
 }
 
+/** What happens to the node's PDOs when its device file is replaced. */
+export type ReplaceMapping = 'keep' | 'reset'
+
 function keepPdos(
   node: CanopenNode,
   eds: CanopenEdsInfo,
@@ -112,14 +117,18 @@ function keepPdos(
 ): CanopenPdo[] {
   const label = direction === 'input' ? 'TPDO' : 'RPDO'
   const old = direction === 'input' ? node.tpdos : node.rpdos
-  const fresh = defaultPdos(eds, direction, node.nodeId, newId, allocate)
+  const numbers = new Set(edsPdoNumbers(eds, direction))
   const out: CanopenPdo[] = []
-  for (const pdo of fresh) {
-    const was = old.find((p) => p.number === pdo.number)
-    if (!was) {
-      out.push(pdo)
+  for (const was of old) {
+    if (!numbers.has(was.number)) {
+      const { comm } = pdoObjectIndices(direction, was.number)
+      dropped.push({
+        what: `${label} ${was.number}`,
+        detail: `the new file has no 0x${comm.toString(16).toUpperCase()}`,
+      })
       continue
     }
+    const fresh = edsPdo(eds, direction, was.number, node.nodeId, newId, was.exchanged ? allocate : undefined)
     const entries = was.entries.filter((e) => {
       const object = findObject(eds, e.index, e.subIndex)
       const fits =
@@ -127,36 +136,47 @@ function keepPdos(
         object.pdoMapping &&
         toCanopenDataType(object.dataType) === e.dataType &&
         accessFits(object.access, direction)
-      if (!fits) dropped.push({ what: objectRef(e.index, e.subIndex), detail: `entry of ${label} ${pdo.number}` })
+      if (!fits) dropped.push({ what: objectRef(e.index, e.subIndex), detail: `entry of ${label} ${was.number}` })
       return fits
     })
-    out.push({ ...was, fixedMapping: pdo.fixedMapping, entries: pdo.fixedMapping ? pdo.entries : entries })
-    if (pdo.fixedMapping && !was.fixedMapping)
+    out.push({ ...was, fixedMapping: fresh.fixedMapping, entries: fresh.fixedMapping ? fresh.entries : entries })
+    if (fresh.fixedMapping && !was.fixedMapping)
       dropped.push({
-        what: `${label} ${pdo.number}`,
+        what: `${label} ${was.number}`,
         detail: 'the new file fixes its mapping; its default mapping is used',
       })
   }
-  for (const pdo of old)
-    if (!fresh.some((p) => p.number === pdo.number)) {
-      const { comm } = pdoObjectIndices(direction, pdo.number)
-      dropped.push({
-        what: `${label} ${pdo.number}`,
-        detail: `the new file has no 0x${comm.toString(16).toUpperCase()}`,
-      })
-    }
   return out
+}
+
+function resetPdos(
+  node: CanopenNode,
+  eds: CanopenEdsInfo,
+  direction: PdoDirection,
+  newId: () => string,
+  allocate: AllocateAddress,
+  dropped: DcfImportLine[],
+): CanopenPdo[] {
+  const label = direction === 'input' ? 'TPDO' : 'RPDO'
+  for (const was of direction === 'input' ? node.tpdos : node.rpdos)
+    for (const e of was.entries)
+      dropped.push({
+        what: objectRef(e.index, e.subIndex),
+        detail: `entry of ${label} ${was.number}${e.alias ? `, alias ${e.alias}` : ''}`,
+      })
+  return defaultPdos(eds, direction, node.nodeId, newId, allocate)
 }
 
 /**
  * The node with its device file replaced: ID, name, settings, mapped entries (with their addresses
- * and aliases) and startup SDOs are kept wherever the new file still allows them.
+ * and aliases, unless `mapping` is `reset`) and startup SDOs are kept wherever the new file still allows them.
  */
 export function replaceDeviceFile(
   node: CanopenNode,
   eds: CanopenEdsInfo,
   newId: () => string,
   allocate: AllocateAddress,
+  mapping: ReplaceMapping = 'keep',
 ): ReplaceResult {
   const dropped: DcfImportLine[] = []
   const sdos = node.sdos.filter((s) => {
@@ -169,8 +189,8 @@ export function replaceDeviceFile(
     ...node,
     eds,
     sdos,
-    tpdos: keepPdos(node, eds, 'input', newId, allocate, dropped),
-    rpdos: keepPdos(node, eds, 'output', newId, allocate, dropped),
+    tpdos: (mapping === 'keep' ? keepPdos : resetPdos)(node, eds, 'input', newId, allocate, dropped),
+    rpdos: (mapping === 'keep' ? keepPdos : resetPdos)(node, eds, 'output', newId, allocate, dropped),
   }
   if (next.supervision === 'heartbeat' && !canProduceHeartbeat(eds)) {
     next = { ...next, supervision: 'none' }

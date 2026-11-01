@@ -24,12 +24,14 @@ import {
   defaultCanopenConfig,
   defaultEmcyCobId,
   edsDefault,
+  edsPdoNumbers,
   effectiveEmcy,
   effectiveGuarding,
   hasErrorBehaviour,
   hasSyncWindow,
   type PdoDirection,
   pdoObjectIndices,
+  predefinedCobId,
 } from './model'
 import { encodeCanopenValue, toHex } from './sdo-value'
 
@@ -71,9 +73,22 @@ function writable(node: CanopenNode, index: number, subIndex: number): boolean {
 /** COB-ID bit 30: no remote request allowed on this PDO. */
 const COB_ID_NO_RTR = 0x40000000
 
-/** Whether the master exchanges this PDO. */
-export function pdoActive(pdo: CanopenPdo): boolean {
-  return pdo.enabled && pdo.entries.length > 0
+/** Whether the master configures this PDO on the node (it maps at least one entry). */
+export function pdoConfigured(pdo: CanopenPdo): boolean {
+  return pdo.entries.length > 0
+}
+
+/** Whether the master exchanges this PDO with the PLC image. */
+export function pdoExchanged(pdo: CanopenPdo): boolean {
+  return pdoConfigured(pdo) && pdo.exchanged
+}
+
+/** The writes that switch off PDO `number`, which the node does not use: its COB-ID with bit 31. */
+function unusedPdoSdos(node: CanopenNode, number: number, direction: PdoDirection): SdoOut[] {
+  const { comm } = pdoObjectIndices(direction, number)
+  if (!writable(node, comm, 1)) return []
+  const cobId = edsDefault(node.eds, comm, 1, node.nodeId) ?? predefinedCobId(direction, number, node.nodeId)
+  return [{ index: comm, subindex: 1, data: le(((cobId & 0x7ff) | 0x80000000) >>> 0, 4) }]
 }
 
 function pdoSdos(node: CanopenNode, pdo: CanopenPdo, direction: PdoDirection): SdoOut[] {
@@ -81,10 +96,9 @@ function pdoSdos(node: CanopenNode, pdo: CanopenPdo, direction: PdoDirection): S
   if (!findObject(node.eds, comm, 1)) return []
   const out: SdoOut[] = []
   const cobWritable = writable(node, comm, 1)
-  const active = pdoActive(pdo)
   const cobId = direction === 'input' ? (pdo.cobId | COB_ID_NO_RTR) >>> 0 : pdo.cobId
   if (cobWritable) out.push({ index: comm, subindex: 1, data: le((cobId | 0x80000000) >>> 0, 4) })
-  if (!active) return out
+  if (!pdoConfigured(pdo)) return out
   if (!pdo.fixedMapping && writable(node, map, 0)) {
     out.push({ index: map, subindex: 0, data: le(0, 1) })
     pdo.entries.forEach((e, k) => {
@@ -142,8 +156,13 @@ export function nodeConfigurationSdos(node: CanopenNode, network: CanopenNetwork
     out.push({ index: 0x1007, subindex: 0, data: le(network.syncWindowUs, 4) })
   if (receivesTime(node, network))
     out.push({ index: 0x1012, subindex: 0, data: le((network.time.cobId | 0x80000000) >>> 0, 4) })
-  for (const pdo of node.tpdos) out.push(...pdoSdos(node, pdo, 'input'))
-  for (const pdo of node.rpdos) out.push(...pdoSdos(node, pdo, 'output'))
+  for (const direction of ['input', 'output'] as const) {
+    const list = direction === 'input' ? node.tpdos : node.rpdos
+    for (const number of edsPdoNumbers(node.eds, direction)) {
+      const pdo = list.find((p) => p.number === number)
+      out.push(...(pdo ? pdoSdos(node, pdo, direction) : unusedPdoSdos(node, number, direction)))
+    }
+  }
   for (const sdo of node.sdos) {
     const object = findObject(node.eds, sdo.index, sdo.subIndex)
     if (object && ((object.objFlags ?? 0) & OBJ_FLAG_REFUSE_WRITE) !== 0) continue
@@ -179,7 +198,7 @@ function supervisionOut(node: CanopenNode): Record<string, string | number> {
 }
 
 function pdosOut(pdos: CanopenPdo[], direction: PdoDirection): PdoOut[] {
-  return pdos.filter(pdoActive).map((pdo) => ({
+  return pdos.filter(pdoExchanged).map((pdo) => ({
     number: pdo.number,
     cob_id: pdo.cobId,
     ...(direction === 'input' && pdo.receiveTimeoutMs > 0 ? { receive_timeout_ms: pdo.receiveTimeoutMs } : {}),

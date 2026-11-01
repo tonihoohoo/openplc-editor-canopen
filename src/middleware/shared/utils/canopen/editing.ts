@@ -7,7 +7,7 @@
 import type { CanopenEdsInfo, CanopenNode, CanopenObject, CanopenPdo } from '../../ports/canopen-types'
 import { objectRef, toCanopenDataType } from './data-types'
 import { findObject, masterMayWrite, parseEdsInteger } from './eds-parser'
-import { isWritableObject, pdoActive, watchesMaster } from './generate-canopen-config'
+import { isWritableObject, pdoConfigured, watchesMaster } from './generate-canopen-config'
 import {
   canSetEmcy,
   effectiveEventTimerMs,
@@ -202,7 +202,7 @@ function hiddenReason(node: CanopenNode, object: CanopenObject, rpdoMapped: Read
 /** Writable objects of the node for a startup SDO, each with why it is hidden by default. */
 export function startupSdoCandidates(node: CanopenNode): SdoCandidate[] {
   const rpdoMapped = new Set(
-    node.rpdos.filter(pdoActive).flatMap((p) => p.entries.map((e) => objectRef(e.index, e.subIndex))),
+    node.rpdos.filter(pdoConfigured).flatMap((p) => p.entries.map((e) => objectRef(e.index, e.subIndex))),
   )
   return node.eds.objects
     .filter(

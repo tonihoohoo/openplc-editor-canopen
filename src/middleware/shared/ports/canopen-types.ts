@@ -124,7 +124,10 @@ export interface CanopenPdo {
   number: number
   /** 11-bit COB-ID. */
   cobId: number
-  enabled: boolean
+  /** The COB-ID moves with the node ID (node ID plus a base). */
+  followsNodeId: boolean
+  /** The master exchanges the PDO with the PLC image; off for a PDO between two nodes. */
+  exchanged: boolean
   /** The EDS marks the mapping read-only: the master does not rewrite it. */
   fixedMapping: boolean
   transmissionType: number
