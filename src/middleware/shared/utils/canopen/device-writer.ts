@@ -168,6 +168,14 @@ function isoTime(d: Date): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
+/** CiA 311 PDOmapping of an object: the direction of an rwr or rww object goes here. */
+export function xddPdoMapping(o: CanopenObject): string {
+  if (!o.pdoMapping) return 'no'
+  if (o.access === 'rwr') return 'TPDO'
+  if (o.access === 'rww') return 'RPDO'
+  return 'optional'
+}
+
 /** CiA 311 accessType of an object: rwr and rww are written as rw. */
 export function xddAccess(o: CanopenObject): string {
   return o.access === 'rwr' || o.access === 'rww' ? 'rw' : o.access
@@ -183,7 +191,7 @@ function xddObjectAttrs(o: CanopenObject, sub: boolean): string {
     o.highLimit !== undefined ? `highLimit="${xmlAttr(o.highLimit)}"` : undefined,
     `accessType="${xddAccess(o)}"`,
     o.defaultValue !== undefined ? `defaultValue="${xmlAttr(o.defaultValue)}"` : undefined,
-    `PDOmapping="${o.pdoMapping ? 'optional' : 'no'}"`,
+    `PDOmapping="${xddPdoMapping(o)}"`,
   ]
   return parts.filter((p) => p !== undefined).join(' ')
 }

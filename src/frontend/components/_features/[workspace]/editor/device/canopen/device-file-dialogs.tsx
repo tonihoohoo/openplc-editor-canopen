@@ -172,6 +172,8 @@ const DeviceDetails = ({ eds }: { eds: CanopenEdsInfo }) => {
       ? [['Characteristics', d.characteristics.map((c) => `${c.value}: ${c.label}`).join(' · ')] as [string, string]]
       : []),
   ]
+  const labelled = count((o) => o.info?.label)
+  if (labelled > 0) rows.push(['Labels', `${labelled} of ${eds.objects.length} objects`])
   const extra = [
     [count((o) => o.info?.description), 'described'],
     [count((o) => o.info?.unit), 'with a unit'],
