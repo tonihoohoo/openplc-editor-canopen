@@ -139,10 +139,15 @@ const WithFeedback = ({ children, feedback }: { children: ReactNode; feedback: R
   </div>
 )
 
-/** A card's own confirmation and result line, so feedback shows next to the button pressed. */
-export function useCardFeedback() {
+/** A card's own confirmation and result line, cleared when @p ready turns false so no stale result stays. */
+export function useCardFeedback(ready: boolean) {
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
   const [message, setFeedback] = useState<{ text: string; error: boolean } | null>(null)
+  useEffect(() => {
+    if (ready) return
+    setConfirm(null)
+    setFeedback(null)
+  }, [ready])
   const setMessage = (text: string | null, error = false) => setFeedback(text === null ? null : { text, error })
   const view: ReactNode = (
     <>
@@ -386,7 +391,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
   const [filter, setFilter] = useState<Filter>('all')
   const [display, setDisplay] = useState<ValueDisplay>('decimal')
   const [anyObject, setAnyObject] = useState(false)
-  const nmtFeedback = useCardFeedback()
+  const nmtFeedback = useCardFeedback(online.ready)
   const [allNodes, setAllNodes] = useState(false)
   const { client, networkIndex, ready } = online
   const nodeId = node.nodeId
@@ -734,9 +739,12 @@ const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineCon
   const [offer, setOffer] = useState<NvmOffer | null>(null)
   const [saveSub, setSaveSub] = useState<number | null>(null)
   const [restoreSub, setRestoreSub] = useState<number | null>(restores[0]?.subIndex ?? null)
-  const feedback = useCardFeedback()
+  const feedback = useCardFeedback(online.ready)
   const { client, networkIndex, ready } = online
   const nodeId = node.nodeId
+  useEffect(() => {
+    if (!ready) setOffer(null)
+  }, [ready])
 
   useEffect(() => {
     if (!ready || allSaves.length === 0) return

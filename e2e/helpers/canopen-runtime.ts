@@ -57,6 +57,8 @@ export function status(now: number, operational: boolean) {
 export class FakeNode {
   operational = true
   plcRunning = true
+  /** Writes refused with this abort code, by index:subindex. */
+  refused = new Map<string, number>()
   values = new Map<string, string>([['4119:0', 'f401']])
   requests: Array<Record<string, unknown>> = []
   private jobs = new Map<number, unknown>()
@@ -76,6 +78,7 @@ export class FakeNode {
         return job(v === undefined ? { state: 'failed', abort_code: 0x06020000 } : { state: 'done', data: v })
       }
       case 'sdo_write':
+        if (this.refused.has(k)) return job({ state: 'failed', abort_code: this.refused.get(k) })
         if (request.index === 0x2100 && this.operational) return job({ state: 'failed', abort_code: 0x08000022 })
         this.values.set(k, String(request.data))
         return job({ state: 'done' })

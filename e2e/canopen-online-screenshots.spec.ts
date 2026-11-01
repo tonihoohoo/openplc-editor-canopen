@@ -145,6 +145,21 @@ test('screenshots of the CANopen Online tabs', async () => {
     await expect(state).toContainText('Stop sent to every node.', { timeout: 15000 })
     await shot(page, '08-node-state-all-nodes-sent.png')
 
+    node.refused.set('4112:1', 0x08000020)
+    await memory.getByRole('button', { name: 'Save to node' }).click()
+    await memory.getByRole('alertdialog').getByRole('button', { name: 'Save to node' }).click()
+    await expect(memory).toContainText('Save failed', { timeout: 15000 })
+    await memory.scrollIntoViewIfNeeded()
+    await shot(page, '13-node-memory-save-failed.png')
+
+    const raw = page.getByTestId('canopen-online-raw')
+    await raw.getByLabel('Index (hex)').fill('5FFF')
+    await raw.getByLabel('Sub-index').fill('0')
+    await raw.getByRole('button', { name: 'Read', exact: true }).click()
+    await expect(raw.getByRole('status')).toContainText('0x5FFF:00', { timeout: 15000 })
+    await raw.scrollIntoViewIfNeeded()
+    await shot(page, '14-any-object-read-failed.png')
+
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1100, 800)))
     await page.waitForTimeout(500)
     await page.getByTestId('canopen-online-row-4096:0').scrollIntoViewIfNeeded()
@@ -161,6 +176,9 @@ test('screenshots of the CANopen Online tabs', async () => {
     await expect(hint).toBeVisible({ timeout: 20000 })
     await hint.evaluate((el) => el.scrollIntoView({ block: 'nearest' }))
     await shot(page, '12-node-online-plc-stopped.png')
+    await page.getByRole('switch', { name: 'Expert view' }).first().check()
+    await page.getByTestId('canopen-online-nmt').scrollIntoViewIfNeeded()
+    await shot(page, '15-node-online-plc-stopped-expert.png')
   } finally {
     await quitApp(app, page)
     runtime.close()
