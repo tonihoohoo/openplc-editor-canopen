@@ -1,5 +1,6 @@
-// Prints, as JSON, the values another reader sees in each DCF: every ParameterValue by
-// "0xIIII:SS" and [DeviceComissioning]. Compared with the editor's own reading.
+// Prints, as JSON, what another reader sees in each file: for a DCF or XDC every ParameterValue
+// (actualValue) by "0xIIII:SS" and the commissioning, for an XDD every object's DefaultValue.
+// Compared with the editor's own reading.
 using System.Globalization;
 using System.Text.Json;
 using EdsDcfNet;
@@ -9,7 +10,23 @@ foreach (var path in args)
 {
     try
     {
-        var dcf = CanOpenFile.Dcf.ReadFile(path);
+        if (path.EndsWith(".xdd", StringComparison.OrdinalIgnoreCase))
+        {
+            var xdd = CanOpenFile.Xdd.ReadFile(path);
+            var objects = new SortedDictionary<string, string>(StringComparer.Ordinal);
+            foreach (var obj in xdd.ObjectDictionary.Objects.Values)
+            {
+                if (obj.SubObjects.Count == 0)
+                    objects[Key(obj.Index, 0)] = obj.DefaultValue ?? "";
+                foreach (var sub in obj.SubObjects.Values)
+                    objects[Key(obj.Index, sub.SubIndex)] = sub.DefaultValue ?? "";
+            }
+            result.Add(new { file = Path.GetFileName(path), objects });
+            continue;
+        }
+        var dcf = path.EndsWith(".xdc", StringComparison.OrdinalIgnoreCase)
+            ? CanOpenFile.Xdc.ReadFile(path)
+            : CanOpenFile.Dcf.ReadFile(path);
         var values = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var obj in dcf.ObjectDictionary.Objects.Values)
         {
