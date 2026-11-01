@@ -33,6 +33,16 @@ type ObjectPickerProps = {
   disabled?: boolean
 }
 
+const DETAILS_KEY = 'openplc:canopen-picker-details'
+
+const readDetailsOn = (): boolean => {
+  try {
+    return localStorage.getItem(DETAILS_KEY) === 'on'
+  } catch {
+    return false
+  }
+}
+
 /** "Add object" button opening a searchable list of the node's objects; stays open after a pick. */
 const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, summary, disabled }: ObjectPickerProps) => {
   const [open, setOpen] = useState(false)
@@ -44,7 +54,18 @@ const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, summary, disab
   useEffect(() => {
     if (activeRef) listRef.current?.querySelector(`[data-ref="${activeRef}"]`)?.scrollIntoView({ block: 'nearest' })
   }, [activeRef])
-  const withInfo = useMemo(() => items.some((i) => i.object.info !== undefined), [items])
+  const hasInfo = useMemo(() => items.some((i) => i.object.info !== undefined), [items])
+  const [detailsOn, setDetailsOn] = useState(readDetailsOn)
+  const toggleDetails = () => {
+    const next = !detailsOn
+    setDetailsOn(next)
+    try {
+      localStorage.setItem(DETAILS_KEY, next ? 'on' : 'off')
+    } catch {
+      // Kept for this picker only while localStorage is unavailable.
+    }
+  }
+  const withInfo = hasInfo && detailsOn
   const active =
     matches.find((m) => objectRef(m.object.index, m.object.subIndex) === activeRef)?.object ?? matches[0]?.object
 
@@ -104,7 +125,21 @@ const ObjectPicker = ({ label, items, onPick, emptyText, toolbar, summary, disab
               if (first) pick(first.object)
             }}
           />
-          {toolbar ? <div className='px-3 pb-2'>{toolbar}</div> : null}
+          {toolbar || hasInfo ? (
+            <div className='flex items-center gap-3 px-3 pb-2'>
+              <div className='min-w-0 flex-1'>{toolbar}</div>
+              {hasInfo ? (
+                <button
+                  type='button'
+                  aria-pressed={detailsOn}
+                  onClick={toggleDetails}
+                  className={cn(secondaryButtonClassName, 'shrink-0 px-2 py-0.5 text-[11px]')}
+                >
+                  {detailsOn ? 'Hide details' : 'Show details'}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <div className='flex min-h-0 flex-1'>
             <div ref={listRef} role='listbox' aria-label={label} className='min-h-0 flex-1 overflow-y-auto pb-1'>
               {items.length === 0 ? (
