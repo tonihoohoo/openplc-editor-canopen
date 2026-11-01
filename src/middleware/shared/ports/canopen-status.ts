@@ -59,6 +59,8 @@ const EmcySchema = z.object({
 
 const LatePdoSchema = z.object({ pdo: count, cob_id: count, since: z.number() })
 
+const SkippedSdoSchema = z.object({ index: count, subindex: count, abort_code: count })
+
 export const CanopenNodeStatusSchema = z.object({
   node_id: count,
   name: z.string(),
@@ -75,6 +77,8 @@ export const CanopenNodeStatusSchema = z.object({
   problem: CanopenProblemSchema.nullable(),
   emcy: z.array(EmcySchema),
   late_pdos: z.array(LatePdoSchema),
+  /** Startup SDOs refused in the current boot whose policy let the boot go on; absent before format 4. */
+  sdo_skipped: z.array(SkippedSdoSchema).default([]),
 })
 
 /** What came of the master's reset of a link. */
@@ -121,6 +125,8 @@ export const CanopenEventSchema = z.object({
   command: z.enum(['start', 'stop', 'pre_operational', 'reset_node', 'reset_communication']).optional(),
   /** service: opened (true) or closed. */
   open: z.boolean().optional(),
+  /** sdo_abort: what the boot did; absent from runtimes before refusal policies. */
+  policy: z.enum(['stop', 'continue', 'jump']).optional(),
 })
 
 export const CanopenBusStatusSchema = z.object({

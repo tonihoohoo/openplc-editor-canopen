@@ -86,6 +86,29 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
      the reason. **Add by index** adds an object the EDS does not define. The master never stores
      values in the node (0x1010); startup SDOs to 0x1010 and 0x1011 are refused, and restoring
      defaults is the node's own option.
+   - **Written at boot**, above the startup SDOs, lists every write the master makes to the node at
+     boot, in the real order: restore defaults, supervision, emergency, SYNC window, TIME, PDO
+     parameters and mapping (and the switch-off of PDOs the node does not use), the startup SDOs,
+     then the heartbeats the node watches. Each row names the setting that makes it (a link to its
+     tab) and what happens when the node refuses it: generated writes always stop the boot.
+   - **If refused** on each startup SDO: **Stop the boot** (default; the master boots the node again
+     later), **Continue** with the next write, or **Jump to line** N, a later startup SDO; the lines
+     in between are skipped. A jump to a line that is gone or not later is an error. A write refused
+     with Continue or Jump is logged, and the node's Status tab lists it under "Refused writes at
+     boot". Written as `on_abort` and `jump_to` in `canopen.json` format version 4.
+   - Startup SDOs on VISIBLE_STRING objects take text; OCTET_STRING and DOMAIN objects (also DOMAIN
+     objects of an EDS, ObjectType 0x2) take hexadecimal bytes, such as `01 A2 FF`; 1 to 1024
+     bytes. A REAL value given as `0x...` is its IEEE 754 bit pattern, as in a device file.
+   - **Add gap** on a PDO adds a dummy entry of 1, 8, 16 or 32 bits (0x0001, 0x0005, 0x0006,
+     0x0007), for a device whose PDO layout has a reserved part; the sizes come from the file's
+     `[DummyUsage]` (XDD `dummyUsage`), and the button is off without it. A gap has no address or
+     alias. A default mapping keeps its dummy entries as gaps, and an entry for an object the file
+     does not describe becomes a gap of its size with a warning, so the later entries keep their
+     offsets.
+   - An RPDO whose event timer (`0x14xx:05`) the node has writable has a **Deadline (ms)**, 0 for
+     none: the node reacts (CiA 301) when the PDO stops arriving. The master then sends that RPDO at
+     least every half of the deadline, rounded down to the PLC cycle, also when no output changed;
+     the field shows that period. A deadline shorter than two PLC cycles stops the build.
    - On the **Network** tab, a bit rate a node's EDS marks unsupported (`BaudRate_x=0`) is disabled
      and names the node.
 5. Give entries aliases and bind variables to them, as with other remote I/O.
@@ -242,7 +265,7 @@ window not shorter than the SYNC period, restore on a node that is not initializ
 sub-index (turn it off), heartbeats watched that no node sends, receive timeouts on TPDOs sent only
 after a change (set an event timer or clear the timeout), and times that are not multiples of the
 PLC cycle (round up). **Fix all** applies every fix as one change. These options need
-`canopen.json` format version 3.
+`canopen.json` format version 3 or later.
 
 ## Live status
 

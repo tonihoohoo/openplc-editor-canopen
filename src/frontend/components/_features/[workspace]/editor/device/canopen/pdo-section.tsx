@@ -14,8 +14,14 @@ import {
   cannotAddPdo,
   cannotMap,
   cannotMoveEntry,
+  canopenTypeBits,
   cobIdBase,
+  DUMMY_TYPES,
   entryFor,
+  GAP_DUMMIES,
+  gapEntry,
+  isDummyEntry,
+  isGapEntry,
   isSynchronousType,
   mappableObjects,
   MAX_PDO_BITS,
@@ -29,6 +35,7 @@ import {
   placeholderAddress,
   receiveTimeoutWarning,
   removePdo,
+  rpdoSendPeriodMs,
   toCanopenDataType,
   transmissionChoices,
   type TransmissionMode,
@@ -166,6 +173,58 @@ const MoveToMenu = ({ entry, title, targets, onMove }: MoveToMenuProps) => (
   </DropdownMenu.Root>
 )
 
+type GapMenuProps = {
+  pdo: CanopenPdo
+  eds: CanopenEdsInfo
+  title: string
+  onAdd: (dummy: number) => void
+}
+
+/** "Add gap": a dummy entry of 1, 8, 16 or 32 bits, where the device file allows it. */
+const GapMenu = ({ pdo, eds, title, onAdd }: GapMenuProps) => {
+  const allowed = eds.dummyUsage ?? []
+  const none = allowed.length === 0 ? 'The device does not accept gaps (no [DummyUsage] in its file)' : null
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild disabled={none !== null}>
+        <button type='button' className={secondaryButtonClassName} title={none ?? `Add a gap to ${title}`}>
+          Add gap
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align='start'
+          sideOffset={4}
+          className='z-[60] min-w-[180px] overflow-hidden rounded-md border border-neutral-200 bg-white py-1 shadow-lg dark:border-brand-medium-dark dark:bg-neutral-950'
+        >
+          <DropdownMenu.Label className={cn(hintClassName, 'px-3 py-1')}>Add a gap to {title}</DropdownMenu.Label>
+          {GAP_DUMMIES.map((dummy) => {
+            const bits = canopenTypeBits(DUMMY_TYPES[dummy] ?? 'UNSIGNED8')
+            const reason = !allowed.includes(dummy)
+              ? 'not allowed by the device file'
+              : pdoBits(pdo) + bits > MAX_PDO_BITS
+                ? 'does not fit in the PDO'
+                : null
+            return (
+              <DropdownMenu.Item
+                key={dummy}
+                disabled={reason !== null}
+                onSelect={() => onAdd(dummy)}
+                className={menuItemClassName}
+              >
+                <span>
+                  {bits} bit{bits === 1 ? '' : 's'} ({objectRef(dummy, 0)})
+                </span>
+                {reason ? <span className={hintClassName}>{reason}</span> : null}
+              </DropdownMenu.Item>
+            )
+          })}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+}
+
 type CobIdFieldProps = {
   pdo: CanopenPdo
   nodeId: number
@@ -216,6 +275,7 @@ type PdoCardProps = {
   nodeId: number
   syncOn: boolean
   syncPeriodUs: number | null
+  cycleUs: number | null
   /** The master configures the node. */
   configure: boolean
   onLoss: CanopenOnLoss
@@ -235,6 +295,7 @@ const PdoCard = ({
   nodeId,
   syncOn,
   syncPeriodUs,
+  cycleUs,
   configure,
   onLoss,
   onChange,
@@ -254,6 +315,13 @@ const PdoCard = ({
   const [addedId, setAddedId] = useAddedHighlight()
   const timeoutWarning =
     isInput && pdo.exchanged ? receiveTimeoutWarning({ eds, nodeId, configure, onLoss }, pdo, syncPeriodUs) : null
+
+  const sendPeriod = isInput ? null : rpdoSendPeriodMs(pdo, cycleUs)
+  const addGap = (dummy: number) => {
+    const entry = gapEntry(dummy, uuidv4())
+    onChange({ ...pdo, entries: [...pdo.entries, entry] })
+    setAddedId(entry.channelId)
+  }
 
   const addEntry = (object: (typeof candidates)[number]) => {
     const type = toCanopenDataType(object.dataType)
@@ -355,7 +423,24 @@ const PdoCard = ({
               />
             ) : null}
           </>
-        ) : null}
+        ) : (
+          <NumberField
+            label='Deadline (ms)'
+            value={pdo.deadlineMs}
+            min={0}
+            max={65535}
+            objectRef={timer.ref}
+            hint={
+              timer.notWrittenReason ??
+              (sendPeriod !== null
+                ? `The master sends it every ${sendPeriod} ms`
+                : 'The node reacts when the PDO stops; 0 for none')
+            }
+            disabled={timer.notWrittenReason !== null}
+            className='w-[150px]'
+            onCommit={(deadlineMs) => onChange({ ...pdo, deadlineMs })}
+          />
+        )}
       </div>
 
       {timeoutWarning ? (
@@ -372,17 +457,20 @@ const PdoCard = ({
       ) : null}
 
       {pdo.fixedMapping ? null : (
-        <ObjectPicker
-          label={`Add an object to ${title}`}
-          items={candidates.map((object) => ({
-            object,
-            disabledReason: cannotMap(pdo, object),
-            addedCount: pdo.entries.filter((e) => e.index === object.index && e.subIndex === object.subIndex).length,
-          }))}
-          summary={`${bits} of ${MAX_PDO_BITS} bits mapped`}
-          emptyText='The device has no objects to map here.'
-          onPick={addEntry}
-        />
+        <div className='flex flex-wrap items-start gap-2'>
+          <ObjectPicker
+            label={`Add an object to ${title}`}
+            items={candidates.map((object) => ({
+              object,
+              disabledReason: cannotMap(pdo, object),
+              addedCount: pdo.entries.filter((e) => e.index === object.index && e.subIndex === object.subIndex).length,
+            }))}
+            summary={`${bits} of ${MAX_PDO_BITS} bits mapped`}
+            emptyText='The device has no objects to map here.'
+            onPick={addEntry}
+          />
+          <GapMenu pdo={pdo} eds={eds} title={title} onAdd={addGap} />
+        </div>
       )}
 
       <table className='w-full table-fixed text-left text-xs'>
@@ -413,59 +501,72 @@ const PdoCard = ({
               </td>
             </tr>
           ) : null}
-          {pdo.entries.map((entry, i) => (
-            <SortableRow
-              key={entry.channelId}
-              id={entry.channelId}
-              name={entry.name}
-              highlight={entry.channelId === addedId}
-              disabled={pdo.fixedMapping}
-              className='border-t border-neutral-100 dark:border-neutral-800'
-            >
-              <td className='py-1 font-mono'>{objectRef(entry.index, entry.subIndex)}</td>
-              <td className='py-1 pr-2 [overflow-wrap:anywhere]'>{entry.name}</td>
-              <td className='py-1'>{entry.dataType}</td>
-              {pdo.exchanged ? (
-                <>
-                  <td className='py-1 font-mono'>{entry.iecLocation || '-'}</td>
-                  <td className='py-1 pr-2'>
-                    <TextField
-                      label={`Alias of ${entry.name}`}
-                      hideLabel
-                      value={entry.alias ?? ''}
-                      placeholder='Alias'
-                      onCommit={(alias) => onAliasChange(entry, alias)}
-                    />
-                  </td>
-                </>
-              ) : null}
-              <td className='py-1'>
-                <div className='flex items-center justify-end'>
-                  {pdo.fixedMapping ? null : (
+          {pdo.entries.map((entry, i) => {
+            const gap = isGapEntry(eds, entry)
+            return (
+              <SortableRow
+                key={entry.channelId}
+                id={entry.channelId}
+                name={entry.name}
+                highlight={entry.channelId === addedId}
+                disabled={pdo.fixedMapping}
+                className='border-t border-neutral-100 dark:border-neutral-800'
+              >
+                <td className='py-1 font-mono'>{objectRef(entry.index, entry.subIndex)}</td>
+                <td className={cn('py-1 pr-2 [overflow-wrap:anywhere]', gap && 'italic text-neutral-500')}>
+                  {entry.name}
+                </td>
+                <td className='py-1'>
+                  {gap && isDummyEntry(entry) ? `${canopenTypeBits(entry.dataType)} bits` : entry.dataType}
+                </td>
+                {pdo.exchanged ? (
+                  gap ? (
+                    <td colSpan={2} className={cn(hintClassName, 'py-1')}>
+                      {isDummyEntry(entry) ? 'A gap: no PLC value' : 'Not in the device file: no PLC value'}
+                    </td>
+                  ) : (
                     <>
-                      <MoveToMenu
-                        entry={entry}
-                        title={title}
-                        targets={others.map((o) => ({ pdo: o, title: `${isInput ? 'TPDO' : 'RPDO'} ${o.number}` }))}
-                        onMove={(to) => onMoveEntry(entry.channelId, to)}
-                      />
-                      <MoveButtons name={entry.name} index={i} count={pdo.entries.length} onMove={moveEntry} />
+                      <td className='py-1 font-mono'>{entry.iecLocation || '-'}</td>
+                      <td className='py-1 pr-2'>
+                        <TextField
+                          label={`Alias of ${entry.name}`}
+                          hideLabel
+                          value={entry.alias ?? ''}
+                          placeholder='Alias'
+                          onCommit={(alias) => onAliasChange(entry, alias)}
+                        />
+                      </td>
                     </>
-                  )}
-                  <button
-                    type='button'
-                    aria-label={`Remove ${entry.name}`}
-                    title='Remove entry'
-                    disabled={pdo.fixedMapping}
-                    onClick={() => onChange({ ...pdo, entries: pdo.entries.filter((_, k) => k !== i) })}
-                    className={iconButtonClassName}
-                  >
-                    <TrashIcon className='h-4 w-4' />
-                  </button>
-                </div>
-              </td>
-            </SortableRow>
-          ))}
+                  )
+                ) : null}
+                <td className='py-1'>
+                  <div className='flex items-center justify-end'>
+                    {pdo.fixedMapping ? null : (
+                      <>
+                        <MoveToMenu
+                          entry={entry}
+                          title={title}
+                          targets={others.map((o) => ({ pdo: o, title: `${isInput ? 'TPDO' : 'RPDO'} ${o.number}` }))}
+                          onMove={(to) => onMoveEntry(entry.channelId, to)}
+                        />
+                        <MoveButtons name={entry.name} index={i} count={pdo.entries.length} onMove={moveEntry} />
+                      </>
+                    )}
+                    <button
+                      type='button'
+                      aria-label={`Remove ${entry.name}`}
+                      title='Remove entry'
+                      disabled={pdo.fixedMapping}
+                      onClick={() => onChange({ ...pdo, entries: pdo.entries.filter((_, k) => k !== i) })}
+                      className={iconButtonClassName}
+                    >
+                      <TrashIcon className='h-4 w-4' />
+                    </button>
+                  </div>
+                </td>
+              </SortableRow>
+            )
+          })}
         </SortableBody>
       </table>
     </div>
@@ -481,6 +582,8 @@ type PdoSectionProps = {
   syncOn: boolean
   /** The SYNC period, or null when unknown or off. */
   syncPeriodUs: number | null
+  /** The PLC cycle in microseconds, or null when unknown. */
+  cycleUs: number | null
   onNodeChange: (node: CanopenNode) => void
   onAliasChange: (entry: CanopenEntry, alias: string) => string | null
 }
@@ -491,6 +594,7 @@ const PdoSection = ({
   direction,
   syncOn,
   syncPeriodUs,
+  cycleUs,
   onNodeChange,
   onAliasChange,
 }: PdoSectionProps) => {
@@ -568,6 +672,7 @@ const PdoSection = ({
             nodeId={nodeId}
             syncOn={syncOn}
             syncPeriodUs={syncPeriodUs}
+            cycleUs={cycleUs}
             configure={node.configure}
             onLoss={node.onLoss}
             onChange={(next) => onNodeChange(updatePdo(node, direction, pdo.number, () => next))}

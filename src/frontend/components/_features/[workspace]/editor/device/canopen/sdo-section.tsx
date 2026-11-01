@@ -1,16 +1,21 @@
 import { TrashIcon } from '@radix-ui/react-icons'
 import { cn } from '@root/frontend/utils/cn'
 import type {
-  CanopenDataType,
+  CanopenNetworkSettings,
   CanopenNode,
   CanopenObject,
   CanopenSdo,
+  CanopenSdoDataType,
+  CanopenSdoOnAbort,
 } from '@root/middleware/shared/ports/canopen-types'
 import {
   CANOPEN_DATA_TYPES,
   describeValue,
   encodeCanopenValue,
   findObject,
+  isByteType,
+  jumpTargetProblem,
+  MAX_SDO_BYTES,
   moveItem,
   NEVER_WRITTEN_INDICES,
   objectInfo,
@@ -19,22 +24,37 @@ import {
   parseEdsInteger,
   shortDescription,
   startupSdoCandidates,
-  toCanopenDataType,
+  toSdoDataType,
 } from '@root/middleware/shared/utils/canopen'
 import { useMemo, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
-import { CheckboxField, NumberField, SelectField, TextField } from './fields'
+import { BootWrites, type BootWriteTarget } from './boot-writes'
+import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { ObjectDetails } from './object-details'
 import { ObjectPicker } from './object-picker'
 import { MoveButtons, SortableBody, SortableRow } from './sortable-rows'
 import { hintClassName, iconButtonClassName, secondaryButtonClassName } from './styles'
 import { useAddedHighlight } from './use-added-highlight'
 
-const TYPE_OPTIONS: ReadonlyArray<{ value: CanopenDataType; label: string }> = CANOPEN_DATA_TYPES.map((t) => ({
-  value: t,
-  label: t,
-}))
+const TYPE_OPTIONS: ReadonlyArray<{ value: CanopenSdoDataType; label: string }> = [
+  ...CANOPEN_DATA_TYPES,
+  'VISIBLE_STRING' as const,
+  'OCTET_STRING' as const,
+  'DOMAIN' as const,
+].map((t) => ({ value: t, label: t }))
+
+const POLICY_OPTIONS: ReadonlyArray<{ value: CanopenSdoOnAbort; label: string }> = [
+  { value: 'stop', label: 'Stop the boot' },
+  { value: 'continue', label: 'Continue' },
+  { value: 'jump', label: 'Jump to line' },
+]
+
+/** The hint of a value field for text and bytes. */
+const byteHint = (type: CanopenSdoDataType): string =>
+  type === 'VISIBLE_STRING'
+    ? `Text, up to ${MAX_SDO_BYTES} characters, written without a terminator`
+    : `Bytes in hexadecimal, such as 01 A2 FF, up to ${MAX_SDO_BYTES}`
 
 const BOOLEAN_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: '0', label: 'FALSE' },
@@ -59,17 +79,19 @@ const valueHint = (object: CanopenObject | undefined): string | undefined => {
   return parts.length > 0 ? parts.join(' · ') : undefined
 }
 
-/** The EDS type of an object the master supports, else undefined. */
-const edsType = (object: CanopenObject | undefined): CanopenDataType | undefined =>
-  object ? toCanopenDataType(object.dataType) : undefined
+/** The EDS type of an object the master can write at boot, else undefined. */
+const edsType = (object: CanopenObject | undefined): CanopenSdoDataType | undefined =>
+  object ? toSdoDataType(object.dataType) : undefined
 
 type SdoSectionProps = {
   node: CanopenNode
+  network: CanopenNetworkSettings
   warnings: ReadonlyMap<string, string>
   onChange: (sdos: CanopenSdo[]) => void
+  onGoTo: (target: Exclude<BootWriteTarget, null>) => void
 }
 
-const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
+const SdoSection = ({ node, network, warnings, onChange, onGoTo }: SdoSectionProps) => {
   const [showAll, setShowAll] = useState(false)
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
   const toggleOpen = (id: string): void =>
@@ -106,8 +128,8 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
   const addFromObject = (object: CanopenObject) => {
     const dataType = edsType(object)
     if (!dataType) return
-    const fallback = object.defaultValue ?? '0'
-    const integer = dataType.startsWith('REAL') ? null : parseEdsInteger(fallback, node.nodeId)
+    const fallback = object.defaultValue ?? (isByteType(dataType) ? '' : '0')
+    const integer = dataType.startsWith('REAL') || isByteType(dataType) ? null : parseEdsInteger(fallback, node.nodeId)
     const value = integer === null ? fallback : String(integer)
     const id = uuidv4()
     onChange([...node.sdos, { id, index: object.index, subIndex: object.subIndex, dataType, value }])
@@ -116,9 +138,10 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
 
   return (
     <div className='flex flex-col gap-3'>
+      <BootWrites node={node} network={network} onGoTo={onGoTo} />
       <p className={hintClassName}>
         Written in this order each time the node boots, after the PDO and heartbeat settings. They are not stored in the
-        node&apos;s non-volatile memory.
+        node&apos;s non-volatile memory. A refused write stops the boot unless its line says otherwise.
       </p>
       <div className='flex flex-wrap items-center gap-2'>
         <ObjectPicker
@@ -155,8 +178,9 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
         <thead className='text-neutral-500 dark:text-neutral-400'>
           <tr>
             <th className='w-[24px] py-1' />
-            <th className='w-[90px] py-1 font-medium'>Index</th>
-            <th className='w-[80px] whitespace-nowrap py-1 font-medium'>Sub-index</th>
+            <th className='w-[30px] py-1 font-medium'>Line</th>
+            <th className='w-[78px] py-1 font-medium'>Index</th>
+            <th className='w-[66px] whitespace-nowrap py-1 font-medium'>Sub-index</th>
             <th className='py-1 font-medium'>Name</th>
             <th className='w-[110px] py-1 font-medium'>Type</th>
             <th className='w-[170px] py-1 font-medium'>Value</th>
@@ -166,7 +190,7 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
         <SortableBody ids={node.sdos.map((s) => s.id)} onMove={move} className='text-neutral-850 dark:text-neutral-300'>
           {node.sdos.length === 0 ? (
             <tr>
-              <td colSpan={7} className={cn(hintClassName, 'py-2')}>
+              <td colSpan={8} className={cn(hintClassName, 'py-2')}>
                 No startup SDOs.
               </td>
             </tr>
@@ -178,6 +202,12 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
             const encoded = encodeCanopenValue(sdo.dataType, sdo.value)
             const valueList = objectInfo(object)?.values ?? []
             const warning = warnings.get(sdo.id)
+            const policy = sdo.onAbort ?? 'stop'
+            const later: ReadonlyArray<SelectOption<string>> = node.sdos.slice(i + 1).map((s, k) => ({
+              value: s.id,
+              label: `Line ${i + k + 2}: ${objectRef(s.index, s.subIndex)}`,
+            }))
+            const jumpProblem = jumpTargetProblem(node, sdo)
             return (
               <SortableRow
                 key={sdo.id}
@@ -187,6 +217,9 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
                 className='border-t border-neutral-100 align-top dark:border-neutral-800'
                 testId='canopen-sdo-row'
               >
+                <td className='py-1 pr-2'>
+                  <span className='flex h-[30px] items-center text-neutral-500'>{i + 1}</span>
+                </td>
                 <td className='py-1 pr-2'>
                   <NumberField
                     label='Index'
@@ -287,7 +320,7 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
                       label='Value'
                       hideLabel
                       value={sdo.value}
-                      hint={valueHint(object)}
+                      hint={isByteType(sdo.dataType) ? byteHint(sdo.dataType) : valueHint(object)}
                       onCommit={(value) => {
                         update(sdo.id, { value })
                         return null
@@ -302,6 +335,44 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
                     <span className='text-[10px] text-red-600 dark:text-red-400'>{encoded.message}</span>
                   ) : warning ? (
                     <span className='text-[10px] text-amber-600 dark:text-amber-400'>{warning}</span>
+                  ) : null}
+                  <div className='mt-1 flex flex-col gap-0.5'>
+                    <span className={hintClassName}>If refused</span>
+                    <SelectField
+                      label={`If ${ref} is refused`}
+                      hideLabel
+                      value={policy}
+                      options={POLICY_OPTIONS.map((o) =>
+                        o.value === 'jump' && later.length === 0 ? { ...o, disabledReason: 'no later line' } : o,
+                      )}
+                      onChange={(onAbort) =>
+                        update(sdo.id, {
+                          onAbort: onAbort === 'stop' ? undefined : onAbort,
+                          jumpTo: onAbort === 'jump' ? (sdo.jumpTo ?? later[0]?.value) : undefined,
+                        })
+                      }
+                    />
+                  </div>
+                  {policy === 'jump' ? (
+                    <div className='mt-1 flex flex-col gap-0.5'>
+                      <span className={hintClassName}>Jumps to</span>
+                      <SelectField
+                        label={`Line ${ref} jumps to`}
+                        hideLabel
+                        value={sdo.jumpTo ?? ''}
+                        options={
+                          later.some((l) => l.value === sdo.jumpTo)
+                            ? later
+                            : [{ value: sdo.jumpTo ?? '', label: 'Pick a line' }, ...later]
+                        }
+                        onChange={(jumpTo) => update(sdo.id, { jumpTo })}
+                      />
+                    </div>
+                  ) : null}
+                  {jumpProblem ? (
+                    <span className='text-[10px] text-red-600 dark:text-red-400'>{jumpProblem}</span>
+                  ) : policy === 'jump' ? (
+                    <span className={hintClassName}>Skips every line in between</span>
                   ) : null}
                 </td>
                 <td className='py-1'>
