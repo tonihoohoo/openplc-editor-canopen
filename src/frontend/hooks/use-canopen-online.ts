@@ -6,6 +6,8 @@ import { type CanopenOnline, createCanopenOnline } from '../../middleware/shared
 import { useOpenPLCStore } from '../store'
 import type { CanopenLiveStatus } from './use-canopen-status'
 
+const STALE_READS = 3
+
 export interface CanopenServiceControl {
   /** The runtime offers service mode and the PLC does not run CANopen. */
   available: boolean
@@ -53,7 +55,8 @@ export function useCanopenOnline(
   const hasSdo = features.includes('sdo')
   const hasService = features.includes('service')
   const serviceRuns = live?.network?.mode === 'service'
-  const ready = live !== null && live.active && live.network !== null && !live.stale
+  // One missed status read does not grey the tools; a few in a row do.
+  const ready = live !== null && live.active && live.network !== null && live.failures < STALE_READS
 
   useEffect(() => {
     openedRef.current = opened

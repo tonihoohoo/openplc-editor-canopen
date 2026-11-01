@@ -144,7 +144,14 @@ test('screenshots of the CANopen Online tabs', async () => {
 
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1100, 800)))
     await page.waitForTimeout(500)
-    await shot(page, '09-node-online-narrow.png')
+    await page.getByTestId('canopen-online-row-4096:0').scrollIntoViewIfNeeded()
+    await shot(page, '09-node-online-narrow-expert.png')
+    await page.getByTestId('canopen-online-row-8448:0').scrollIntoViewIfNeeded()
+    await shot(page, '11-node-online-narrow-write.png')
+    await page.getByRole('switch', { name: 'Expert view' }).first().uncheck()
+    await page.waitForTimeout(300)
+    await page.getByTestId('canopen-online-row-4096:0').scrollIntoViewIfNeeded()
+    await shot(page, '10-node-online-narrow-basic.png')
   } finally {
     await quitApp(app, page)
     runtime.close()

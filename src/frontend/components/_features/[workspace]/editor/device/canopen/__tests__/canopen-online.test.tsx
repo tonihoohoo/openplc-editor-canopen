@@ -287,6 +287,17 @@ describe('CANopen online tools', () => {
     expect(raw.textContent).toContain('0x1017:00')
   })
 
+  it('reads an object the EDS lists as its EDS type in Any object', async () => {
+    await renderEditor()
+    openNodeOnline()
+    fireEvent.click(screen.getByRole('button', { name: 'Any object…' }))
+    const raw = screen.getByTestId('canopen-online-raw')
+    fireEvent.change(within(raw).getByLabelText('Index (hex)'), { target: { value: '1017' } })
+    expect(within(raw).getByLabelText<HTMLSelectElement>('Data type').value).toBe('UNSIGNED16')
+    fireEvent.change(within(raw).getByLabelText('Index (hex)'), { target: { value: '5FFF' } })
+    expect(within(raw).getByLabelText<HTMLSelectElement>('Data type').value).toBe('raw bytes')
+  })
+
   it('opens the bus in service mode while the PLC is stopped', async () => {
     await renderEditor({ status: { version: 1, active: false } })
     const open = screen.getAllByRole('button', { name: 'Open bus' })[0]

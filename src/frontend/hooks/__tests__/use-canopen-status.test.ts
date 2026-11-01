@@ -91,12 +91,14 @@ describe('useCanopenStatus', () => {
     expect(result.current?.stale).toBe(true)
     expect(result.current?.error).toBe('timed out')
     expect(result.current?.network?.name).toBe('CANopen_1')
+    expect(result.current?.failures).toBe(1)
     read.mockImplementation(() => ok({ version: 9 }))
     await advance(CANOPEN_STATUS_POLL_MS)
     expect(result.current?.error).toContain('does not read')
+    expect(result.current?.failures).toBe(2)
     read.mockImplementation(() => ok({ active: false }))
     await advance(CANOPEN_STATUS_POLL_MS)
-    expect(result.current).toMatchObject({ active: false, network: null, stale: false })
+    expect(result.current).toMatchObject({ active: false, network: null, stale: false, failures: 0 })
   })
 
   it('stops when the connection ends or the editor closes', async () => {

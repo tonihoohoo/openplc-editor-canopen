@@ -160,12 +160,16 @@ and no Open bus, and turning it off closes the service mode the editor opened.
 
 - **Basic view (read only).** Every object of the node's EDS with index, name, type, access, the value
   in the project (the value the master writes at boot, marked with `*`, else the EDS default) and the
-  value read from the node, in fixed columns that do not move while values load; long values wrap. Search over index
+  value read from the node, in fixed columns that do not move while values load; long values wrap.
+  When the tab is too narrow for a readable name, type and access move under the name and, in the
+  expert view, the Write field under the node's value. Search over index
   and name; filters for all objects, "Differs from project" (highlighted), writable objects and
   objects mapped in a PDO; Read per object and Read all with progress and Stop; decimal or hex;
   strings decoded. Read all goes on while another tab or node is shown and ends when done or stopped.
   A refused read shows a short text in the row and the abort code in words on hover.
-  **Any object…** opens a reader for any index and sub-index, by data type or as raw hex bytes.
+  **Any object…** opens a reader for any index and sub-index, by data type or as raw hex bytes; an
+  object the EDS lists starts with its EDS data type.
+  The tools stay usable through two failed status reads in a row and grey out from the third.
 - **Expert view.** A Write field on each writable object, with the same typed parsing and EDS limits
   as startup SDOs; the object is read back after the write, and the project is not changed. A write
   to an object the master writes at boot says that the value lasts until the node boots again.

@@ -35,7 +35,7 @@ import {
   valueDiffers,
   type ValueDisplay,
 } from '@root/middleware/shared/utils/canopen'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { StatusDot } from './status-view'
 import { cardClassName, headingClassName, hintClassName, inputClassName, secondaryButtonClassName } from './styles'
@@ -91,6 +91,26 @@ export const ConfirmBar = ({ confirm, onClose }: { confirm: ConfirmRequest | nul
       </button>
     </div>
   ) : null
+
+/** The width of an element, kept up to date while it is mounted; 0 before the first measure. */
+function useElementWidth<T extends HTMLElement>(): [(el: T | null) => void, number] {
+  const [width, setWidth] = useState(0)
+  const observer = useRef<ResizeObserver | null>(null)
+  const ref = useCallback((el: T | null) => {
+    observer.current?.disconnect()
+    observer.current = null
+    if (!el) return
+    setWidth(el.getBoundingClientRect().width)
+    if (typeof ResizeObserver === 'undefined') return
+    observer.current = new ResizeObserver((entries) => setWidth(entries[0]?.contentRect.width ?? 0))
+    observer.current.observe(el)
+  }, [])
+  return [ref, width]
+}
+
+/** Below this width left for Name, Type and Access move under the name to keep it readable. */
+const MIN_NAME_PX = 220
+const FIXED_PX = { index: 84, type: 112, access: 60, value: 150, project: 110, node: 142, read: 56, write: 196 }
 
 /** A card's controls with its feedback to their right, so the card keeps its size as feedback comes and goes. */
 const WithFeedback = ({ children, feedback }: { children: ReactNode; feedback: ReactNode }) => (
@@ -204,7 +224,7 @@ export const ServiceBus = ({ online }: { online: CanopenOnlineContext }) => {
 export function notReadyText(online: CanopenOnlineContext): string | null {
   if (online.ready) return null
   return online.service.available
-    ? 'The buttons are greyed because CANopen does not run on the runtime. Open the bus to reach the nodes.'
+    ? 'The buttons are greyed because CANopen does not run on the runtime. Open the bus to reach the nodes:'
     : 'The buttons are greyed because CANopen does not run on the runtime, or its program has no network by this name.'
 }
 
@@ -273,7 +293,12 @@ const WriteCell = ({ row, nodeId, disabled, onWrite, onProblem }: WriteCellProps
           if (e.key === 'Enter') submit()
         }}
       />
-      <button type='button' className={smallButtonClassName} disabled={disabled || text.trim() === ''} onClick={submit}>
+      <button
+        type='button'
+        className={cn(smallButtonClassName, 'shrink-0 whitespace-nowrap')}
+        disabled={disabled || text.trim() === ''}
+        onClick={submit}
+      >
         Write
       </button>
     </>
@@ -398,14 +423,22 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
 
   const readable = rows.filter((r) => isReadable(r.object)).map((r) => r.object)
   const canWrite = (object: CanopenObject) => expert && isWritable(object) && !NEVER_WRITTEN_INDICES.has(object.index)
-  const columns = 7
+  const [tableRef, tableWidth] = useElementWidth<HTMLDivElement>()
+  const fullPx =
+    FIXED_PX.index + FIXED_PX.type + FIXED_PX.access + 2 * FIXED_PX.value + (expert ? FIXED_PX.write : FIXED_PX.read)
+  const compact = tableWidth > 0 && tableWidth - fullPx < MIN_NAME_PX
+  const columns = compact ? 5 : 7
+  const actionsPx = compact || !expert ? FIXED_PX.read : FIXED_PX.write
 
   return (
     <div className='flex flex-col gap-4' data-testid='canopen-online-tab'>
       {notReady ? (
-        <p className={hintClassName} role='status'>
-          {notReady}
-        </p>
+        <div className='flex flex-wrap items-center gap-3'>
+          <p className={hintClassName} role='status'>
+            {notReady}
+          </p>
+          {online.service.available && !online.service.open ? <ServiceBus online={online} /> : null}
+        </div>
       ) : null}
 
       {expert && online.nmt ? (
@@ -509,107 +542,119 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
 
         {anyObject ? <RawAccess node={node} online={online} expert={expert} /> : null}
 
-        <table className='w-full table-fixed text-left text-xs'>
-          <colgroup>
-            <col className='w-[84px]' />
-            <col />
-            <col className='w-[112px]' />
-            <col className='w-[60px]' />
-            <col className='w-[150px]' />
-            <col className='w-[150px]' />
-            <col className={expert ? 'w-[196px]' : 'w-[56px]'} />
-          </colgroup>
-          <thead className='text-neutral-500 dark:text-neutral-400'>
-            <tr>
-              <th className='py-1 pr-2 font-medium'>Index</th>
-              <th className='py-1 pr-2 font-medium'>Name</th>
-              <th className='py-1 pr-2 font-medium'>Type</th>
-              <th className='py-1 pr-2 font-medium'>Access</th>
-              <th className='py-1 pr-2 font-medium'>Project</th>
-              <th className='py-1 pr-2 font-medium'>Node</th>
-              <th className='py-1 font-medium'>
-                <span className='sr-only'>Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className='text-neutral-850 dark:text-neutral-200'>
-            {shown.map((row) => {
-              const { object } = row
-              const k = objectKey(object)
-              const value = values.get(k)
-              const note = notes.get(k)
-              const differs =
-                value !== undefined &&
-                !value.pending &&
-                value.result.ok &&
-                valueDiffers(row.project, value.result.bytes)
-              const failedRead = value !== undefined && !value.pending && !value.result.ok
-              const project = row.project ? formatCanopenValue(object.dataType, row.project, display) : ''
-              const projectTitle = row.masterWrites ? `${project} (the master writes it at boot)` : project
-              const nodeValue = valueText(row, value, display)
-              return (
-                <RowGroup key={k}>
-                  <tr
-                    data-testid={`canopen-online-row-${k}`}
-                    className='h-[34px] border-t border-neutral-100 dark:border-neutral-800'
-                  >
-                    <td className='truncate py-1 pr-2 font-mono'>{ref(object)}</td>
-                    <td className='truncate py-1 pr-2' title={objectLabel(object)}>
-                      {objectLabel(object)}
-                    </td>
-                    <td className='truncate py-1 pr-2'>{dataTypeLabel(object.dataType)}</td>
-                    <td className='truncate py-1 pr-2'>{object.access}</td>
-                    <td className='py-1 pr-2 font-mono [overflow-wrap:anywhere]' title={projectTitle}>
-                      {project}
-                      {row.masterWrites ? <span className={cn(hintClassName, 'ml-1')}>*</span> : null}
-                    </td>
-                    <td
-                      className={cn(
-                        'py-1 pr-2 font-mono [overflow-wrap:anywhere]',
-                        differs && 'bg-amber-100 dark:bg-amber-900/30',
-                        failedRead && 'font-sans text-red-600 dark:text-red-400',
-                      )}
-                      title={valueTitle(row, value, display)}
-                      data-testid={`canopen-online-value-${k}`}
+        <div ref={tableRef}>
+          <table className='w-full table-fixed text-left text-xs'>
+            <colgroup>
+              <col style={{ width: FIXED_PX.index }} />
+              <col />
+              {compact ? null : <col style={{ width: FIXED_PX.type }} />}
+              {compact ? null : <col style={{ width: FIXED_PX.access }} />}
+              <col style={{ width: compact ? FIXED_PX.project : FIXED_PX.value }} />
+              <col style={{ width: compact ? FIXED_PX.node : FIXED_PX.value }} />
+              <col style={{ width: actionsPx }} />
+            </colgroup>
+            <thead className='text-neutral-500 dark:text-neutral-400'>
+              <tr>
+                <th className='py-1 pr-2 font-medium'>Index</th>
+                <th className='py-1 pr-2 font-medium'>Name</th>
+                {compact ? null : <th className='py-1 pr-2 font-medium'>Type</th>}
+                {compact ? null : <th className='py-1 pr-2 font-medium'>Access</th>}
+                <th className='py-1 pr-2 font-medium'>Project</th>
+                <th className='py-1 pr-2 font-medium'>Node</th>
+                <th className='py-1 font-medium'>
+                  <span className='sr-only'>Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className='text-neutral-850 dark:text-neutral-200'>
+              {shown.map((row) => {
+                const { object } = row
+                const k = objectKey(object)
+                const value = values.get(k)
+                const note = notes.get(k)
+                const differs =
+                  value !== undefined &&
+                  !value.pending &&
+                  value.result.ok &&
+                  valueDiffers(row.project, value.result.bytes)
+                const failedRead = value !== undefined && !value.pending && !value.result.ok
+                const project = row.project ? formatCanopenValue(object.dataType, row.project, display) : ''
+                const projectTitle = row.masterWrites ? `${project} (the master writes it at boot)` : project
+                const nodeValue = valueText(row, value, display)
+                const writeCell = (
+                  <WriteCell
+                    row={row}
+                    nodeId={nodeId}
+                    disabled={!ready}
+                    onWrite={(r, bytes) => void write(r, bytes)}
+                    onProblem={(text) => setNote(k, { text })}
+                  />
+                )
+                return (
+                  <RowGroup key={k}>
+                    <tr
+                      data-testid={`canopen-online-row-${k}`}
+                      className='h-[34px] border-t border-neutral-100 dark:border-neutral-800'
                     >
-                      {nodeValue}
-                    </td>
-                    <td className='py-1'>
-                      <div className='flex items-center justify-end gap-1'>
-                        {canWrite(object) ? (
-                          <WriteCell
-                            row={row}
-                            nodeId={nodeId}
-                            disabled={!ready}
-                            onWrite={(r, bytes) => void write(r, bytes)}
-                            onProblem={(text) => setNote(k, { text })}
-                          />
+                      <td className='truncate py-1 pr-2 font-mono'>{ref(object)}</td>
+                      <td className='py-1 pr-2' title={objectLabel(object)}>
+                        <span className={cn('block', compact ? '[overflow-wrap:anywhere]' : 'truncate')}>
+                          {objectLabel(object)}
+                        </span>
+                        {compact ? (
+                          <span className={cn(hintClassName, 'block')}>
+                            {dataTypeLabel(object.dataType)}, {object.access}
+                          </span>
                         ) : null}
-                        {isReadable(object) ? (
-                          <button
-                            type='button'
-                            className={smallButtonClassName}
-                            disabled={!ready || value?.pending === true}
-                            onClick={() => void reads.read(nodeId, object)}
-                          >
-                            Read
-                          </button>
+                      </td>
+                      {compact ? null : <td className='truncate py-1 pr-2'>{dataTypeLabel(object.dataType)}</td>}
+                      {compact ? null : <td className='truncate py-1 pr-2'>{object.access}</td>}
+                      <td className='py-1 pr-2 font-mono [overflow-wrap:anywhere]' title={projectTitle}>
+                        {project}
+                        {row.masterWrites ? <span className={cn(hintClassName, 'ml-1')}>*</span> : null}
+                      </td>
+                      <td
+                        className={cn(
+                          'py-1 pr-2 font-mono [overflow-wrap:anywhere]',
+                          differs && 'bg-amber-100 dark:bg-amber-900/30',
+                          failedRead && 'font-sans text-red-600 dark:text-red-400',
+                        )}
+                        title={valueTitle(row, value, display)}
+                      >
+                        <span data-testid={`canopen-online-value-${k}`}>{nodeValue}</span>
+                        {canWrite(object) && compact ? (
+                          <div className='mt-1 flex items-center gap-1 font-sans'>{writeCell}</div>
                         ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                  {note ? (
-                    <tr data-testid={`canopen-online-note-${k}`}>
-                      <td colSpan={columns} className='pb-2 pl-[72px]'>
-                        <NoteLine note={note} onClose={() => setNote(k, null)} />
+                      </td>
+                      <td className='py-1'>
+                        <div className='flex items-center justify-end gap-1'>
+                          {canWrite(object) && !compact ? writeCell : null}
+                          {isReadable(object) ? (
+                            <button
+                              type='button'
+                              className={smallButtonClassName}
+                              disabled={!ready || value?.pending === true}
+                              onClick={() => void reads.read(nodeId, object)}
+                            >
+                              Read
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
-                  ) : null}
-                </RowGroup>
-              )
-            })}
-          </tbody>
-        </table>
+                    {note ? (
+                      <tr data-testid={`canopen-online-note-${k}`}>
+                        <td colSpan={columns} className='pb-2 pl-[72px]'>
+                          <NoteLine note={note} onClose={() => setNote(k, null)} />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </RowGroup>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
         {shown.length === 0 ? <p className={cn(hintClassName, 'mt-2')}>No object matches.</p> : null}
         {rows.some((r) => r.masterWrites) ? (
           <p className={cn(hintClassName, 'mt-2')}>* The master writes this value at boot.</p>
@@ -686,7 +731,7 @@ const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineCon
       if (!r.ok) {
         const failed = `${op === 'save' ? 'Save' : 'Restore'} failed: ${r.message}.`
         if (r.abortCode === ABORT_DEVICE_STATE && !retried && online.nmt) {
-          onResult(`${failed} The node may take it in pre-operational.`)
+          onResult(failed)
           setOffer({ kind: 'retry', op, subIndex, name })
         } else {
           onResult(`${failed}${inPreOp}`)
@@ -729,15 +774,17 @@ const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineCon
       case 'retry': {
         const { op, subIndex, name } = offer
         return offerRow(
-          `The node refused the ${op} in its present state.`,
+          'The node may take it in pre-operational.',
           {
             label: 'Switch to pre-operational and retry',
-            run: () =>
+            run: () => {
+              setOffer(null)
               feedback.ask({
                 text: `Put the node in pre-operational and ${op} again?`,
                 label: 'Switch and retry',
                 action: () => retryInPreOperational(op, subIndex, name),
-              }),
+              })
+            },
           },
           () => setOffer(null),
         )
@@ -890,6 +937,16 @@ const RawAccess = ({ node, online, expert }: { node: CanopenNode; online: Canope
   }
   const dataType = type === 'raw bytes' ? '0x000A' : type
 
+  // An object the EDS lists is read and written as its EDS type until the user picks another.
+  const followEds = (nextIndex: string, nextSub: string) => {
+    const i = Number.parseInt(nextIndex.replace(/^0x/i, ''), 16)
+    const sv = nextSub.trim().toLowerCase()
+    const sn = sv.startsWith('0x') ? Number.parseInt(sv.slice(2), 16) : Number(sv)
+    const object = node.eds.objects.find((o) => o.index === i && o.subIndex === sn)
+    const label = object ? dataTypeLabel(object.dataType) : null
+    setType(label && RAW_TYPES.includes(label) ? label : 'raw bytes')
+  }
+
   const doRead = () => {
     const t = target()
     if (!t) return setResult('Give the index in hex (for example 2000) and the sub-index (0 to 255).')
@@ -925,13 +982,19 @@ const RawAccess = ({ node, online, expert }: { node: CanopenNode; online: Canope
           placeholder='Index (hex)'
           className={cn(inputClassName, 'w-[96px]')}
           value={index}
-          onChange={(e) => setIndex(e.target.value)}
+          onChange={(e) => {
+            setIndex(e.target.value)
+            followEds(e.target.value, sub)
+          }}
         />
         <input
           aria-label='Sub-index'
           className={cn(inputClassName, 'w-[64px]')}
           value={sub}
-          onChange={(e) => setSub(e.target.value)}
+          onChange={(e) => {
+            setSub(e.target.value)
+            followEds(index, e.target.value)
+          }}
         />
         <select
           aria-label='Data type'
