@@ -3,14 +3,14 @@
  * memory, any-object access and NMT to all nodes, at a wide and a narrow window. Writes PNGs to
  * SCREENSHOT_DIR (default test-results/canopen-online-screens).
  *
- * Needs a production build plus the preload copy; see "Electron e2e" in CLAUDE.md. Port 8443 must be free.
+ * Local only (CI runs `e2e/canopen-*`). Needs a production build plus the preload copy; see "Electron e2e" in CLAUDE.md. Port 8443 must be free.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { expect, type Page, test } from '@playwright/test'
 
-import { FakeNode, openDevice } from './helpers/canopen-runtime'
+import { FakeNode, openDevice } from './helpers/canopen-online-node'
 import { quitApp } from './helpers/ethercat-project'
 
 const OUT = process.env.SCREENSHOT_DIR ?? join(__dirname, '..', 'test-results', 'canopen-online-screens')
@@ -145,7 +145,7 @@ test('screenshots of the CANopen Online tabs', async () => {
     await expect(state).toContainText('Stop sent to every node.', { timeout: 15000 })
     await shot(page, '08-node-state-all-nodes-sent.png')
 
-    node.refused.set('4112:1', 0x08000020)
+    node.aborts.set('4112:1', 0x08000020)
     await memory.getByRole('button', { name: 'Save to node' }).click()
     await memory.getByRole('alertdialog').getByRole('button', { name: 'Save to node' }).click()
     await expect(memory).toContainText('Save failed', { timeout: 15000 })

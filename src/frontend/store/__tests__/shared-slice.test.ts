@@ -1531,6 +1531,37 @@ describe('createSharedSlice', () => {
         const result = store.getState().remoteDeviceActions.create({ name: 'bad name', protocol: 'modbus-tcp' })
         expect(result.ok).toBe(false)
       })
+
+      describe('the canopen block library', () => {
+        const projectLibraries = (): string[] =>
+          (store.getState().project.data.libraries ?? []).map((l: { name: string }) => l.name)
+
+        beforeEach(() => {
+          const actions = store.getState().libraryActions
+          actions.setSystemLibraries([
+            { name: 'canopen', author: '', version: '1.0.0', stPath: '', cPath: '', pous: [{ name: 'SDO_READ4' }] },
+          ] as unknown as Parameters<typeof actions.setSystemLibraries>[0])
+          actions.setProjectLibraries([])
+        })
+
+        it('is turned on by the first CANopen network', () => {
+          expect(store.getState().remoteDeviceActions.create({ name: 'line_1', protocol: 'canopen' }).ok).toBe(true)
+          expect(projectLibraries()).toEqual(['canopen'])
+          expect(store.getState().enabledLibraries).toContain('canopen')
+        })
+
+        it('stays off when the user turned it off before adding a second network', () => {
+          store.getState().remoteDeviceActions.create({ name: 'line_1', protocol: 'canopen' })
+          store.getState().libraryActions.disableLibrary('canopen')
+          store.getState().remoteDeviceActions.create({ name: 'line_2', protocol: 'canopen' })
+          expect(projectLibraries()).toEqual([])
+        })
+
+        it('is not turned on by other remote devices', () => {
+          store.getState().remoteDeviceActions.create({ name: 'Device1', protocol: 'modbus-tcp' })
+          expect(projectLibraries()).toEqual([])
+        })
+      })
     })
 
     describe('deleteRequest', () => {

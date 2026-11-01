@@ -10,6 +10,8 @@ import { join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
+import { windowSize } from './helpers/canopen-project'
+import { keyView, shot } from './helpers/canopen-shots'
 import {
   buildFromMenu,
   findFile,
@@ -43,11 +45,12 @@ test('a node added from an EDS file builds into conf/canopen.json', async () => 
   const { project, userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-offline'), '', STATION)
   const { app, page } = await launch(userData)
   // Below a desktop size the app shows its mobile notice instead (a virtual display opens it at 800x600).
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1600, 1000)))
+  await windowSize(app, 1600, 1000)
   try {
     await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
     await page.getByText('canopen_1', { exact: true }).first().click({ timeout: 30000 })
     await expect(page.getByText('No nodes yet')).toBeVisible({ timeout: 30000 })
+    await keyView(page, 'network-empty')
 
     await page.getByTestId('canopen-eds-input').setInputFiles(EDS)
     await expect(page.getByText('Node 1: Generic_I_O_module')).toBeVisible({ timeout: 15000 })
@@ -55,12 +58,27 @@ test('a node added from an EDS file builds into conf/canopen.json', async () => 
     await nodeId.fill('2')
     await nodeId.press('Enter')
     await expect(page.getByText('Node 2: Generic_I_O_module')).toBeVisible()
+    await keyView(page, 'node-basic')
 
     await page.getByRole('tab', { name: /Outputs/ }).click()
     const output = page.getByTestId('canopen-pdo-output-1')
     await expect(output.getByText('%QB0')).toBeVisible()
     await output.getByLabel('Alias of Outputs 1-8').fill('io_outputs')
     await output.getByLabel('Alias of Outputs 1-8').press('Enter')
+    await keyView(page, 'node-outputs')
+
+    // Aliases are unique across all I/O: an input cannot take the outputs' alias.
+    await page.getByRole('tab', { name: /Inputs/ }).click()
+    const inputAlias = page
+      .getByTestId('canopen-pdo-input-1')
+      .getByLabel(/^Alias of /)
+      .first()
+    await inputAlias.fill('io_outputs')
+    await inputAlias.press('Enter')
+    await expect(page.getByText(/"io_outputs" is already assigned to/)).toBeVisible()
+    await shot(page, 'offline-build-alias-in-use')
+    await inputAlias.fill('')
+    await inputAlias.press('Enter')
 
     await buildFromMenu(page, 'Build only')
     const build = join(project, 'build')
@@ -91,6 +109,7 @@ test('a node added from an EDS file builds into conf/canopen.json', async () => 
         },
       ],
     })
+    await shot(page, 'offline-build-done')
     const program = readFileSync(findFile(build, 'program.st') ?? '', 'utf-8')
     expect(program).toMatch(/outputs\s+AT\s+%QB0/i)
   } finally {

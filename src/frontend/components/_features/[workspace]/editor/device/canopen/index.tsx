@@ -14,6 +14,7 @@ import type {
 } from '@root/middleware/shared/ports/canopen-types'
 import {
   type CanopenCheck,
+  canopenNameProblems,
   canopenSdoWarnings,
   checkCanopenNetwork,
   checkText,
@@ -25,6 +26,7 @@ import {
   parseEds,
   placeholderAddress,
   plcCycleUs,
+  projectNamesForCanopen,
   uniqueNodeName,
   updateNode,
   validateCanopenProject,
@@ -141,6 +143,9 @@ const CanopenEditor = () => {
   const editor = useOpenPLCStore((s) => s.editor)
   const remoteDevices = useOpenPLCStore((s) => s.project.data.remoteDevices)
   const tasks = useOpenPLCStore((s) => s.project.data.configurations.resource.tasks)
+  const pous = useOpenPLCStore((s) => s.project.data.pous)
+  const dataTypes = useOpenPLCStore((s) => s.project.data.dataTypes)
+  const globals = useOpenPLCStore((s) => s.project.data.configurations.resource.globalVariables)
   const registry = useAliasRegistry()
 
   const deviceName = editor.type === 'plc-remote-device' ? editor.meta.name : ''
@@ -164,10 +169,22 @@ const CanopenEditor = () => {
   const problems = useMemo(() => {
     if (!device) return []
     const covered = checks.filter((c) => c.level === 'error').map(checkText)
-    return validateCanopenProject([device], cycleUs, { includeOff: true }).filter(
-      (p) => !covered.some((c) => p.endsWith(c)),
-    )
-  }, [device, checks, cycleUs])
+    // Node and network names become program constants, so they may not clash with the project.
+    const names = canopenNameProblems(
+      remoteDevices,
+      projectNamesForCanopen(
+        globals,
+        pous.map((p) => p.name),
+        dataTypes,
+      ),
+    ).filter((p) => p.startsWith(`CANopen network "${deviceName}"`) || p.startsWith(`CANopen "${deviceName}" node`))
+    return [
+      ...validateCanopenProject([device], cycleUs, { includeOff: true }).filter(
+        (p) => !covered.some((c) => p.endsWith(c)),
+      ),
+      ...names,
+    ]
+  }, [device, checks, cycleUs, remoteDevices, globals, pous, dataTypes, deviceName])
   const sdoWarnings = useMemo(() => {
     const map = new Map<string, string>()
     if (device) for (const w of canopenSdoWarnings(device)) map.set(w.sdoId, w.message)

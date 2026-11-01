@@ -51,6 +51,7 @@ these four lines when merging an upstream release.
 
 ## After an upstream release
 
-1. Sync `main` and merge it into `canopen` in its own pull request, keeping the four lines above.
+1. Sync `main` and merge it into `canopen` in its own pull request from a `sync/upstream-<version>`
+   branch, keeping the four lines above. That branch name makes the CANopen UI tests run on it.
 2. Disable any new release or publish workflow upstream added.
 3. Release with N back at 1 on the new upstream version.

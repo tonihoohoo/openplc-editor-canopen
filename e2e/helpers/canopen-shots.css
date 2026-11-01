@@ -1,0 +1,4 @@
+/* Toasts come and go on their own timer; they are not part of a key view. */
+li[data-swipe-direction] {
+  visibility: hidden !important;
+}

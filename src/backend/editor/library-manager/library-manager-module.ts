@@ -85,12 +85,19 @@ export class LibraryManagerModule {
   private librariesDir: string
   private registryPath: string
   private bundledDir: string
+  private shippedDir: string
   private catalogTransport: CatalogTransportPort
 
-  constructor(opts?: { librariesDir?: string; bundledDir?: string; catalogTransport?: CatalogTransportPort }) {
+  constructor(opts?: {
+    librariesDir?: string
+    bundledDir?: string
+    shippedDir?: string
+    catalogTransport?: CatalogTransportPort
+  }) {
     this.librariesDir = opts?.librariesDir ?? join(app.getPath('userData'), 'libraries')
     this.registryPath = join(this.librariesDir, 'registry.json')
     this.bundledDir = opts?.bundledDir ?? this.resolveDefaultBundledDir()
+    this.shippedDir = opts?.shippedDir ?? this.resolveDefaultShippedDir()
     // The catalog transport is injected so tests can stub HTTP — the
     // default desktop impl reads `OPENPLC_EDGE_API_URL` lazily on
     // every request, so it picks up env changes without restarting.
@@ -117,6 +124,14 @@ export class LibraryManagerModule {
       return join(process.resourcesPath, 'strucpp', 'libs')
     }
     return join(app.getAppPath(), 'node_modules', 'strucpp', 'libs')
+  }
+
+  /**
+   * Libraries that ship with the editor but are not always on (the CANopen blocks): installed
+   * like a user library, enabled per project. `resources/libraries/` in development.
+   */
+  private resolveDefaultShippedDir(): string {
+    return app.isPackaged ? join(process.resourcesPath, 'libraries') : join(process.cwd(), 'resources', 'libraries')
   }
 
   // -------------------------------------------------------------------------
@@ -179,6 +194,10 @@ export class LibraryManagerModule {
         }),
       )
     }
+    for (const archive of this.shippedArchivesNotInstalled()) {
+      const { name, version } = archive.manifest
+      out.push(userArchiveToInstalledRow(archive, { name, version, installedAt: '', origin: 'stlib' }))
+    }
     return out
   }
 
@@ -204,7 +223,9 @@ export class LibraryManagerModule {
     for (const name of enabledNames) {
       const entry = registry.libraries[name]
       if (!entry) {
-        missing.push(name)
+        const shipped = this.shippedArchive(name)
+        if (shipped) archives.push(shipped)
+        else missing.push(name)
         continue
       }
       const archive = this.readUserArchive(name, entry.stlibPath)
@@ -241,6 +262,10 @@ export class LibraryManagerModule {
         // the libraries directory is exactly what that guard exists to stop.
       }
     }
+    if (!entry && this.shippedArchive(name)) {
+      const file = this.shippedFiles.get(name)
+      if (file) return readFileSync(file, 'utf-8')
+    }
 
     if (!existsSync(this.bundledDir)) return null
     for (const file of readdirSync(this.bundledDir).filter((f) => f.endsWith('.stlib'))) {
@@ -270,6 +295,7 @@ export class LibraryManagerModule {
       const archive = this.readUserArchive(name, info.stlibPath)
       if (archive) out.push(archive)
     }
+    out.push(...this.shippedArchivesNotInstalled())
     return out
   }
 
@@ -367,6 +393,9 @@ export class LibraryManagerModule {
 
       const registry = this.readRegistry()
       const entry = registry.libraries[name]
+      if (!entry && this.shippedArchive(name)) {
+        return { success: false, error: `Library '${name}' ships with the editor; turn it off in the project instead` }
+      }
       if (!entry) {
         return { success: false, error: `Library '${name}' is not installed` }
       }
@@ -516,6 +545,43 @@ export class LibraryManagerModule {
     this.bundledArchivesCache = archives
     this.bundledNamesCache = names
     return archives
+  }
+
+  private shippedCache: StlibArchiveDTO[] | null = null
+  private shippedFiles = new Map<string, string>()
+
+  /** Archives in the shipped directory, cached for the process lifetime. */
+  private readShippedArchives(): StlibArchiveDTO[] {
+    if (this.shippedCache) return this.shippedCache
+    const archives: StlibArchiveDTO[] = []
+    if (existsSync(this.shippedDir)) {
+      for (const file of readdirSync(this.shippedDir)
+        .filter((f) => f.endsWith('.stlib'))
+        .sort()) {
+        try {
+          const path = join(this.shippedDir, file)
+          const archive = this.coerceArchive(JSON.parse(readFileSync(path, 'utf-8')) as unknown)
+          if (!archive || this.isBundled(archive.manifest.name)) continue
+          archives.push(archive)
+          this.shippedFiles.set(archive.manifest.name, path)
+        } catch {
+          // Skip a malformed archive, as readBundledArchives does.
+        }
+      }
+    }
+    this.shippedCache = archives
+    return archives
+  }
+
+  /** The shipped archive of `name`, unless the user installed a library of that name. */
+  private shippedArchive(name: string): StlibArchiveDTO | null {
+    if (this.readRegistry().libraries[name]) return null
+    return this.readShippedArchives().find((a) => a.manifest.name === name) ?? null
+  }
+
+  private shippedArchivesNotInstalled(): StlibArchiveDTO[] {
+    const installed = this.readRegistry().libraries
+    return this.readShippedArchives().filter((a) => !installed[a.manifest.name])
   }
 
   private isBundled(name: string): boolean {

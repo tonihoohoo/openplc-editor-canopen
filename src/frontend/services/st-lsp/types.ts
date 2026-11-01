@@ -57,6 +57,9 @@ export const DATA_TYPES_URI = 'inmemory://datatypes/__project__.st'
  */
 export const SOFTMOTION_GLOBALS_URI = 'inmemory://softmotion/__axes__.st'
 
+/** URI for the synthesized CANopen node and network name constants the build declares. */
+export const CANOPEN_NAMES_URI = 'inmemory://canopen/__names__.st'
+
 /**
  * URI for the synthesized resource-globals document — the project's
  * configuration-level `VAR_GLOBAL`s wrapped in a `CONFIGURATION` block, so a

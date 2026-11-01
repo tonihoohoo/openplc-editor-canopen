@@ -10,6 +10,8 @@ import { join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
+import { windowSize } from './helpers/canopen-project'
+import { keyView, shot } from './helpers/canopen-shots'
 import {
   buildFromMenu,
   findFile,
@@ -41,7 +43,7 @@ test('node options, a fix and the network error behaviour reach the build', asyn
   test.setTimeout(300000)
   const { project, userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-options'), '', STATION)
   const { app, page } = await launch(userData)
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1600, 1000)))
+  await windowSize(app, 1600, 1000)
   try {
     await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
     await page.getByText('canopen_1', { exact: true }).first().click({ timeout: 30000 })
@@ -53,6 +55,7 @@ test('node options, a fix and the network error behaviour reach the build', asyn
     await expect(page.getByLabel('No initialization', { exact: true })).toHaveCount(0)
     await page.getByRole('switch', { name: 'Expert view' }).check()
     await expect(page.getByLabel('No initialization', { exact: true })).toBeVisible()
+    await keyView(page, 'node-expert')
     await expect(page.getByLabel('Emergency messages', { exact: true })).toBeChecked()
     await page.getByLabel('Optional node', { exact: true }).check()
 
@@ -61,6 +64,7 @@ test('node options, a fix and the network error behaviour reach the build', asyn
     await timeout.press('Enter')
     const checks = page.getByRole('status', { name: 'Network checks' })
     await expect(checks).toContainText('the heartbeat timeout (100 ms) must be longer')
+    await keyView(page, 'network-check-fix')
     await checks.getByRole('button', { name: /^Set to 150 ms/ }).click()
     await expect(checks).toHaveCount(0)
     await expect(timeout).toHaveValue('150')
@@ -71,6 +75,7 @@ test('node options, a fix and the network error behaviour reach the build', asyn
     const period = page.getByLabel('TIME period (ms)', { exact: true })
     await period.fill('500')
     await period.press('Enter')
+    await shot(page, 'node-options-network-time')
 
     await buildFromMenu(page, 'Build only')
     const build = join(project, 'build')
