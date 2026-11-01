@@ -218,9 +218,10 @@ test('service mode opens the bus while the PLC is stopped and closes it again', 
     await shot(page, 'online-service-closed')
     await tab.getByRole('button', { name: 'Open bus' }).click()
     const bus = page.getByTestId('canopen-service-bus')
-    await expect(bus).toContainText('Service mode: the PLC is stopped and the master does not run the nodes.', {
-      timeout: 15000,
-    })
+    await expect(bus.getByRole('button', { name: 'Close bus' })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText('Service mode: the PLC is stopped and the master does not run the nodes')).toHaveCount(
+      1,
+    )
     expect(service).toMatchObject({ op: 'service_open', name: 'canopen_1', nodes: [2, 9] })
     await page.getByRole('button', { name: 'Read all' }).click()
     await expect(page.getByTestId('canopen-online-value-4119:0')).toHaveText('500', { timeout: 15000 })

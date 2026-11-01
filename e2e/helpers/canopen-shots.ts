@@ -12,8 +12,9 @@ export const SHOTS_DIR = join(__dirname, '..', '..', 'test-results', 'canopen-sh
 
 const visual = process.env.CANOPEN_UI_VISUAL === '1'
 
-/** Saves the window as `<name>.png` for the pull request comment. */
+/** Saves the window as `<name>.png` for the pull request comment, with the pointer moved off the controls. */
 export async function shot(page: Page, name: string): Promise<void> {
+  await page.mouse.move(0, 0)
   await page.screenshot({ path: join(SHOTS_DIR, `${name}.png`), animations: 'disabled', caret: 'hide' })
 }
 

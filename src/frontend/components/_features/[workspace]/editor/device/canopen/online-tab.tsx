@@ -228,9 +228,6 @@ export const ServiceBus = ({ online, bare = false }: { online: CanopenOnlineCont
     <div className='flex flex-wrap items-center gap-3' data-testid='canopen-service-bus'>
       {service.open ? (
         <>
-          <span className='text-xs text-neutral-850 dark:text-neutral-200'>
-            Service mode: the PLC is stopped and the master does not run the nodes.
-          </span>
           <button type='button' className={smallButtonClassName} disabled={service.busy} onClick={service.closeBus}>
             Close bus
           </button>
