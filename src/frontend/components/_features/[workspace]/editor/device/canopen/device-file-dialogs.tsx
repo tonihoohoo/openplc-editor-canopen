@@ -21,7 +21,7 @@ import {
   type ReplaceMapping,
   uniqueNodeName,
 } from '@root/middleware/shared/utils/canopen'
-import { Fragment, type ReactNode, useMemo, useState } from 'react'
+import { Fragment, type ReactNode, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import {
@@ -301,13 +301,20 @@ export const DeviceFileDialog = ({
         ? `Cannot add a node from ${prepared.fileName}`
         : `Add node from ${prepared.fileName}`
   const confirmLabel = request.kind === 'replace' ? 'Replace' : preview ? `Add node ${preview.node.nodeId}` : 'Add node'
+  const confirmRef = useRef<HTMLButtonElement>(null)
 
   return (
     <Modal open onOpenChange={(open) => (open ? undefined : onCancel())}>
       <ModalContent
         onClose={onCancel}
-        className='!inset-x-0 !bottom-auto !top-[7vh] !h-auto max-h-[86vh] w-[640px] p-6 pb-0'
+        className='!inset-x-0 !bottom-auto !top-[7vh] !h-[min(86vh,640px)] max-h-[86vh] w-[640px] p-6 pb-0'
         data-testid='canopen-file-dialog'
+        onOpenAutoFocus={(e) => {
+          e.preventDefault()
+          const confirm = confirmRef.current
+          if (confirm && !confirm.disabled) confirm.focus()
+          else if (e.currentTarget instanceof HTMLElement) e.currentTarget.focus()
+        }}
       >
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
         <p className='text-xs text-neutral-600 dark:text-neutral-400'>
@@ -412,6 +419,7 @@ export const DeviceFileDialog = ({
             <button
               type='button'
               className={primaryButtonClassName}
+              ref={confirmRef}
               data-testid='canopen-file-dialog-confirm'
               disabled={!preview}
               onClick={() => {
@@ -459,7 +467,7 @@ export const ExportDialog = ({
     <Modal open onOpenChange={(open) => (open ? undefined : onCancel())}>
       <ModalContent
         onClose={onCancel}
-        className='!inset-x-0 !bottom-auto !top-[7vh] !h-auto max-h-[86vh] w-[640px] p-6 pb-0'
+        className='!inset-x-0 !bottom-auto !top-[7vh] !h-[min(86vh,640px)] max-h-[86vh] w-[640px] p-6 pb-0'
         data-testid='canopen-export-dialog'
       >
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
@@ -488,7 +496,7 @@ export const ExportDialog = ({
             <p className={cn(hintClassName, 'mb-1')}>
               The project keeps these; a file read back into the editor does not bring them.
             </p>
-            <ul data-testid='canopen-export-losses' className='max-h-40 overflow-y-auto'>
+            <ul data-testid='canopen-export-losses'>
               {losses.map((l) => (
                 <Row key={l} kind='lost'>
                   {l}

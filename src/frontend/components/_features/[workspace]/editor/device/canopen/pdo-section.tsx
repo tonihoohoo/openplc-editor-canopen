@@ -252,6 +252,8 @@ const PdoCard = ({
   const moveEntry = (from: number, to: number) => onChange({ ...pdo, entries: moveItem(pdo.entries, from, to) })
 
   const [addedId, setAddedId] = useAddedHighlight()
+  const timeoutWarning =
+    isInput && pdo.enabled ? receiveTimeoutWarning({ eds, nodeId, configure, onLoss }, pdo, syncPeriodUs) : null
 
   const addEntry = (object: (typeof candidates)[number]) => {
     const type = toCanopenDataType(object.dataType)
@@ -347,15 +349,23 @@ const PdoCard = ({
                 min={0}
                 max={65535}
                 objectRef={objectRef(0x1400 + pdo.number - 1, 5)}
-                hint='Master RPDO event timer; 0 for none'
-                warning={receiveTimeoutWarning({ eds, nodeId, configure, onLoss }, pdo, syncPeriodUs) ?? undefined}
-                className='w-[150px]'
+                hint={timeoutWarning ? 'Master side; see below' : 'Master side; 0 for none'}
+                className='w-[140px]'
                 onCommit={(receiveTimeoutMs) => onChange({ ...pdo, receiveTimeoutMs })}
               />
             ) : null}
           </>
         ) : null}
       </div>
+
+      {timeoutWarning ? (
+        <p
+          data-testid={`canopen-receive-timeout-warning-${pdo.number}`}
+          className='text-[10px] text-amber-600 dark:text-amber-400'
+        >
+          Receive timeout: {timeoutWarning}
+        </p>
+      ) : null}
 
       {pdo.fixedMapping ? (
         <p className={hintClassName}>The device fixes this PDO&apos;s mapping, so its entries cannot be changed.</p>

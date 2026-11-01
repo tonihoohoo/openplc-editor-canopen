@@ -28,6 +28,7 @@ import {
   objectLabel,
   type OnlineObject,
   onlineObjects,
+  pdoMappingMeaning,
   rawWriteRefusal,
   resetForRestore,
   SAVE_SIGNATURE,
@@ -297,18 +298,28 @@ const valueText = (row: OnlineObject, value: CanopenRowValue | undefined, displa
 }
 
 /** Meaning, scaled value or bit names of a read value, from the object's file information. */
-const valueExtra = (row: OnlineObject, value: CanopenRowValue | undefined): string | undefined => {
+const valueExtra = (
+  row: OnlineObject,
+  value: CanopenRowValue | undefined,
+  objects: readonly CanopenObject[],
+): string | undefined => {
   if (!value || value.pending || !value.result.ok) return undefined
   const raw = formatCanopenValue(row.object.dataType, value.result.bytes, 'decimal')
-  const meaning = valueMeaning(row.object, raw) ?? scaledValue(row.object, raw)
+  const meaning =
+    valueMeaning(row.object, raw) ?? scaledValue(row.object, raw) ?? pdoMappingMeaning(row.object, raw, objects)
   const bits = setBitNames(row.object, raw)
   return meaning ?? (bits.length > 0 ? bits.join(', ') : undefined)
 }
 
-const valueTitle = (row: OnlineObject, value: CanopenRowValue | undefined, display: ValueDisplay): string =>
+const valueTitle = (
+  row: OnlineObject,
+  value: CanopenRowValue | undefined,
+  display: ValueDisplay,
+  objects: readonly CanopenObject[],
+): string =>
   value && !value.pending && !value.result.ok
     ? value.result.message
-    : [valueText(row, value, display), valueExtra(row, value)].filter(Boolean).join(' - ')
+    : [valueText(row, value, display), valueExtra(row, value, objects)].filter(Boolean).join(' - ')
 
 type RowNote = { text: string; error?: boolean; retry?: () => void }
 
@@ -706,14 +717,14 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                           'py-1 pr-2 font-mono [overflow-wrap:anywhere]',
                           failedRead && cn('font-sans', errorTextClassName),
                         )}
-                        title={valueTitle(row, value, display)}
+                        title={valueTitle(row, value, display, node.eds.objects)}
                       >
                         <span data-testid={`canopen-online-value-${k}`} className={cn(differs && differsClassName)}>
                           {nodeValue}
                         </span>
-                        {valueExtra(row, value) ? (
+                        {valueExtra(row, value, node.eds.objects) ? (
                           <span className={cn(hintClassName, 'block font-sans')}>
-                            {valueExtra(row, value)}
+                            {valueExtra(row, value, node.eds.objects)}
                             <StandardMark object={object} />
                           </span>
                         ) : null}
@@ -843,7 +854,7 @@ const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineCon
     void client.write(networkIndex, nodeId, index, subIndex, [...signature]).then((r) => {
       const inPreOp = retried ? ' The node is in pre-operational.' : ''
       if (!r.ok) {
-        const failed = `${op === 'save' ? 'Save' : 'Restore'} failed: ${r.message}.`
+        const failed = `${name} failed: ${r.message}.`
         if (r.abortCode === ABORT_DEVICE_STATE && !retried && online.nmt) {
           onResult(failed, true)
           setOffer({ kind: 'retry', op, subIndex, name })
@@ -853,11 +864,11 @@ const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineCon
         return
       }
       if (op === 'save') {
-        onResult(`Saved: ${name}.${inPreOp}`)
+        onResult(`${name}: done.${inPreOp}`)
         if (retried) setOffer({ kind: 'start' })
         return
       }
-      onResult(`Restored: ${name}. Takes effect after a reset.`)
+      onResult(`${name}: done. Takes effect after a reset.`)
       setOffer({ kind: 'reset', subIndex, preOperational: retried })
     })
   }

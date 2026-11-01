@@ -41,7 +41,7 @@ import {
   withStoredFile,
 } from '@root/middleware/shared/utils/canopen'
 import { describeAliasRejection, validateAliasEdit } from '@root/middleware/shared/utils/iec-address'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { DeviceFileDialog, type DeviceFileRequest, ExportDialog } from './device-file-dialogs'
 import { NetworkSettings } from './network-settings'
@@ -49,6 +49,7 @@ import { NetworkSwitch } from './network-switch'
 import { NodeList } from './node-list'
 import { NodePanel } from './node-panel'
 import { ServiceBus } from './online-tab'
+import { SCROLLER_ATTRIBUTE, useScrollBackOnSwitch } from './scroll'
 import { BusStatusLine } from './status-view'
 import { hintClassName, secondaryButtonClassName } from './styles'
 
@@ -115,8 +116,8 @@ const CheckList = ({ checks, onFix, onFixAll, onShow, on }: CheckListProps) => {
       className={cn(
         'mb-4 shrink-0 rounded-md border px-3 py-2 text-xs',
         errors > 0
-          ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-          : 'border-neutral-200 bg-neutral-50 text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300',
+          ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300'
+          : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
       )}
     >
       <div className='mb-1 flex items-center justify-between gap-4'>
@@ -190,6 +191,8 @@ const CanopenEditor = () => {
   const reads = useCanopenOnlineReads(online)
 
   const [tab, setTab] = useState<EditorTab>('nodes')
+  const editorTabsAnchor = useRef<HTMLDivElement>(null)
+  useScrollBackOnSwitch(editorTabsAnchor, tab)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [nodeOnlineShown, setNodeOnlineShown] = useState(false)
   const selected = config.nodes.find((n) => n.id === selectedId) ?? config.nodes[0]
@@ -336,7 +339,11 @@ const CanopenEditor = () => {
   )
 
   return (
-    <div aria-label='CANopen editor container' className='flex h-full w-full flex-col overflow-y-auto p-4'>
+    <div
+      aria-label='CANopen editor container'
+      {...{ [SCROLLER_ATTRIBUTE]: '' }}
+      className='flex h-full w-full flex-col overflow-auto p-4 [container-type:size] [scroll-padding-top:3rem]'
+    >
       <div className='mb-4 shrink-0'>
         <div className='flex items-start justify-between gap-6'>
           <div className='min-w-0'>
@@ -367,7 +374,7 @@ const CanopenEditor = () => {
       {problems.length > 0 ? (
         <div
           role='status'
-          className='mb-4 shrink-0 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+          className='mb-4 shrink-0 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300'
         >
           <p className='font-medium'>
             {on ? 'The build stops until these are fixed:' : 'Fix these before turning the network on:'}
@@ -402,14 +409,15 @@ const CanopenEditor = () => {
         onValueChange={(v) => {
           if (isEditorTab(v)) setTab(v)
         }}
-        className='flex min-h-[360px] flex-1 flex-col'
+        className='flex flex-1 flex-col'
       >
+        <div ref={editorTabsAnchor} />
         <Tabs.List className='mb-4 flex shrink-0 border-b border-neutral-200 dark:border-neutral-800'>
           <TabItem value='nodes' label='Nodes' active={tab === 'nodes'} />
           <TabItem value='network' label='Network' active={tab === 'network'} />
         </Tabs.List>
 
-        <Tabs.Content value='nodes' className='flex min-h-0 flex-1 gap-4 overflow-hidden data-[state=inactive]:hidden'>
+        <Tabs.Content value='nodes' className='flex flex-1 items-start gap-4 data-[state=inactive]:hidden'>
           <NodeList
             nodes={config.nodes}
             selectedId={selected?.id ?? null}
@@ -449,9 +457,9 @@ const CanopenEditor = () => {
               onAliasChange={(entry, alias) => changeAlias(selected, entry, alias)}
             />
           ) : (
-            <div className='flex flex-1 flex-col items-center justify-center gap-2 text-center'>
-              <p className='text-sm font-medium text-neutral-700 dark:text-neutral-300'>No nodes yet</p>
-              <p className={cn(hintClassName, 'max-w-[360px]')}>
+            <div className='flex min-w-0 flex-1 flex-col gap-1 pt-2' data-testid='canopen-no-nodes'>
+              <h3 className='text-sm font-semibold text-neutral-1000 dark:text-neutral-100'>No nodes yet</h3>
+              <p className={cn(hintClassName, 'max-w-[480px]')}>
                 Add a node from the device file (EDS, DCF, XDD or XDC) its manufacturer provides. Its PDOs are mapped to
                 PLC inputs and outputs from the file&apos;s defaults, and you can change them afterwards.
               </p>
@@ -459,7 +467,7 @@ const CanopenEditor = () => {
           )}
         </Tabs.Content>
 
-        <Tabs.Content value='network' className='min-h-0 flex-1 overflow-y-auto data-[state=inactive]:hidden'>
+        <Tabs.Content value='network' className='flex-1 data-[state=inactive]:hidden'>
           <div className='mb-4 flex items-center justify-between gap-4'>
             <p className={hintClassName}>
               The device files of all nodes, as DCF or XDC files with the values the master writes, or as EDS or XDD
@@ -488,11 +496,6 @@ const CanopenEditor = () => {
             commit((c) => withStoredFile({ ...c, nodes: [...c.nodes, node] }, prepared))
             setSelectedId(node.id)
             setFileRequest(null)
-            toast({
-              title: `Added node ${node.nodeId}`,
-              description: 'Check that its node ID matches the one set on the device.',
-              variant: 'default',
-            })
           }}
           onReplace={(node, prepared) => {
             commit((c) =>
@@ -502,7 +505,6 @@ const CanopenEditor = () => {
               ),
             )
             setFileRequest(null)
-            toast({ title: `Replaced the device file of node ${node.nodeId}`, variant: 'default' })
           }}
         />
       ) : null}

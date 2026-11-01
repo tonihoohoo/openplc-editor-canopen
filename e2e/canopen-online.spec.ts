@@ -152,7 +152,7 @@ test('node memory: a save refused while operational is retried in pre-operationa
     await expect(memory).toContainText('The node may take it in pre-operational.', { timeout: 15000 })
     await memory.getByRole('button', { name: 'Switch to pre-operational and retry' }).click()
     await page.getByRole('button', { name: 'Switch and retry' }).click()
-    await expect(page.getByText('Saved: Save all parameters. The node is in pre-operational.')).toBeVisible({
+    await expect(page.getByText('Save all parameters: done. The node is in pre-operational.')).toBeVisible({
       timeout: 15000,
     })
     await expect(memory).toContainText('Start the node again?')
@@ -162,7 +162,7 @@ test('node memory: a save refused while operational is retried in pre-operationa
 
     await memory.getByRole('button', { name: 'Restore defaults' }).click()
     await page.getByRole('alertdialog').getByRole('button', { name: 'Restore defaults' }).click()
-    await expect(page.getByText('Restored: Restore all default parameters. Takes effect after a reset.')).toBeVisible({
+    await expect(page.getByText('Restore all default parameters: done. Takes effect after a reset.')).toBeVisible({
       timeout: 15000,
     })
     await expect(memory).toContainText('Reset now?')

@@ -1,6 +1,6 @@
 import { cn } from '@root/frontend/utils/cn'
 import { parseEdsInteger } from '@root/middleware/shared/utils/canopen'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { hintClassName, inputClassName, labelClassName } from './styles'
 
@@ -121,10 +121,14 @@ type TextFieldProps = {
 const TextField = ({ label, value, onCommit, hint, placeholder, className, hideLabel }: TextFieldProps) => {
   const [text, setText] = useState(value)
   const [error, setError] = useState<string | null>(null)
+  const errorRef = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     setText(value)
     setError(null)
   }, [value])
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [error])
 
   const commit = () => {
     const next = text.trim()
@@ -152,7 +156,11 @@ const TextField = ({ label, value, onCommit, hint, placeholder, className, hideL
         }}
         className={inputClassName}
       />
-      {error ? <span className='text-[10px] text-red-600 dark:text-red-400'>{error}</span> : null}
+      {error ? (
+        <span ref={errorRef} className='text-[10px] text-red-600 dark:text-red-400'>
+          {error}
+        </span>
+      ) : null}
       {!error && hint ? <span className={hintClassName}>{hint}</span> : null}
     </label>
   )
