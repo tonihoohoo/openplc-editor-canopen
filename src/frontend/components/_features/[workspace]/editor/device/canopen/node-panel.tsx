@@ -35,7 +35,7 @@ import {
   updatePdo,
   watchMasterProblem,
 } from '@root/middleware/shared/utils/canopen'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
@@ -173,6 +173,8 @@ type NodePanelProps = {
   live: CanopenLiveStatus | null
   /** The online tools; null hides the Online tab. */
   online: CanopenOnlineContext | null
+  /** Told whether the Online tab is the one shown, and false when the panel goes away. */
+  onOnlineShown?: (shown: boolean) => void
   /** Values read from the nodes, kept across tabs and nodes. */
   reads: CanopenOnlineReads
   network: CanopenNetworkSettings
@@ -212,6 +214,7 @@ const NodePanel = ({
   sdoWarnings,
   live,
   online,
+  onOnlineShown,
   reads,
   network,
   onChange,
@@ -222,6 +225,10 @@ const NodePanel = ({
   const [tab, setTab] = useState<NodeTab>('general')
   const [expert, setExpert] = useCanopenExpertView()
   const shownTab: NodeTab = (tab === 'status' && !live) || (tab === 'online' && !online) ? 'general' : tab
+  useEffect(() => {
+    onOnlineShown?.(shownTab === 'online')
+    return () => onOnlineShown?.(false)
+  }, [shownTab, onOnlineShown])
   const { eds } = node
   const canHeartbeat = findObject(eds, 0x1017, 0) !== undefined
   const heartbeatObject = objectParameterState(eds, 0x1017, 0)

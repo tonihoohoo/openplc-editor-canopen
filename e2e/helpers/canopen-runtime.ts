@@ -56,6 +56,7 @@ export function status(now: number, operational: boolean) {
 /** Node 2 behind the request route: 0x1017 runs at 500 ms, 0x2100 takes writes only when not operational. */
 export class FakeNode {
   operational = true
+  plcRunning = true
   values = new Map<string, string>([['4119:0', 'f401']])
   requests: Array<Record<string, unknown>> = []
   private jobs = new Map<number, unknown>()
@@ -123,11 +124,16 @@ export function fakeRuntime(features: string[], node: FakeNode): Server {
       if (path === '/api/login') return json({ access_token: 'e2e-token' })
       if (path === '/api/get-users-info') return json([])
       if (path === '/api/whoami') return json({ id: 1, username: 'e2e', role: 'admin' })
-      if (path === '/api/status') return json({ status: 'PLC state: RUNNING' })
+      if (path === '/api/status') return json({ status: `PLC state: ${node.plcRunning ? 'RUNNING' : 'STOPPED'}` })
       if (path === '/api/runtime-logs') return json([])
       if (path === '/api/capabilities')
         return json({ runtimeVersion: '4.3.1', canopen: { configVersions: [2], features } })
-      if (path === '/api/canopen/status') return json(status(Date.now(), node.operational))
+      if (path === '/api/canopen/status')
+        return json(
+          node.plcRunning
+            ? status(Date.now(), node.operational)
+            : { version: 1, active: false, now: Date.now(), networks: [] },
+        )
       if (path === '/api/canopen/request') {
         let text = ''
         req.on('data', (chunk: Buffer) => (text += chunk.toString()))

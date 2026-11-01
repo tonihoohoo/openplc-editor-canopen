@@ -48,6 +48,13 @@ type Filter = 'all' | 'differs' | 'writable' | 'mapped'
 const ref = (o: { index: number; subIndex: number }): string => `${hex(o.index, 4)}:${hex(o.subIndex, 2).slice(2)}`
 
 const smallButtonClassName = cn(secondaryButtonClassName, 'px-2 py-1')
+const errorTextClassName = 'text-red-600 dark:text-red-400'
+/** A node value that differs from the project. */
+const differsClassName = 'rounded bg-sky-100 px-1 -mx-1 dark:bg-sky-900/40'
+
+/** A name with a break opportunity after each underscore, so long identifiers wrap between words. */
+const breakable = (name: string): ReactNode[] =>
+  name.split('_').flatMap((part, i, parts) => (i < parts.length - 1 ? [part, '_', <wbr key={i} />] : [part]))
 
 const CONFIRM: Readonly<Record<CanopenNmtCommand, string | null>> = {
   start: null,
@@ -110,6 +117,8 @@ function useElementWidth<T extends HTMLElement>(): [(el: T | null) => void, numb
 
 /** Below this width left for Name, Type and Access move under the name to keep it readable. */
 const MIN_NAME_PX = 220
+/** In the compact table, width beyond this name width goes to the Project and Node columns. */
+const COMPACT_NAME_PX = 320
 const FIXED_PX = {
   index: 84,
   type: 112,
@@ -133,13 +142,17 @@ const WithFeedback = ({ children, feedback }: { children: ReactNode; feedback: R
 /** A card's own confirmation and result line, so feedback shows next to the button pressed. */
 export function useCardFeedback() {
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setFeedback] = useState<{ text: string; error: boolean } | null>(null)
+  const setMessage = (text: string | null, error = false) => setFeedback(text === null ? null : { text, error })
   const view: ReactNode = (
     <>
       <ConfirmBar confirm={confirm} onClose={() => setConfirm(null)} />
       {message ? (
-        <p role='status' className='mt-2 text-xs text-neutral-850 dark:text-neutral-200'>
-          {message}
+        <p
+          role='status'
+          className={cn('mt-2 text-xs', message.error ? errorTextClassName : 'text-neutral-850 dark:text-neutral-200')}
+        >
+          {message.text}
         </p>
       ) : null}
     </>
@@ -169,13 +182,13 @@ export const NmtButtons = ({
   online: CanopenOnlineContext
   node: number
   onConfirm: (c: ConfirmRequest) => void
-  onResult: (text: string) => void
+  onResult: (text: string, error?: boolean) => void
 }) => {
   const send = (command: CanopenNmtCommand) => {
     void online.client.nmt(online.networkIndex, node, command).then((r) => {
       const label = nmtCommandLabel(command)
       const to = node === 0 ? ' to every node' : ''
-      onResult(r.ok ? `${label} sent${to}.` : `${label} failed: ${r.message}.`)
+      onResult(r.ok ? `${label} sent${to}.` : `${label} failed: ${r.message}.`, !r.ok)
     })
   }
   return (
@@ -203,7 +216,7 @@ export const NmtButtons = ({
 }
 
 /** Open or close the bus in service mode while the PLC is stopped. */
-export const ServiceBus = ({ online }: { online: CanopenOnlineContext }) => {
+export const ServiceBus = ({ online, bare = false }: { online: CanopenOnlineContext; bare?: boolean }) => {
   const { service } = online
   if (!service.available) return null
   return (
@@ -219,7 +232,9 @@ export const ServiceBus = ({ online }: { online: CanopenOnlineContext }) => {
         </>
       ) : (
         <>
-          <span className={hintClassName}>The PLC is stopped. Open the bus to read and set the nodes.</span>
+          {bare ? null : (
+            <span className={hintClassName}>The PLC is stopped. Open the bus to read and set the nodes.</span>
+          )}
           <button type='button' className={smallButtonClassName} disabled={service.busy} onClick={service.openBus}>
             Open bus
           </button>
@@ -234,7 +249,7 @@ export const ServiceBus = ({ online }: { online: CanopenOnlineContext }) => {
 export function notReadyText(online: CanopenOnlineContext): string | null {
   if (online.ready) return null
   return online.service.available
-    ? 'The buttons are greyed because CANopen does not run on the runtime.'
+    ? 'The PLC is stopped, so CANopen is not running. Open the bus to read and set the nodes.'
     : 'The buttons are greyed because CANopen does not run on the runtime, or its program has no network by this name.'
 }
 
@@ -274,7 +289,7 @@ const valueText = (row: OnlineObject, value: CanopenRowValue | undefined, displa
 const valueTitle = (row: OnlineObject, value: CanopenRowValue | undefined, display: ValueDisplay): string =>
   value && !value.pending && !value.result.ok ? value.result.message : valueText(row, value, display)
 
-type RowNote = { text: string; retry?: () => void }
+type RowNote = { text: string; error?: boolean; retry?: () => void }
 
 type WriteCellProps = {
   row: OnlineObject
@@ -295,6 +310,7 @@ const WriteCell = ({ row, nodeId, disabled, onWrite, onProblem }: WriteCellProps
     <>
       <input
         aria-label={`New value for ${ref(row.object)}`}
+        placeholder='Value'
         className={cn(inputClassName, 'h-[26px] w-[84px] min-w-0')}
         value={text}
         disabled={disabled}
@@ -321,7 +337,7 @@ const NoteLine = ({ note, onClose }: { note: RowNote; onClose: () => void }) => 
   const retry = note.retry
   return (
     <div className='flex flex-wrap items-center gap-2 text-[11px]'>
-      <span className='min-w-0'>{note.text}</span>
+      <span className={cn('min-w-0', note.error && errorTextClassName)}>{note.text}</span>
       {retry && !asking ? (
         <button type='button' className={smallButtonClassName} onClick={() => setAsking(true)}>
           Switch to pre-operational and retry
@@ -376,6 +392,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
   const nodeId = node.nodeId
   const { values, progress } = reads.of(nodeId)
   const notReady = notReadyText(online)
+  const nmtReady = online.ready
 
   const mapped = useMemo(
     () => new Set([...node.tpdos, ...node.rpdos].flatMap((p) => p.entries.map((e) => objectKey(e)))),
@@ -400,13 +417,14 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
         result.abortCode === ABORT_DEVICE_STATE && !retried
           ? () => {
               void client.nmt(networkIndex, nodeId, 'pre_operational').then((r) => {
-                if (!r.ok) return setNote(k, { text: `Pre-operational failed: ${r.message}` })
+                if (!r.ok) return setNote(k, { text: `Pre-operational failed: ${r.message}`, error: true })
                 void write(row, bytes, true)
               })
             }
           : undefined
       setNote(k, {
         text: `Write refused: ${result.message}.${retry ? ' The node may take it in pre-operational.' : ''}`,
+        error: true,
         retry,
       })
       return
@@ -440,16 +458,19 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
   const nodePx = compact ? (expert ? FIXED_PX.nodeWrite : FIXED_PX.node) : FIXED_PX.value
   const narrow = compact && tableWidth - (FIXED_PX.index + FIXED_PX.project + nodePx + FIXED_PX.read) < MIN_NAME_PX
   const columns = narrow ? 4 : compact ? 5 : 7
+  const spare = compact && !narrow ? (tableWidth - FIXED_PX.index - FIXED_PX.read - COMPACT_NAME_PX) / 2 : 0
+  const projectCol = compact ? Math.max(FIXED_PX.project, spare) : FIXED_PX.value
+  const nodeCol = Math.max(nodePx, spare)
   const actionsPx = compact || !expert ? FIXED_PX.read : FIXED_PX.write
 
   return (
     <div className='flex flex-col gap-4' data-testid='canopen-online-tab'>
       {notReady ? (
-        <div className='flex flex-wrap items-center gap-3'>
-          <p className={hintClassName} role='status'>
+        <div className='flex flex-wrap items-center gap-3 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 dark:border-neutral-800 dark:bg-neutral-900/60'>
+          <p className='text-xs text-neutral-850 dark:text-neutral-200' role='status'>
             {notReady}
           </p>
-          {online.service.available && !online.service.open ? <ServiceBus online={online} /> : null}
+          {online.service.available && !online.service.open ? <ServiceBus online={online} bare /> : null}
         </div>
       ) : null}
 
@@ -466,10 +487,16 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
               onConfirm={nmtFeedback.ask}
               onResult={nmtFeedback.setMessage}
             />
-            <label className='mt-2 flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300'>
+            <label
+              className={cn(
+                'mt-2 flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300',
+                !nmtReady && 'cursor-not-allowed opacity-50',
+              )}
+            >
               <input
                 type='checkbox'
                 checked={allNodes}
+                disabled={!nmtReady}
                 onChange={(e) => setAllNodes(e.target.checked)}
                 className='h-3.5 w-3.5 accent-brand'
               />
@@ -561,8 +588,8 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
               <col />
               {compact ? null : <col style={{ width: FIXED_PX.type }} />}
               {compact ? null : <col style={{ width: FIXED_PX.access }} />}
-              {narrow ? null : <col style={{ width: compact ? FIXED_PX.project : FIXED_PX.value }} />}
-              <col style={{ width: nodePx }} />
+              {narrow ? null : <col style={{ width: projectCol }} />}
+              <col style={{ width: nodeCol }} />
               <col style={{ width: actionsPx }} />
             </colgroup>
             <thead className='text-neutral-500 dark:text-neutral-400'>
@@ -599,7 +626,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                     nodeId={nodeId}
                     disabled={!ready}
                     onWrite={(r, bytes) => void write(r, bytes)}
-                    onProblem={(text) => setNote(k, { text })}
+                    onProblem={(text) => setNote(k, { text, error: true })}
                   />
                 )
                 return (
@@ -611,7 +638,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                       <td className='truncate py-1 pr-2 font-mono'>{ref(object)}</td>
                       <td className='py-1 pr-2' title={objectLabel(object)}>
                         <span className={cn('block', compact ? '[overflow-wrap:anywhere]' : 'truncate')}>
-                          {objectLabel(object)}
+                          {breakable(objectLabel(object))}
                         </span>
                         {compact ? (
                           <span className={cn(hintClassName, 'block')}>
@@ -630,15 +657,16 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                       <td
                         className={cn(
                           'py-1 pr-2 font-mono [overflow-wrap:anywhere]',
-                          differs && 'bg-amber-100 dark:bg-amber-900/30',
-                          failedRead && 'font-sans text-red-600 dark:text-red-400',
+                          failedRead && cn('font-sans', errorTextClassName),
                         )}
                         title={valueTitle(row, value, display)}
                       >
-                        <span data-testid={`canopen-online-value-${k}`}>{nodeValue}</span>
+                        <span data-testid={`canopen-online-value-${k}`} className={cn(differs && differsClassName)}>
+                          {nodeValue}
+                        </span>
                         {narrow && project ? (
                           <span className={cn(hintClassName, 'block font-sans')} title={projectTitle}>
-                            Project: {project}
+                            Project: <span className='font-mono'>{project}</span>
                             {row.masterWrites ? ' *' : ''}
                           </span>
                         ) : null}
@@ -738,7 +766,10 @@ const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineCon
     void client
       .nmt(networkIndex, nodeId, command)
       .then((r) =>
-        onResult(r.ok ? `${nmtCommandLabel(command)} sent.` : `${nmtCommandLabel(command)} failed: ${r.message}.`),
+        onResult(
+          r.ok ? `${nmtCommandLabel(command)} sent.` : `${nmtCommandLabel(command)} failed: ${r.message}.`,
+          !r.ok,
+        ),
       )
 
   const nvmWrite = (op: NvmOp, subIndex: number, name: string, retried: boolean) => {
@@ -751,10 +782,10 @@ const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineCon
       if (!r.ok) {
         const failed = `${op === 'save' ? 'Save' : 'Restore'} failed: ${r.message}.`
         if (r.abortCode === ABORT_DEVICE_STATE && !retried && online.nmt) {
-          onResult(failed)
+          onResult(failed, true)
           setOffer({ kind: 'retry', op, subIndex, name })
         } else {
-          onResult(`${failed}${inPreOp}`)
+          onResult(`${failed}${inPreOp}`, true)
         }
         return
       }
@@ -771,7 +802,7 @@ const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineCon
   const retryInPreOperational = (op: NvmOp, subIndex: number, name: string) => {
     setOffer(null)
     void client.nmt(networkIndex, nodeId, 'pre_operational').then((r) => {
-      if (!r.ok) return onResult(`Pre-operational failed: ${r.message}.`)
+      if (!r.ok) return onResult(`Pre-operational failed: ${r.message}.`, true)
       nvmWrite(op, subIndex, name, true)
     })
   }
@@ -946,7 +977,8 @@ const RawAccess = ({ node, online, expert }: { node: CanopenNode; online: Canope
   const [sub, setSub] = useState('0')
   const [type, setType] = useState('raw bytes')
   const [value, setValue] = useState('')
-  const [result, setResult] = useState<string | null>(null)
+  const [result, setOutcome] = useState<{ text: string; error: boolean } | null>(null)
+  const setResult = (text: string | null, error = true) => setOutcome(text === null ? null : { text, error })
   const { client, networkIndex, ready } = online
 
   const target = (): { index: number; subIndex: number } | null => {
@@ -972,7 +1004,10 @@ const RawAccess = ({ node, online, expert }: { node: CanopenNode; online: Canope
     if (!t) return setResult('Give the index in hex (for example 2000) and the sub-index (0 to 255).')
     setResult(null)
     void client.read(networkIndex, node.nodeId, t.index, t.subIndex).then((r) => {
-      setResult(r.ok ? `${ref(t)} = ${formatCanopenValue(dataType, r.bytes, 'decimal')}` : `${ref(t)}: ${r.message}`)
+      setResult(
+        r.ok ? `${ref(t)} = ${formatCanopenValue(dataType, r.bytes, 'decimal')}` : `${ref(t)}: ${r.message}`,
+        !r.ok,
+      )
     })
   }
   const doWrite = () => {
@@ -984,7 +1019,7 @@ const RawAccess = ({ node, online, expert }: { node: CanopenNode; online: Canope
     if (!encoded.ok) return setResult(encoded.message)
     setResult(null)
     void client.write(networkIndex, node.nodeId, t.index, t.subIndex, encoded.bytes).then((r) => {
-      setResult(r.ok ? `${ref(t)} written.` : `${ref(t)}: write refused: ${r.message}`)
+      setResult(r.ok ? `${ref(t)} written.` : `${ref(t)}: write refused: ${r.message}`, !r.ok)
     })
   }
 
@@ -1052,8 +1087,14 @@ const RawAccess = ({ node, online, expert }: { node: CanopenNode; online: Canope
         ) : null}
       </div>
       {result ? (
-        <p role='status' className='mt-2 break-all font-mono text-xs text-neutral-850 dark:text-neutral-200'>
-          {result}
+        <p
+          role='status'
+          className={cn(
+            'mt-2 text-xs',
+            result.error ? errorTextClassName : 'break-all font-mono text-neutral-850 dark:text-neutral-200',
+          )}
+        >
+          {result.text}
         </p>
       ) : null}
     </div>

@@ -171,6 +171,8 @@ and no Open bus, and turning it off closes the service mode the editor opened.
   **Any object…** opens a reader for any index and sub-index, by data type or as raw hex bytes; an
   object the EDS lists starts with its EDS data type.
   The tools stay usable through two failed status reads in a row and grey out from the third.
+  Refusals and failures show in red, a value that differs from the project on a light blue ground,
+  and questions in an amber box.
 - **Expert view.** A Write field on each writable object, with the same typed parsing and EDS limits
   as startup SDOs; the object is read back after the write, and the project is not changed. A write
   to an object the master writes at boot says that the value lasts until the node boots again.
@@ -190,7 +192,7 @@ and no Open bus, and turning it off closes the service mode the editor opened.
   retried restore the reset brings the node back, and after a retried save the card offers Start.
   Any object also writes; it never writes 0x1010 or 0x1011 and points to Node memory instead.
 - **Service mode.** With the runtime's `"service"` feature and the PLC stopped, the network header
-  and the Online tab offer **Open bus**, which opens service mode with the network's settings and
+  offers **Open bus** (the node's Online tab offers it instead while that tab is shown), which opens service mode with the network's settings and
   nodes; the online tools then work as with a running PLC while the master sends nothing of its own.
   The NMT state follows the commands sent and the nodes' heartbeats and boot-ups.
   **Close bus** closes it, and so does closing the device editor; the runtime closes it before the

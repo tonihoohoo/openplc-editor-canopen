@@ -59,7 +59,7 @@ function screenNode(): FakeNode {
   const node = new FakeNode()
   const hex = (s: string) => Buffer.from(s, 'latin1').toString('hex')
   for (const [k, v] of [
-    ['4096:0', '91010000'],
+    ['4096:0', '92010000'],
     ['4097:0', '00'],
     ['4104:0', hex('Generic I/O module with a long manufacturer device name, rev C')],
     ['4116:0', '82000000'],
@@ -93,7 +93,10 @@ function screenNode(): FakeNode {
 const open = (name: string, node: FakeNode) =>
   openDevice(FEATURES, name, node, (project) => addNodeMemory(join(project, 'devices', 'remote', 'canopen_1.json')))
 
-const shot = (page: Page, file: string) => page.screenshot({ path: join(OUT, file) })
+async function shot(page: Page, file: string): Promise<void> {
+  await page.mouse.move(0, 0)
+  await page.screenshot({ path: join(OUT, file) })
+}
 
 test('screenshots of the CANopen Online tabs', async () => {
   test.setTimeout(300000)
@@ -152,6 +155,12 @@ test('screenshots of the CANopen Online tabs', async () => {
     await page.waitForTimeout(300)
     await page.getByTestId('canopen-online-row-4096:0').scrollIntoViewIfNeeded()
     await shot(page, '10-node-online-narrow-basic.png')
+
+    node.plcRunning = false
+    const hint = page.getByText('The PLC is stopped, so CANopen is not running.', { exact: false })
+    await expect(hint).toBeVisible({ timeout: 20000 })
+    await hint.evaluate((el) => el.scrollIntoView({ block: 'nearest' }))
+    await shot(page, '12-node-online-plc-stopped.png')
   } finally {
     await quitApp(app, page)
     runtime.close()

@@ -155,6 +155,7 @@ const CanopenEditor = () => {
 
   const [tab, setTab] = useState<EditorTab>('nodes')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [nodeOnlineShown, setNodeOnlineShown] = useState(false)
   const selected = config.nodes.find((n) => n.id === selectedId) ?? config.nodes[0]
 
   const cycleUs = useMemo(() => plcCycleUs(tasks), [tasks])
@@ -266,7 +267,7 @@ const CanopenEditor = () => {
             Off in the project
           </p>
         ) : null}
-        {online ? (
+        {online && !(tab === 'nodes' && nodeOnlineShown && !online.service.open) ? (
           <div className='mt-2'>
             <ServiceBus online={online} />
           </div>
@@ -343,6 +344,7 @@ const CanopenEditor = () => {
               syncPeriodUs={config.network.syncMode === 'period' ? config.network.syncPeriodUs : null}
               live={live}
               online={online}
+              onOnlineShown={setNodeOnlineShown}
               reads={reads}
               network={config.network}
               sdoWarnings={sdoWarnings}
