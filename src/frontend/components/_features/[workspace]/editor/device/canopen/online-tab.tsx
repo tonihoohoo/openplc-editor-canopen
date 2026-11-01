@@ -110,7 +110,17 @@ function useElementWidth<T extends HTMLElement>(): [(el: T | null) => void, numb
 
 /** Below this width left for Name, Type and Access move under the name to keep it readable. */
 const MIN_NAME_PX = 220
-const FIXED_PX = { index: 84, type: 112, access: 60, value: 150, project: 110, node: 142, read: 56, write: 196 }
+const FIXED_PX = {
+  index: 84,
+  type: 112,
+  access: 60,
+  value: 150,
+  project: 110,
+  node: 110,
+  nodeWrite: 142,
+  read: 56,
+  write: 196,
+}
 
 /** A card's controls with its feedback to their right, so the card keeps its size as feedback comes and goes. */
 const WithFeedback = ({ children, feedback }: { children: ReactNode; feedback: ReactNode }) => (
@@ -224,7 +234,7 @@ export const ServiceBus = ({ online }: { online: CanopenOnlineContext }) => {
 export function notReadyText(online: CanopenOnlineContext): string | null {
   if (online.ready) return null
   return online.service.available
-    ? 'The buttons are greyed because CANopen does not run on the runtime. Open the bus to reach the nodes:'
+    ? 'The buttons are greyed because CANopen does not run on the runtime.'
     : 'The buttons are greyed because CANopen does not run on the runtime, or its program has no network by this name.'
 }
 
@@ -427,7 +437,9 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
   const fullPx =
     FIXED_PX.index + FIXED_PX.type + FIXED_PX.access + 2 * FIXED_PX.value + (expert ? FIXED_PX.write : FIXED_PX.read)
   const compact = tableWidth > 0 && tableWidth - fullPx < MIN_NAME_PX
-  const columns = compact ? 5 : 7
+  const nodePx = compact ? (expert ? FIXED_PX.nodeWrite : FIXED_PX.node) : FIXED_PX.value
+  const narrow = compact && tableWidth - (FIXED_PX.index + FIXED_PX.project + nodePx + FIXED_PX.read) < MIN_NAME_PX
+  const columns = narrow ? 4 : compact ? 5 : 7
   const actionsPx = compact || !expert ? FIXED_PX.read : FIXED_PX.write
 
   return (
@@ -549,8 +561,8 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
               <col />
               {compact ? null : <col style={{ width: FIXED_PX.type }} />}
               {compact ? null : <col style={{ width: FIXED_PX.access }} />}
-              <col style={{ width: compact ? FIXED_PX.project : FIXED_PX.value }} />
-              <col style={{ width: compact ? FIXED_PX.node : FIXED_PX.value }} />
+              {narrow ? null : <col style={{ width: compact ? FIXED_PX.project : FIXED_PX.value }} />}
+              <col style={{ width: nodePx }} />
               <col style={{ width: actionsPx }} />
             </colgroup>
             <thead className='text-neutral-500 dark:text-neutral-400'>
@@ -559,7 +571,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                 <th className='py-1 pr-2 font-medium'>Name</th>
                 {compact ? null : <th className='py-1 pr-2 font-medium'>Type</th>}
                 {compact ? null : <th className='py-1 pr-2 font-medium'>Access</th>}
-                <th className='py-1 pr-2 font-medium'>Project</th>
+                {narrow ? null : <th className='py-1 pr-2 font-medium'>Project</th>}
                 <th className='py-1 pr-2 font-medium'>Node</th>
                 <th className='py-1 font-medium'>
                   <span className='sr-only'>Actions</span>
@@ -609,10 +621,12 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                       </td>
                       {compact ? null : <td className='truncate py-1 pr-2'>{dataTypeLabel(object.dataType)}</td>}
                       {compact ? null : <td className='truncate py-1 pr-2'>{object.access}</td>}
-                      <td className='py-1 pr-2 font-mono [overflow-wrap:anywhere]' title={projectTitle}>
-                        {project}
-                        {row.masterWrites ? <span className={cn(hintClassName, 'ml-1')}>*</span> : null}
-                      </td>
+                      {narrow ? null : (
+                        <td className='py-1 pr-2 font-mono [overflow-wrap:anywhere]' title={projectTitle}>
+                          {project}
+                          {row.masterWrites ? <span className={cn(hintClassName, 'ml-1')}>*</span> : null}
+                        </td>
+                      )}
                       <td
                         className={cn(
                           'py-1 pr-2 font-mono [overflow-wrap:anywhere]',
@@ -622,6 +636,12 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                         title={valueTitle(row, value, display)}
                       >
                         <span data-testid={`canopen-online-value-${k}`}>{nodeValue}</span>
+                        {narrow && project ? (
+                          <span className={cn(hintClassName, 'block font-sans')} title={projectTitle}>
+                            Project: {project}
+                            {row.masterWrites ? ' *' : ''}
+                          </span>
+                        ) : null}
                         {canWrite(object) && compact ? (
                           <div className='mt-1 flex items-center gap-1 font-sans'>{writeCell}</div>
                         ) : null}

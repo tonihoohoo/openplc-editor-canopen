@@ -162,7 +162,8 @@ and no Open bus, and turning it off closes the service mode the editor opened.
   in the project (the value the master writes at boot, marked with `*`, else the EDS default) and the
   value read from the node, in fixed columns that do not move while values load; long values wrap.
   When the tab is too narrow for a readable name, type and access move under the name and, in the
-  expert view, the Write field under the node's value. Search over index
+  expert view, the Write field under the node's value; narrower still, the project value moves under
+  the node's value too. Search over index
   and name; filters for all objects, "Differs from project" (highlighted), writable objects and
   objects mapped in a PDO; Read per object and Read all with progress and Stop; decimal or hex;
   strings decoded. Read all goes on while another tab or node is shown and ends when done or stopped.
