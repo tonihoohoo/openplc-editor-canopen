@@ -5,6 +5,7 @@
  */
 
 import type { CanopenObject } from '../../ports/canopen-types'
+import { objectRef } from './data-types'
 import { objectInfo, standardValueMeaning } from './standard-meanings'
 
 function sameNumber(a: string, b: string): boolean {
@@ -67,4 +68,32 @@ export function shortDescription(object: CanopenObject | undefined, max = 140): 
     .replace(/:;/g, ':')
   if (!d) return undefined
   return d.length > max ? `${d.slice(0, max - 1)}…` : d
+}
+
+/**
+ * What a PDO mapping entry (0x1600-0x17FF or 0x1A00-0x1BFF, sub-index 1-64) holds: the mapped
+ * object, its name from @p objects and its bit length, e.g. "0x6000:01 Read input 8 bits, 8 bits";
+ * "not used" for 0. Undefined for any other object or a value that is not a number.
+ */
+export function pdoMappingMeaning(
+  object: CanopenObject,
+  raw: string,
+  objects: readonly CanopenObject[],
+): string | undefined {
+  const mapping =
+    (object.index >= 0x1600 && object.index <= 0x17ff) || (object.index >= 0x1a00 && object.index <= 0x1bff)
+  if (!mapping || object.subIndex < 1 || object.subIndex > 64) return undefined
+  const text = raw.trim()
+  if (!/^\d+$/.test(text)) return undefined
+  const value = Number(text)
+  if (value > 0xffffffff) return undefined
+  if (value === 0) return 'not used'
+  const index = Math.floor(value / 0x10000)
+  const subIndex = Math.floor(value / 0x100) % 0x100
+  const bits = value % 0x100
+  const mapped = objects.find((o) => o.index === index && o.subIndex === subIndex)
+  const name = mapped
+    ? ` ${mapped.parentName && mapped.parentName !== mapped.name ? `${mapped.parentName} / ${mapped.name}` : mapped.name}`
+    : ''
+  return `${objectRef(index, subIndex)}${name}, ${bits} bits`
 }

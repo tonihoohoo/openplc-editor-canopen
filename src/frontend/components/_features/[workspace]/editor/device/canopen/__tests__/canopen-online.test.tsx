@@ -207,6 +207,25 @@ describe('CANopen online tools', () => {
     expect(screen.getByTestId('canopen-online-value-8448:0').textContent).toBe('0')
   })
 
+  it('shows what a PDO mapping entry maps', async () => {
+    await renderEditor({
+      setup: (n) => {
+        n.values.set('6656:1', '08010060')
+        n.values.set('6656:2', '00000000')
+      },
+    })
+    openNodeOnline()
+    fireEvent.click(screen.getByRole('button', { name: 'Read all' }))
+    await settle()
+    await settle()
+    await settle()
+    const tab = screen.getByTestId('canopen-online-tab')
+    expect(within(tab).getByTestId('canopen-online-row-6656:1').textContent).toContain(
+      '0x6000:01 Digital inputs / Inputs 1-8, 8 bits',
+    )
+    expect(within(tab).getByTestId('canopen-online-row-6656:2').textContent).toContain('not used')
+  })
+
   it('switches a node to pre-operational to retry a refused write, and leaves the project as it was', async () => {
     await renderEditor({ expert: true })
     openNodeOnline()
@@ -351,7 +370,7 @@ describe('CANopen online tools', () => {
       await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x08000022) })
       openNodeOnline()
       await press('Restore defaults', 1)
-      expect(nvmCard().textContent).toContain('Restore failed')
+      expect(nvmCard().textContent).toContain('Restore all default parameters failed')
       await retry()
       expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'pre_operational' })
       const writes = nvmWrites(0x1011)
@@ -381,7 +400,7 @@ describe('CANopen online tools', () => {
       await press('Save to node', 1)
       await retry()
       expect(nvmWrites(0x1010)[1]).toMatchObject({ subindex: 1, data: SAVE })
-      expect(nvmCard().textContent).toContain('The node is in pre-operational.')
+      expect(nvmCard().textContent).toContain('Save all parameters: done. The node is in pre-operational.')
       fireEvent.click(within(screen.getByTestId('canopen-online-nvm-offer')).getByRole('button', { name: 'Start' }))
       await settle()
       expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'start' })
@@ -407,7 +426,7 @@ describe('CANopen online tools', () => {
       await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x06010002) })
       openNodeOnline()
       await press('Restore defaults', 1)
-      expect(nvmCard().textContent).toContain('Restore failed')
+      expect(nvmCard().textContent).toContain('Restore all default parameters failed')
       expect(screen.queryByTestId('canopen-online-nvm-offer')).toBeNull()
     })
 

@@ -496,11 +496,6 @@ const CanopenEditor = () => {
             commit((c) => withStoredFile({ ...c, nodes: [...c.nodes, node] }, prepared))
             setSelectedId(node.id)
             setFileRequest(null)
-            toast({
-              title: `Added node ${node.nodeId}`,
-              description: 'Check that its node ID matches the one set on the device.',
-              variant: 'default',
-            })
           }}
           onReplace={(node, prepared) => {
             commit((c) =>
@@ -510,7 +505,6 @@ const CanopenEditor = () => {
               ),
             )
             setFileRequest(null)
-            toast({ title: `Replaced the device file of node ${node.nodeId}`, variant: 'default' })
           }}
         />
       ) : null}
