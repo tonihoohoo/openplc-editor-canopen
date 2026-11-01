@@ -362,6 +362,13 @@ export interface ProjectPort {
     bytes: Uint8Array,
   ): Promise<{ success: boolean; canceled?: boolean; error?: string }>
 
+  /** Saves bytes through a save dialog attached to the window. Optional: without it, callers download the file. */
+  exportFile?(
+    defaultFileName: string,
+    bytes: Uint8Array,
+    filter: { name: string; extensions: string[] },
+  ): Promise<{ success: boolean; canceled?: boolean; error?: string }>
+
   /** Rejects on failure. Editor renders on the main thread: `import.meta.url` workers don't compile under its CommonJS tsconfig. */
   renderPdf(request: PrintRequest): Promise<Uint8Array>
 

@@ -158,6 +158,12 @@ const rendererProcessBridge = {
     bytes: Uint8Array,
   ): Promise<{ success: boolean; canceled?: boolean; error?: { title: string; description: string } }> =>
     ipcRenderer.invoke('project:export-pdf-file', defaultFileName, bytes),
+  exportFile: (
+    defaultFileName: string,
+    bytes: Uint8Array,
+    filter: { name: string; extensions: string[] },
+  ): Promise<{ success: boolean; canceled?: boolean; error?: { title: string; description: string } }> =>
+    ipcRenderer.invoke('project:export-file', defaultFileName, bytes, filter),
   saveFile: (filePath: string, content: unknown): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('project:save-file', filePath, content),
   saveFileAccelerator: (callback: IpcRendererCallbacks) => subscribe('project:save-file-accelerator', callback),

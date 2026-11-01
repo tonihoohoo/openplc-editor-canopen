@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 import type { OpenPLCStore } from '@root/frontend/store'
 import { createStoreWrapper, createTestStore } from '@root/frontend/store/testing'
@@ -506,7 +506,7 @@ describe('CanopenEditor', () => {
       expect(within(dialog).getByTestId('canopen-export-results').textContent).toContain('node_1.dcf')
       await act(async () => {
         fireEvent.click(within(dialog).getByTestId('canopen-export-save'))
-        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 20))
       })
       expect(saved).toHaveLength(1)
       const text = await new Promise<string>((resolve) => {
@@ -528,7 +528,7 @@ describe('CanopenEditor', () => {
       expect(within(dialog).getByTestId('canopen-export-losses').textContent).toContain('node ID, name, PDO settings')
       await act(async () => {
         fireEvent.click(within(dialog).getByTestId('canopen-export-save'))
-        await Promise.resolve()
+        await new Promise((resolve) => setTimeout(resolve, 20))
       })
       const text = await new Promise<string>((resolve) => {
         const reader = new FileReader()
@@ -585,6 +585,41 @@ describe('CanopenEditor', () => {
       expect(after?.eds.revision).toBe(4)
       expect(after?.tpdos).toEqual(before?.tpdos)
       expect(Object.keys(config()?.files ?? {})).toEqual([after?.eds.source?.sha256])
+    })
+
+    it('saves through the platform save dialog and stays open when it is dismissed', async () => {
+      const calls: Array<{ name: string; extensions: string[] }> = []
+      let answer: { success: boolean; canceled?: boolean } = { success: false, canceled: true }
+      cleanup()
+      render(<CanopenEditor />, {
+        wrapper: createStoreWrapper(
+          store,
+          portsWithRuntime(
+            {},
+            {
+              exportFile: (name, _bytes, filter) => {
+                calls.push({ name, extensions: filter.extensions })
+                return Promise.resolve(answer)
+              },
+            },
+          ),
+        ),
+      })
+      await importEds()
+      fireEvent.click(screen.getByRole('button', { name: 'Export...' }))
+      const save = () =>
+        act(async () => {
+          fireEvent.click(screen.getByTestId('canopen-export-save'))
+          await new Promise((resolve) => setTimeout(resolve, 20))
+        })
+      await save()
+      expect(calls).toEqual([{ name: 'node_1.dcf', extensions: ['dcf'] }])
+      expect(screen.getByTestId('canopen-export-dialog')).toBeTruthy()
+      expect(saved).toHaveLength(0)
+      answer = { success: true }
+      await save()
+      expect(calls).toHaveLength(2)
+      expect(screen.queryByTestId('canopen-export-dialog')).toBeNull()
     })
 
     it('exports the network as a zip of DCF files from the Network tab', async () => {

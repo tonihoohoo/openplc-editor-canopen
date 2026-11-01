@@ -5,6 +5,7 @@ import {
   buildNodeDcf,
   buildNodeExport,
   dcfExportOk,
+  deviceFileZip,
   edsFileName,
   exportLosses,
   parameterValueText,
@@ -573,5 +574,18 @@ describe('export losses', () => {
     expect(eds[1]).toContain('share one EDS')
     expect(eds.some((l) => l.startsWith('node 3: '))).toBe(true)
     expect(exportLosses('dcf', nodes, true)[0]).toContain('each DCF keeps the bit rate')
+  })
+})
+
+describe('device file zip', () => {
+  it('writes local entry times', async () => {
+    const JSZip = (await import('jszip')).default
+    const now = new Date(2026, 10, 1, 12, 29)
+    const zip = await JSZip.loadAsync(
+      await deviceFileZip([{ fileName: 'a.dcf', text: 'x', summary: '', errors: [], problems: [] }], now),
+    )
+    const entry = zip.file('a.dcf')
+    expect(entry?.date.getUTCHours()).toBe(12)
+    expect(entry?.date.getUTCMinutes()).toBe(29)
   })
 })

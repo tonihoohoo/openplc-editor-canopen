@@ -121,7 +121,7 @@ a dialog that asks for the format (`EXPORT_FORMATS` in `dcf-export.ts`; more for
   `LastEDS`.
 
 A network export writes one zip: a DCF per node, or an EDS per stored file. Each exported file is
-checked again; the dialog shows the result per file and **Save** is disabled when one has an error.
+checked again; the dialog shows the result per file and **Save** is disabled when one has an error. **Save** opens the system save dialog attached to the editor window (`ProjectPort.exportFile`); a platform without it downloads the file.
 
 **Replace EDS...** on a node page swaps the node's file for a newer one. The node keeps its ID, name,
 PDO entries, aliases, startup SDOs and options where the new file still allows them; the dialog lists

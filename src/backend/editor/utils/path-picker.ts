@@ -158,4 +158,41 @@ const getPdfExportSavePath = async (
   }
 }
 
-export { getOpenProjectPath, getPdfExportSavePath, getPlcopenExportSavePath, getPlcopenImportFilePath, getProjectPath }
+/** Save dialog attached to the window, then writes the bytes; for exports with their own file type. */
+const getExportFileSavePath = async (
+  serviceManager: GetProjectPathProps,
+  defaultFileName: string,
+  bytes: Uint8Array,
+  filter: { name: string; extensions: string[] },
+) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(serviceManager, {
+    title: `Export ${filter.name}`,
+    defaultPath: defaultFileName,
+    filters: [filter],
+  })
+  if (canceled || !filePath) {
+    return { success: false, canceled: true }
+  }
+
+  try {
+    await promises.writeFile(filePath, bytes)
+    return { success: true }
+  } catch {
+    return {
+      success: false,
+      error: {
+        title: 'Error writing file',
+        description: `Failed to write ${filePath}.`,
+      },
+    }
+  }
+}
+
+export {
+  getExportFileSavePath,
+  getOpenProjectPath,
+  getPdfExportSavePath,
+  getPlcopenExportSavePath,
+  getPlcopenImportFilePath,
+  getProjectPath,
+}

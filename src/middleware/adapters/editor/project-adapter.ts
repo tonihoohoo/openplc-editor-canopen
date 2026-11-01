@@ -632,6 +632,17 @@ export function createEditorProjectAdapter(
       return { success: true }
     },
 
+    async exportFile(
+      defaultFileName: string,
+      bytes: Uint8Array,
+      filter: { name: string; extensions: string[] },
+    ): Promise<{ success: boolean; canceled?: boolean; error?: string }> {
+      const response = await window.bridge.exportFile(defaultFileName, bytes, filter)
+      if (response.canceled) return { success: false, canceled: true }
+      if (!response.success) return { success: false, error: response.error?.description }
+      return { success: true }
+    },
+
     async renderPdf(request: PrintRequest): Promise<Uint8Array> {
       // Runs on the renderer's main thread — unlike web, which offloads this
       // to a Worker (Vite bundles an in-repo `.worker.ts` natively). Doing the
