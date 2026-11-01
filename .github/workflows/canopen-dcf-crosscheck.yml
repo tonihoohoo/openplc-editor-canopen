@@ -1,0 +1,129 @@
+name: CANopen DCF cross-check
+
+# Compares the editor's CiA 306 check of EDS and DCF files, and the DCF files it exports, with two
+# independent checkers: Lely's dcf-tools lint and the EdsDcfNet checker, each pinned to a commit,
+# and reads the exported DCFs back with EdsDcfNet to compare their values.
+# Runs only when a pull request changes the check, the EDS parser, the DCF import or export code,
+# their fixtures or these CI files (see .github/scripts/canopen-dcf-changed.sh); otherwise the
+# job is skipped, which counts as passed. Accepted differences are listed with their CiA 306
+# clause in .github/scripts/canopen-dcf-crosscheck-exceptions.json.
+
+on:
+  pull_request:
+    branches: [canopen]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canopen-dcf-crosscheck-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LELY_REPO: https://gitlab.com/lely_industries/lely-core.git
+  LELY_COMMIT: 88848aa28599ea5d6d7e766a9ffa2054446821b5
+  EDSDCFNET_REPO: https://github.com/dborgards/eds-dcf-net.git
+  EDSDCFNET_COMMIT: 4a61bfccbdc212d19676261d02500e11adf65420
+  CORPUS: ${{ github.workspace }}/crosscheck
+
+jobs:
+  changes:
+    name: Changed files
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.files.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: CiA 306 check files
+        id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: .github/scripts/canopen-dcf-changed.sh
+
+  crosscheck:
+    name: CANopen DCF cross-check
+    needs: changes
+    if: ${{ needs.changes.outputs.run == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.402'
+
+      - name: Editor verdicts
+        run: |
+          npm ci --ignore-scripts
+          npm run setup:strucpp
+          CANOPEN_DCF_CROSSCHECK_OUT="$CORPUS" npx jest --config jest.config.json \
+            src/middleware/shared/utils/canopen/__tests__/dcf-crosscheck-writer.test.ts
+          test -f "$CORPUS/verdicts.json"
+
+      - name: Lely dcf-tools
+        run: |
+          git init -q "$RUNNER_TEMP/lely"
+          git -C "$RUNNER_TEMP/lely" fetch -q --depth 1 "$LELY_REPO" "$LELY_COMMIT"
+          git -C "$RUNNER_TEMP/lely" checkout -q FETCH_HEAD
+          python -m venv "$RUNNER_TEMP/lelyvenv"
+          "$RUNNER_TEMP/lelyvenv/bin/pip" install -q 'setuptools<81' PyYAML==6.0.3 empy==4.2.1
+          "$RUNNER_TEMP/lelyvenv/bin/pip" install -q --no-build-isolation "$RUNNER_TEMP/lely/python/dcf-tools"
+          "$RUNNER_TEMP/lelyvenv/bin/python" -I .github/scripts/canopen_dcf_crosscheck.py lely "$CORPUS" \
+            > "$RUNNER_TEMP/lely.json"
+
+      - name: EdsDcfNet checker
+        run: |
+          git init -q "$RUNNER_TEMP/edsdcfnet"
+          git -C "$RUNNER_TEMP/edsdcfnet" fetch -q --depth 1 "$EDSDCFNET_REPO" "$EDSDCFNET_COMMIT"
+          git -C "$RUNNER_TEMP/edsdcfnet" checkout -q FETCH_HEAD
+          cd "$RUNNER_TEMP/edsdcfnet"
+          dotnet build -c Release examples/EdsDcfNet.Checker
+          rc=0
+          dotnet run -c Release --no-build --project examples/EdsDcfNet.Checker -- --json \
+            "$CORPUS"/*.eds "$CORPUS"/*.dcf > "$RUNNER_TEMP/edsdcfnet.json" || rc=$?
+          # 0: no errors, 1: errors found (compared below), anything else: the checker failed.
+          if [ "$rc" -gt 1 ]; then cat "$RUNNER_TEMP/edsdcfnet.json"; exit "$rc"; fi
+
+      - name: EdsDcfNet round trip of the exported DCFs
+        run: |
+          project=.github/scripts/canopen-dcf-roundtrip
+          dotnet build -c Release -p:EdsDcfNetDir="$RUNNER_TEMP/edsdcfnet" "$project"
+          dotnet run -c Release --no-build -p:EdsDcfNetDir="$RUNNER_TEMP/edsdcfnet" --project "$project" -- \
+            "$CORPUS"/*.dcf > "$RUNNER_TEMP/roundtrip.json"
+
+      - name: Compare
+        run: |
+          python -I .github/scripts/canopen_dcf_crosscheck.py compare "$CORPUS" \
+            --lely "$RUNNER_TEMP/lely.json" --edsdcfnet "$RUNNER_TEMP/edsdcfnet.json" \
+            --roundtrip "$RUNNER_TEMP/roundtrip.json" \
+            --exceptions .github/scripts/canopen-dcf-crosscheck-exceptions.json
+
+      - name: Keep the corpus and the reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canopen-dcf-crosscheck
+          path: |
+            ${{ env.CORPUS }}
+            ${{ runner.temp }}/lely.json
+            ${{ runner.temp }}/edsdcfnet.json
+            ${{ runner.temp }}/roundtrip.json
+          if-no-files-found: ignore

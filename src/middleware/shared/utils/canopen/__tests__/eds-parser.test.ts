@@ -84,21 +84,41 @@ describe('parseEds', () => {
     expect(() => parseEds('[FileInfo]\nFileName=x\n', 'x.eds')).toThrow(/no \[DeviceInfo\] section/)
   })
 
-  it('names the line of a malformed entry', () => {
-    expect(() => parseEds('[DeviceInfo]\nVendorName=x\nbroken line\n', 'x.eds')).toThrow(
-      new EdsParseError('line 3: expected "key=value", found "broken line"'),
-    )
-    expect(() => parseEds('[DeviceInfo\n', 'x.eds')).toThrow(/line 1: section header/)
-    expect(() => parseEds('Key=1\n[DeviceInfo]\n', 'x.eds')).toThrow(/line 1: "Key=1" is outside any section/)
+  it('reads past lines CiA 306 does not allow, which the check reports', () => {
+    const text = '[DeviceInfo]\nVendorName=x\nbroken line\nNrOfTXPDO=2 ; two\n'
+    const eds = parseEds(text, 'x.eds')
+    expect(eds.vendorName).toBe('x')
+    expect(eds.txPdoCount).toBe(2)
   })
 
-  it('names the section of a bad value', () => {
-    const text = '[DeviceInfo]\nVendorNumber=abc\n'
-    expect(() => parseEds(text, 'x.eds')).toThrow(/\[DEVICEINFO\] line 2: VendorNumber "abc" is not a number/)
-    const access = '[DeviceInfo]\n[1000]\nObjectType=0x7\nDataType=0x0007\nAccessType=rx\n'
-    expect(() => parseEds(access, 'x.eds')).toThrow(/AccessType "rx"/)
-    const noType = '[DeviceInfo]\n[1000]\nObjectType=0x7\n'
-    expect(() => parseEds(noType, 'x.eds')).toThrow(/missing DataType/)
+  it('leaves out objects whose DataType or AccessType it cannot read', () => {
+    const text =
+      '[DeviceInfo]\n[1000]\nObjectType=0x7\nDataType=0x0007\nAccessType=rx\n[1001]\nObjectType=0x7\n' +
+      '[1008]\nDataType=0x0009\nAccessType=const\n'
+    expect(parseEds(text, 'x.eds').objects.map((o) => o.index)).toEqual([0x1008])
+    expect(parseEds('[DeviceInfo]\nVendorNumber=abc\n', 'x.eds').vendorId).toBe(0)
+  })
+
+  it('keeps ObjFlags', () => {
+    const text = '[DeviceInfo]\n[2200]\nDataType=0x0007\nAccessType=rw\nObjFlags=0x1\n'
+    expect(findObject(parseEds(text, 'x.eds'), 0x2200, 0)?.objFlags).toBe(1)
+  })
+
+  it('adds the PDOs CompactPDO implies, numbered from the lowest ones not described', () => {
+    const text =
+      '[DeviceInfo]\nNrOfTXPDO=4\nCompactPDO=0x13\n[1800]\nObjectType=0x9\nSubNumber=2\n' +
+      '[1800sub0]\nDataType=0x0005\nAccessType=ro\nDefaultValue=1\n[1800sub1]\nDataType=0x0007\nAccessType=rw\n' +
+      'DefaultValue=$NODEID+0x180\n[1A00]\nObjectType=0x9\nSubNumber=1\n[1A00sub0]\nDataType=0x0005\nAccessType=rw\n'
+    const eds = parseEds(text, 'x.eds')
+    for (const index of [0x1801, 0x1802, 0x1803]) {
+      expect(findObject(eds, index, 1)?.dataType).toBe('UNSIGNED32')
+      expect(findObject(eds, index, 2)?.access).toBe('rw')
+      expect(findObject(eds, index, 3)).toBeUndefined()
+      expect(findObject(eds, index, 5)?.dataType).toBe('UNSIGNED16')
+      expect(findObject(eds, index + 0x200, 8)?.access).toBe('rw')
+    }
+    expect(findObject(eds, 0x1804, 1)).toBeUndefined()
+    expect(findObject(eds, 0x1800, 2)).toBeUndefined()
   })
 
   it('skips DOMAIN and DEFTYPE objects', () => {

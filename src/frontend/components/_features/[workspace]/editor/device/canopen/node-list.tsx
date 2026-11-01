@@ -13,8 +13,8 @@ type NodeListProps = {
   /** The runtime's live status, or null when it is not shown. */
   live: CanopenLiveStatus | null
   onSelect: (id: string) => void
-  /** Called with the chosen EDS file's name and text. */
-  onImport: (fileName: string, text: string) => void
+  /** Called with the chosen EDS or DCF file's name and bytes. */
+  onImport: (fileName: string, bytes: Uint8Array) => void
   onImportError: (fileName: string, message: string) => void
   canAdd: boolean
 }
@@ -32,13 +32,13 @@ const NodeList = ({ nodes, selectedId, live, onSelect, onImport, onImportError, 
         title={canAdd ? undefined : 'All node IDs are in use'}
         onClick={() => fileInput.current?.click()}
       >
-        Add node from EDS file...
+        Add node from EDS or DCF...
       </button>
       <input
         ref={fileInput}
         type='file'
-        accept='.eds,.EDS'
-        aria-label='EDS file'
+        accept='.eds,.EDS,.dcf,.DCF'
+        aria-label='EDS or DCF file'
         data-testid='canopen-eds-input'
         className='hidden'
         onChange={(e) => {
@@ -46,8 +46,8 @@ const NodeList = ({ nodes, selectedId, live, onSelect, onImport, onImportError, 
           e.target.value = ''
           if (!file) return
           file
-            .text()
-            .then((text) => onImport(file.name, text))
+            .arrayBuffer()
+            .then((buffer) => onImport(file.name, new Uint8Array(buffer)))
             .catch((error: unknown) => onImportError(file.name, String(error)))
         }}
       />

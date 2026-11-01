@@ -42,6 +42,7 @@ test('the device editor tabs fit a short window', async () => {
     await expect(page.getByText('No nodes yet')).toBeVisible({ timeout: 30000 })
 
     await page.getByTestId('canopen-eds-input').setInputFiles(EDS)
+    await page.getByTestId('canopen-file-dialog-confirm').click()
     await page.getByRole('tab', { name: /Inputs/ }).click()
     const inputs = page.getByRole('tabpanel', { name: /Inputs/ })
     await inputs.scrollIntoViewIfNeeded()

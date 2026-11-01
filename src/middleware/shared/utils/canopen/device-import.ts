@@ -1,0 +1,186 @@
+/**
+ * Adding a node from an EDS or DCF and replacing a node's device file: decode, check, parse, and
+ * the network's store of device files (one copy per SHA-256 in `CanopenConfig.files`).
+ */
+
+import type {
+  CanopenConfig,
+  CanopenDeviceSource,
+  CanopenEdsInfo,
+  CanopenNode,
+  CanopenPdo,
+} from '../../ports/canopen-types'
+import { accessFits, objectRef, toCanopenDataType } from './data-types'
+import { type DcfContent, type DcfImportLine, hasDcfSettings, readDcfContent } from './dcf-import'
+import { decodeDeviceFile, type DeviceFileEncoding, deviceFileFormat, deviceFileHash } from './device-file'
+import { checkEds, type EdsCheckResult } from './eds-check'
+import { readEdsDocument } from './eds-document'
+import { findObject, masterMayWrite, parseEdsDocument } from './eds-parser'
+import {
+  type AllocateAddress,
+  canBeGuarded,
+  canProduceHeartbeat,
+  canReceiveTime,
+  canWatchMaster,
+  consumerSlots,
+  defaultPdos,
+  type PdoDirection,
+  pdoObjectIndices,
+  restoreChoices,
+} from './model'
+
+export interface PreparedDeviceFile {
+  fileName: string
+  text: string
+  encoding: DeviceFileEncoding
+  check: EdsCheckResult
+  /** The description, when the file could be read and the check found no error. */
+  eds?: CanopenEdsInfo
+  /** The DCF part; `hasSettings` tells whether there is anything to take. */
+  dcf: DcfContent
+  hasSettings: boolean
+  source: CanopenDeviceSource
+}
+
+/** Decodes, checks and reads a chosen device file. */
+export async function prepareDeviceFile(fileName: string, bytes: Uint8Array): Promise<PreparedDeviceFile> {
+  const { text, encoding } = decodeDeviceFile(bytes)
+  const doc = readEdsDocument(text)
+  const format = deviceFileFormat(fileName)
+  const check = checkEds(doc, { encoding, format })
+  const source: CanopenDeviceSource = {
+    format,
+    fileName,
+    sha256: await deviceFileHash(text),
+  }
+  const dcf = readDcfContent(doc)
+  const eds = check.ok ? { ...parseEdsDocument(doc, fileName), source } : undefined
+  return { fileName, text, encoding, check, eds, dcf, hasSettings: hasDcfSettings(dcf), source }
+}
+
+/** The config with the file stored (once per SHA-256) and files no node uses removed. */
+export function withStoredFile(
+  config: CanopenConfig,
+  file: { source: CanopenDeviceSource; text: string },
+): CanopenConfig {
+  const files = { ...(config.files ?? {}), [file.source.sha256]: { fileName: file.source.fileName, text: file.text } }
+  return pruneStoredFiles({ ...config, files })
+}
+
+/** The config without stored files that no node refers to. */
+export function pruneStoredFiles(config: CanopenConfig): CanopenConfig {
+  if (!config.files) return config
+  const used = new Set(config.nodes.flatMap((n) => (n.eds.source ? [n.eds.source.sha256] : [])))
+  const kept = Object.fromEntries(Object.entries(config.files).filter(([hash]) => used.has(hash)))
+  if (Object.keys(kept).length === Object.keys(config.files).length) return config
+  return Object.keys(kept).length > 0 ? { ...config, files: kept } : { network: config.network, nodes: config.nodes }
+}
+
+/** The node's stored file text, when the network has it. */
+export function storedFileText(config: CanopenConfig, node: CanopenNode): string | undefined {
+  const hash = node.eds.source?.sha256
+  return hash ? config.files?.[hash]?.text : undefined
+}
+
+export interface ReplaceResult {
+  node: CanopenNode
+  dropped: DcfImportLine[]
+}
+
+function keepPdos(
+  node: CanopenNode,
+  eds: CanopenEdsInfo,
+  direction: PdoDirection,
+  newId: () => string,
+  allocate: AllocateAddress,
+  dropped: DcfImportLine[],
+): CanopenPdo[] {
+  const label = direction === 'input' ? 'TPDO' : 'RPDO'
+  const old = direction === 'input' ? node.tpdos : node.rpdos
+  const fresh = defaultPdos(eds, direction, node.nodeId, newId, allocate)
+  const out: CanopenPdo[] = []
+  for (const pdo of fresh) {
+    const was = old.find((p) => p.number === pdo.number)
+    if (!was) {
+      out.push(pdo)
+      continue
+    }
+    const entries = was.entries.filter((e) => {
+      const object = findObject(eds, e.index, e.subIndex)
+      const fits =
+        object !== undefined &&
+        object.pdoMapping &&
+        toCanopenDataType(object.dataType) === e.dataType &&
+        accessFits(object.access, direction)
+      if (!fits) dropped.push({ what: objectRef(e.index, e.subIndex), detail: `entry of ${label} ${pdo.number}` })
+      return fits
+    })
+    out.push({ ...was, fixedMapping: pdo.fixedMapping, entries: pdo.fixedMapping ? pdo.entries : entries })
+    if (pdo.fixedMapping && !was.fixedMapping)
+      dropped.push({
+        what: `${label} ${pdo.number}`,
+        detail: 'the new file fixes its mapping; its default mapping is used',
+      })
+  }
+  for (const pdo of old)
+    if (!fresh.some((p) => p.number === pdo.number)) {
+      const { comm } = pdoObjectIndices(direction, pdo.number)
+      dropped.push({
+        what: `${label} ${pdo.number}`,
+        detail: `the new file has no 0x${comm.toString(16).toUpperCase()}`,
+      })
+    }
+  return out
+}
+
+/**
+ * The node with its device file replaced: ID, name, settings, mapped entries (with their addresses
+ * and aliases) and startup SDOs are kept wherever the new file still allows them.
+ */
+export function replaceDeviceFile(
+  node: CanopenNode,
+  eds: CanopenEdsInfo,
+  newId: () => string,
+  allocate: AllocateAddress,
+): ReplaceResult {
+  const dropped: DcfImportLine[] = []
+  const sdos = node.sdos.filter((s) => {
+    const object = findObject(eds, s.index, s.subIndex)
+    const fits = object !== undefined && masterMayWrite(object) && toCanopenDataType(object.dataType) === s.dataType
+    if (!fits) dropped.push({ what: objectRef(s.index, s.subIndex), detail: `startup SDO ${s.value}` })
+    return fits
+  })
+  let next: CanopenNode = {
+    ...node,
+    eds,
+    sdos,
+    tpdos: keepPdos(node, eds, 'input', newId, allocate, dropped),
+    rpdos: keepPdos(node, eds, 'output', newId, allocate, dropped),
+  }
+  if (next.supervision === 'heartbeat' && !canProduceHeartbeat(eds)) {
+    next = { ...next, supervision: 'none' }
+    dropped.push({ what: 'Supervision', detail: 'heartbeat (the new file has no writable 0x1017)' })
+  } else if (next.supervision === 'guarding' && !canBeGuarded(eds)) {
+    next = { ...next, supervision: 'none' }
+    dropped.push({ what: 'Supervision', detail: 'node guarding (the new file has no writable 0x100C and 0x100D)' })
+  }
+  if (next.watchMaster.enabled && !canWatchMaster(eds)) {
+    next = { ...next, watchMaster: { ...next.watchMaster, enabled: false } }
+    dropped.push({ what: 'Watch the master', detail: 'the new file has no writable 0x1016' })
+  }
+  const slots = consumerSlots(eds) - (next.watchMaster.enabled ? 1 : 0)
+  if (next.heartbeatConsumers.length > Math.max(0, slots)) {
+    for (const c of next.heartbeatConsumers.slice(Math.max(0, slots)))
+      dropped.push({ what: 'Heartbeat consumer', detail: `node ${c.producerNodeId}` })
+    next = { ...next, heartbeatConsumers: next.heartbeatConsumers.slice(0, Math.max(0, slots)) }
+  }
+  if (next.receiveTime && !canReceiveTime(eds)) {
+    next = { ...next, receiveTime: false }
+    dropped.push({ what: 'TIME', detail: 'the new file has no writable 0x1012' })
+  }
+  if (next.restoreDefaults > 0 && !restoreChoices(eds).includes(next.restoreDefaults)) {
+    dropped.push({ what: 'Restore defaults', detail: `0x1011 sub ${next.restoreDefaults}` })
+    next = { ...next, restoreDefaults: 0 }
+  }
+  return { node: next, dropped }
+}

@@ -35,6 +35,8 @@ export interface CanopenObject {
   /** EDS LowLimit and HighLimit, as written in the EDS. */
   lowLimit?: string
   highLimit?: string
+  /** CiA 306 ObjFlags: bit 0 refuse write on download, bit 1 refuse read on scan. */
+  objFlags?: number
 }
 
 /** What the editor keeps of a node's EDS. */
@@ -52,6 +54,21 @@ export interface CanopenEdsInfo {
   /** Bit rates (bit/s) the EDS marks as not supported (`BaudRate_x=0`). */
   unsupportedBitrates?: number[]
   objects: CanopenObject[]
+  /** The stored file the description was read from (see `CanopenConfig.files`). */
+  source?: CanopenDeviceSource
+}
+
+/** The device file a description comes from: its format, name and the SHA-256 of its text. */
+export interface CanopenDeviceSource {
+  format: 'eds' | 'dcf'
+  fileName: string
+  sha256: string
+}
+
+/** A device file kept in the project, so a DCF can be written from its exact text. */
+export interface CanopenStoredFile {
+  fileName: string
+  text: string
 }
 
 /** A PDO entry bound to an IEC location; also the node's state channel (`channelId` "state"). */
@@ -202,4 +219,6 @@ export interface CanopenNetworkSettings {
 export interface CanopenConfig {
   network: CanopenNetworkSettings
   nodes: CanopenNode[]
+  /** The nodes' device files by SHA-256 of their text, each once. */
+  files?: Record<string, CanopenStoredFile>
 }
