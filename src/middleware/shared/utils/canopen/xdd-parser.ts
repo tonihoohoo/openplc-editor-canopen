@@ -474,6 +474,11 @@ export function parseXdd(textIn: string, fileName: string, lang = 'en'): XddRead
     objects,
   }
   if (unsupportedBitrates && unsupportedBitrates.length > 0) eds.unsupportedBitrates = unsupportedBitrates
+  const dummies = children(child(layers, 'dummyUsage'), 'dummy')
+    .map((d) => /^Dummy000([1-7])=1$/i.exec((attr(d, 'entry') ?? '').replace(/\s+/g, '')))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map((m) => Number(m[1]))
+  if (dummies.length > 0) eds.dummyUsage = [...new Set(dummies)].sort((a, b) => a - b)
   if (Object.keys(details).length > 0) eds.details = details
   return { eds, xdc }
 }

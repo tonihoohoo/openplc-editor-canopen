@@ -18,6 +18,12 @@ export type CanopenDataType =
   | 'REAL32'
   | 'REAL64'
 
+/** Types a startup SDO can write beyond the basic ones; never mapped into a PDO. */
+export type CanopenByteType = 'VISIBLE_STRING' | 'OCTET_STRING' | 'DOMAIN'
+
+/** The type of a startup SDO's object. */
+export type CanopenSdoDataType = CanopenDataType | CanopenByteType
+
 export type CanopenAccess = 'ro' | 'wo' | 'rw' | 'rwr' | 'rww' | 'const'
 
 /** One sub-object of the node's object dictionary, as its EDS describes it. */
@@ -86,6 +92,8 @@ export interface CanopenEdsInfo {
   /** Number of receive and transmit PDOs the device supports. */
   rxPdoCount: number
   txPdoCount: number
+  /** Dummy objects (0x0001-0x0007) the device lets a PDO map ([DummyUsage]); absent for none. */
+  dummyUsage?: number[]
   /** Bit rates (bit/s) the EDS marks as not supported (`BaudRate_x=0`). */
   unsupportedBitrates?: number[]
   objects: CanopenObject[]
@@ -137,16 +145,29 @@ export interface CanopenPdo {
   inhibitTime: number
   /** TPDO only: the master reports the PDO late after this many milliseconds without it; 0 for none. */
   receiveTimeoutMs: number
+  /** RPDO only: the node's deadline (its 0x1400 + n sub 5) in milliseconds; 0 for none. */
+  deadlineMs: number
+  /** In mapping order; a gap is a dummy entry (index 0x0001-0x0007) without an address. */
   entries: CanopenEntry[]
 }
+
+/** What the boot does when the node refuses a startup SDO. */
+export type CanopenSdoOnAbort = 'stop' | 'continue' | 'jump'
 
 export interface CanopenSdo {
   id: string
   index: number
   subIndex: number
-  dataType: CanopenDataType
-  /** Decimal or 0x hexadecimal for integers, decimal for reals, 0/1 or true/false for BOOLEAN. */
+  dataType: CanopenSdoDataType
+  /**
+   * Decimal or 0x hexadecimal for integers, decimal or a 0x bit pattern for reals, 0/1 or
+   * true/false for BOOLEAN, text for VISIBLE_STRING, hexadecimal bytes for OCTET_STRING and DOMAIN.
+   */
   value: string
+  /** Default 'stop'. */
+  onAbort?: CanopenSdoOnAbort
+  /** With onAbort 'jump': the id of a later startup SDO of the node. */
+  jumpTo?: string
 }
 
 export type CanopenSupervision = 'none' | 'heartbeat' | 'guarding'

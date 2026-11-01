@@ -282,6 +282,54 @@ export function entryFor(
   }
 }
 
+/** Types of the CiA 301 dummy objects 0x0001-0x0007, by index. */
+export const DUMMY_TYPES: Readonly<Record<number, CanopenDataType>> = {
+  1: 'BOOLEAN',
+  2: 'INTEGER8',
+  3: 'INTEGER16',
+  4: 'INTEGER32',
+  5: 'UNSIGNED8',
+  6: 'UNSIGNED16',
+  7: 'UNSIGNED32',
+}
+
+/** The dummy objects "Add gap" offers, one per size: 1, 8, 16 and 32 bits. */
+export const GAP_DUMMIES = [1, 5, 6, 7] as const
+
+/** Whether the entry maps a dummy object: a gap the device skips or fills with zeros. */
+export function isDummyEntry(entry: { index: number; subIndex: number }): boolean {
+  return entry.index >= 1 && entry.index <= 7 && entry.subIndex === 0
+}
+
+/** Whether the entry holds no PLC value: a dummy, or an object the device file does not describe. */
+export function isGapEntry(eds: CanopenEdsInfo, entry: CanopenEntry): boolean {
+  if (isDummyEntry(entry)) return true
+  const object = findObject(eds, entry.index, entry.subIndex)
+  return object === undefined || toCanopenDataType(object.dataType) === undefined
+}
+
+/** A gap entry of dummy object `dummy` (0x0001-0x0007). */
+export function gapEntry(dummy: number, channelId: string): CanopenEntry {
+  const dataType = DUMMY_TYPES[dummy] ?? 'UNSIGNED8'
+  const bits = canopenTypeBits(dataType)
+  return {
+    channelId,
+    index: dummy,
+    subIndex: 0,
+    name: `Gap (${bits} bit${bits === 1 ? '' : 's'})`,
+    dataType,
+    iecLocation: '',
+  }
+}
+
+const UNKNOWN_TYPES: Readonly<Record<number, CanopenDataType>> = {
+  1: 'BOOLEAN',
+  8: 'UNSIGNED8',
+  16: 'UNSIGNED16',
+  32: 'UNSIGNED32',
+  64: 'UNSIGNED64',
+}
+
 /** PDO numbers the EDS defines in one direction (those with a communication parameter sub 1), ascending. */
 export function edsPdoNumbers(eds: CanopenEdsInfo, direction: PdoDirection): number[] {
   const out: number[] = []
@@ -325,16 +373,36 @@ export function edsPdo(
     eventTimerMs: direction === 'input' ? (defaultInt(eds, comm, 5, nodeId) ?? 0) : 0,
     inhibitTime: direction === 'input' ? (defaultInt(eds, comm, 3, nodeId) ?? 0) : 0,
     receiveTimeoutMs: 0,
+    deadlineMs: 0,
     entries: [],
   }
   const count = defaultInt(eds, map, 0, nodeId) ?? 0
   for (let k = 1; k <= count; k++) {
     const value = defaultInt(eds, map, k, nodeId)
-    if (value === null) continue
-    const object = findObject(eds, (value >>> 16) & 0xffff, (value >>> 8) & 0xff)
+    if (value === null || value === 0) continue
+    const index = (value >>> 16) & 0xffff
+    const subIndex = (value >>> 8) & 0xff
+    // Dummies and objects the file does not describe stay in place, so later entries keep their offsets.
+    if (isDummyEntry({ index, subIndex })) {
+      pdo.entries.push(gapEntry(index, newId()))
+      continue
+    }
+    const object = findObject(eds, index, subIndex)
     const type = object ? toCanopenDataType(object.dataType) : undefined
-    if (!object || !type) continue
-    pdo.entries.push(entryFor(object, type, direction, newId(), allocate))
+    if (object && type) {
+      pdo.entries.push(entryFor(object, type, direction, newId(), allocate))
+      continue
+    }
+    const unknownType = UNKNOWN_TYPES[value & 0xff]
+    if (unknownType)
+      pdo.entries.push({
+        channelId: newId(),
+        index,
+        subIndex,
+        name: object ? `${object.name} (not mappable)` : 'Not in the device file',
+        dataType: unknownType,
+        iecLocation: '',
+      })
   }
   return pdo
 }
@@ -418,13 +486,15 @@ export function moveEntryToPdo(
   const target = list.find((p) => p.number === to)
   const entry = source?.entries.find((e) => e.channelId === channelId)
   if (!source || !target || !entry || from === to || source.fixedMapping || cannotMoveEntry(target, entry)) return node
-  const moved: CanopenEntry = target.exchanged
-    ? {
-        ...entry,
-        iecLocation:
-          entry.iecLocation || allocate(iecPrefixFor(entry.dataType, direction), entry.dataType === 'BOOLEAN'),
-      }
-    : { ...entry, iecLocation: '', alias: undefined }
+  const moved: CanopenEntry = isGapEntry(node.eds, entry)
+    ? entry
+    : target.exchanged
+      ? {
+          ...entry,
+          iecLocation:
+            entry.iecLocation || allocate(iecPrefixFor(entry.dataType, direction), entry.dataType === 'BOOLEAN'),
+        }
+      : { ...entry, iecLocation: '', alias: undefined }
   return withPdos(
     node,
     direction,
@@ -575,15 +645,18 @@ export function withPdoExchanged(
   direction: PdoDirection,
   exchanged: boolean,
   allocate: AllocateAddress,
+  eds?: CanopenEdsInfo,
 ): CanopenPdo {
+  const gap = (e: CanopenEntry): boolean => (eds ? isGapEntry(eds, e) : isDummyEntry(e))
   return {
     ...pdo,
     exchanged,
     entries: pdo.entries.map((e) => ({
       ...e,
-      iecLocation: exchanged
-        ? e.iecLocation || allocate(iecPrefixFor(e.dataType, direction), e.dataType === 'BOOLEAN')
-        : '',
+      iecLocation:
+        exchanged && !gap(e)
+          ? e.iecLocation || allocate(iecPrefixFor(e.dataType, direction), e.dataType === 'BOOLEAN')
+          : '',
       alias: exchanged ? e.alias : undefined,
     })),
   }

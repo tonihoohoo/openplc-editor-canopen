@@ -1,4 +1,4 @@
-import type { CanopenAccess, CanopenDataType } from '../../ports/canopen-types'
+import type { CanopenAccess, CanopenByteType, CanopenDataType, CanopenSdoDataType } from '../../ports/canopen-types'
 
 /** CiA 301 data type codes of the supported basic types. */
 export const CANOPEN_TYPE_CODES: Readonly<Record<number, CanopenDataType>> = {
@@ -45,6 +45,27 @@ export const CANOPEN_DATA_TYPES: readonly CanopenDataType[] = [
 
 export function toCanopenDataType(name: string): CanopenDataType | undefined {
   return CANOPEN_DATA_TYPES.find((t) => t === name)
+}
+
+const BYTE_TYPES: readonly CanopenByteType[] = ['VISIBLE_STRING', 'OCTET_STRING', 'DOMAIN']
+
+/** CiA 301 data type codes of the types a startup SDO writes as text or bytes. */
+export const CANOPEN_BYTE_TYPE_CODES: Readonly<Record<number, CanopenByteType>> = {
+  0x0009: 'VISIBLE_STRING',
+  0x000a: 'OCTET_STRING',
+  0x000f: 'DOMAIN',
+}
+
+/** Whether the type is written as text or bytes rather than as a number. */
+export function isByteType(type: CanopenSdoDataType): type is CanopenByteType {
+  return BYTE_TYPES.some((t) => t === type)
+}
+
+/** The type a startup SDO writes for an object of this data type, or undefined when none. */
+export function toSdoDataType(name: string): CanopenSdoDataType | undefined {
+  const named = toCanopenDataType(name) ?? BYTE_TYPES.find((t) => t === name)
+  if (named) return named
+  return /^0x[0-9a-f]{1,4}$/i.test(name) ? CANOPEN_BYTE_TYPE_CODES[parseInt(name, 16)] : undefined
 }
 
 /** Bits the type occupies in a PDO. */

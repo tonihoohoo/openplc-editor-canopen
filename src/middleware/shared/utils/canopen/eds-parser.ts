@@ -64,9 +64,11 @@ function readSub(
   subIndex: number,
   name?: string,
   parentName?: string,
+  fallbackType?: number,
 ): CanopenObject | undefined {
   const access = toAccess((section.entries.get('accesstype')?.value || 'ro').toLowerCase())
-  const dataType = parseEdsInteger(strKey(section, 'DataType'))
+  const typeText = strKey(section, 'DataType')
+  const dataType = typeText === '' && fallbackType !== undefined ? fallbackType : parseEdsInteger(typeText)
   if (!access || dataType === null || dataType <= 0) return undefined
   const object: CanopenObject = {
     index,
@@ -176,7 +178,12 @@ export function parseEdsDocument(doc: EdsDocument, fileName: string): CanopenEds
       push(readSub(section, index, 0))
       continue
     }
-    if (objectType !== 8 && objectType !== 9) continue // DOMAIN, DEFSTRUCT: not mappable
+    // A DOMAIN object (ObjectType 2) is written by startup SDOs only; DataType defaults to DOMAIN.
+    if (objectType === 2) {
+      push(readSub(section, index, 0, undefined, undefined, 0x000f))
+      continue
+    }
+    if (objectType !== 8 && objectType !== 9) continue // DEFTYPE, DEFSTRUCT
     const parentName = strKey(section, 'ParameterName')
     const compact = intKey(section, 'CompactSubObj', 0)
     if (compact > 0) {
@@ -218,8 +225,17 @@ export function parseEdsDocument(doc: EdsDocument, fileName: string): CanopenEds
     rxPdoCount: intKey(info, 'NrOfRXPDO', 0),
     txPdoCount: intKey(info, 'NrOfTXPDO', 0),
     unsupportedBitrates: CANOPEN_BITRATES.filter((rate) => intKey(info, `BaudRate_${rate / 1000}`, 1) === 0),
+    ...dummyUsage(sections.get('DUMMYUSAGE')),
     objects,
   }
+}
+
+/** The dummy objects [DummyUsage] allows (Dummy0001=1 ... Dummy0007=1), when any. */
+function dummyUsage(section: EdsSection | undefined): { dummyUsage?: number[] } {
+  if (!section) return {}
+  const allowed: number[] = []
+  for (let i = 1; i <= 7; i++) if (intKey(section, `Dummy000${i}`, 0) === 1) allowed.push(i)
+  return allowed.length > 0 ? { dummyUsage: allowed } : {}
 }
 
 /** CiA 306 ObjFlags bit 0: the object refuses a write on download. */
