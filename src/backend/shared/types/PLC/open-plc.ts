@@ -939,6 +939,12 @@ const CanopenDataTypeSchema = z.enum([
   'REAL64',
 ])
 
+const CanopenValueMeaningSchema = z.object({
+  value: z.string(),
+  label: z.string(),
+  width: z.number().int().min(1).max(64).optional(),
+})
+
 const CanopenObjectSchema = z.object({
   index: z.number().int().min(0).max(0xffff),
   subIndex: z.number().int().min(0).max(0xff),
@@ -951,6 +957,20 @@ const CanopenObjectSchema = z.object({
   lowLimit: z.string().optional(),
   highLimit: z.string().optional(),
   objFlags: z.number().int().min(0).optional(),
+  info: z
+    .object({
+      label: z.string().optional(),
+      description: z.string().optional(),
+      unit: z.string().optional(),
+      multiplier: z.number().optional(),
+      offset: z.number().optional(),
+      min: z.string().optional(),
+      max: z.string().optional(),
+      values: z.array(CanopenValueMeaningSchema).optional(),
+      bits: z.array(CanopenValueMeaningSchema).optional(),
+      group: z.string().optional(),
+    })
+    .optional(),
 })
 
 const CanopenEdsInfoSchema = z.object({
@@ -966,7 +986,22 @@ const CanopenEdsInfoSchema = z.object({
   unsupportedBitrates: z.array(z.number().int().min(0)).optional(),
   objects: z.array(CanopenObjectSchema),
   source: z
-    .object({ format: z.enum(['eds', 'dcf']), fileName: z.string(), sha256: z.string().regex(/^[0-9a-f]{64}$/) })
+    .object({
+      format: z.enum(['eds', 'dcf', 'xdd', 'xdc']),
+      fileName: z.string(),
+      sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    })
+    .optional(),
+  details: z
+    .object({
+      orderNumber: z.string().optional(),
+      productText: z.string().optional(),
+      fileVersion: z.string().optional(),
+      fileCreationDate: z.string().optional(),
+      fileModificationDate: z.string().optional(),
+      languages: z.array(z.string()).optional(),
+      characteristics: z.array(CanopenValueMeaningSchema).optional(),
+    })
     .optional(),
 })
 

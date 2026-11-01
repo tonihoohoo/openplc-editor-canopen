@@ -37,6 +37,41 @@ export interface CanopenObject {
   highLimit?: string
   /** CiA 306 ObjFlags: bit 0 refuse write on download, bit 1 refuse read on scan. */
   objFlags?: number
+  /** What an XDD/XDC (CiA 311) says about the object beyond its name; absent for EDS. */
+  info?: CanopenObjectInfo
+}
+
+/** A raw value and what it means, or a bit and its name. */
+export interface CanopenValueMeaning {
+  value: string
+  label: string
+  /** Bit fields only: the field's width in bits when more than one; `value` is its lowest bit. */
+  width?: number
+}
+
+/** CiA 311 parameter details of an object. Engineering value = (raw + offset) x multiplier. */
+export interface CanopenObjectInfo {
+  label?: string
+  description?: string
+  unit?: string
+  multiplier?: number
+  offset?: number
+  min?: string
+  max?: string
+  values?: CanopenValueMeaning[]
+  bits?: CanopenValueMeaning[]
+  group?: string
+}
+
+/** File and product details an XDD/XDC gives beyond the EDS identity. */
+export interface CanopenDeviceDetails {
+  orderNumber?: string
+  productText?: string
+  fileVersion?: string
+  fileCreationDate?: string
+  fileModificationDate?: string
+  languages?: string[]
+  characteristics?: CanopenValueMeaning[]
 }
 
 /** What the editor keeps of a node's EDS. */
@@ -56,11 +91,12 @@ export interface CanopenEdsInfo {
   objects: CanopenObject[]
   /** The stored file the description was read from (see `CanopenConfig.files`). */
   source?: CanopenDeviceSource
+  details?: CanopenDeviceDetails
 }
 
 /** The device file a description comes from: its format, name and the SHA-256 of its text. */
 export interface CanopenDeviceSource {
-  format: 'eds' | 'dcf'
+  format: 'eds' | 'dcf' | 'xdd' | 'xdc'
   fileName: string
   sha256: string
 }

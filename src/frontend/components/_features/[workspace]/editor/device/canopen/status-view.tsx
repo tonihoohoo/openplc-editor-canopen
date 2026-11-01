@@ -98,11 +98,11 @@ const EventList = ({ events }: { events: CanopenEvent[] }) =>
   )
 
 /** The Status tab of a node: state and reason in words, counters, emergencies, late PDOs, events. */
-/** Whether the node sends emergency messages: `none` when its EDS has no 0x1014, `off` when turned off. */
+/** Whether the node sends emergency messages: `none` when its device file has no 0x1014, `off` when turned off. */
 export type NodeEmcyState = 'none' | 'off' | 'on'
 
 const NO_EMCY_TEXT: Record<NodeEmcyState, string> = {
-  none: 'This device sends no emergency messages (its EDS has no 0x1014).',
+  none: 'This device sends no emergency messages (its device file has no 0x1014).',
   off: 'Emergency messages are off for this node.',
   on: 'No emergencies since the PLC started.',
 }

@@ -24,6 +24,7 @@ import {
   defaultCanopenConfig,
   type DeviceFileExport,
   deviceFileZip,
+  exportFileType,
   type ExportFormat,
   exportLosses,
   fixAllCanopenProblems,
@@ -281,6 +282,7 @@ const CanopenEditor = () => {
     if (!exportTarget) return null
     const options = { now: new Date(), networkName: deviceName }
     const ext = exportFormat.toUpperCase()
+    const fileType = exportFileType(exportFormat)
     if (exportTarget.kind === 'node') {
       const node = config.nodes.find((n) => n.id === exportTarget.node.id) ?? exportTarget.node
       const text = storedFileText(config, node)
@@ -296,8 +298,8 @@ const CanopenEditor = () => {
             ? saveExport(
                 files[0].fileName,
                 new TextEncoder().encode(files[0].text),
-                { name: `${ext} file`, extensions: [exportFormat] },
-                'text/plain;charset=utf-8',
+                { name: fileType.name, extensions: fileType.extensions },
+                fileType.mime,
               )
             : Promise.resolve(true),
       }

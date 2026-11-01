@@ -135,8 +135,8 @@ describe('canopenSdoWarnings', () => {
       { id: 'c', index: 0x2100, subIndex: 0, dataType: 'UNSIGNED32', value: '1' },
     ]
     expect(canopenSdoWarnings(canopenDevice('net', configWith(node)))).toEqual([
-      { nodeId: 'node-2', sdoId: 'a', message: "This object is not in the node's EDS." },
-      { nodeId: 'node-2', sdoId: 'b', message: 'The EDS marks this object read-only.' },
+      { nodeId: 'node-2', sdoId: 'a', message: "This object is not in the node's device file." },
+      { nodeId: 'node-2', sdoId: 'b', message: 'The device file marks this object read-only.' },
     ])
   })
 

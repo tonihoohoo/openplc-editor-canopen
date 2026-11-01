@@ -1,16 +1,14 @@
 import type { CanopenConfig, CanopenNode } from '../../../ports/canopen-types'
 import {
   buildNetworkDcfs,
-  buildNetworkExport,
   buildNodeDcf,
-  buildNodeExport,
   dcfExportOk,
   deviceFileZip,
   edsFileName,
-  exportLosses,
   parameterValueText,
 } from '../dcf-export'
 import { importDcfSettings, readDcfContent } from '../dcf-import'
+import { buildNetworkExport, buildNodeExport, exportLosses } from '../device-export'
 import {
   prepareDeviceFile,
   pruneStoredFiles,

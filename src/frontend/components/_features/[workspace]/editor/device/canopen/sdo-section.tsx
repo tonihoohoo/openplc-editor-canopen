@@ -8,13 +8,16 @@ import type {
 } from '@root/middleware/shared/ports/canopen-types'
 import {
   CANOPEN_DATA_TYPES,
+  describeValue,
   encodeCanopenValue,
   findObject,
   moveItem,
   NEVER_WRITTEN_INDICES,
+  objectInfo,
   objectLabel,
   objectRef,
   parseEdsInteger,
+  shortDescription,
   startupSdoCandidates,
   toCanopenDataType,
 } from '@root/middleware/shared/utils/canopen'
@@ -22,6 +25,7 @@ import { useMemo, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CheckboxField, NumberField, SelectField, TextField } from './fields'
+import { ObjectDetails } from './object-details'
 import { ObjectPicker } from './object-picker'
 import { MoveButtons, SortableBody, SortableRow } from './sortable-rows'
 import { hintClassName, iconButtonClassName, secondaryButtonClassName } from './styles'
@@ -37,13 +41,21 @@ const BOOLEAN_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: '1', label: 'TRUE' },
 ]
 
-/** "EDS default 5 · range 0 to 100" for an object of the EDS. */
+/** "file default 5 · range 0 to 100 · in ms" for an object of the device file. */
 const valueHint = (object: CanopenObject | undefined): string | undefined => {
   if (!object) return undefined
   const parts: string[] = []
-  if (object.defaultValue !== undefined) parts.push(`EDS default ${object.defaultValue}`)
+  const d = object.defaultValue
+  if (d !== undefined) {
+    const hex = /^0x[0-9a-f]+$/i.test(d.trim()) ? String(parseInt(d.trim(), 16)) : undefined
+    parts.push(
+      hex ? `file default ${describeValue(object, hex)} (${d.trim()})` : `file default ${describeValue(object, d)}`,
+    )
+  }
   if (object.lowLimit !== undefined || object.highLimit !== undefined)
     parts.push(`range ${object.lowLimit ?? '...'} to ${object.highLimit ?? '...'}`)
+  const info = objectInfo(object)
+  if (info?.unit) parts.push(info.multiplier ? `${info.multiplier} ${info.unit} per step` : `in ${info.unit}`)
   return parts.length > 0 ? parts.join(' · ') : undefined
 }
 
@@ -59,6 +71,13 @@ type SdoSectionProps = {
 
 const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
   const [showAll, setShowAll] = useState(false)
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
+  const toggleOpen = (id: string): void =>
+    setOpen((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
   const [addedId, setAddedId] = useAddedHighlight()
   const candidates = useMemo(() => startupSdoCandidates(node), [node])
   const items = useMemo(
@@ -157,6 +176,7 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
             const object = findObject(node.eds, sdo.index, sdo.subIndex)
             const typeFromEds = edsType(object) !== undefined
             const encoded = encodeCanopenValue(sdo.dataType, sdo.value)
+            const valueList = objectInfo(object)?.values ?? []
             const warning = warnings.get(sdo.id)
             return (
               <SortableRow
@@ -198,12 +218,34 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
                       !object && 'italic text-neutral-500',
                     )}
                   >
-                    {object ? objectLabel(object) : 'Not in the EDS'}
+                    {object ? (
+                      <button
+                        type='button'
+                        aria-expanded={open.has(sdo.id)}
+                        aria-label={`Details of ${objectLabel(object)}`}
+                        onClick={() => toggleOpen(sdo.id)}
+                        className='flex items-center gap-1 text-left hover:text-brand'
+                      >
+                        <span className='w-2.5 shrink-0 text-[9px] text-neutral-400'>
+                          {open.has(sdo.id) ? '▼' : '▶'}
+                        </span>
+                        {objectLabel(object)}
+                      </button>
+                    ) : (
+                      'Not in the device file'
+                    )}
                   </span>
+                  {object && open.has(sdo.id) ? (
+                    <ObjectDetails object={object} nodeId={node.nodeId} className='mt-1' />
+                  ) : shortDescription(object, 90) ? (
+                    <span className={cn(hintClassName, 'block pl-3.5')} title={objectInfo(object)?.description}>
+                      {shortDescription(object, 90)}
+                    </span>
+                  ) : null}
                 </td>
                 <td className='py-1 pr-2'>
                   {typeFromEds ? (
-                    <span className='flex h-[30px] items-center' title='Data type from the EDS'>
+                    <span className='flex h-[30px] items-center' title='Data type from the device file'>
                       {sdo.dataType}
                     </span>
                   ) : (
@@ -217,7 +259,21 @@ const SdoSection = ({ node, warnings, onChange }: SdoSectionProps) => {
                   )}
                 </td>
                 <td className='py-1 pr-2'>
-                  {sdo.dataType === 'BOOLEAN' ? (
+                  {valueList.length > 0 ? (
+                    <SelectField
+                      label='Value'
+                      hideLabel
+                      value={sdo.value}
+                      options={[
+                        ...valueList.map((v) => ({ value: v.value, label: `${v.value} (${v.label})` })),
+                        ...(valueList.some((v) => v.value === sdo.value)
+                          ? []
+                          : [{ value: sdo.value, label: sdo.value }]),
+                      ]}
+                      hint={valueHint(object)}
+                      onChange={(value) => update(sdo.id, { value })}
+                    />
+                  ) : sdo.dataType === 'BOOLEAN' ? (
                     <SelectField
                       label='Value'
                       hideLabel

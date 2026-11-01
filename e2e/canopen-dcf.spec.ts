@@ -67,7 +67,7 @@ test('EDS and DCF files are checked, imported and exported', async () => {
   await windowSize(app, 1600, 1000)
   try {
     await openNetwork(page)
-    await expect(page.getByRole('button', { name: 'Add node from EDS or DCF...' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Add node from device file...' })).toBeVisible()
 
     await page.getByTestId('canopen-eds-input').setInputFiles(dcf)
     const dialog = page.getByTestId('canopen-file-dialog')
@@ -103,7 +103,7 @@ test('EDS and DCF files are checked, imported and exported', async () => {
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(dialog).toHaveCount(0)
 
-    await expect(page.getByRole('button', { name: 'Replace EDS...' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Replace device file...' })).toBeVisible()
     await shot(page, 'dcf-node-page')
 
     await captureSaves(app)

@@ -294,7 +294,7 @@ function checkHeartbeats(config: CanopenConfig, out: CanopenCheck[]): void {
           where: label(node),
           text: node.configure
             ? 'is supervised by heartbeat with a heartbeat time of 0'
-            : 'is supervised by heartbeat, but its EDS default heartbeat time is 0 and the master does not set it',
+            : 'is supervised by heartbeat, but its file default heartbeat time is 0 and the master does not set it',
         })
       else if (node.heartbeatConsumerMs <= producer) {
         const to = longer(producer)
@@ -445,7 +445,7 @@ function checkOptions(config: CanopenConfig, out: CanopenCheck[]): void {
         nodeId: node.id,
         where: label(node),
         field: 'restoreDefaults',
-        text: `restores its defaults with 0x1011 sub ${node.restoreDefaults}, which its EDS does not define as writable`,
+        text: `restores its defaults with 0x1011 sub ${node.restoreDefaults}, which its device file does not define as writable`,
         fix: turnOff,
       })
   }

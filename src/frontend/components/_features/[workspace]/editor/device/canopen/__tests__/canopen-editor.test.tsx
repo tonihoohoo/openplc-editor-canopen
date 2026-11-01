@@ -200,7 +200,7 @@ describe('CanopenEditor', () => {
       'Sync, acyclic (0)',
       'Sync, every N (1-240)',
       'Event, manufacturer (254)',
-      'Event, profile (255), EDS default',
+      'Event, profile (255), file default',
     ])
     expect(within(card).getByText('0x1800:02')).toBeTruthy()
     expect(within(card).getByText('0x1800:05')).toBeTruthy()
@@ -275,14 +275,14 @@ describe('CanopenEditor', () => {
     pickObject(screen.getByRole('button', { name: 'Add an SDO for an object of the device' }), '0x1017:00')
     const rows = screen.getAllByTestId('canopen-sdo-row')
     expect(within(rows[0]).getByText('Parameter')).toBeTruthy()
-    expect(within(rows[0]).getByText('EDS default 0')).toBeTruthy()
+    expect(within(rows[0]).getByText('file default 0')).toBeTruthy()
     expect(within(rows[0]).queryByLabelText('Type')).toBeNull()
     fireEvent.click(within(rows[1]).getByRole('button', { name: 'Move SDO 0x1017:00 up' }))
     expect(config()?.nodes[0].sdos.map((s) => s.index)).toEqual([0x1017, 0x2100])
 
     fireEvent.click(screen.getByRole('button', { name: 'Add by index' }))
     const added = screen.getAllByTestId('canopen-sdo-row')[2]
-    expect(within(added).getByText('Not in the EDS')).toBeTruthy()
+    expect(within(added).getByText('Not in the device file')).toBeTruthy()
     expect(within(added).getByLabelText('Type')).toBeTruthy()
   })
 
@@ -328,7 +328,7 @@ describe('CanopenEditor', () => {
     const emcy = screen.getByLabelText<HTMLInputElement>('Emergency messages')
     expect(emcy.checked).toBe(false)
     expect(emcy.disabled).toBe(true)
-    const reason = 'The device sends no emergency messages: its EDS has no 0x1014'
+    const reason = 'The device sends no emergency messages: its device file has no 0x1014'
     expect(emcy.closest('label')?.getAttribute('title')).toBe(reason)
     expect(screen.getByText(reason)).toBeTruthy()
     expect(screen.queryByLabelText('Emergency COB-ID')).toBeNull()
@@ -349,7 +349,9 @@ describe('CanopenEditor', () => {
     const cobId = screen.getByLabelText<HTMLInputElement>('Emergency COB-ID')
     expect(cobId.value).toBe('0x081')
     expect(cobId.disabled).toBe(true)
-    expect(cobId.closest('label')?.getAttribute('title')).toBe('Fixed by the device: its EDS marks 0x1014 read-only')
+    expect(cobId.closest('label')?.getAttribute('title')).toBe(
+      'Fixed by the device: its device file marks 0x1014 read-only',
+    )
     fireEvent.click(emcy)
     expect(config()?.nodes[0].emcy.enabled).toBe(false)
   })
@@ -360,7 +362,7 @@ describe('CanopenEditor', () => {
     const time = screen.getByLabelText<HTMLInputElement>('Receive TIME')
     expect(time.disabled).toBe(true)
     expect(time.closest('label')?.getAttribute('title')).toBe(
-      'The device cannot consume TIME: its EDS has no writable 0x1012',
+      'The device cannot consume TIME: its device file has no writable 0x1012',
     )
   })
 

@@ -134,9 +134,10 @@ export function canopenSdoWarnings(device: PLCRemoteDevice): Array<{ nodeId: str
   for (const node of device.canopenConfig?.nodes ?? []) {
     for (const sdo of node.sdos) {
       const object = findObject(node.eds, sdo.index, sdo.subIndex)
-      if (!object) out.push({ nodeId: node.id, sdoId: sdo.id, message: "This object is not in the node's EDS." })
+      if (!object)
+        out.push({ nodeId: node.id, sdoId: sdo.id, message: "This object is not in the node's device file." })
       else if (object.access === 'ro' || object.access === 'const')
-        out.push({ nodeId: node.id, sdoId: sdo.id, message: 'The EDS marks this object read-only.' })
+        out.push({ nodeId: node.id, sdoId: sdo.id, message: 'The device file marks this object read-only.' })
       else if (watchesMaster(node) && (sdo.index === 0x1016 || sdo.index === 0x1029))
         out.push({
           nodeId: node.id,

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ISO15745ProfileContainer xmlns="http://www.ethernet-powerlink.org" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<ISO15745Profile><ProfileHeader><ProfileIdentification>Powerlink device profile</ProfileIdentification></ProfileHeader></ISO15745Profile>
+</ISO15745ProfileContainer>

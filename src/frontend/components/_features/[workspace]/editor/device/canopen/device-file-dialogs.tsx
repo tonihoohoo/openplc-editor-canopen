@@ -1,25 +1,26 @@
 import { Modal, ModalContent, ModalTitle } from '@root/frontend/components/_molecules/modal'
 import { cn } from '@root/frontend/utils/cn'
-import type { CanopenConfig, CanopenNode } from '@root/middleware/shared/ports/canopen-types'
+import type { CanopenConfig, CanopenEdsInfo, CanopenNode } from '@root/middleware/shared/ports/canopen-types'
 import {
-  CIA306_RULES,
-  type Cia306Finding,
   createCanopenNode,
   type DcfImportLine,
   type DeviceFileExport,
+  type DeviceFileFinding,
+  deviceFindingClause,
+  deviceFindingPlace,
+  deviceFindingTitle,
   EXPORT_FORMATS,
   type ExportFormat,
-  findingPlace,
+  exportStandard,
   importDcfSettings,
   lowestFreeNodeId,
   nodeNameFromEds,
   placeholderAddress,
   type PreparedDeviceFile,
   replaceDeviceFile,
-  ruleClause,
   uniqueNodeName,
 } from '@root/middleware/shared/utils/canopen'
-import { type ReactNode, useMemo, useState } from 'react'
+import { Fragment, type ReactNode, useMemo, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import {
@@ -68,19 +69,19 @@ const Row = ({ kind, children }: { kind: BadgeKind; children: ReactNode }) => (
   </li>
 )
 
-const findingKind = (f: Cia306Finding): BadgeKind =>
+const findingKind = (f: DeviceFileFinding): BadgeKind =>
   f.severity === 'error' ? 'error' : f.rule === 'file-encoding' ? 'fixed' : 'warning'
 
-const FindingText = ({ finding }: { finding: Cia306Finding }) => (
+const FindingText = ({ finding }: { finding: DeviceFileFinding }) => (
   <>
-    <code className='font-mono text-[11px]'>{findingPlace(finding)}</code>: {finding.message}{' '}
-    <span className={hintClassName}>({ruleClause(finding.rule)})</span>
+    <code className='font-mono text-[11px]'>{deviceFindingPlace(finding)}</code>: {finding.message}{' '}
+    <span className={hintClassName}>({deviceFindingClause(finding)})</span>
   </>
 )
 
 /** Findings, errors first; a rule with many findings is folded into one row. */
-const FindingList = ({ findings }: { findings: readonly Cia306Finding[] }) => {
-  const groups = new Map<string, Cia306Finding[]>()
+const FindingList = ({ findings }: { findings: readonly DeviceFileFinding[] }) => {
+  const groups = new Map<string, DeviceFileFinding[]>()
   const ordered = [...findings].sort((a, b) => Number(b.severity === 'error') - Number(a.severity === 'error'))
   for (const f of ordered) groups.set(`${f.severity}:${f.rule}`, [...(groups.get(`${f.severity}:${f.rule}`) ?? []), f])
   return (
@@ -96,8 +97,8 @@ const FindingList = ({ findings }: { findings: readonly Cia306Finding[] }) => {
           <Row key={group[0].rule} kind={findingKind(group[0])}>
             <details>
               <summary className='cursor-pointer'>
-                {CIA306_RULES[group[0].rule].title}: {group.length} findings{' '}
-                <span className={hintClassName}>({ruleClause(group[0].rule)})</span>
+                {deviceFindingTitle(group[0])}: {group.length} findings{' '}
+                <span className={hintClassName}>({deviceFindingClause(group[0])})</span>
               </summary>
               <ul className='mt-1'>
                 {group.map((f, k) => (
@@ -118,13 +119,22 @@ const FileCheck = ({ prepared }: { prepared: PreparedDeviceFile }) => {
   const errors = prepared.check.findings.filter((f) => f.severity === 'error').length
   return (
     <div className={cardClassName}>
-      <h4 className={headingClassName}>File check (CiA 306)</h4>
+      <h4 className={headingClassName}>
+        File check{' '}
+        <span className='normal-case'>
+          ({prepared.source.format === 'xdd' || prepared.source.format === 'xdc' ? 'CiA 311' : 'CiA 306'})
+        </span>
+      </h4>
       {errors === 0 ? (
         <p className='mb-1 text-xs text-green-700 dark:text-green-400'>
           Readable, no errors in the communication objects
           {prepared.check.findings.length > 0
             ? `; ${prepared.check.findings.length} warning${prepared.check.findings.length === 1 ? '' : 's'} that do${prepared.check.findings.length === 1 ? 'es' : ''} not block`
             : ''}
+        </p>
+      ) : prepared.check.findings.some((f) => f.severity === 'error' && f.index === undefined) ? (
+        <p className='mb-1 text-xs text-red-700 dark:text-red-400'>
+          The file cannot be read as a CANopen device description.
         </p>
       ) : (
         <p className='mb-1 text-xs text-red-700 dark:text-red-400'>
@@ -136,6 +146,61 @@ const FileCheck = ({ prepared }: { prepared: PreparedDeviceFile }) => {
     </div>
   )
 }
+
+const DeviceDetails = ({ eds }: { eds: CanopenEdsInfo }) => {
+  const count = (pick: (o: CanopenEdsInfo['objects'][number]) => unknown): number =>
+    eds.objects.filter((o) => pick(o) !== undefined).length
+  const d = eds.details ?? {}
+  const rows: Array<[string, string]> = [
+    ['Device', [eds.vendorName, eds.productName].filter((s) => s !== '').join(' - ') || 'Unnamed device'],
+    ...(d.productText ? [['Product', d.productText] as [string, string]] : []),
+    ...(d.orderNumber ? [['Order number', d.orderNumber] as [string, string]] : []),
+    ['Identity', `vendor ${hex8(eds.vendorId)}, product ${hex8(eds.productCode)}, revision ${hex8(eds.revision)}`],
+    [
+      'File',
+      [
+        eds.source?.fileName ?? eds.fileName,
+        d.fileVersion ? `version ${d.fileVersion}` : undefined,
+        d.fileModificationDate ?? d.fileCreationDate,
+        d.languages?.join(', '),
+      ]
+        .filter((s) => s !== undefined && s !== '')
+        .join(' · '),
+    ],
+    ...(d.characteristics && d.characteristics.length > 0
+      ? [['Characteristics', d.characteristics.map((c) => `${c.value}: ${c.label}`).join(' · ')] as [string, string]]
+      : []),
+  ]
+  const extra = [
+    [count((o) => o.info?.description), 'described'],
+    [count((o) => o.info?.unit), 'with a unit'],
+    [count((o) => o.info?.values), 'with value meanings'],
+    [count((o) => o.info?.bits), 'with bit names'],
+  ] as const
+  if (extra.some(([n]) => n > 0))
+    rows.push([
+      'Extra information',
+      `${eds.objects.length} objects: ${extra
+        .filter(([n]) => n > 0)
+        .map(([n, what]) => `${n} ${what}`)
+        .join(', ')}`,
+    ])
+  return (
+    <div className={cardClassName} data-testid='canopen-file-details'>
+      <h4 className={headingClassName}>Device description</h4>
+      <dl className='grid grid-cols-[120px_1fr] gap-x-3 gap-y-0.5 text-xs'>
+        {rows.map(([k, v]) => (
+          <Fragment key={k}>
+            <dt className='text-neutral-500'>{k}</dt>
+            <dd className='text-neutral-800 [overflow-wrap:anywhere] dark:text-neutral-200'>{v}</dd>
+          </Fragment>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+const hex8 = (n: number): string => `0x${n.toString(16).toUpperCase().padStart(8, '0')}`
 
 const ImportLines = ({ title, lines }: { title: string; lines: { kind: BadgeKind; line: DcfImportLine }[] }) =>
   lines.length === 0 ? null : (
@@ -177,7 +242,10 @@ export const DeviceFileDialog = ({
 }: DeviceFileDialogProps) => {
   const { prepared } = request
   const [choice, setChoice] = useState<Choice>('settings')
-  const asksChoice = request.kind === 'add' && prepared.source.format === 'dcf' && prepared.hasSettings
+  const asksChoice =
+    request.kind === 'add' &&
+    (prepared.source.format === 'dcf' || prepared.source.format === 'xdc') &&
+    prepared.hasSettings
   const eds = prepared.eds
 
   const preview = useMemo(() => {
@@ -244,13 +312,16 @@ export const DeviceFileDialog = ({
           {request.kind === 'replace'
             ? `${prepared.fileName} takes the place of ${request.node.eds.fileName}. The node keeps its ID, name, settings, mapped entries with their IEC addresses and aliases, and startup SDOs wherever the new file allows them.`
             : asksChoice
-              ? 'A DCF of a configured node. Choose whether the node takes the settings saved in it.'
+              ? `${prepared.source.format === 'xdc' ? 'An XDC' : 'A DCF'} of a configured node. Choose whether the node takes the settings saved in it.`
               : `${prepared.source.format.toUpperCase()} file read as ${ENCODING_NAMES[prepared.encoding]}.`}
         </p>
         <FileCheck prepared={prepared} />
+        {eds && (prepared.source.format === 'xdd' || prepared.source.format === 'xdc') ? (
+          <DeviceDetails eds={eds} />
+        ) : null}
         {asksChoice && !refused ? (
           <div className={cardClassName} role='radiogroup' aria-label='DCF settings'>
-            <h4 className={headingClassName}>This DCF holds a configured node</h4>
+            <h4 className={headingClassName}>This {prepared.source.format.toUpperCase()} holds a configured node</h4>
             <label className='flex items-center gap-2 py-1 text-xs text-neutral-800 dark:text-neutral-200'>
               <input
                 type='radio'
@@ -271,7 +342,10 @@ export const DeviceFileDialog = ({
                 className='accent-brand'
               />
               <span className='font-medium'>Use it only as a device description</span>
-              <span className={hintClassName}>like an EDS: lowest free node ID and the device defaults</span>
+              <span className={hintClassName}>
+                like {prepared.source.format === 'xdc' ? 'an XDD' : 'an EDS'}: lowest free node ID and the device
+                defaults
+              </span>
             </label>
           </div>
         ) : null}
@@ -290,7 +364,11 @@ export const DeviceFileDialog = ({
         ) : null}
         {preview ? (
           <ImportLines
-            title={request.kind === 'replace' ? 'Not kept with the new file' : 'Settings from the DCF'}
+            title={
+              request.kind === 'replace'
+                ? 'Not kept with the new file'
+                : `Settings from the ${prepared.source.format.toUpperCase()}`
+            }
             lines={preview.lines}
           />
         ) : null}
@@ -391,11 +469,13 @@ export const ExportDialog = ({
           </div>
         ) : null}
         <div className={cardClassName}>
-          <h4 className={headingClassName}>Check of the files (CiA 306)</h4>
+          <h4 className={headingClassName}>
+            Check of the files <span className='normal-case'>({exportStandard(format)})</span>
+          </h4>
           <ul data-testid='canopen-export-results'>
             {missing.map((node) => (
               <Row key={node.id} kind='error'>
-                node {node.nodeId} ({node.name}): no device file is stored for it. Use Replace EDS... to add it.
+                node {node.nodeId} ({node.name}): no device file is stored for it. Use Replace device file... to add it.
               </Row>
             ))}
             {files.map((f) =>

@@ -85,7 +85,7 @@ describe('transmission types', () => {
 
   it('makes a read-only or missing transmission type read-only', () => {
     const locked = edsWith('1800sub2', { 'AccessType=rw': 'AccessType=ro' })
-    expect(transmissionChoices(locked, 'input', 1, 2).readOnlyReason).toBe('Read-only in the EDS, not written')
+    expect(transmissionChoices(locked, 'input', 1, 2).readOnlyReason).toBe('Read-only in the device file, not written')
     expect(transmissionChoices(genericIoEds(), 'input', 2, 2).readOnlyReason).toMatch(/no transmission type/)
   })
 })
@@ -96,9 +96,9 @@ describe('parameter states', () => {
     expect(pdoParameterState(eds, 'input', 1, 3)).toEqual({ ref: '0x1800:03', notWrittenReason: null })
     expect(pdoParameterState(eds, 'input', 1, 5)).toEqual({
       ref: '0x1800:05',
-      notWrittenReason: 'read-only in the EDS, not written',
+      notWrittenReason: 'read-only in the device file, not written',
     })
-    expect(pdoParameterState(eds, 'output', 1, 5).notWrittenReason).toBe('not in the EDS, not written')
+    expect(pdoParameterState(eds, 'output', 1, 5).notWrittenReason).toBe('not in the device file, not written')
     expect(objectParameterState(eds, 0x1017, 0).ref).toBe('0x1017:00')
   })
 })
