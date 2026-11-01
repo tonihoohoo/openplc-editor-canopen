@@ -222,7 +222,10 @@ export function encodeForObject(
   const low = object.lowLimit !== undefined ? parseEdsInteger(object.lowLimit, nodeId) : null
   const high = object.highLimit !== undefined ? parseEdsInteger(object.highLimit, nodeId) : null
   if ((low !== null && value < low) || (high !== null && value > high))
-    return { ok: false, message: `${text} is outside the range the EDS allows (${low ?? '...'} to ${high ?? '...'})` }
+    return {
+      ok: false,
+      message: `${text} is outside the range the device file allows (${low ?? '...'} to ${high ?? '...'})`,
+    }
   return encoded
 }
 

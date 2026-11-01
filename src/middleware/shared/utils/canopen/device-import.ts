@@ -1,5 +1,5 @@
 /**
- * Adding a node from an EDS or DCF and replacing a node's device file: decode, check, parse, and
+ * Adding a node from an EDS, DCF, XDD or XDC and replacing a node's device file: decode, check, parse, and
  * the network's store of device files (one copy per SHA-256 in `CanopenConfig.files`).
  */
 
@@ -13,9 +13,9 @@ import type {
 import { accessFits, objectRef, toCanopenDataType } from './data-types'
 import { type DcfContent, type DcfImportLine, hasDcfSettings, readDcfContent } from './dcf-import'
 import { decodeDeviceFile, type DeviceFileEncoding, deviceFileFormat, deviceFileHash } from './device-file'
-import { checkEds, type EdsCheckResult } from './eds-check'
+import { checkEds } from './eds-check'
 import { readEdsDocument } from './eds-document'
-import { findObject, masterMayWrite, parseEdsDocument } from './eds-parser'
+import { EdsParseError, findObject, masterMayWrite, parseEdsDocument } from './eds-parser'
 import {
   type AllocateAddress,
   canBeGuarded,
@@ -28,12 +28,14 @@ import {
   pdoObjectIndices,
   restoreChoices,
 } from './model'
+import { checkXdd, type DeviceFileCheckResult } from './xdd-check'
+import { parseXdd, xdcToDcfContent } from './xdd-parser'
 
 export interface PreparedDeviceFile {
   fileName: string
   text: string
   encoding: DeviceFileEncoding
-  check: EdsCheckResult
+  check: DeviceFileCheckResult
   /** The description, when the file could be read and the check found no error. */
   eds?: CanopenEdsInfo
   /** The DCF part; `hasSettings` tells whether there is anything to take. */
@@ -45,8 +47,21 @@ export interface PreparedDeviceFile {
 /** Decodes, checks and reads a chosen device file. */
 export async function prepareDeviceFile(fileName: string, bytes: Uint8Array): Promise<PreparedDeviceFile> {
   const { text, encoding } = decodeDeviceFile(bytes)
-  const doc = readEdsDocument(text)
   const format = deviceFileFormat(fileName)
+  if (format === 'xdd' || format === 'xdc') {
+    const source: CanopenDeviceSource = { format, fileName, sha256: await deviceFileHash(text) }
+    let read: ReturnType<typeof parseXdd> | undefined
+    try {
+      read = parseXdd(text, fileName)
+    } catch (e) {
+      if (!(e instanceof EdsParseError)) throw e
+    }
+    const check = checkXdd(text, read?.eds)
+    const dcf: DcfContent = read ? xdcToDcfContent(read.xdc) : { values: [], denotations: new Map() }
+    const eds = read && check.ok ? { ...read.eds, source } : undefined
+    return { fileName, text, encoding, check, eds, dcf, hasSettings: hasDcfSettings(dcf), source }
+  }
+  const doc = readEdsDocument(text)
   const check = checkEds(doc, { encoding, format })
   const source: CanopenDeviceSource = {
     format,

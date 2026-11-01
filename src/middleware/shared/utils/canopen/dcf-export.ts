@@ -13,6 +13,7 @@ import { readEdsDocument } from './eds-document'
 import { findObject } from './eds-parser'
 import { nodeConfigurationSdos, pdoActive } from './generate-canopen-config'
 import { pdoObjectIndices, restoreChoiceName } from './model'
+import type { DeviceFileFinding } from './xdd-check'
 
 /** First word of the comment lines the export puts at the top; a later export replaces them. */
 const COMMENT_MARK = '; DCF:'
@@ -204,8 +205,8 @@ export interface DeviceFileExport {
   text: string
   /** One line for the export dialog, such as the number of values written. */
   summary: string
-  /** CiA 306 findings on lines the export added or changed: errors, which stop the export. */
-  errors: Cia306Finding[]
+  /** Check findings on what the export added or changed: errors, which stop the export. */
+  errors: DeviceFileFinding[]
   /** Values the export cannot write. */
   problems: DcfExportProblem[]
 }
@@ -215,12 +216,12 @@ export interface DcfExportOptions {
   networkName?: string
 }
 
-function cia306Date(d: Date): string {
+export function cia306Date(d: Date): string {
   const p = (n: number): string => String(n).padStart(2, '0')
   return `${p(d.getMonth() + 1)}-${p(d.getDate())}-${d.getFullYear()}`
 }
 
-function cia306Time(d: Date): string {
+export function cia306Time(d: Date): string {
   const p = (n: number): string => String(n).padStart(2, '0')
   return `${p(((d.getHours() + 11) % 12) + 1)}:${p(d.getMinutes())}${d.getHours() < 12 ? 'AM' : 'PM'}`
 }
@@ -273,6 +274,25 @@ function dropDcfContent(lines: Lines): void {
     if (/^[0-9A-F]{4}(VALUE|DENOTATION)$/i.test(name) || /^DEVICECOMM?ISSIONING$/i.test(name)) lines.dropSection(name)
 }
 
+export interface NodeParameterValue {
+  index: number
+  subIndex: number
+  /** Little-endian hex of the bytes. */
+  data: string
+}
+
+/**
+ * The value each sub-object holds after the master's configuration (the last one written), plus
+ * the fixed mapping of every active PDO the build does not map, sorted by index and sub-index.
+ */
+export function nodeParameterValues(node: CanopenNode, network: CanopenNetworkSettings): NodeParameterValue[] {
+  const last = new Map<string, NodeParameterValue>()
+  for (const sdo of nodeConfigurationSdos(node, network))
+    last.set(objectRef(sdo.index, sdo.subindex), { index: sdo.index, subIndex: sdo.subindex, data: sdo.data })
+  const values = [...last.values(), ...fixedMappingValues(node, last)]
+  return values.sort((a, b) => a.index - b.index || a.subIndex - b.subIndex)
+}
+
 /**
  * The node's DCF from its stored file text. `errors` and `problems` are empty when it can be saved.
  */
@@ -288,12 +308,7 @@ export function buildNodeDcf(
   const problems: DcfExportProblem[] = []
 
   dropDcfContent(lines)
-  const last = new Map<string, { index: number; subIndex: number; data: string }>()
-  for (const sdo of nodeConfigurationSdos(node, network))
-    last.set(objectRef(sdo.index, sdo.subindex), { index: sdo.index, subIndex: sdo.subindex, data: sdo.data })
-  const values = [...last.values()].sort((a, b) => a.index - b.index || a.subIndex - b.subIndex)
-  values.push(...fixedMappingValues(node, last))
-  values.sort((a, b) => a.index - b.index || a.subIndex - b.subIndex)
+  const values = nodeParameterValues(node, network)
 
   for (const { index, subIndex, data } of values) {
     const object = findObject(node.eds, index, subIndex)
@@ -341,7 +356,12 @@ export function buildNodeDcf(
 
   const lastEds = node.eds.source?.format === 'dcf' ? lines.get('FileInfo', 'LastEDS') : undefined
   lines.set('FileInfo', 'FileName', fileName)
-  lines.set('FileInfo', 'LastEDS', lastEds || node.eds.source?.fileName || node.eds.fileName)
+  const fromXml = node.eds.source?.format === 'xdd' || node.eds.source?.format === 'xdc'
+  lines.set(
+    'FileInfo',
+    'LastEDS',
+    lastEds || (fromXml ? edsFileName(node, storedText) : node.eds.source?.fileName || node.eds.fileName),
+  )
   lines.set('FileInfo', 'ModifiedBy', DCF_MODIFIED_BY)
   lines.set('FileInfo', 'ModificationDate', cia306Date(options.now))
   lines.set('FileInfo', 'ModificationTime', cia306Time(options.now))
@@ -418,7 +438,7 @@ function setListEntry(lines: Lines, section: string, subIndex: number, value: st
 
 export interface NetworkExport {
   files: DeviceFileExport[]
-  /** Nodes without a stored device file; they need "Replace EDS..." first. */
+  /** Nodes without a stored device file; they need "Replace device file..." first. */
   missing: CanopenNode[]
 }
 
@@ -439,7 +459,7 @@ export function dcfExportOk(files: readonly DeviceFileExport[]): boolean {
   return files.every((f) => f.errors.length === 0 && f.problems.length === 0)
 }
 
-function baseName(path: string): string {
+export function baseName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
 }
 
@@ -472,7 +492,7 @@ export function buildNodeEds(node: CanopenNode, storedText: string): DeviceFileE
   return { fileName, text, summary: 'the description of the stored DCF, without its values', errors, problems: [] }
 }
 
-function uniqueFileName(name: string, taken: Set<string>): string {
+export function uniqueFileName(name: string, taken: Set<string>): string {
   const dot = name.lastIndexOf('.')
   const stem = dot > 0 ? name.slice(0, dot) : name
   const ext = dot > 0 ? name.slice(dot) : ''
@@ -501,100 +521,6 @@ export function buildNetworkEds(config: CanopenConfig): NetworkExport {
     files.push({ ...file, fileName: uniqueFileName(file.fileName, names) })
   }
   return { files, missing }
-}
-
-/** The formats a node or a network can be exported as. */
-export type ExportFormat = 'dcf' | 'eds'
-
-export const EXPORT_FORMATS: ReadonlyArray<{ format: ExportFormat; label: string; description: string }> = [
-  {
-    format: 'dcf',
-    label: 'DCF',
-    description: 'The device file with ParameterValue on every object the master writes when it configures the node.',
-  },
-  { format: 'eds', label: 'EDS', description: 'The device description only, as it was added, without values.' },
-]
-
-function nodeLosses(format: ExportFormat, node: CanopenNode): string[] {
-  const out: string[] = []
-  const pdos = [...node.tpdos, ...node.rpdos].filter((p) => p.enabled)
-  const mapped = pdos.reduce((n, p) => n + p.entries.length, 0)
-  if (format === 'eds') {
-    out.push(
-      "the settings made in the editor: node ID, name, PDO settings and mappings, supervision, emergency, TIME, heartbeat consumers, watching the master and startup SDOs (the file keeps the device's defaults)",
-    )
-    if (pdos.some((p) => p.entries.some((e) => e.alias))) out.push('the aliases of the mapped entries')
-  }
-  if (mapped > 0) out.push(`the IEC addresses of ${mapped} mapped entr${mapped === 1 ? 'y' : 'ies'} (%I, %Q)`)
-  out.push(
-    "how the master handles the node: optional or required, identity checks, the master's heartbeat timeout and what the inputs do on loss",
-  )
-  const timeouts = pdos.filter((p) => p.receiveTimeoutMs > 0).length
-  if (timeouts > 0) out.push(`receive timeouts on ${timeouts} PDO${timeouts === 1 ? '' : 's'}`)
-  if (format === 'dcf' && !node.configure)
-    out.push('that the master does not configure the node: the file has no values, only a comment says so')
-  else if (format === 'dcf' && node.restoreDefaults > 0)
-    out.push(`the restore step before the configuration (0x1011 sub ${node.restoreDefaults}): only a comment says so`)
-  return out
-}
-
-/**
- * What the exported files do not hold, in plain sentences, so the dialog can say what is lost.
- * `nodes` are the exported nodes; a network export adds the network's own settings.
- */
-export function exportLosses(format: ExportFormat, nodes: readonly CanopenNode[], network: boolean): string[] {
-  const out: string[] = []
-  if (network)
-    out.push(
-      format === 'dcf'
-        ? 'the network settings (interface, master node ID, SYNC, behaviour on PLC stop); each DCF keeps the bit rate'
-        : 'the network settings (interface, bit rate, master node ID, SYNC, behaviour on PLC stop)',
-    )
-  if (network && format === 'eds' && new Set(nodes.map((n) => n.eds.source?.sha256)).size < nodes.length)
-    out.push('which nodes use each file: nodes that share a device file share one EDS')
-  for (const node of nodes) {
-    const prefix = nodes.length > 1 || network ? `node ${node.nodeId}: ` : ''
-    out.push(...nodeLosses(format, node).map((l) => prefix + l))
-  }
-  return out
-}
-
-/** The node's file in the format; `storedText` is its stored device file. */
-export function buildNodeExport(
-  format: ExportFormat,
-  node: CanopenNode,
-  storedText: string,
-  config: CanopenConfig,
-  options: DcfExportOptions,
-): DeviceFileExport {
-  switch (format) {
-    case 'dcf':
-      return buildNodeDcf(node, storedText, config, options)
-    case 'eds':
-      return buildNodeEds(node, storedText)
-    default: {
-      const never: never = format
-      throw new Error(`Unknown export format ${String(never)}`)
-    }
-  }
-}
-
-/** The network's files in the format. */
-export function buildNetworkExport(
-  format: ExportFormat,
-  config: CanopenConfig,
-  options: DcfExportOptions,
-): NetworkExport {
-  switch (format) {
-    case 'dcf':
-      return buildNetworkDcfs(config, options)
-    case 'eds':
-      return buildNetworkEds(config)
-    default: {
-      const never: never = format
-      throw new Error(`Unknown export format ${String(never)}`)
-    }
-  }
 }
 
 /** A zip of the files, for a network export. */

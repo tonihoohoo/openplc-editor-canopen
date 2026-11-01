@@ -125,7 +125,7 @@ describe('CANopen live status', () => {
       emcy: { ...n.emcy, enabled: true },
       eds: { ...n.eds, objects: n.eds.objects.filter((o) => o.index !== 0x1014) },
     }))
-    expect(tab()).toContain('This device sends no emergency messages (its EDS has no 0x1014).')
+    expect(tab()).toContain('This device sends no emergency messages (its device file has no 0x1014).')
   })
 
   it('shows link resets and a bus-off link the runtime may not reset', async () => {

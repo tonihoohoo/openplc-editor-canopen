@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Reads DCF files with EdsDcfNet for .github/scripts/canopen_dcf_crosscheck.py; build with -p:EdsDcfNetDir=<clone>. -->
+  <!-- Reads DCF, XDC and XDD files with EdsDcfNet for .github/scripts/canopen_dcf_crosscheck.py; build with -p:EdsDcfNetDir=<clone>. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>

@@ -152,6 +152,11 @@ export const CIA306_RULES = {
     title: 'A PDO mapping entry names a described object with its length',
     blocks: 'never',
   },
+  'pdo-mapping-gap': {
+    clause: 'CiA 301',
+    title: 'PDO mapping sub-indexes run from 1 without gaps',
+    blocks: 'never',
+  },
   'modular-device': {
     clause: '6',
     title: 'Objects of extension modules are not read',
@@ -370,6 +375,12 @@ function plainInt(text: string | undefined): number | undefined {
   return v && !v.nodeId ? Number(v.value) : undefined
 }
 
+/** A number in any CiA 306 4.3 form (0, 0x1, 01) that equals 0 or 1. */
+function isZeroOrOne(text: string): boolean {
+  const n = plainInt(text)
+  return n === 0 || n === 1
+}
+
 interface ValueContext {
   section: EdsSection
   type: EdsTypeInfo | undefined
@@ -506,7 +517,7 @@ function checkDeviceInfo(c: Checker): void {
       c.add('device-info', `${k} is missing or empty`, { section: s.name, key: k, line: s.line })
   for (const k of DEVICE_INFO_BOOLEAN) {
     const v = c.get(s, k)
-    if (v && v !== '0' && v !== '1') c.add('device-info-value', `${k} "${v}" is not 0 or 1`, c.at(s, k))
+    if (v && !isZeroOrOne(v)) c.add('device-info-value', `${k} "${v}" is not 0 or 1`, c.at(s, k))
   }
   for (const k of DEVICE_INFO_NUMBER) {
     const v = c.get(s, k)
@@ -526,7 +537,7 @@ function checkDummyUsage(c: Checker): void {
   for (const e of s.entries.values()) {
     if (!/^Dummy[0-9A-F]{4}$/i.test(e.key))
       c.add('dummy-usage', `"${e.key}" is not Dummy<data type index>`, { section: s.name, key: e.key, line: e.line })
-    else if (e.value !== '0' && e.value !== '1')
+    else if (!isZeroOrOne(e.value))
       c.add('dummy-usage', `${e.key} "${e.value}" is not 0 or 1`, { section: s.name, key: e.key, line: e.line })
   }
 }
@@ -651,8 +662,16 @@ function checkValue(
       c.add('value-range', `${where.key} ${value} is outside ${type.name}`, where)
       return
     }
-    const low = limits.low ? parseEdsIntegerText(limits.low) : null
-    const high = limits.high ? parseEdsIntegerText(limits.high) : null
+    const range = type.range
+    // A limit that limit-syntax rejects is not compared.
+    const usable = (text: string | undefined): EdsIntegerText | null => {
+      const l = text ? parseEdsIntegerText(text) : null
+      if (!l) return null
+      const [a, b] = edsValueSpan(l)
+      return a >= range[0] && b <= range[1] ? l : null
+    }
+    const low = usable(limits.low)
+    const high = usable(limits.high)
     if (low && edsValueSpan(low)[0] > lo)
       c.add('value-limits', `${where.key} ${value} is below LowLimit ${limits.low}`, where)
     else if (high && edsValueSpan(high)[1] < hi)
@@ -736,7 +755,7 @@ function checkValueObject(c: Checker, s: EdsSection, index: number, subIndex: nu
   else if (access && !ACCESS_TYPES.includes(access.toLowerCase()))
     c.add('access-type', `AccessType "${access}" is not ro, wo, rw, rwr, rww or const`, c.at(s, 'AccessType'))
   const mapping = c.get(s, 'PDOMapping')
-  if (mapping && mapping !== '0' && mapping !== '1')
+  if (mapping && !isZeroOrOne(mapping))
     c.add('pdo-mapping', `PDOMapping "${mapping}" is not 0 or 1`, c.at(s, 'PDOMapping'))
   if (typeCode === undefined) return
   const want = commDataType(index, subIndex)
@@ -989,6 +1008,29 @@ function checkMappingEntries(c: Checker): void {
   }
 }
 
+function checkMappingGaps(c: Checker): void {
+  const found = new Map<number, number[]>()
+  for (const upper of c.doc.sections.keys()) {
+    const m = MAPPING_SUB.exec(upper)
+    if (!m) continue
+    const index = parseInt(m[1], 16)
+    found.set(index, [...(found.get(index) ?? []), parseInt(m[2], 16)])
+  }
+  for (const [index, subs] of found) {
+    const highest = Math.max(...subs)
+    const missing: number[] = []
+    for (let sub = 1; sub < highest; sub++) if (!subs.includes(sub)) missing.push(sub)
+    if (missing.length === 0) continue
+    const id = index.toString(16).toUpperCase().padStart(4, '0')
+    const s = c.doc.sections.get(id) ?? c.doc.sections.get(`${id}SUB${highest.toString(16).toUpperCase()}`)
+    c.add(
+      'pdo-mapping-gap',
+      `${hex4(index)} describes sub-index ${highest} but not sub-index ${missing.join(', ')}`,
+      s ? { section: s.name, line: s.line } : { index },
+    )
+  }
+}
+
 function checkModular(c: Checker): void {
   const s = c.doc.sections.get('SUPPORTEDMODULES')
   if (!s) return
@@ -1067,6 +1109,7 @@ export function checkEds(doc: EdsDocument, options: EdsCheckOptions = {}): EdsCh
     })
   checkModular(c)
   checkMappingEntries(c)
+  checkMappingGaps(c)
   c.findings.sort((a, b) => (a.line ?? 0) - (b.line ?? 0))
   return { findings: c.findings, ok: c.findings.every((f) => f.severity === 'warning') }
 }

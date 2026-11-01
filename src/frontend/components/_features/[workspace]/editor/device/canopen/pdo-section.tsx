@@ -56,7 +56,7 @@ const TransmissionField = ({ pdo, direction, eds, nodeId, syncOn, onChange }: Tr
   const mode = transmissionMode(pdo.transmissionType)
   const options: Array<SelectOption<ModeValue>> = info.choices.map((c) => ({
     value: c.mode,
-    label: c.edsDefault ? `${c.label}, EDS default` : c.label,
+    label: c.edsDefault ? `${c.label}, file default` : c.label,
     disabledReason: c.disabledReason,
   }))
   if (mode === null)
@@ -70,7 +70,7 @@ const TransmissionField = ({ pdo, direction, eds, nodeId, syncOn, onChange }: Tr
   const hint =
     info.readOnlyReason ??
     (info.replacedEdsDefault !== null
-      ? `EDS default ${info.replacedEdsDefault} uses remote requests (RTR), which are not supported`
+      ? `File default ${info.replacedEdsDefault} uses remote requests (RTR), which are not supported`
       : undefined)
   const cyclicN = mode === 'sync_cyclic' ? pdo.transmissionType : Math.min(Math.max(1, info.cyclicMin), info.cyclicMax)
   return (

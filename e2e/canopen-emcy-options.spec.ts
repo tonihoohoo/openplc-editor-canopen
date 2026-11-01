@@ -70,13 +70,13 @@ test('emergency settings follow the EDS and greyed-out options say why', async (
     await page.getByRole('switch', { name: 'Expert view' }).check()
     await expect(emcy).not.toBeChecked()
     await expect(emcy).toBeDisabled()
-    const noReason = 'The device sends no emergency messages: its EDS has no 0x1014'
+    const noReason = 'The device sends no emergency messages: its device file has no 0x1014'
     expect(await tooltip(emcy)).toBe(noReason)
     await expect(page.getByText(noReason)).toBeVisible()
     await expect(page.getByLabel('Emergency COB-ID', { exact: true })).toHaveCount(0)
     const time = page.getByLabel('Receive TIME', { exact: true })
     await expect(time).toBeDisabled()
-    expect(await tooltip(time)).toBe('The device cannot consume TIME: its EDS has no writable 0x1012')
+    expect(await tooltip(time)).toBe('The device cannot consume TIME: its device file has no writable 0x1012')
     await emcy.scrollIntoViewIfNeeded()
     await shot(page, 'emcy-1-no-0x1014')
 
@@ -103,12 +103,12 @@ test('emergency settings follow the EDS and greyed-out options say why', async (
     const cobId = page.getByLabel('Emergency COB-ID', { exact: true })
     await expect(cobId).toHaveValue('0x082')
     await expect(cobId).toBeDisabled()
-    expect(await tooltip(cobId)).toBe('Fixed by the device: its EDS marks 0x1014 read-only')
+    expect(await tooltip(cobId)).toBe('Fixed by the device: its device file marks 0x1014 read-only')
     await cobId.scrollIntoViewIfNeeded()
     await shot(page, 'emcy-3-read-only-0x1014')
 
     await page.getByRole('tab', { name: 'Network' }).click()
-    await expect(page.getByText('Nodes whose EDS has no 0x1014 get it off')).toBeVisible()
+    await expect(page.getByText('Nodes whose device file has no 0x1014 get it off')).toBeVisible()
     await shot(page, 'emcy-4-network-defaults')
 
     await buildFromMenu(page, 'Build only')

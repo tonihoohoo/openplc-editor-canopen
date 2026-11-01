@@ -24,6 +24,7 @@ import {
   nodeStateLabel,
   type NvmScope,
   nvmScopes,
+  objectInfo,
   objectLabel,
   type OnlineObject,
   onlineObjects,
@@ -32,11 +33,16 @@ import {
   SAVE_SIGNATURE,
   type SaveSupport,
   saveSupport,
+  scaledValue,
+  setBitNames,
+  shortDescription,
   valueDiffers,
   type ValueDisplay,
+  valueMeaning,
 } from '@root/middleware/shared/utils/canopen'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { ObjectDetails, StandardMark } from './object-details'
 import { StatusDot } from './status-view'
 import { cardClassName, headingClassName, hintClassName, inputClassName, secondaryButtonClassName } from './styles'
 
@@ -285,11 +291,24 @@ const valueText = (row: OnlineObject, value: CanopenRowValue | undefined, displa
   if (!value) return ''
   if (value.pending) return '…'
   const { result } = value
-  return result.ok ? formatCanopenValue(row.object.dataType, result.bytes, display) : shortFailure(result)
+  if (!result.ok) return shortFailure(result)
+  const text = formatCanopenValue(row.object.dataType, result.bytes, display)
+  return text
+}
+
+/** Meaning, scaled value or bit names of a read value, from the object's file information. */
+const valueExtra = (row: OnlineObject, value: CanopenRowValue | undefined): string | undefined => {
+  if (!value || value.pending || !value.result.ok) return undefined
+  const raw = formatCanopenValue(row.object.dataType, value.result.bytes, 'decimal')
+  const meaning = valueMeaning(row.object, raw) ?? scaledValue(row.object, raw)
+  const bits = setBitNames(row.object, raw)
+  return meaning ?? (bits.length > 0 ? bits.join(', ') : undefined)
 }
 
 const valueTitle = (row: OnlineObject, value: CanopenRowValue | undefined, display: ValueDisplay): string =>
-  value && !value.pending && !value.result.ok ? value.result.message : valueText(row, value, display)
+  value && !value.pending && !value.result.ok
+    ? value.result.message
+    : [valueText(row, value, display), valueExtra(row, value)].filter(Boolean).join(' - ')
 
 type RowNote = { text: string; error?: boolean; retry?: () => void }
 
@@ -384,6 +403,13 @@ type OnlineTabProps = {
 export const OnlineTab = ({ node, network, online, reads, status, expert }: OnlineTabProps) => {
   const rows = useMemo(() => onlineObjects(node, network), [node, network])
   const [notes, setNotes] = useState<ReadonlyMap<string, RowNote>>(new Map())
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
+  const toggleOpen = (k: string): void =>
+    setOpen((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(k)) next.add(k)
+      return next
+    })
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [display, setDisplay] = useState<ValueDisplay>('decimal')
@@ -638,10 +664,29 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                       className='h-[34px] border-t border-neutral-100 dark:border-neutral-800'
                     >
                       <td className='truncate py-1 pr-2 font-mono'>{ref(object)}</td>
-                      <td className='py-1 pr-2' title={objectLabel(object)}>
-                        <span className={cn('block', compact ? '[overflow-wrap:anywhere]' : 'truncate')}>
-                          {breakable(objectLabel(object))}
-                        </span>
+                      <td className='py-1 pr-2' title={objectInfo(object)?.description ?? objectLabel(object)}>
+                        <button
+                          type='button'
+                          aria-expanded={open.has(k)}
+                          aria-label={`Details of ${ref(object)}`}
+                          onClick={() => toggleOpen(k)}
+                          className={cn(
+                            'flex w-full min-w-0 items-center gap-1 text-left hover:text-brand',
+                            compact ? '[overflow-wrap:anywhere]' : '',
+                          )}
+                        >
+                          <span className='w-2.5 shrink-0 text-[9px] text-neutral-400'>{open.has(k) ? '▼' : '▶'}</span>
+                          <span className={cn('min-w-0', compact ? '' : 'truncate')}>
+                            {breakable(object.parentName && !compact ? object.name : objectLabel(object))}
+                          </span>
+                        </button>
+                        {(object.parentName && !compact) || shortDescription(object) ? (
+                          <span className={cn(hintClassName, 'block truncate pl-3.5')}>
+                            {[compact ? undefined : object.parentName, shortDescription(object)]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        ) : null}
                         {compact ? (
                           <span className={cn(hintClassName, 'block')}>
                             {dataTypeLabel(object.dataType)}, {object.access}
@@ -666,6 +711,12 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                         <span data-testid={`canopen-online-value-${k}`} className={cn(differs && differsClassName)}>
                           {nodeValue}
                         </span>
+                        {valueExtra(row, value) ? (
+                          <span className={cn(hintClassName, 'block font-sans')}>
+                            {valueExtra(row, value)}
+                            <StandardMark object={object} />
+                          </span>
+                        ) : null}
                         {narrow && project ? (
                           <span className={cn(hintClassName, 'block font-sans')} title={projectTitle}>
                             Project: <span className='font-mono'>{project}</span>
@@ -692,6 +743,13 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                         </div>
                       </td>
                     </tr>
+                    {open.has(k) ? (
+                      <tr data-testid={`canopen-online-details-${k}`}>
+                        <td colSpan={columns} className='pb-2 pl-[72px] pr-2'>
+                          <ObjectDetails object={object} nodeId={nodeId} />
+                        </td>
+                      </tr>
+                    ) : null}
                     {note ? (
                       <tr data-testid={`canopen-online-note-${k}`}>
                         <td colSpan={columns} className='pb-2 pl-[72px]'>
@@ -1034,7 +1092,7 @@ const RawAccess = ({ node, online, expert }: { node: CanopenNode; online: Canope
       data-testid='canopen-online-raw'
     >
       <p className={cn(hintClassName, 'mb-2')}>
-        Any object: read{expert ? ' or write' : ''} an index and sub-index, also one the EDS does not list.
+        Any object: read{expert ? ' or write' : ''} an index and sub-index, also one the device file does not list.
       </p>
       <div className='flex flex-wrap items-center gap-2'>
         <input

@@ -32,6 +32,7 @@ import {
   uniqueNodeName,
   withEntryAlias,
 } from './model'
+import { describeValue } from './object-info'
 import { watchMasterProblem } from './validate-canopen-config'
 
 /** [DeviceComissioning] of a DCF (CiA 306 5). */
@@ -140,6 +141,18 @@ export interface DcfImportOptions {
   aliasTaken?: (alias: string) => boolean
 }
 
+/** CAN-IDs CiA 301 reserves for NMT, SYNC, TIME, SDO, LSS and NMT error control. */
+export function isRestrictedCanId(id: number): boolean {
+  return (
+    id <= 0x7f ||
+    (id >= 0x101 && id <= 0x180) ||
+    (id >= 0x581 && id <= 0x5ff) ||
+    (id >= 0x601 && id <= 0x67f) ||
+    (id >= 0x6e0 && id <= 0x6ff) ||
+    id >= 0x701
+  )
+}
+
 /** Indices whose values become node settings rather than startup SDOs. */
 function isSettingObject(index: number, subIndex: number): boolean {
   if ([0x1007, 0x100c, 0x100d, 0x1012, 0x1014, 0x1016, 0x1017].includes(index)) return true
@@ -210,10 +223,8 @@ export function importDcfSettings(
   const nodeId = chosen.nodeId
   if (chosen.note) warnings.push(`NodeID ${commissioning.nodeId}: ${chosen.note}.`)
   else if (commissioning.nodeId !== undefined) taken.push({ what: 'Node ID', detail: String(nodeId) })
-  const name = uniqueNodeName(
-    config,
-    commissioning.nodeName ? toNodeName(commissioning.nodeName) : nodeNameFromEds(eds),
-  )
+  const fromFile = commissioning.nodeName ? toNodeName(commissioning.nodeName) : nodeNameFromEds(eds)
+  const name = uniqueNodeName(config, fromFile === 'node' ? `node_${nodeId}` : fromFile)
   if (commissioning.nodeName) taken.push({ what: 'Name', detail: name })
   if (commissioning.baudrateKbit !== undefined && commissioning.baudrateKbit * 1000 !== network.bitrate)
     warnings.push(
@@ -272,7 +283,12 @@ export function importDcfSettings(
 
   // Emergency: the DCF's 0x1014, else the EDS default (the generator writes only a change).
   const emcy = value(0x1014, 0) ?? edsDefault(eds, 0x1014, 0, nodeId)
-  if (emcy !== null && findObject(eds, 0x1014, 0)) {
+  if (emcy !== null && (emcy & 0x80000000) === 0 && isRestrictedCanId(emcy & 0x7ff)) {
+    notTaken.push({
+      what: 'Emergency',
+      detail: `COB-ID 0x${(emcy & 0x7ff).toString(16)} is a restricted CAN-ID (CiA 301); the device default is kept`,
+    })
+  } else if (emcy !== null && findObject(eds, 0x1014, 0)) {
     node = { ...node, emcy: { enabled: (emcy & 0x80000000) === 0, cobId: emcy & 0x7ff || defaultEmcyCobId(nodeId) } }
     if (value(0x1014, 0) !== null)
       taken.push({ what: 'Emergency', detail: emcy & 0x80000000 ? 'off' : `COB-ID 0x${(emcy & 0x7ff).toString(16)}` })
@@ -352,7 +368,7 @@ export function importDcfSettings(
       continue
     }
     sdos.push({ id: options.newId(), index: v.index, subIndex: v.subIndex, dataType: type, value: text })
-    taken.push({ what: ref, detail: `startup SDO ${text}` })
+    taken.push({ what: ref, detail: `startup SDO ${describeValue(object, text)}` })
   }
   node = { ...node, sdos }
 
