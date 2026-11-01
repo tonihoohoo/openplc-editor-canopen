@@ -39,7 +39,7 @@ import {
   withStoredFile,
 } from '@root/middleware/shared/utils/canopen'
 import { describeAliasRejection, validateAliasEdit } from '@root/middleware/shared/utils/iec-address'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { DeviceFileDialog, type DeviceFileRequest, ExportDialog } from './device-file-dialogs'
 import { NetworkSettings } from './network-settings'
@@ -47,6 +47,7 @@ import { NetworkSwitch } from './network-switch'
 import { NodeList } from './node-list'
 import { NodePanel } from './node-panel'
 import { ServiceBus } from './online-tab'
+import { SCROLLER_ATTRIBUTE, useScrollBackOnSwitch } from './scroll'
 import { BusStatusLine } from './status-view'
 import { hintClassName, secondaryButtonClassName } from './styles'
 
@@ -187,6 +188,8 @@ const CanopenEditor = () => {
   const reads = useCanopenOnlineReads(online)
 
   const [tab, setTab] = useState<EditorTab>('nodes')
+  const editorTabsAnchor = useRef<HTMLDivElement>(null)
+  useScrollBackOnSwitch(editorTabsAnchor, tab)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [nodeOnlineShown, setNodeOnlineShown] = useState(false)
   const selected = config.nodes.find((n) => n.id === selectedId) ?? config.nodes[0]
@@ -306,7 +309,11 @@ const CanopenEditor = () => {
   )
 
   return (
-    <div aria-label='CANopen editor container' className='flex h-full w-full flex-col overflow-y-auto p-4'>
+    <div
+      aria-label='CANopen editor container'
+      {...{ [SCROLLER_ATTRIBUTE]: '' }}
+      className='flex h-full w-full flex-col overflow-auto p-4 [container-type:size] [scroll-padding-top:3rem]'
+    >
       <div className='mb-4 shrink-0'>
         <div className='flex items-start justify-between gap-6'>
           <div className='min-w-0'>
@@ -372,14 +379,15 @@ const CanopenEditor = () => {
         onValueChange={(v) => {
           if (isEditorTab(v)) setTab(v)
         }}
-        className='flex min-h-[360px] flex-1 flex-col'
+        className='flex flex-1 flex-col'
       >
+        <div ref={editorTabsAnchor} />
         <Tabs.List className='mb-4 flex shrink-0 border-b border-neutral-200 dark:border-neutral-800'>
           <TabItem value='nodes' label='Nodes' active={tab === 'nodes'} />
           <TabItem value='network' label='Network' active={tab === 'network'} />
         </Tabs.List>
 
-        <Tabs.Content value='nodes' className='flex min-h-0 flex-1 gap-4 overflow-hidden data-[state=inactive]:hidden'>
+        <Tabs.Content value='nodes' className='flex flex-1 items-start gap-4 data-[state=inactive]:hidden'>
           <NodeList
             nodes={config.nodes}
             selectedId={selected?.id ?? null}
@@ -419,7 +427,7 @@ const CanopenEditor = () => {
               onAliasChange={(entry, alias) => changeAlias(selected, entry, alias)}
             />
           ) : (
-            <div className='flex flex-1 flex-col items-center justify-center gap-2 text-center'>
+            <div className='flex flex-1 flex-col items-center justify-center gap-2 self-stretch text-center'>
               <p className='text-sm font-medium text-neutral-700 dark:text-neutral-300'>No nodes yet</p>
               <p className={cn(hintClassName, 'max-w-[360px]')}>
                 Add a node from the EDS file its manufacturer provides. Its PDOs are mapped to PLC inputs and outputs
@@ -429,7 +437,7 @@ const CanopenEditor = () => {
           )}
         </Tabs.Content>
 
-        <Tabs.Content value='network' className='min-h-0 flex-1 overflow-y-auto data-[state=inactive]:hidden'>
+        <Tabs.Content value='network' className='flex-1 data-[state=inactive]:hidden'>
           <div className='mb-4 flex items-center justify-between gap-4'>
             <p className={hintClassName}>
               The device files of all nodes, as DCF files with the values the master writes, or as EDS files.

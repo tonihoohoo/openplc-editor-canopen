@@ -24,7 +24,7 @@ const NodeList = ({ nodes, selectedId, live, onSelect, onImport, onImportError, 
   const sorted = [...nodes].sort((a, b) => a.nodeId - b.nodeId)
 
   return (
-    <div className='flex w-[240px] shrink-0 flex-col gap-2 overflow-hidden'>
+    <div className='sticky -top-4 flex max-h-[100cqh] w-[240px] shrink-0 flex-col gap-2 bg-white pb-4 pt-2 dark:bg-neutral-950'>
       <button
         type='button'
         className={primaryButtonClassName}
