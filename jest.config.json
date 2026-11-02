@@ -52,7 +52,7 @@
     "\\.(ts|tsx|js|jsx)$": [
       "ts-jest",
       {
-        "tsconfig": "tsconfig.json"
+        "tsconfig": "tsconfig.jest.json"
       }
     ]
   },
