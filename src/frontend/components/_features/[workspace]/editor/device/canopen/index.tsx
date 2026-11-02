@@ -513,7 +513,7 @@ const CanopenEditor = () => {
           <div className='mb-4 flex items-center justify-between gap-4'>
             <p className={hintClassName}>
               The device files of all nodes, as DCF or XDC files with the values the master writes or as EDS or XDD
-              files, or the whole network as a DBC file for CAN analysers.
+              files, or the whole network as a DBC file for CAN analysers or an HTML document to read and print.
             </p>
             <button
               type='button'
