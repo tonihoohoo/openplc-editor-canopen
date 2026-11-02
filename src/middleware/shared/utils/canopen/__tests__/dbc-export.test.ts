@@ -68,7 +68,8 @@ function parse(text: string) {
     }
     m = /^SG_MUL_VAL_ (\d+) (\w+) (\w+) (.*);$/.exec(line)
     if (m) {
-      const sig = messages.get(Number(m[1]))?.signals.find((s) => s.name === m[2])
+      const signal = m[2]
+      const sig = messages.get(Number(m[1]))?.signals.find((s) => s.name === signal)
       if (sig)
         sig.muxedBy = {
           muxer: m[3],
@@ -81,7 +82,8 @@ function parse(text: string) {
     }
     m = /^SIG_VALTYPE_ (\d+) (\w+) : [12];$/.exec(line)
     if (m) {
-      const sig = messages.get(Number(m[1]))?.signals.find((s) => s.name === m[2])
+      const signal = m[2]
+      const sig = messages.get(Number(m[1]))?.signals.find((s) => s.name === signal)
       if (sig) sig.float = true
       continue
     }
