@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false
+  },
+  "include": ["src"],
+  "exclude": ["src/__architecture__", "src/frontend/utils/__tests__/notify-no-write-permission.test.ts"]
+}

@@ -21,7 +21,8 @@ const MAX_IDENTIFIER_LENGTH = 256
 export const configuratorArchiveSchema = z
   .string()
   .max(MAX_ARCHIVE_HEX_LENGTH)
-  .regex(/^(?:[0-9a-fA-F]{2})+$/, 'is not hex')
+  .regex(/^[0-9a-fA-F]+$/, 'is not hex')
+  .refine((hex) => hex.length % 2 === 0, 'is not hex')
 
 export const deviceReferenceSchema = z.object({
   guid: z.string().max(MAX_IDENTIFIER_LENGTH),

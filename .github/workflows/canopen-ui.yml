@@ -5,6 +5,8 @@ name: CANopen UI
 # .github/scripts/canopen-ui-changed.sh); otherwise the job is skipped, which counts as passed.
 # Screenshots go to the ci-screenshots branch and one comment on the pull request; key views are
 # compared with the baselines in e2e/*-snapshots/.
+# The editor is built without minification, source maps or module concatenation
+# (.github/scripts/canopen-ui-build.sh), which cuts the build from minutes to about one.
 
 on:
   pull_request:
@@ -69,7 +71,7 @@ jobs:
 
       - name: Build
         run: |
-          npm run build
+          .github/scripts/canopen-ui-build.sh
           # Launched from dist, the app is not packaged and looks for the preload under configs/dll.
           mkdir -p release/app/configs/dll
           cp release/app/dist/main/preload.js release/app/configs/dll/preload.js

@@ -36,3 +36,6 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
+
+      - name: Type check tests
+        run: npx tsc -p tsconfig.tests.json
