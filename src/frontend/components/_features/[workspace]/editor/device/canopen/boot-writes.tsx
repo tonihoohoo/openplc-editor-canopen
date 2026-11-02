@@ -1,15 +1,20 @@
 import { cn } from '@root/frontend/utils/cn'
-import type { CanopenNetworkSettings, CanopenNode } from '@root/middleware/shared/ports/canopen-types'
+import type {
+  CanopenNetworkSettings,
+  CanopenNode,
+  CanopenSdoDataType,
+} from '@root/middleware/shared/ports/canopen-types'
 import {
   type BootWrite,
   type BootWriteSource,
   findObject,
+  isByteType,
   nodeBootWrites,
   objectLabel,
   objectRef,
   restoreChoiceName,
 } from '@root/middleware/shared/utils/canopen'
-import { useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 
 import { hintClassName } from './styles'
 
@@ -20,6 +25,7 @@ type Row = {
   index: number
   subindex: number
   data: string
+  type: CanopenSdoDataType | undefined
   setting: string
   target: BootWriteTarget
   policy: string
@@ -55,12 +61,22 @@ const sourceText = (source: BootWriteSource, node: CanopenNode): { setting: stri
   }
 }
 
-/** The value of a write: a number for up to 4 bytes (little-endian), else the bytes. */
-const valueText = (hex: string): string => {
+/** The value of a write: text for a VISIBLE_STRING, bytes for other byte types, else a little-endian number. */
+const valueText = (hex: string, type: CanopenSdoDataType | undefined): string => {
   const bytes = hex.match(/../g) ?? []
-  if (bytes.length > 0 && bytes.length <= 4) return `0x${[...bytes].reverse().join('')}`
+  if (type === 'VISIBLE_STRING') return `"${String.fromCharCode(...bytes.map((b) => parseInt(b, 16)))}"`
+  const asBytes = type !== undefined && isByteType(type)
+  if (!asBytes && bytes.length > 0 && bytes.length <= 4) return `0x${[...bytes].reverse().join('')}`
   return bytes.length > 8 ? `${bytes.slice(0, 8).join(' ')} ... (${bytes.length} bytes)` : bytes.join(' ')
 }
+
+/** The data type a write was made with, known only for a startup SDO. */
+const writeType = (source: BootWriteSource, node: CanopenNode): CanopenSdoDataType | undefined =>
+  source.kind === 'startup' ? node.sdos.find((s) => s.id === source.sdoId)?.dataType : undefined
+
+/** An object name with a line break allowed after each underscore. */
+const breakableName = (name: string): ReactNode[] =>
+  name.split('_').flatMap((part, i) => (i === 0 ? [part] : [<wbr key={i} />, `_${part}`]))
 
 const policyText = (write: BootWrite, writes: readonly BootWrite[], node: CanopenNode): string => {
   if (write.on_abort === 'continue') return 'Continue'
@@ -86,6 +102,7 @@ const BootWrites = ({ node, network, onGoTo }: BootWritesProps) => {
         index: 0x1011,
         subindex: node.restoreDefaults,
         data: '6C6F6164',
+        type: undefined,
         setting: `Restore defaults: ${restoreChoiceName(node.restoreDefaults)}`,
         target: 'general',
         policy: 'Stop the boot',
@@ -95,6 +112,7 @@ const BootWrites = ({ node, network, onGoTo }: BootWritesProps) => {
         index: w.index,
         subindex: w.subindex,
         data: w.data,
+        type: writeType(w.source, node),
         ...sourceText(w.source, node),
         policy: policyText(w, writes, node),
       })
@@ -128,7 +146,7 @@ const BootWrites = ({ node, network, onGoTo }: BootWritesProps) => {
                 <th className='w-[80px] py-1 font-medium'>Object</th>
                 <th className='py-1 font-medium'>Name</th>
                 <th className='w-[120px] py-1 font-medium'>Value</th>
-                <th className='w-[190px] py-1 font-medium'>Made by</th>
+                <th className='w-[130px] py-1 font-medium'>Made by</th>
                 <th className='w-[110px] py-1 font-medium'>If refused</th>
               </tr>
             </thead>
@@ -144,10 +162,10 @@ const BootWrites = ({ node, network, onGoTo }: BootWritesProps) => {
                   >
                     <td className='py-1 text-neutral-500'>{i + 1 - offset > 0 ? i + 1 - offset : '-'}</td>
                     <td className='py-1 font-mono'>{objectRef(row.index, row.subindex)}</td>
-                    <td className={cn('py-1 pr-2 [overflow-wrap:anywhere]', !object && 'italic text-neutral-500')}>
-                      {object ? objectLabel(object) : 'Not in the device file'}
+                    <td className={cn('break-words py-1 pr-2', !object && 'italic text-neutral-500')}>
+                      {object ? breakableName(objectLabel(object)) : 'Not in the device file'}
                     </td>
-                    <td className='py-1 pr-2 font-mono'>{valueText(row.data)}</td>
+                    <td className='py-1 pr-2 font-mono'>{valueText(row.data, row.type)}</td>
                     <td className='py-1 pr-2'>
                       {target ? (
                         <button

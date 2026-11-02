@@ -55,7 +55,7 @@ const POLICY_OPTIONS: ReadonlyArray<{ value: CanopenSdoOnAbort; label: string }>
 const byteHint = (type: CanopenSdoDataType): string =>
   type === 'VISIBLE_STRING'
     ? `Text, up to ${MAX_SDO_BYTES} characters, written without a terminator`
-    : `Bytes in hexadecimal, such as 01 A2 FF, up to ${MAX_SDO_BYTES}`
+    : `Bytes in hexadecimal, such as 01 A2 FF, up to ${MAX_SDO_BYTES} bytes`
 
 const BOOLEAN_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: '0', label: 'FALSE' },

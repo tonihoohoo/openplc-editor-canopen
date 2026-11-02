@@ -87,10 +87,17 @@ test('refusal policies, text and byte values, a gap and a deadline reach conf/ca
     await rows.nth(0).getByLabel('Line 0x2100:00 jumps to').selectOption({ label: 'Line 3: 0x2400:00' })
     await page.getByRole('button', { name: /Written at boot/ }).click()
     await expect(page.getByTestId('canopen-boot-write').filter({ hasText: 'Jump to SDO line 3' })).toBeVisible()
+    await expect(page.getByTestId('canopen-boot-write').filter({ hasText: '"Line 3"' })).toBeVisible()
+    await expect(page.getByTestId('canopen-boot-write').filter({ hasText: '01 02 A0' })).toBeVisible()
     await rows.nth(0).evaluate((e) => e.scrollIntoView({ block: 'center' }))
     await keyView(page, 'boot-startup-sdos')
     await page.getByTestId('canopen-boot-writes').evaluate((e) => e.scrollIntoView({ block: 'start' }))
     await keyView(page, 'boot-writes')
+    await page
+      .getByTestId('canopen-boot-write')
+      .filter({ hasText: '0x2300:00' })
+      .evaluate((e) => e.scrollIntoView({ block: 'center' }))
+    await keyView(page, 'boot-writes-values')
 
     await buildFromMenu(page, 'Build only')
     const build = join(project, 'build')
