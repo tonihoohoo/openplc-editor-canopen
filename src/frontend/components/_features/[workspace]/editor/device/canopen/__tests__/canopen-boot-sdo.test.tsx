@@ -118,6 +118,11 @@ describe('CanopenEditor boot SDO options', () => {
       ['DOMAIN', '01 02 A0'],
     ])
     expect(screen.queryByText(/out of range|not a valid/)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Written at boot/ }))
+    const writes = screen.getAllByTestId('canopen-boot-write')
+    expect(writes.find((r) => r.textContent?.includes('0x2300:00'))?.textContent).toContain('"Line 3"')
+    expect(writes.find((r) => r.textContent?.includes('0x2400:00'))?.textContent).toContain('01 02 A0')
   })
 
   it('lists every write at boot with what made it and links to its tab', async () => {
