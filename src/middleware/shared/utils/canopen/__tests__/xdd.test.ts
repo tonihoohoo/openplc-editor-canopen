@@ -86,6 +86,22 @@ describe('XDD reader', () => {
     expect(full.details?.characteristics).toHaveLength(3)
   })
 
+  it('gives each sub-object the label of its array or record', () => {
+    const text = read('generic-io-module-full.xdd')
+      .replace(
+        'index="6401" name="Read analogue input 16-bit" objectType="8" subNumber="3"',
+        'index="6401" name="Read analogue input 16-bit" objectType="8" subNumber="3" uniqueIDRef="UID_6401"',
+      )
+      .replace(
+        '<c:parameter uniqueID="UID_1001"',
+        '<c:parameter uniqueID="UID_6401" access="read"><label lang="en">Analog inputs</label><c:dataTypeIDRef uniqueIDRef="DT_1001"/></c:parameter><c:parameter uniqueID="UID_1001"',
+      )
+    const eds = parseXdd(text, 'x.xdd').eds
+    expect(find(eds, 0x6401, 1).info?.parentLabel).toBe('Analog inputs')
+    expect(find(eds, 0x6401, 1).parentName).toBe('Read analogue input 16-bit')
+    expect(find(full, 0x6401, 1).info?.parentLabel).toBeUndefined()
+  })
+
   it('shows another language when asked and falls back to the first', () => {
     const de = parseXdd(read('generic-io-module-full.xdd'), 'x.xdd', 'de').eds
     expect(find(de, 0x2000).info?.label).toBe('Betriebsart')

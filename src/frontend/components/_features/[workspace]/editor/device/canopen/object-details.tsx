@@ -1,6 +1,13 @@
 import { cn } from '@root/frontend/utils/cn'
 import type { CanopenObject } from '@root/middleware/shared/ports/canopen-types'
-import { dataTypeLabel, describeValue, objectInfo, objectRef } from '@root/middleware/shared/utils/canopen'
+import {
+  dataTypeLabel,
+  describeValue,
+  objectFileName,
+  objectInfo,
+  objectParentLabel,
+  objectRef,
+} from '@root/middleware/shared/utils/canopen'
 import { Fragment } from 'react'
 
 import { hintClassName } from './styles'
@@ -33,7 +40,9 @@ export const ObjectDetails = ({
 }) => {
   const info = objectInfo(object)
   const rows: Array<[string, string]> = []
-  if (object.parentName) rows.push(['Object', object.parentName])
+  if (object.parentName) rows.push(['Object', objectParentLabel(object) ?? object.parentName])
+  const fileName = objectFileName(object)
+  if (fileName) rows.push(['Name in file', fileName])
   rows.push(['Type', `${dataTypeLabel(object.dataType)}, ${object.access}${object.pdoMapping ? ', PDO mappable' : ''}`])
   const d = object.defaultValue
   const m = d !== undefined && nodeId !== undefined ? /^\$NODEID\s*\+\s*(0x[0-9a-f]+|\d+)$/i.exec(d.trim()) : null

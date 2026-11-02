@@ -3,8 +3,14 @@ import {
   isSynchronousType,
   matchesObjectQuery,
   moveItem,
+  objectFileLabel,
+  objectFileName,
+  objectFileNameTitle,
   objectLabel,
+  objectOwnFileNameTitle,
+  objectOwnLabel,
   objectParameterState,
+  objectParentLabel,
   pdoParameterState,
   startupSdoCandidates,
   transmissionChoices,
@@ -114,6 +120,41 @@ describe('object search and labels', () => {
     expect(objectLabel(object(0x6401, 1))).toBe('Analogue inputs / Input 1')
     expect(objectLabel(object(0x2100, 0))).toBe('Parameter')
     expect(objectLabel(object(0x2200, 1))).toBe('Counters / First counter')
+  })
+
+  it('names an object by its label and keeps the file name when they differ', () => {
+    const plain: CanopenObject = { ...object(0x2100, 0), info: { label: 'Mode of operation' } }
+    expect(objectLabel(plain)).toBe('Mode of operation')
+    expect(objectFileLabel(plain)).toBe('Parameter')
+    expect(objectFileName(plain)).toBe('Parameter')
+    expect(objectFileNameTitle(plain)).toBe('Name in the device file: Parameter')
+    expect(objectParentLabel(plain)).toBeUndefined()
+
+    const sub: CanopenObject = {
+      ...object(0x6401, 1),
+      info: { label: 'Tank level', parentLabel: 'Analog inputs 16 bit' },
+    }
+    expect(objectOwnLabel(sub)).toBe('Tank level')
+    expect(objectParentLabel(sub)).toBe('Analog inputs 16 bit')
+    expect(objectLabel(sub)).toBe('Analog inputs 16 bit / Tank level')
+    expect(objectFileName(sub)).toBe('Analogue inputs / Input 1')
+    expect(objectOwnFileNameTitle(sub)).toBe('Name in the device file: Input 1')
+    expect(objectOwnFileNameTitle(object(0x6401, 1))).toBeUndefined()
+    expect(matchesObjectQuery(sub, 'tank')).toBe(true)
+    expect(matchesObjectQuery(sub, 'analogue input 1')).toBe(true)
+  })
+
+  it('shows a label equal to the name once and falls back to names without labels', () => {
+    const same: CanopenObject = { ...object(0x2100, 0), info: { label: '  parameter ' } }
+    expect(objectFileName(same)).toBeUndefined()
+    expect(objectFileNameTitle(same)).toBeUndefined()
+    const eds = object(0x6401, 1)
+    expect(objectOwnLabel(eds)).toBe('Input 1')
+    expect(objectParentLabel(eds)).toBe('Analogue inputs')
+    expect(objectFileName(eds)).toBeUndefined()
+    const parentOnly: CanopenObject = { ...eds, info: { parentLabel: 'Analog inputs 16 bit' } }
+    expect(objectLabel(parentOnly)).toBe('Analog inputs 16 bit / Input 1')
+    expect(objectFileName(parentOnly)).toBe('Analogue inputs / Input 1')
   })
 
   it('matches by index in any form and by words of the names', () => {

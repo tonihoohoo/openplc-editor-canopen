@@ -349,9 +349,11 @@ export function parseXdd(textIn: string, fileName: string, lang = 'en'): XddRead
     const code = hex(attr(el, 'dataType'))
     const dataType = code !== null ? typeName(code) : p?.dataType
     const accessText = attr(el, 'accessType')
-    const access = OBJ_ACCESS.find((a) => a === accessText) ?? p?.access ?? 'ro'
+    const declared = OBJ_ACCESS.find((a) => a === accessText) ?? p?.access ?? 'ro'
     if (!dataType) return undefined
     const pdo = attr(el, 'PDOmapping') ?? 'no'
+    // CiA 311 gives a read-write object's PDO direction in PDOmapping, CiA 306 in the access type.
+    const access = declared !== 'rw' ? declared : pdo === 'TPDO' ? 'rwr' : pdo === 'RPDO' ? 'rww' : 'rw'
     const o: CanopenObject = {
       index,
       subIndex,
@@ -396,6 +398,7 @@ export function parseXdd(textIn: string, fileName: string, lang = 'en'): XddRead
       if (parentInfo?.description && !o.info?.description && subIndex > 0)
         o.info = { ...o.info, description: parentInfo.description }
       if (parentInfo?.unit && !o.info?.unit && subIndex > 0) o.info = { ...o.info, unit: parentInfo.unit }
+      if (parentInfo?.label) o.info = { ...o.info, parentLabel: parentInfo.label }
       objects.push(o)
     }
   }

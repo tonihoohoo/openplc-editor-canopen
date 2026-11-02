@@ -14,7 +14,7 @@ import { expect, test } from '@playwright/test'
 
 import { fakeRuntime, networkStatus, nodeStatus } from './helpers/canopen-runtime'
 import { windowSize } from './helpers/canopen-project'
-import { keyView } from './helpers/canopen-shots'
+import { keyView, shot } from './helpers/canopen-shots'
 import { connectRuntime, launch, PROJECT_NAME, quitApp, writeEthercatProject } from './helpers/ethercat-project'
 
 const STATION = {
@@ -44,8 +44,21 @@ function status(now: number) {
   )
 }
 
-async function openDevice(features: string[], name: string) {
-  const runtime = fakeRuntime({ features, status: () => status(Date.now()) })
+/** Node 2 lost because it went pre-operational by itself while the PLC ran. */
+function leftOperational(now: number) {
+  return networkStatus(
+    now,
+    [nodeStatus(now, 2, 'io2', { state: 'lost', nmt: 'pre_operational', losses: 1, problem: { kind: 'state' } })],
+    {
+      bus: { state: 'error_active', tx_errors: 0, rx_errors: 0, load_percent: 2.5 },
+      all_mandatory_up: false,
+      events: [{ time: now - 4000, node: 2, kind: 'lost', problem: { kind: 'state' } }],
+    },
+  )
+}
+
+async function openDevice(features: string[], name: string, make = status) {
+  const runtime = fakeRuntime({ features, status: () => make(Date.now()) })
   const { userData } = writeEthercatProject(join(tmpdir(), name), '127.0.0.1', STATION)
   const { app, page } = await launch(userData)
   await windowSize(app, 1600, 1000)
@@ -71,6 +84,21 @@ test('a connected runtime shows the live node status', async () => {
     )
     await expect(page.getByTestId('canopen-node-status')).toContainText('Boot attempts3')
     await keyView(page, 'live-status-failed-node', [page.getByText(/^since /)])
+  } finally {
+    await quitApp(app, page)
+    runtime.close()
+  }
+})
+
+test('a node that left operational by itself is shown lost with that reason', async () => {
+  test.setTimeout(180000)
+  const { app, page, runtime } = await openDevice(['status'], 'openplc-e2e-canopen-left-op', leftOperational)
+  try {
+    await page.getByRole('tab', { name: 'Status' }).click()
+    await expect(page.getByTestId('canopen-node-problem')).toHaveText(
+      'The node left operational: it went pre-operational or stopped without a command from the master.',
+    )
+    await shot(page, 'live-status-left-operational')
   } finally {
     await quitApp(app, page)
     runtime.close()

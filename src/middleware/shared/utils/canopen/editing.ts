@@ -152,9 +152,46 @@ export function objectParameterState(eds: CanopenEdsInfo, index: number, subInde
   return { ref, notWrittenReason: null }
 }
 
-/** The object's name, with its array or record name in front for a sub-index. */
-export function objectLabel(object: CanopenObject): string {
+/** The object's name as the device file's object dictionary writes it, with its array or record name in front. */
+export function objectFileLabel(object: CanopenObject): string {
   return object.parentName && object.parentName !== object.name ? `${object.parentName} / ${object.name}` : object.name
+}
+
+const sameName = (a: string, b: string): boolean =>
+  a.replace(/\s+/g, '').toLowerCase() === b.replace(/\s+/g, '').toLowerCase()
+
+/** The object's own label from the device file, else its name. */
+export function objectOwnLabel(object: CanopenObject): string {
+  return object.info?.label?.trim() || object.name
+}
+
+/** The label of the array or record a sub-object belongs to, else its name; undefined for a plain object. */
+export function objectParentLabel(object: CanopenObject): string | undefined {
+  if (!object.parentName || object.parentName === object.name) return undefined
+  return object.info?.parentLabel?.trim() || object.parentName
+}
+
+/** The object's label (or name), with its array or record in front for a sub-index. */
+export function objectLabel(object: CanopenObject): string {
+  const parent = objectParentLabel(object)
+  return parent ? `${parent} / ${objectOwnLabel(object)}` : objectOwnLabel(object)
+}
+
+/** The file's name of the object when the shown label differs from it, ignoring case and spaces. */
+export function objectFileName(object: CanopenObject): string | undefined {
+  const file = objectFileLabel(object)
+  return sameName(objectLabel(object), file) ? undefined : file
+}
+
+/** Hover text with the object's own name in the device file, when its own label differs (no array or record part). */
+export function objectOwnFileNameTitle(object: CanopenObject): string | undefined {
+  return sameName(objectOwnLabel(object), object.name) ? undefined : `Name in the device file: ${object.name}`
+}
+
+/** Hover text that names the object as the device file does, when its label differs. */
+export function objectFileNameTitle(object: CanopenObject): string | undefined {
+  const file = objectFileName(object)
+  return file ? `Name in the device file: ${file}` : undefined
 }
 
 /** Whether the object matches a search: index ("6401", "0x6401", "6401:1") or words of its names, label, group, unit or description. */
@@ -168,7 +205,14 @@ export function matchesObjectQuery(object: CanopenObject, query: string): boolea
     if (indexHit && (ref[2] === undefined || object.subIndex === parseInt(ref[2], 16))) return true
   }
   const info = object.info
-  const text = [objectLabel(object), info?.label, info?.group, info?.unit, info?.description?.split('\n')[0]]
+  const text = [
+    objectLabel(object),
+    objectFileLabel(object),
+    info?.label,
+    info?.group,
+    info?.unit,
+    info?.description?.split('\n')[0],
+  ]
     .filter((t) => t !== undefined)
     .join(' ')
     .toLowerCase()

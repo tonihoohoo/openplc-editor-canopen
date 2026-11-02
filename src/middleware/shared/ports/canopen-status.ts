@@ -38,7 +38,7 @@ export const CanopenBusStateSchema = z.enum([
 ])
 
 export const CanopenProblemSchema = z.object({
-  kind: z.enum(['no_response', 'identity', 'sdo_abort', 'heartbeat', 'guarding', 'reset', 'boot_error']),
+  kind: z.enum(['no_response', 'identity', 'sdo_abort', 'heartbeat', 'guarding', 'reset', 'state', 'boot_error']),
   field: z.enum(['device_type', 'vendor_id', 'product_code', 'revision', 'serial_number']).optional(),
   expected: count.optional(),
   found: count.optional(),

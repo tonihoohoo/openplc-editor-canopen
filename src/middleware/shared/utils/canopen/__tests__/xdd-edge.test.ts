@@ -1,3 +1,5 @@
+import { accessFits } from '../data-types'
+import { writeXdd } from '../device-writer'
 import { bitrateOf, parseXdd, xdcToDcfContent } from '../xdd-parser'
 
 const DEVICE = `<ISO15745Profile><ProfileHeader/><ProfileBody xsi:type="ProfileBody_Device_CANopen" fileVersion="7" fileCreationDate="2026-01-02" supportedLanguages="en fi">
@@ -137,5 +139,34 @@ describe('XDD reader edge cases', () => {
     expect(() => parseXdd(`<ISO15745ProfileContainer>${DEVICE}</ISO15745ProfileContainer>`, 'x.xdd')).toThrow(
       'no CANopen communication network profile',
     )
+  })
+})
+
+describe('PDO direction of a read-write XDD object', () => {
+  const objects = `
+<CANopenObject index="2100" name="To master" dataType="0006" accessType="rw" PDOmapping="TPDO"/>
+<CANopenObject index="2101" name="From master" dataType="0006" accessType="rw" PDOmapping="RPDO"/>
+<CANopenObject index="2102" name="Either" dataType="0006" accessType="rw" PDOmapping="optional"/>
+<CANopenObject index="2103" name="Status" dataType="0006" accessType="ro" PDOmapping="TPDO"/>`
+  const { eds } = parseXdd(xdd(objects), 'dir.xdd')
+  const access = (e: typeof eds, index: number) => e.objects.find((o) => o.index === index)?.access
+
+  it('offers a TPDO-only object for inputs and an RPDO-only object for outputs only', () => {
+    expect(access(eds, 0x2100)).toBe('rwr')
+    expect(access(eds, 0x2101)).toBe('rww')
+    expect(access(eds, 0x2102)).toBe('rw')
+    expect(access(eds, 0x2103)).toBe('ro')
+    expect(accessFits('rwr', 'input')).toBe(true)
+    expect(accessFits('rwr', 'output')).toBe(false)
+    expect(accessFits('rww', 'output')).toBe(true)
+    expect(accessFits('rww', 'input')).toBe(false)
+  })
+
+  it('keeps the direction through an XDD export', () => {
+    const text = writeXdd(eds, { fileName: 'dir.xdd', now: new Date(2026, 0, 2) })
+    expect(text).toMatch(/index="2100"[^>]*PDOmapping="TPDO"/)
+    expect(text).toMatch(/index="2101"[^>]*PDOmapping="RPDO"/)
+    const back = parseXdd(text, 'dir.xdd').eds
+    for (const index of [0x2100, 0x2101, 0x2102, 0x2103]) expect(access(back, index)).toBe(access(eds, index))
   })
 })

@@ -117,6 +117,31 @@ describe('CanopenEditor with XDD and XDC files', () => {
     expect(config()?.nodes[0].heartbeatProducerMs).toBe(100)
   })
 
+  it('names objects by their labels with the file name on hover and in the details', async () => {
+    const text = fixture('generic-io-module-full.xdd')
+      .replace('subIndex="01" name="Inputs 1-8"', 'subIndex="01" name="Read_Input_8Bit_1"')
+      .replace('<label lang="en">Inputs 1-8</label>', '<label lang="en">Digital input 1 to 8</label>')
+      .replace('index="2004" name="Output fault reaction"', 'index="2004" name="FaultReaction"')
+    const dialog = await chooseFile(text, 'labelled.xdd')
+    expect(within(dialog).getByTestId('canopen-file-details').textContent).toMatch(/Labels\d+ of 257 objects/)
+    await confirmFile()
+    await waitFor(() => expect(config()?.nodes).toHaveLength(1))
+    expect(config()?.nodes[0].tpdos[0].entries[0].name).toBe('Read_Input_8Bit_1')
+
+    openTab(/Inputs/)
+    const pdoCard = await screen.findByTestId('canopen-pdo-input-1')
+    const cell = within(pdoCard).getByText('Digital input 1 to 8')
+    expect(cell.getAttribute('title')).toBe('Name in the device file: Read_Input_8Bit_1')
+
+    openTab(/Startup SDOs/)
+    fireEvent.click(await screen.findByRole('button', { name: 'Add an SDO for an object of the device' }))
+    fireEvent.change(screen.getByLabelText('Search objects'), { target: { value: 'faultreaction' } })
+    const label = screen.getByText('Output fault reaction')
+    expect(label.getAttribute('title')).toBe('Name in the device file: FaultReaction')
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    expect(screen.getByTestId('canopen-object-details-0x2004:00').textContent).toContain('Name in fileFaultReaction')
+  })
+
   it('offers the value list of a startup SDO and opens its details', async () => {
     await chooseFile(fixture('generic-io-module-full.xdd'), 'generic-io-module-full.xdd')
     await confirmFile()
