@@ -199,7 +199,7 @@ describe('CanopenEditor', () => {
     fireEvent.blur(value)
     expect(screen.getAllByText(/out of range for UNSIGNED32/)).toHaveLength(2)
     expect(screen.getByText(/The build stops until these are fixed/).parentElement?.textContent).toContain(
-      'startup SDO 0x2100:0',
+      'startup SDO 0x2100:00',
     )
   })
 
