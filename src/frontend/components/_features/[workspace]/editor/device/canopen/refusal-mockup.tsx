@@ -52,10 +52,39 @@ const compactSelectClassName =
   'h-[24px] w-full rounded border bg-white px-1 font-caption !text-[11px] font-medium outline-none focus:border-brand-medium-dark dark:bg-neutral-950'
 
 /** Variant A: one merged select on one line, muted while it is the default. */
-export const RefusalSelectA = ({ sdo, ref_, line, later, onSet }: Props) => {
+export const RefusalSelectA = ({ sdo, ref_, line, later, onSet, column }: Props & { column?: boolean }) => {
   const policy = sdo.onAbort ?? 'stop'
   const value = policy === 'jump' ? `jump:${sdo.jumpTo ?? ''}` : policy
   const t = targetLine(sdo, later)
+  const pre = column ? '' : 'If refused: '
+  if (column)
+    return (
+      <div className='flex flex-col gap-0.5'>
+        <select
+          aria-label={`If ${ref_} is refused`}
+          value={value}
+          onChange={(e) => {
+            const v = e.target.value
+            if (v.startsWith('jump:')) onSet('jump', v.slice(5))
+            else if (v === 'continue' || v === 'stop') onSet(v)
+          }}
+          className={cn(
+            'h-[30px] w-full rounded-md border bg-white px-2 font-caption !text-xs font-medium outline-none focus:border-brand-medium-dark dark:bg-neutral-950',
+            policy === 'stop'
+              ? 'border-neutral-300 text-neutral-500'
+              : 'border-brand/50 text-brand dark:text-brand-light',
+          )}
+        >
+          <option value='stop'>Stop the boot</option>
+          <option value='continue'>Continue</option>
+          {policy === 'jump' && !t ? <option value={value}>Jump (pick a line)</option> : null}
+          {later.map((l) => (
+            <option key={l.value} value={`jump:${l.value}`}>{`Jump to line ${l.line} (${l.ref})`}</option>
+          ))}
+        </select>
+        {policy === 'jump' && t ? <span className={hintClassName}>{skipped(line, t)}</span> : null}
+      </div>
+    )
   return (
     <select
       aria-label={`If ${ref_} is refused`}
@@ -74,7 +103,7 @@ export const RefusalSelectA = ({ sdo, ref_, line, later, onSet }: Props) => {
           : 'border-brand/40 text-brand dark:text-brand-light',
       )}
     >
-      <option value='stop'>If refused: stop the boot</option>
+      <option value='stop'>{pre}stop the boot</option>
       <option value='continue'>If refused: continue</option>
       {policy === 'jump' && !t ? <option value={value}>If refused: jump (pick a line)</option> : null}
       {later.map((l) => (

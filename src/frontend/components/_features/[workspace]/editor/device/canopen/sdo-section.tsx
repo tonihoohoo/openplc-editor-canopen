@@ -194,13 +194,14 @@ const SdoSection = ({ node, network, warnings, onChange, onGoTo }: SdoSectionPro
             <th className='py-1 font-medium'>Name</th>
             <th className='w-[110px] py-1 font-medium'>Type</th>
             <th className={cn('py-1 font-medium', variant === 'b' ? 'w-[160px]' : 'w-[170px]')}>Value</th>
+            {variant === 'd' ? <th className='w-[210px] py-1 font-medium'>If refused</th> : null}
             <th className={cn('py-1', variant === 'b' ? 'w-[88px]' : variant === 'c' ? 'w-[56px]' : 'w-[76px]')} />
           </tr>
         </thead>
         <SortableBody ids={node.sdos.map((s) => s.id)} onMove={move} className='text-neutral-850 dark:text-neutral-300'>
           {node.sdos.length === 0 ? (
             <tr>
-              <td colSpan={8} className={cn(hintClassName, 'py-2')}>
+              <td colSpan={variant === 'd' ? 9 : 8} className={cn(hintClassName, 'py-2')}>
                 No startup SDOs.
               </td>
             </tr>
@@ -401,6 +402,11 @@ const SdoSection = ({ node, network, warnings, onChange, onGoTo }: SdoSectionPro
                     <span className={hintClassName}>Skips every line in between</span>
                   ) : null}
                 </td>
+                {variant === 'd' ? (
+                  <td className='py-1 pr-2'>
+                    <RefusalSelectA {...mock} column />
+                  </td>
+                ) : null}
                 <td className='py-1'>
                   {variant === 'c' ? (
                     <div className='flex h-[30px] items-center justify-end'>

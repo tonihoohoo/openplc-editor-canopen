@@ -30,7 +30,11 @@ test('sdo refusal mockups', async () => {
   const { userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-sdo-refusal-mockup'), '', STATION)
   const { app, page } = await launch(userData)
   await expect(async () => {
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1280, 720)))
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().forEach((w) =>
+        w.setSize(Number(process.env.MOCK_W ?? 1280), Number(process.env.MOCK_H ?? 720)),
+      ),
+    )
   }).toPass({ timeout: 15000 })
   try {
     await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
@@ -57,11 +61,11 @@ test('sdo refusal mockups', async () => {
       await page.getByRole('button', { name: 'Add by index' }).evaluate((e) => e.scrollIntoView({ block: 'start' }))
     }
     await top()
-    await shot(page, 'mock-0-current')
-    for (const v of ['a', 'b', 'c']) {
+    await shot(page, `mock-0-current${process.env.MOCK_SUFFIX ?? ''}`)
+    for (const v of (process.env.MOCK_VARIANTS ?? 'a,b,c').split(',')) {
       await useVariant(page, v)
       await top()
-      await shot(page, `mock-${v}-1-table`)
+      await shot(page, `mock-${v}-1-table${process.env.MOCK_SUFFIX ?? ''}`)
       await rows.nth(2).evaluate((e) => e.scrollIntoView({ block: 'end' }))
       await shot(page, `mock-${v}-1b-scrolled`)
     }
