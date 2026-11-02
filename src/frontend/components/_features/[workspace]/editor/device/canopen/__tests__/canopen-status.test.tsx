@@ -198,4 +198,22 @@ describe('CANopen live status', () => {
     const node = store.getState().project.data.remoteDevices?.[0].canopenConfig?.nodes[0]
     expect(node?.tpdos[0].receiveTimeoutMs).toBe(5)
   })
+
+  it('keeps the receive timeout in place, disabled, on inputs the master does not exchange', async () => {
+    await renderEditor(false)
+    openTab(/Inputs/)
+    const card = screen.getByTestId('canopen-pdo-input-1')
+    const field = within(card).getByLabelText('Receive timeout (ms)')
+    fireEvent.change(field, { target: { value: '50' } })
+    fireEvent.blur(field)
+    fireEvent.click(within(card).getByLabelText('Exchanged by the master'))
+    const off = within(card).getByLabelText('Receive timeout (ms)')
+    expect(off).toHaveProperty('disabled', true)
+    expect(off).toHaveProperty('value', '50')
+    expect(within(card).getByText(/Only for a PDO the master exchanges/)).toBeTruthy()
+    fireEvent.click(within(card).getByLabelText('Exchanged by the master'))
+    expect(within(card).getByLabelText('Receive timeout (ms)')).toHaveProperty('disabled', false)
+    const node = store.getState().project.data.remoteDevices?.[0].canopenConfig?.nodes[0]
+    expect(node?.tpdos[0].receiveTimeoutMs).toBe(50)
+  })
 })

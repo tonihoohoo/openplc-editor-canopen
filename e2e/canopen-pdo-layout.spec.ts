@@ -102,3 +102,72 @@ test('added PDOs, a moved entry and a PDO between two nodes reach conf/canopen.j
     await quitApp(app, page)
   }
 })
+
+const ONE_NODE = {
+  bus: join('canopen-empty', 'canopen_1.json'),
+  program: 'PROGRAM main\n  VAR\n    x : BYTE;\n  END_VAR\n\nx := x;\n\nEND_PROGRAM\n',
+}
+
+for (const [width, height] of [
+  [1280, 720],
+  [1920, 1080],
+] as const) {
+  test(`"Exchanged by the master" leaves the PDO card in place at ${width}x${height}`, async () => {
+    test.setTimeout(300000)
+    const dir = join(tmpdir(), `openplc-e2e-canopen-exchange-toggle-${width}`)
+    const { userData } = writeEthercatProject(dir, '', ONE_NODE)
+    const { app, page } = await launch(userData)
+    await expect(async () => {
+      await app.evaluate(
+        ({ BrowserWindow }, size) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(size[0], size[1])),
+        [width, height],
+      )
+    }).toPass({ timeout: 15000 })
+    try {
+      await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
+      await page.getByText('canopen_1', { exact: true }).first().click({ timeout: 30000 })
+      await expect(page.getByText('No nodes yet')).toBeVisible({ timeout: 30000 })
+      await page.getByTestId('canopen-eds-input').setInputFiles(EDS)
+      await page.getByTestId('canopen-file-dialog-confirm').click()
+      await expect(page.getByText('Node 1: Generic_I_O_module')).toBeVisible({ timeout: 15000 })
+      await expect(page.getByText('Added node 1', { exact: true })).toBeHidden({ timeout: 15000 })
+
+      // TPDO scrolled to the end of the editor; RPDO at the top, where unticking adds a warning above.
+      for (const [tab, direction, scroll] of [
+        ['Inputs', 'input', 'end'],
+        ['Outputs', 'output', 'top'],
+      ] as const) {
+        await page.getByRole('tab', { name: new RegExp(tab) }).click()
+        const card = page.getByTestId(`canopen-pdo-${direction}-1`)
+        await card
+          .locator('table')
+          .evaluate((e, block) => e.scrollIntoView({ block: block === 'end' ? 'end' : 'start' }), scroll)
+        if (scroll === 'top') {
+          await page.locator('[data-canopen-scroller]').evaluate((e) => {
+            e.scrollTop = 0
+          })
+        }
+        const box = card.getByLabel('Exchanged by the master')
+        const type = card.locator('th', { hasText: 'Type' })
+        // Hover first: a click on a control under the sticky tab bar would scroll it into view.
+        await box.hover()
+        const before = { box: await box.boundingBox(), type: await type.boundingBox() }
+        await box.click()
+        await expect(box).not.toBeChecked()
+        await expect(card.getByText('Not exchanged: no PLC value').first()).toBeVisible()
+        if (direction === 'output') {
+          await expect(page.getByLabel('Network checks')).toContainText('no node sends its COB-ID')
+        } else {
+          await expect(card.getByLabel('Receive timeout (ms)')).toBeDisabled()
+        }
+        expect({ box: await box.boundingBox(), type: await type.boundingBox() }).toEqual(before)
+        await shot(page, `exchange-toggle-${direction}-off-${width}`)
+        await box.click()
+        await expect(box).toBeChecked()
+        expect(await box.boundingBox()).toEqual(before.box)
+      }
+    } finally {
+      await quitApp(app, page)
+    }
+  })
+}
