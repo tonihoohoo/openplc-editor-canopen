@@ -98,7 +98,7 @@ describe('buildHtmlDocument', () => {
     expect(html).toContain('@page{size:A4 landscape')
     const doc = new DOMParser().parseFromString(html, 'text/html')
     expect(doc.querySelectorAll('section.node')).toHaveLength(2)
-    expect([...doc.querySelectorAll('nav a')].map((a) => a.textContent)).toContain('2 io2')
+    expect(Array.from(doc.querySelectorAll('nav a')).map((a) => a.textContent)).toContain('2 io2')
   })
 
   it('shows names as text', () => {
@@ -117,7 +117,7 @@ describe('buildHtmlDocument', () => {
       { pou: 'alarms', variables: [{ name: 'level_in', location: entry.iecLocation }] },
     ])
     const doc = new DOMParser().parseFromString(buildHtmlDocument(input({ config, uses })), 'text/html')
-    const row = [...doc.querySelectorAll('#io ~ table tr')].find((tr) => tr.textContent?.includes('tank_level'))
+    const row = Array.from(doc.querySelectorAll('#io ~ table tr')).find((tr) => tr.textContent?.includes('tank_level'))
     expect(row?.textContent).toContain('main.level')
     expect(row?.textContent).toContain('alarms.level_in')
     expect(doc.body.textContent).toContain('not used')
@@ -144,7 +144,7 @@ describe('buildHtmlDocument', () => {
     const [, n2] = config.nodes
     n2.rpdos[0].entries[0] = { ...n2.rpdos[0].entries[0], alias: '' }
     const doc = new DOMParser().parseFromString(buildHtmlDocument(input({ config })), 'text/html')
-    const labels = [...doc.querySelectorAll('#node-2 .bar .seg span')].map((s) => s.textContent)
+    const labels = Array.from(doc.querySelectorAll('#node-2 .bar .seg span')).map((s) => s.textContent)
     expect(labels).toContain('tank_level')
     expect(labels).toContain('Digital outputs / Outputs 1-8')
     expect(labels.every((l) => l)).toBe(true)
