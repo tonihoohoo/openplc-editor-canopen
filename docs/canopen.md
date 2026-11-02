@@ -220,11 +220,11 @@ in any format, whatever file it was added from; the dialog lists what the picked
   project and do not change `conf/canopen.json`. Before saving, the file is checked for duplicate or
   out-of-range IDs, DLCs over 8, signals outside their message and overlapping signals.
 
-A network export writes one zip: a DCF or XDC per node, or an EDS or XDD per stored file (DBC writes one
+A network export writes one zip: a DCF or XDC per node, or an EDS or XDD per stored file (DBC and HTML write one
 file). Each exported file is checked again and **Save** is disabled when one has an error.
 
 The dialog has a fixed size. The formats are one row of buttons with the picked format's description
-below; the options of the format (DBC: frame chips and the SDO values select, `export-options.tsx`)
+below; the options of the format (DBC: frame chips and the SDO values select; HTML: section chips; `export-options.tsx`)
 follow. What the files do not hold shows three lines, its count and **Show all**; the content scrolls
 as one area. The bottom bar shows the check result beside **Cancel** and **Save**: the file name and a
 summary, or the first error and the number of errors, which are then listed in full above. An option
