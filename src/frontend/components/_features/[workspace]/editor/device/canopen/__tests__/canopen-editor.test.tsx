@@ -152,7 +152,7 @@ describe('CanopenEditor', () => {
     expect(config()?.nodes[0].nodeId).toBe(5)
   })
 
-  it('disables a PDO and maps an object into it again', async () => {
+  it('maps an object into a PDO again, stops exchanging it, removes it and adds it back', async () => {
     await importEds()
     openTab(/Outputs/)
     const card = await screen.findByTestId('canopen-pdo-output-1')
@@ -161,9 +161,19 @@ describe('CanopenEditor', () => {
     pickObject(within(card).getByRole('button', { name: 'Add an object to RPDO 1' }), '0x6200:01')
     expect(config()?.nodes[0].rpdos[0].entries.map((e) => e.iecLocation)).toEqual(['%QB0'])
 
-    fireEvent.click(within(card).getByLabelText('RPDO 1'))
-    expect(config()?.nodes[0].rpdos[0]).toMatchObject({ enabled: false })
+    fireEvent.click(within(card).getByLabelText('Exchanged by the master'))
+    expect(config()?.nodes[0].rpdos[0]).toMatchObject({ exchanged: false })
     expect(config()?.nodes[0].rpdos[0].entries[0].iecLocation).toBe('')
+    expect(within(card).queryByText('Address')).toBeNull()
+
+    expect(screen.getByRole('button', { name: /Add RPDO/ })).toHaveProperty('disabled', true)
+    expect(screen.getByText('The device has no more RPDOs.')).toBeTruthy()
+    fireEvent.click(within(card).getByRole('button', { name: 'Remove RPDO 1' }))
+    expect(config()?.nodes[0].rpdos).toEqual([])
+    expect(screen.getByText('The node uses no RPDOs.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Add RPDO/ }))
+    expect(config()?.nodes[0].rpdos[0]).toMatchObject({ number: 1, cobId: 0x201, followsNodeId: true, exchanged: true })
+    expect(screen.getByText(/node ID \+ 0x200 = 0x201/)).toBeTruthy()
   })
 
   it('refuses an alias another channel has', async () => {

@@ -20,7 +20,7 @@ import { startupSdoCandidates } from '../editing'
 import { readEdsDocument } from '../eds-document'
 import { parseEds } from '../eds-parser'
 import { nodeConfigurationSdos } from '../generate-canopen-config'
-import { createCanopenNode, defaultCanopenConfig, updatePdo, withEntryAlias } from '../model'
+import { createCanopenNode, defaultCanopenConfig, updatePdo, withEntryAlias, withPdos } from '../model'
 import { GENERIC_IO_EDS, sequentialAllocator } from './fixtures/helpers'
 
 const NOW = new Date(2026, 9, 31, 14, 5)
@@ -249,7 +249,8 @@ describe('DCF export', () => {
   it('writes the sections of PDOs that CompactPDO implies', async () => {
     const compact = GENERIC_IO_EDS.replace('NrOfTXPDO=1', 'NrOfTXPDO=2\nCompactPDO=0x13')
     const config = await network(
-      (n) => updatePdo(n, 'input', 2, (p) => ({ ...p, enabled: true, entries: n.tpdos[0].entries })),
+      (n) =>
+        withPdos(n, 'input', [...n.tpdos, { ...n.tpdos[0], number: 2, cobId: 0x282, entries: n.tpdos[0].entries }]),
       compact,
     )
     expect(config.nodes[0].tpdos.map((p) => p.number)).toEqual([1, 2])
@@ -370,7 +371,8 @@ describe('DCF import', () => {
       pdos: [...n.tpdos, ...n.rpdos].map((p) => ({
         number: p.number,
         cobId: p.cobId,
-        enabled: p.enabled,
+        exchanged: p.exchanged,
+        followsNodeId: p.followsNodeId,
         transmissionType: p.transmissionType,
         eventTimerMs: p.eventTimerMs,
         inhibitTime: p.inhibitTime,

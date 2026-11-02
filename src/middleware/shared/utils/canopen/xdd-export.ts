@@ -209,7 +209,7 @@ export function buildNodeXdc(
     count++
   }
   for (const pdo of [...node.tpdos, ...node.rpdos]) {
-    if (!pdo.enabled) continue
+    if (!pdo.exchanged) continue
     for (const e of pdo.entries) {
       if (!e.alias) continue
       const span = x.objectTag(e.index, e.subIndex)

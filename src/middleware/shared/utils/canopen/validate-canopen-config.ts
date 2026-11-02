@@ -9,7 +9,7 @@ import type { PLCRemoteDevice } from '../../ports/types'
 import { checkCanopenNetwork, checkText, reservedCobId } from './check-fix'
 import { CANOPEN_BITRATES, iecPrefixFor } from './data-types'
 import { findObject } from './eds-parser'
-import { pdoActive, watchesMaster } from './generate-canopen-config'
+import { pdoConfigured, watchesMaster } from './generate-canopen-config'
 import {
   MAX_BUS_PRIORITY,
   MAX_PDO_BITS,
@@ -73,7 +73,7 @@ export function validateCanopenProject(
 
       const checkPdos = (pdos: CanopenPdo[], direction: PdoDirection): void => {
         for (const pdo of pdos) {
-          if (!pdoActive(pdo)) continue
+          if (!pdoConfigured(pdo)) continue
           const where = `${label} ${direction === 'input' ? 'TPDO' : 'RPDO'} ${pdo.number}`
           if (pdoBits(pdo) > MAX_PDO_BITS) errors.push(`${where}: maps ${pdoBits(pdo)} bits; a PDO holds at most 64`)
           if (RTR_TRANSMISSION_TYPES.includes(pdo.transmissionType))
@@ -84,7 +84,7 @@ export function validateCanopenProject(
             errors.push(`${where}: transmission type ${pdo.transmissionType} is reserved`)
           const reserved = reservedCobId(pdo.cobId)
           if (reserved) errors.push(`${where}: COB-ID ${hex(pdo.cobId, 3)} is reserved for ${reserved}`)
-          for (const e of pdo.entries) {
+          for (const e of pdo.exchanged ? pdo.entries : []) {
             const prefix = iecPrefixFor(e.dataType, direction)
             if (!e.iecLocation.startsWith(prefix)) {
               errors.push(`${where}: ${e.name} needs a ${prefix} address, has "${e.iecLocation}"`)

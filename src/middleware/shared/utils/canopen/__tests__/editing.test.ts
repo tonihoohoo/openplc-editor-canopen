@@ -195,9 +195,9 @@ describe('startupSdoCandidates', () => {
     ])
   })
 
-  it('offers an RPDO object again once its PDO is disabled, and never 0x1010 or 0x1011', () => {
+  it('offers an RPDO object again once its PDO is removed, and never 0x1010 or 0x1011', () => {
     const node = genericNode(2)
-    node.rpdos[0].enabled = false
+    node.rpdos = []
     node.eds = {
       ...node.eds,
       objects: [
