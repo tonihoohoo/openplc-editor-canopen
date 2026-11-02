@@ -1,0 +1,855 @@
+{
+  "name": "canopen_1",
+  "protocol": "canopen",
+  "canopenConfig": {
+    "network": {
+      "interface": "vcan0",
+      "bitrate": 0,
+      "masterNodeId": 127,
+      "syncMode": "plc_cycle",
+      "syncPeriodUs": 10000,
+      "heartbeatProducerMs": 100,
+      "sdoTimeoutMs": 1000,
+      "onPlcStop": "pre_operational",
+      "priority": 90
+    },
+    "nodes": [
+      {
+        "id": "node-io2",
+        "name": "io2",
+        "nodeId": 2,
+        "eds": {
+          "fileName": "generic-io-module.eds",
+          "vendorName": "Simulated",
+          "productName": "Generic I/O module",
+          "deviceType": 401,
+          "vendorId": 1,
+          "productCode": 2,
+          "revision": 3,
+          "rxPdoCount": 1,
+          "txPdoCount": 1,
+          "objects": [
+            {
+              "index": 4096,
+              "subIndex": 0,
+              "name": "Device type",
+              "dataType": "UNSIGNED32",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "0x00000191"
+            },
+            {
+              "index": 4097,
+              "subIndex": 0,
+              "name": "Error register",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false
+            },
+            {
+              "index": 4104,
+              "subIndex": 0,
+              "name": "Manufacturer device name",
+              "dataType": "0x0009",
+              "access": "const",
+              "pdoMapping": false,
+              "defaultValue": "Generic I/O"
+            },
+            {
+              "index": 4116,
+              "subIndex": 0,
+              "name": "COB-ID EMCY",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "$NODEID+0x80"
+            },
+            {
+              "index": 4118,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 4118,
+              "subIndex": 1,
+              "name": "Consumer heartbeat time",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 4119,
+              "subIndex": 0,
+              "name": "Producer heartbeat time",
+              "dataType": "UNSIGNED16",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 4120,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "4"
+            },
+            {
+              "index": 4120,
+              "subIndex": 1,
+              "name": "Vendor-ID",
+              "dataType": "UNSIGNED32",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "0x00000001"
+            },
+            {
+              "index": 4120,
+              "subIndex": 2,
+              "name": "Product code",
+              "dataType": "UNSIGNED32",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "0x00000002"
+            },
+            {
+              "index": 4120,
+              "subIndex": 3,
+              "name": "Revision number",
+              "dataType": "UNSIGNED32",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "0x00000003"
+            },
+            {
+              "index": 4120,
+              "subIndex": 4,
+              "name": "Serial number",
+              "dataType": "UNSIGNED32",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 4137,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 4137,
+              "subIndex": 1,
+              "name": "Communication error",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 5120,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "5"
+            },
+            {
+              "index": 5120,
+              "subIndex": 1,
+              "name": "COB-ID",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "$NODEID+0x200"
+            },
+            {
+              "index": 5120,
+              "subIndex": 2,
+              "name": "Transmission type",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "255"
+            },
+            {
+              "index": 5120,
+              "subIndex": 5,
+              "name": "Event timer",
+              "dataType": "UNSIGNED16",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 5632,
+              "subIndex": 0,
+              "name": "Number of mapped objects",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 5632,
+              "subIndex": 1,
+              "name": "Mapped object 1",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0x62000108"
+            },
+            {
+              "index": 5632,
+              "subIndex": 2,
+              "name": "Mapped object 2",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 6144,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "5"
+            },
+            {
+              "index": 6144,
+              "subIndex": 1,
+              "name": "COB-ID",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "$NODEID+0x180"
+            },
+            {
+              "index": 6144,
+              "subIndex": 2,
+              "name": "Transmission type",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "255"
+            },
+            {
+              "index": 6144,
+              "subIndex": 3,
+              "name": "Inhibit time",
+              "dataType": "UNSIGNED16",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 6144,
+              "subIndex": 5,
+              "name": "Event timer",
+              "dataType": "UNSIGNED16",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "20"
+            },
+            {
+              "index": 6656,
+              "subIndex": 0,
+              "name": "Number of mapped objects",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "2"
+            },
+            {
+              "index": 6656,
+              "subIndex": 1,
+              "name": "Mapped object 1",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0x60000108"
+            },
+            {
+              "index": 6656,
+              "subIndex": 2,
+              "name": "Mapped object 2",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0x64010110"
+            },
+            {
+              "index": 8448,
+              "subIndex": 0,
+              "name": "Parameter",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 8704,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "2"
+            },
+            {
+              "index": 8704,
+              "subIndex": 1,
+              "name": "First counter",
+              "dataType": "UNSIGNED16",
+              "access": "ro",
+              "pdoMapping": true
+            },
+            {
+              "index": 8704,
+              "subIndex": 2,
+              "name": "Counters 2",
+              "dataType": "UNSIGNED16",
+              "access": "ro",
+              "pdoMapping": true
+            },
+            {
+              "index": 24576,
+              "subIndex": 0,
+              "name": "Number of inputs",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 24576,
+              "subIndex": 1,
+              "name": "Inputs 1-8",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": true
+            },
+            {
+              "index": 25088,
+              "subIndex": 0,
+              "name": "Number of outputs",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 25088,
+              "subIndex": 1,
+              "name": "Outputs 1-8",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": true
+            },
+            {
+              "index": 25601,
+              "subIndex": 0,
+              "name": "Number of inputs",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 25601,
+              "subIndex": 1,
+              "name": "Input 1",
+              "dataType": "INTEGER16",
+              "access": "ro",
+              "pdoMapping": true
+            }
+          ],
+          "dummyUsage": [
+            1,
+            5,
+            6,
+            7
+          ]
+        },
+        "checkVendorId": true,
+        "checkProductCode": true,
+        "checkRevision": false,
+        "supervision": "heartbeat",
+        "heartbeatConsumerMs": 300,
+        "heartbeatProducerMs": 100,
+        "onLoss": "hold",
+        "watchMaster": {
+          "enabled": true,
+          "consumerMs": 300,
+          "onError": "pre_operational"
+        },
+        "state": {
+          "channelId": "state",
+          "index": 0,
+          "subIndex": 0,
+          "name": "NMT state",
+          "dataType": "UNSIGNED8",
+          "iecLocation": "%IB0",
+          "alias": "io2_state"
+        },
+        "tpdos": [
+          {
+            "number": 1,
+            "cobId": 386,
+            "followsNodeId": true,
+            "exchanged": true,
+            "fixedMapping": false,
+            "transmissionType": 255,
+            "eventTimerMs": 20,
+            "inhibitTime": 0,
+            "receiveTimeoutMs": 0,
+            "entries": [
+              {
+                "channelId": "ch-1",
+                "index": 24576,
+                "subIndex": 1,
+                "name": "Inputs 1-8",
+                "dataType": "UNSIGNED8",
+                "iecLocation": "%IB1",
+                "alias": "io2_inputs"
+              },
+              {
+                "channelId": "ch-2",
+                "index": 25601,
+                "subIndex": 1,
+                "name": "Input 1",
+                "dataType": "INTEGER16",
+                "iecLocation": "%IW0",
+                "alias": "io2_analogue"
+              }
+            ]
+          }
+        ],
+        "rpdos": [
+          {
+            "number": 1,
+            "cobId": 514,
+            "followsNodeId": true,
+            "exchanged": true,
+            "fixedMapping": false,
+            "transmissionType": 255,
+            "eventTimerMs": 0,
+            "inhibitTime": 0,
+            "receiveTimeoutMs": 0,
+            "entries": [
+              {
+                "channelId": "ch-gap",
+                "index": 5,
+                "subIndex": 0,
+                "name": "Gap (8 bits)",
+                "dataType": "UNSIGNED8",
+                "iecLocation": ""
+              },
+              {
+                "channelId": "ch-3",
+                "index": 25088,
+                "subIndex": 1,
+                "name": "Outputs 1-8",
+                "dataType": "UNSIGNED8",
+                "iecLocation": "%QB0",
+                "alias": "io2_outputs"
+              }
+            ],
+            "deadlineMs": 100
+          }
+        ],
+        "sdos": [
+          {
+            "id": "sdo-refused",
+            "index": 8448,
+            "subIndex": 0,
+            "dataType": "UNSIGNED32",
+            "value": "7",
+            "onAbort": "continue"
+          }
+        ]
+      },
+      {
+        "id": "node-io9",
+        "name": "io9",
+        "nodeId": 9,
+        "eds": {
+          "fileName": "generic-io-module.eds",
+          "vendorName": "Simulated",
+          "productName": "Generic I/O module",
+          "deviceType": 401,
+          "vendorId": 1,
+          "productCode": 2,
+          "revision": 3,
+          "rxPdoCount": 1,
+          "txPdoCount": 1,
+          "objects": [
+            {
+              "index": 4096,
+              "subIndex": 0,
+              "name": "Device type",
+              "dataType": "UNSIGNED32",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "0x00000191"
+            },
+            {
+              "index": 4097,
+              "subIndex": 0,
+              "name": "Error register",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false
+            },
+            {
+              "index": 4104,
+              "subIndex": 0,
+              "name": "Manufacturer device name",
+              "dataType": "0x0009",
+              "access": "const",
+              "pdoMapping": false,
+              "defaultValue": "Generic I/O"
+            },
+            {
+              "index": 4116,
+              "subIndex": 0,
+              "name": "COB-ID EMCY",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "$NODEID+0x80"
+            },
+            {
+              "index": 4118,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 4118,
+              "subIndex": 1,
+              "name": "Consumer heartbeat time",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 4119,
+              "subIndex": 0,
+              "name": "Producer heartbeat time",
+              "dataType": "UNSIGNED16",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 4120,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "4"
+            },
+            {
+              "index": 4120,
+              "subIndex": 1,
+              "name": "Vendor-ID",
+              "dataType": "UNSIGNED32",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "0x00000001"
+            },
+            {
+              "index": 4120,
+              "subIndex": 2,
+              "name": "Product code",
+              "dataType": "UNSIGNED32",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "0x00000002"
+            },
+            {
+              "index": 4120,
+              "subIndex": 3,
+              "name": "Revision number",
+              "dataType": "UNSIGNED32",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "0x00000003"
+            },
+            {
+              "index": 4120,
+              "subIndex": 4,
+              "name": "Serial number",
+              "dataType": "UNSIGNED32",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 4137,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 4137,
+              "subIndex": 1,
+              "name": "Communication error",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 5120,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "2"
+            },
+            {
+              "index": 5120,
+              "subIndex": 1,
+              "name": "COB-ID",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "$NODEID+0x200"
+            },
+            {
+              "index": 5120,
+              "subIndex": 2,
+              "name": "Transmission type",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "255"
+            },
+            {
+              "index": 5632,
+              "subIndex": 0,
+              "name": "Number of mapped objects",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 5632,
+              "subIndex": 1,
+              "name": "Mapped object 1",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0x62000108"
+            },
+            {
+              "index": 6144,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "5"
+            },
+            {
+              "index": 6144,
+              "subIndex": 1,
+              "name": "COB-ID",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "$NODEID+0x180"
+            },
+            {
+              "index": 6144,
+              "subIndex": 2,
+              "name": "Transmission type",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "255"
+            },
+            {
+              "index": 6144,
+              "subIndex": 3,
+              "name": "Inhibit time",
+              "dataType": "UNSIGNED16",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 6144,
+              "subIndex": 5,
+              "name": "Event timer",
+              "dataType": "UNSIGNED16",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "20"
+            },
+            {
+              "index": 6656,
+              "subIndex": 0,
+              "name": "Number of mapped objects",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "2"
+            },
+            {
+              "index": 6656,
+              "subIndex": 1,
+              "name": "Mapped object 1",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0x60000108"
+            },
+            {
+              "index": 6656,
+              "subIndex": 2,
+              "name": "Mapped object 2",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0x64010110"
+            },
+            {
+              "index": 8448,
+              "subIndex": 0,
+              "name": "Parameter",
+              "dataType": "UNSIGNED32",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "0"
+            },
+            {
+              "index": 8704,
+              "subIndex": 0,
+              "name": "Highest sub-index supported",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "2"
+            },
+            {
+              "index": 8704,
+              "subIndex": 1,
+              "name": "First counter",
+              "dataType": "UNSIGNED16",
+              "access": "ro",
+              "pdoMapping": true
+            },
+            {
+              "index": 8704,
+              "subIndex": 2,
+              "name": "Counters 2",
+              "dataType": "UNSIGNED16",
+              "access": "ro",
+              "pdoMapping": true
+            },
+            {
+              "index": 24576,
+              "subIndex": 0,
+              "name": "Number of inputs",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 24576,
+              "subIndex": 1,
+              "name": "Inputs 1-8",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": true
+            },
+            {
+              "index": 25088,
+              "subIndex": 0,
+              "name": "Number of outputs",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 25088,
+              "subIndex": 1,
+              "name": "Outputs 1-8",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": true
+            },
+            {
+              "index": 25601,
+              "subIndex": 0,
+              "name": "Number of inputs",
+              "dataType": "UNSIGNED8",
+              "access": "ro",
+              "pdoMapping": false,
+              "defaultValue": "1"
+            },
+            {
+              "index": 25601,
+              "subIndex": 1,
+              "name": "Input 1",
+              "dataType": "INTEGER16",
+              "access": "ro",
+              "pdoMapping": true
+            }
+          ]
+        },
+        "checkVendorId": true,
+        "checkProductCode": true,
+        "checkRevision": false,
+        "supervision": "heartbeat",
+        "heartbeatConsumerMs": 300,
+        "heartbeatProducerMs": 100,
+        "onLoss": "hold",
+        "watchMaster": {
+          "enabled": true,
+          "consumerMs": 300,
+          "onError": "pre_operational"
+        },
+        "state": {
+          "channelId": "state",
+          "index": 0,
+          "subIndex": 0,
+          "name": "NMT state",
+          "dataType": "UNSIGNED8",
+          "iecLocation": "%IB2",
+          "alias": "io9_state"
+        },
+        "tpdos": [],
+        "rpdos": [],
+        "sdos": [],
+        "optional": true
+      }
+    ]
+  }
+}

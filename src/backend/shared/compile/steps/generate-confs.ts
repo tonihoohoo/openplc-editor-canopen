@@ -200,7 +200,7 @@ export function generateRuntimeConfs(input: GenerateConfsInput): GenerateConfsOu
   }
   for (const off of canopenNetworksOff(remoteDevices))
     input.log(`CANopen network "${off.name}" is off and was not sent to the runtime`, 'info')
-  const canopen = generateCanopenConfig(remoteDevices)
+  const canopen = generateCanopenConfig(remoteDevices, input.plcCycleUs ?? null)
 
   return { modbusSlave, modbusMaster, s7Comm, opcUa, ethercat, ethercatBusconfig, ethercatIomapping, canopen }
 }

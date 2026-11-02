@@ -28,6 +28,7 @@ import {
   emcySupport,
   findObject,
   hasErrorBehaviour,
+  isGapEntry,
   objectParameterState,
   restoreChoiceName,
   restoreChoices,
@@ -167,6 +168,8 @@ type NodePanelProps = {
   timeOn: boolean
   /** The SYNC period, or null when unknown or off. */
   syncPeriodUs: number | null
+  /** The PLC cycle in microseconds, or null when unknown. */
+  cycleUs: number | null
   sdoWarnings: ReadonlyMap<string, string>
   /** The runtime's live status; null hides the Status tab. */
   live: CanopenLiveStatus | null
@@ -213,6 +216,7 @@ const NodePanel = ({
   heartbeatTimeoutPercent,
   timeOn,
   syncPeriodUs,
+  cycleUs,
   sdoWarnings,
   live,
   online,
@@ -270,8 +274,10 @@ const NodePanel = ({
   const emcy = effectiveEmcy(node)
   const canWatch = canWatchMaster(eds)
   const watchProblem = watchMasterProblem(node, masterHeartbeatMs)
-  const mappedInputs = node.tpdos.filter((p) => p.exchanged).reduce((n, p) => n + p.entries.length, 0)
-  const mappedOutputs = node.rpdos.filter((p) => p.exchanged).reduce((n, p) => n + p.entries.length, 0)
+  const valueCount = (pdos: typeof node.tpdos): number =>
+    pdos.filter((p) => p.exchanged).reduce((n, p) => n + p.entries.filter((e) => !isGapEntry(eds, e)).length, 0)
+  const mappedInputs = valueCount(node.tpdos)
+  const mappedOutputs = valueCount(node.rpdos)
   const config: CanopenConfig = { network, nodes: nodes.map((n) => (n.id === node.id ? node : n)) }
 
   return (
@@ -730,6 +736,7 @@ const NodePanel = ({
             direction='input'
             syncOn={syncOn}
             syncPeriodUs={syncPeriodUs}
+            cycleUs={cycleUs}
             onNodeChange={(next) => onChange(() => next)}
             onAliasChange={onAliasChange}
           />
@@ -742,6 +749,7 @@ const NodePanel = ({
             direction='output'
             syncOn={syncOn}
             syncPeriodUs={syncPeriodUs}
+            cycleUs={cycleUs}
             onNodeChange={(next) => onChange(() => next)}
             onAliasChange={onAliasChange}
           />
@@ -750,8 +758,10 @@ const NodePanel = ({
         <Tabs.Content value='sdos' className='pb-4'>
           <SdoSection
             node={node}
+            network={network}
             warnings={sdoWarnings}
             onChange={(sdos: CanopenSdo[]) => onChange((n) => ({ ...n, sdos }))}
+            onGoTo={setTab}
           />
         </Tabs.Content>
 

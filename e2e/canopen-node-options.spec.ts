@@ -83,7 +83,7 @@ test('node options, a fix and the network error behaviour reach the build', asyn
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 3,
+      version: 4,
       networks: [
         {
           boot_timeout_ms: 2000,

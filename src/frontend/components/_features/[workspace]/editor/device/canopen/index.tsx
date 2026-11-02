@@ -440,6 +440,7 @@ const CanopenEditor = () => {
               heartbeatTimeoutPercent={config.network.newNodeDefaults.heartbeatTimeoutPercent}
               timeOn={config.network.time.enabled}
               syncPeriodUs={config.network.syncMode === 'period' ? config.network.syncPeriodUs : null}
+              cycleUs={cycleUs}
               live={live}
               online={online}
               onOnlineShown={setNodeOnlineShown}

@@ -7,6 +7,7 @@
  */
 
 import type { CanopenConfig, CanopenNode, CanopenPdo } from '../../ports/canopen-types'
+import { canopenTypeBits, objectRef } from './data-types'
 import { changeOnlyTimeoutText, timeoutOnChangeOnlyPdo } from './editing'
 import { pdoConfigured, pdoExchanged, watchesMaster } from './generate-canopen-config'
 import {
@@ -16,6 +17,8 @@ import {
   effectiveEmcy,
   effectiveProducerMs,
   emcySupport,
+  isDummyEntry,
+  isGapEntry,
   type PdoDirection,
   restoreChoices,
   updateNode,
@@ -518,6 +521,24 @@ function checkReceiveTimeouts(config: CanopenConfig, cycleUs: number | null, out
   }
 }
 
+function checkGaps(config: CanopenConfig, out: CanopenCheck[]): void {
+  for (const node of config.nodes) {
+    for (const direction of ['input', 'output'] as const) {
+      for (const pdo of direction === 'input' ? node.tpdos : node.rpdos) {
+        for (const e of pdo.entries) {
+          if (isDummyEntry(e) || !isGapEntry(node.eds, e)) continue
+          out.push({
+            level: 'warning',
+            nodeId: node.id,
+            where: `${label(node)} ${direction === 'input' ? 'TPDO' : 'RPDO'} ${pdo.number}`,
+            text: `maps ${objectRef(e.index, e.subIndex)}, which the device file does not describe; it is kept as a gap of ${canopenTypeBits(e.dataType)} bits`,
+          })
+        }
+      }
+    }
+  }
+}
+
 /** Every problem of the network that the editor can explain, with its fix where there is one. */
 export function checkCanopenNetwork(config: CanopenConfig, cycleUs: number | null): CanopenCheck[] {
   const out: CanopenCheck[] = []
@@ -526,6 +547,7 @@ export function checkCanopenNetwork(config: CanopenConfig, cycleUs: number | nul
   checkSync(config, cycleUs, out)
   checkOptions(config, out)
   checkReceiveTimeouts(config, cycleUs, out)
+  checkGaps(config, out)
   if (cycleUs !== null) checkCycle(config, cycleUs, out)
   return out
 }

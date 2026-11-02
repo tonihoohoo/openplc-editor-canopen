@@ -121,8 +121,19 @@ describe('parseEds', () => {
     expect(findObject(eds, 0x1800, 2)).toBeUndefined()
   })
 
-  it('skips DOMAIN and DEFTYPE objects', () => {
-    const text = '[DeviceInfo]\n[1F50]\nObjectType=0x2\nDataType=0x000F\n[0005]\nObjectType=0x5\n'
-    expect(parseEds(text, 'x.eds').objects).toEqual([])
+  it('keeps DOMAIN objects for startup SDOs and skips DEFTYPE objects', () => {
+    const text =
+      '[DeviceInfo]\n[1F50]\nObjectType=0x2\nParameterName=Program\nDataType=0x000F\nAccessType=rw\n' +
+      '[2001]\nObjectType=0x2\nParameterName=Block\nAccessType=wo\n[0005]\nObjectType=0x5\n'
+    expect(parseEds(text, 'x.eds').objects.map((o) => [o.index, o.name, o.dataType, o.access])).toEqual([
+      [0x1f50, 'Program', '0x000F', 'rw'],
+      [0x2001, 'Block', '0x000F', 'wo'],
+    ])
+  })
+
+  it('reads the dummy objects [DummyUsage] allows', () => {
+    const text = '[DeviceInfo]\n[DummyUsage]\nDummy0001=0\nDummy0005=1\nDummy0007=1\n'
+    expect(parseEds(text, 'x.eds').dummyUsage).toEqual([5, 7])
+    expect(parseEds('[DeviceInfo]\n', 'x.eds').dummyUsage).toBeUndefined()
   })
 })

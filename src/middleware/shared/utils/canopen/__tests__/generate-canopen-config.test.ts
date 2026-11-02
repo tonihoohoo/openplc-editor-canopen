@@ -101,7 +101,7 @@ describe('generateCanopenConfig', () => {
     expect(text).not.toBeNull()
     const json: unknown = JSON.parse(text ?? '')
     expect(json).toMatchObject({
-      version: 3,
+      version: 4,
       networks: [
         {
           name: 'CANopen_1',

@@ -983,6 +983,7 @@ const CanopenEdsInfoSchema = z.object({
   revision: z.number().int().min(0),
   rxPdoCount: z.number().int().min(0),
   txPdoCount: z.number().int().min(0),
+  dummyUsage: z.array(z.number().int().min(1).max(7)).optional(),
   unsupportedBitrates: z.array(z.number().int().min(0)).optional(),
   objects: z.array(CanopenObjectSchema),
   source: z
@@ -1027,6 +1028,7 @@ const CanopenPdoSchema = z.object({
   eventTimerMs: z.number().int().min(0).max(65535),
   inhibitTime: z.number().int().min(0).max(65535),
   receiveTimeoutMs: z.number().int().min(0).max(65535).default(0),
+  deadlineMs: z.number().int().min(0).max(65535).default(0),
   entries: z.array(CanopenEntrySchema),
 })
 
@@ -1034,8 +1036,10 @@ const CanopenSdoSchema = z.object({
   id: z.string(),
   index: z.number().int().min(0).max(0xffff),
   subIndex: z.number().int().min(0).max(0xff),
-  dataType: CanopenDataTypeSchema,
+  dataType: z.union([CanopenDataTypeSchema, z.enum(['VISIBLE_STRING', 'OCTET_STRING', 'DOMAIN'])]),
   value: z.string(),
+  onAbort: z.enum(['stop', 'continue', 'jump']).optional(),
+  jumpTo: z.string().optional(),
 })
 
 const CanopenNodeSchema = z
