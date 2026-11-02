@@ -145,11 +145,10 @@ test('refusal policies, text and byte values, a gap and a deadline reach conf/ca
         { index: 0x1400, subindex: 5, data: '6400' },
         { index: 0x1600, subindex: 1, data: '08000500' },
         { index: 0x1600, subindex: 2, data: '08010062' },
-        { index: 0x2300, subindex: 0, data: '4C696E652033' },
+        { index: 0x2300, subindex: 0, data: '4C696E652033', on_abort: 'continue' },
         { index: 0x2400, subindex: 0, data: '0102A0' },
       ]),
     )
-    expect(node.sdo.find((s) => s.index === 0x2300)?.on_abort).toBe('continue')
     const jump = node.sdo.findIndex((s) => s.index === 0x2100)
     const target = node.sdo.findIndex((s) => s.index === 0x2400)
     expect(node.sdo[jump]).toMatchObject({ on_abort: 'jump', jump_to: target })
