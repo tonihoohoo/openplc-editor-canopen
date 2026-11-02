@@ -907,7 +907,6 @@ export function buildDbc(config: CanopenConfig, options: DbcExportOptions): Devi
   const nodes = options.nodes ?? config.nodes
   const builder = new DbcBuilder(config, nodes, dbcExportOptions(config))
   builder.build()
-  const signals = builder.messages.reduce((n, m) => n + m.signals.length, 0)
   const fileName =
     options.nodes && options.nodes.length === 1
       ? dbcNodeFileName(options.nodes[0].nodeId)
@@ -915,7 +914,7 @@ export function buildDbc(config: CanopenConfig, options: DbcExportOptions): Devi
   return {
     fileName,
     text: writeDbc(options.networkName, config.network.bitrate, builder.nodes, builder.messages),
-    summary: `${builder.messages.length} frame${builder.messages.length === 1 ? '' : 's'}, ${signals} signals, ${nodes.length} node${nodes.length === 1 ? '' : 's'}`,
+    summary: `${builder.messages.length} frame${builder.messages.length === 1 ? '' : 's'}, ${nodes.length} node${nodes.length === 1 ? '' : 's'}`,
     errors: [],
     problems: checkDbc(builder.messages),
   }

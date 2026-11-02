@@ -26,6 +26,8 @@ import { v4 as uuidv4 } from 'uuid'
 
 import {
   cardClassName,
+  compactCardClassName,
+  compactHeadingClassName,
   headingClassName,
   hintClassName,
   primaryButtonClassName,
@@ -496,13 +498,13 @@ export const ExportDialog = ({
     <Modal open onOpenChange={(open) => (open ? undefined : onCancel())}>
       <ModalContent
         onClose={onCancel}
-        className='!inset-x-0 !bottom-auto !top-[7vh] !h-[min(86vh,640px)] max-h-[86vh] w-[640px] p-6 pb-0'
+        className='!inset-x-0 !bottom-auto !top-[7vh] !h-[min(86vh,640px)] max-h-[86vh] w-[640px] gap-3 p-6 pb-0'
         data-testid='canopen-export-dialog'
       >
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
-        <fieldset className={cardClassName} data-testid='canopen-export-format'>
+        <fieldset className={compactCardClassName} data-testid='canopen-export-format'>
           <legend className='sr-only'>Format</legend>
-          <h4 className={headingClassName} aria-hidden>
+          <h4 className={compactHeadingClassName} aria-hidden>
             Format
           </h4>
           <div className='inline-flex overflow-hidden rounded-md border border-neutral-300 dark:border-neutral-700'>
@@ -510,7 +512,7 @@ export const ExportDialog = ({
               <label
                 key={f.format}
                 className={cn(
-                  'relative cursor-pointer border-l border-neutral-300 px-3 py-1 text-xs font-medium first:border-l-0 focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand dark:border-neutral-700',
+                  'relative cursor-pointer border-l border-neutral-300 px-3 py-1 text-xs font-medium first:border-l-0 dark:border-neutral-700 [&:has(:focus-visible)]:ring-2 [&:has(:focus-visible)]:ring-inset [&:has(:focus-visible)]:ring-brand',
                   format === f.format
                     ? 'bg-brand text-white'
                     : 'bg-white text-neutral-700 hover:bg-neutral-100 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800',
@@ -534,14 +536,16 @@ export const ExportDialog = ({
         </fieldset>
         {options}
         {losses.length > 0 ? (
-          <div className={cardClassName}>
-            <h4 className={headingClassName}>
+          <div className={compactCardClassName}>
+            <h4 className={compactHeadingClassName}>
               Not in the {files.length === 1 ? 'file' : 'files'} ({losses.length})
             </h4>
             <ul data-testid='canopen-export-losses'>
               {shown.map((l) => (
                 <Row key={l} kind='lost'>
-                  {l}
+                  <span className={showAll ? undefined : 'block truncate'} title={showAll ? undefined : l}>
+                    {l}
+                  </span>
                 </Row>
               ))}
             </ul>
@@ -558,8 +562,8 @@ export const ExportDialog = ({
           </div>
         ) : null}
         {ok ? null : (
-          <div className={cardClassName}>
-            <h4 className={headingClassName}>
+          <div className={compactCardClassName}>
+            <h4 className={compactHeadingClassName}>
               Check of the files <span className='normal-case'>({exportStandard(format)})</span>
             </h4>
             <ul data-testid='canopen-export-results'>
@@ -592,7 +596,8 @@ export const ExportDialog = ({
                   </>
                 ) : (
                   <span className='text-neutral-700 dark:text-neutral-300'>
-                    {files.length} files pass the {exportStandard(format)} check
+                    {files.length} files pass the {exportStandard(format)} check:{' '}
+                    <code className='font-mono text-[11px]'>{files.map((f) => f.fileName).join(', ')}</code>
                   </span>
                 )}
               </>

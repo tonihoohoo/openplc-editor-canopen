@@ -3,7 +3,7 @@ import type { CanopenConfig, CanopenDbcExportOptions } from '@root/middleware/sh
 import { DBC_FRAME_TYPES, dbcExportOptions, dbcFrameUnavailable } from '@root/middleware/shared/utils/canopen'
 import type { ReactNode } from 'react'
 
-import { cardClassName, headingClassName, hintClassName, labelClassName } from './styles'
+import { compactCardClassName, compactHeadingClassName, hintClassName, labelClassName } from './styles'
 
 type ExportChipProps = {
   checked: boolean
@@ -39,7 +39,9 @@ export const ExportChip = ({ checked, disabled = false, reason, onChange, testId
       {checked && !disabled ? '✓' : ''}
     </span>
     {children}
-    {disabled && reason ? <span className='ml-1'>({reason.replace(/ in this network$/, ' in network')})</span> : null}
+    {disabled && reason ? (
+      <span className='ml-1'>({reason.replace(/^.* is off in this network$/, 'off in network')})</span>
+    ) : null}
   </button>
 )
 
@@ -52,8 +54,8 @@ type DbcExportOptionsCardProps = {
 export const DbcExportOptionsCard = ({ config, onChange }: DbcExportOptionsCardProps) => {
   const options = dbcExportOptions(config)
   return (
-    <div className={cardClassName} data-testid='canopen-export-dbc-options'>
-      <h4 className={headingClassName}>Frames in the file</h4>
+    <div className={compactCardClassName} data-testid='canopen-export-dbc-options'>
+      <h4 className={compactHeadingClassName}>Frames in the file</h4>
       <div className='flex flex-wrap gap-1.5' role='group' aria-label='Frames in the file'>
         {DBC_FRAME_TYPES.map((f) => {
           const reason = dbcFrameUnavailable(config, f.type)
@@ -71,7 +73,7 @@ export const DbcExportOptionsCard = ({ config, onChange }: DbcExportOptionsCardP
           )
         })}
       </div>
-      <label className='mt-3 flex items-center gap-2'>
+      <label className='mt-2.5 flex items-center gap-2'>
         <span className={labelClassName}>SDO values for</span>
         <select
           className='h-[26px] rounded-md border border-neutral-300 bg-white px-1.5 text-xs text-neutral-850 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300'
