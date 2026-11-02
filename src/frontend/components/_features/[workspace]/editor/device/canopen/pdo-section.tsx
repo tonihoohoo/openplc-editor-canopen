@@ -48,11 +48,12 @@ import {
   updatePdo,
   withPdoExchanged,
 } from '@root/middleware/shared/utils/canopen'
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { ObjectPicker } from './object-picker'
+import { useKeepInPlace } from './scroll'
 import { MoveButtons, SortableBody, SortableRow } from './sortable-rows'
 import { cardClassName, hintClassName, iconButtonClassName, secondaryButtonClassName } from './styles'
 import { useAddedHighlight } from './use-added-highlight'
@@ -326,6 +327,8 @@ const PdoCard = ({
   const moveEntry = (from: number, to: number) => onChange({ ...pdo, entries: moveItem(pdo.entries, from, to) })
 
   const [addedId, setAddedId] = useAddedHighlight()
+  const exchangeBox = useRef<HTMLDivElement>(null)
+  const keepExchangeBox = useKeepInPlace(exchangeBox)
   const timeoutWarning =
     isInput && pdo.exchanged ? receiveTimeoutWarning({ eds, nodeId, configure, onLoss }, pdo, syncPeriodUs) : null
 
@@ -349,22 +352,25 @@ const PdoCard = ({
       <div className='flex items-start justify-between gap-2'>
         <div className='flex flex-col'>
           <span className='text-xs font-semibold text-neutral-1000 dark:text-neutral-100'>{title}</span>
-          <span className={hintClassName}>
-            {bits} of {MAX_PDO_BITS} bits mapped
+          <span className={hintClassName} data-testid={`canopen-pdo-summary-${direction}-${pdo.number}`}>
+            {bits} of {MAX_PDO_BITS} bits mapped ·{' '}
+            {pdo.exchanged
+              ? isInput
+                ? 'entries are PLC inputs (%I)'
+                : 'entries are PLC outputs (%Q)'
+              : partners.length > 0
+                ? 'configured on the node only'
+                : 'configured on the node only (a PDO between two nodes)'}
           </span>
         </div>
-        <div className='flex items-start gap-3'>
+        <div ref={exchangeBox} className='flex items-start gap-3'>
           <CheckboxField
             label='Exchanged by the master'
             checked={pdo.exchanged}
-            hint={
-              pdo.exchanged
-                ? isInput
-                  ? 'Entries are PLC inputs (%I)'
-                  : 'Entries are PLC outputs (%Q)'
-                : 'Configured on the node only, for a PDO between two nodes'
-            }
-            onChange={(exchanged) => onChange(withPdoExchanged(pdo, direction, exchanged, placeholderAddress))}
+            onChange={(exchanged) => {
+              keepExchangeBox()
+              onChange(withPdoExchanged(pdo, direction, exchanged, placeholderAddress))
+            }}
           />
           <button
             type='button'
@@ -423,18 +429,23 @@ const PdoCard = ({
               className='w-[140px]'
               onCommit={(inhibitTime) => onChange({ ...pdo, inhibitTime })}
             />
-            {pdo.exchanged ? (
-              <NumberField
-                label='Receive timeout (ms)'
-                value={pdo.receiveTimeoutMs}
-                min={0}
-                max={65535}
-                objectRef={objectRef(0x1400 + pdo.number - 1, 5)}
-                hint={timeoutWarning ? 'Master side; see below' : 'Master side; 0 for none'}
-                className='w-[140px]'
-                onCommit={(receiveTimeoutMs) => onChange({ ...pdo, receiveTimeoutMs })}
-              />
-            ) : null}
+            <NumberField
+              label='Receive timeout (ms)'
+              value={pdo.receiveTimeoutMs}
+              min={0}
+              max={65535}
+              objectRef={objectRef(0x1400 + pdo.number - 1, 5)}
+              hint={
+                !pdo.exchanged
+                  ? 'Only for a PDO the master exchanges'
+                  : timeoutWarning
+                    ? 'Master side; see below'
+                    : 'Master side; 0 for none'
+              }
+              disabled={!pdo.exchanged}
+              className='w-[140px]'
+              onCommit={(receiveTimeoutMs) => onChange({ ...pdo, receiveTimeoutMs })}
+            />
           </>
         ) : (
           <NumberField
@@ -493,12 +504,8 @@ const PdoCard = ({
             <th className='w-[80px] py-1 font-medium'>Object</th>
             <th className='py-1 font-medium'>Name</th>
             <th className='w-[100px] py-1 font-medium'>Type</th>
-            {pdo.exchanged ? (
-              <>
-                <th className='w-[90px] py-1 font-medium'>Address</th>
-                <th className='w-[150px] py-1 font-medium'>Alias</th>
-              </>
-            ) : null}
+            <th className='w-[90px] py-1 font-medium'>Address</th>
+            <th className='w-[150px] py-1 font-medium'>Alias</th>
             <th className='w-[100px] py-1' />
           </tr>
         </thead>
@@ -509,7 +516,7 @@ const PdoCard = ({
         >
           {pdo.entries.length === 0 ? (
             <tr>
-              <td colSpan={pdo.exchanged ? 7 : 5} className={cn(hintClassName, 'py-2')}>
+              <td colSpan={7} className={cn(hintClassName, 'py-2')}>
                 No entries mapped. The PDO is switched off on the node until it maps one.
               </td>
             </tr>
@@ -534,26 +541,28 @@ const PdoCard = ({
                 <td className='py-1'>
                   {gap && isDummyEntry(entry) ? `${canopenTypeBits(entry.dataType)} bits` : entry.dataType}
                 </td>
-                {pdo.exchanged ? (
-                  gap ? (
-                    <td colSpan={2} className={cn(hintClassName, 'py-1')}>
-                      {isDummyEntry(entry) ? 'A gap: no PLC value' : 'Not in the device file: no PLC value'}
+                {gap ? (
+                  <td colSpan={2} className={cn(hintClassName, 'py-1')}>
+                    {isDummyEntry(entry) ? 'A gap: no PLC value' : 'Not in the device file: no PLC value'}
+                  </td>
+                ) : !pdo.exchanged ? (
+                  <td colSpan={2} className={cn(hintClassName, 'h-[38px] py-1')}>
+                    Not exchanged: no PLC value
+                  </td>
+                ) : (
+                  <>
+                    <td className='py-1 font-mono'>{entry.iecLocation || '-'}</td>
+                    <td className='py-1 pr-2'>
+                      <TextField
+                        label={`Alias of ${entry.name}`}
+                        hideLabel
+                        value={entry.alias ?? ''}
+                        placeholder='Alias'
+                        onCommit={(alias) => onAliasChange(entry, alias)}
+                      />
                     </td>
-                  ) : (
-                    <>
-                      <td className='py-1 font-mono'>{entry.iecLocation || '-'}</td>
-                      <td className='py-1 pr-2'>
-                        <TextField
-                          label={`Alias of ${entry.name}`}
-                          hideLabel
-                          value={entry.alias ?? ''}
-                          placeholder='Alias'
-                          onCommit={(alias) => onAliasChange(entry, alias)}
-                        />
-                      </td>
-                    </>
-                  )
-                ) : null}
+                  </>
+                )}
                 <td className='py-1'>
                   <div className='flex items-center justify-end'>
                     {pdo.fixedMapping ? null : (

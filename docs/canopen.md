@@ -56,16 +56,17 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
      a fixed COB-ID.
    - **Exchanged by the master** (on by default): off, the master still writes the PDO's settings
      and mapping to the node at boot, but the PDO has no addresses and is not exchanged with the
-     PLC. Use it for a PDO between two nodes: one node's TPDO and another node's RPDO on the same
-     COB-ID. Both PDOs name the other end, the network checks accept the shared COB-ID, and they
+     PLC: its entries show "Not exchanged: no PLC value" in the Address and Alias columns, and the
+     line under the PDO's title says which way it is set. Use it for a PDO between two nodes: one
+     node's TPDO and another node's RPDO on the same COB-ID. Both PDOs name the other end, the network checks accept the shared COB-ID, and they
      warn about an RPDO whose COB-ID no node sends.
    - The transmission type is one of synchronous acyclic (0), synchronous every N SYNC (1-240),
      event-driven manufacturer specific (254) or event-driven device profile (255); choices outside
      the EDS's `LowLimit`/`HighLimit` are disabled and the EDS default is marked. Remote request
      (RTR) types 252 and 253 are not supported: an EDS default of 252 or 253 becomes 255, and the
      build refuses them. A synchronous type on a network without SYNC shows a warning.
-   - A TPDO the master exchanges has a **Receive timeout** (off at 0): the master's RPDO event timer
-     (`0x14xx:05`). When the PDO does not arrive in that time the master reports it late, logs it and
+   - A TPDO the master exchanges has a **Receive timeout** (off at 0; shown disabled, with its value
+     kept, while the master does not exchange the PDO): the master's RPDO event timer (`0x14xx:05`). When the PDO does not arrive in that time the master reports it late, logs it and
      treats the inputs as it does for a lost node. A timeout shorter than the event timer, or shorter
      than two SYNC intervals of a synchronous PDO on a fixed SYNC period, shows a warning. So does a
      timeout on a PDO the node sends only after a change (type 0, or 254 and 255 without an event

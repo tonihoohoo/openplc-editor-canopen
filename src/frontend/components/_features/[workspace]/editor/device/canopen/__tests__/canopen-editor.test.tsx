@@ -164,7 +164,18 @@ describe('CanopenEditor', () => {
     fireEvent.click(within(card).getByLabelText('Exchanged by the master'))
     expect(config()?.nodes[0].rpdos[0]).toMatchObject({ exchanged: false })
     expect(config()?.nodes[0].rpdos[0].entries[0].iecLocation).toBe('')
-    expect(within(card).queryByText('Address')).toBeNull()
+    expect(within(card).getByText('Address')).toBeTruthy()
+    expect(within(card).getByText('Not exchanged: no PLC value')).toBeTruthy()
+    expect(within(card).queryByLabelText('Alias of Outputs 1-8')).toBeNull()
+    expect(within(card).getByTestId('canopen-pdo-summary-output-1').textContent).toBe(
+      '8 of 64 bits mapped · configured on the node only (a PDO between two nodes)',
+    )
+    fireEvent.click(within(card).getByLabelText('Exchanged by the master'))
+    expect(within(card).getByLabelText('Alias of Outputs 1-8')).toBeTruthy()
+    expect(within(card).getByTestId('canopen-pdo-summary-output-1').textContent).toBe(
+      '8 of 64 bits mapped · entries are PLC outputs (%Q)',
+    )
+    fireEvent.click(within(card).getByLabelText('Exchanged by the master'))
 
     expect(screen.getByRole('button', { name: /Add RPDO/ })).toHaveProperty('disabled', true)
     expect(screen.getByText('The device has no more RPDOs.')).toBeTruthy()

@@ -1,7 +1,7 @@
-import { render } from '@testing-library/react'
-import { useRef } from 'react'
+import { fireEvent, render } from '@testing-library/react'
+import { useRef, useState } from 'react'
 
-import { SCROLLER_ATTRIBUTE, scrollTopAfterSwitch, useScrollBackOnSwitch } from '../scroll'
+import { keepInPlace, SCROLLER_ATTRIBUTE, scrollTopAfterSwitch, useKeepInPlace, useScrollBackOnSwitch } from '../scroll'
 
 describe('scrollTopAfterSwitch', () => {
   it('scrolls back to the tab bar when the editor is scrolled past it', () => {
@@ -65,5 +65,76 @@ describe('useScrollBackOnSwitch', () => {
     const { scroller, view } = renderScrolled(120)
     view.rerender(<Panel switchKey='b' />)
     expect(scroller.scrollTop).toBe(120)
+  })
+})
+
+describe('keepInPlace', () => {
+  const box = { scrollTop: 200, scrollHeight: 2000, clientHeight: 600, slack: 0 }
+
+  it('scrolls down by what was added above', () => {
+    expect(keepInPlace(box, 70)).toEqual({ scrollTop: 270, slack: 0 })
+  })
+
+  it('scrolls up by what was removed above, never below zero', () => {
+    expect(keepInPlace(box, -70)).toEqual({ scrollTop: 130, slack: 0 })
+    expect(keepInPlace({ ...box, scrollTop: 20 }, -70)).toEqual({ scrollTop: 0, slack: 0 })
+  })
+
+  it('adds slack at the end when the content is too short to scroll that far', () => {
+    expect(keepInPlace({ scrollTop: 0, scrollHeight: 618, clientHeight: 600, slack: 0 }, 70)).toEqual({
+      scrollTop: 70,
+      slack: 52,
+    })
+  })
+
+  it('drops the slack again when the content above goes away', () => {
+    expect(keepInPlace({ scrollTop: 70, scrollHeight: 670, clientHeight: 600, slack: 52 }, -70)).toEqual({
+      scrollTop: 0,
+      slack: 0,
+    })
+  })
+})
+
+/** A button that adds or removes a banner above itself. */
+const Toggle = () => {
+  const box = useRef<HTMLButtonElement>(null)
+  const keep = useKeepInPlace(box)
+  const [banner, setBanner] = useState(false)
+  return (
+    <>
+      {banner ? <p data-testid='banner' /> : null}
+      <button
+        ref={box}
+        type='button'
+        onClick={() => {
+          keep()
+          setBanner((b) => !b)
+        }}
+      >
+        Toggle
+      </button>
+    </>
+  )
+}
+
+describe('useKeepInPlace', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+    document.body.innerHTML = ''
+  })
+
+  it('keeps the clicked control at its place when a banner appears and goes above it', () => {
+    const scroller = document.createElement('div')
+    scroller.setAttribute(SCROLLER_ATTRIBUTE, '')
+    document.body.appendChild(scroller)
+    jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const banner = scroller.querySelector('[data-testid="banner"]') ? 70 : 0
+      return this === scroller ? rect(0) : rect(300 + banner - scroller.scrollTop)
+    })
+    const view = render(<Toggle />, { container: scroller })
+    fireEvent.click(view.getByRole('button'))
+    expect(scroller.scrollTop).toBe(70)
+    fireEvent.click(view.getByRole('button'))
+    expect(scroller.scrollTop).toBe(0)
   })
 })

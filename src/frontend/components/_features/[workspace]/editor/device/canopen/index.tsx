@@ -342,7 +342,7 @@ const CanopenEditor = () => {
     <div
       aria-label='CANopen editor container'
       {...{ [SCROLLER_ATTRIBUTE]: '' }}
-      className='flex h-full w-full flex-col overflow-auto p-4 [container-type:size] [scroll-padding-top:3rem]'
+      className='flex h-full w-full flex-col overflow-auto p-4 pb-[calc(1rem+var(--canopen-keep-slack,0px))] [container-type:size] [scroll-padding-top:3rem] [scrollbar-gutter:stable]'
     >
       <div className='mb-4 shrink-0'>
         <div className='flex items-start justify-between gap-6'>
