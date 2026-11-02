@@ -1130,10 +1130,22 @@ const CanopenNetworkSettingsSchema = z.object({
     .default({ heartbeatTimeoutPercent: 150, supervision: 'auto', emcy: true }),
 })
 
+const CanopenDbcExportOptionsSchema = z.object({
+  pdo: z.boolean(),
+  nmt: z.boolean(),
+  sync: z.boolean(),
+  time: z.boolean(),
+  heartbeat: z.boolean(),
+  emcy: z.boolean(),
+  sdo: z.boolean(),
+  sdoValues: z.enum(['all', 'configured']),
+})
+
 const CanopenConfigSchema = z.object({
   network: CanopenNetworkSettingsSchema,
   nodes: z.array(CanopenNodeSchema),
   files: z.record(z.string(), z.object({ fileName: z.string(), text: z.string() })).optional(),
+  export: z.object({ dbc: CanopenDbcExportOptionsSchema.optional() }).optional(),
 })
 type CanopenConfigData = z.infer<typeof CanopenConfigSchema>
 

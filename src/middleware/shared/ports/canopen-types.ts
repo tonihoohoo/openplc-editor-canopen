@@ -278,9 +278,28 @@ export interface CanopenNetworkSettings {
   newNodeDefaults: CanopenNewNodeDefaults
 }
 
+/** What a DBC export holds: frame types, and the objects whose SDO values it decodes. */
+export interface CanopenDbcExportOptions {
+  pdo: boolean
+  nmt: boolean
+  sync: boolean
+  time: boolean
+  heartbeat: boolean
+  emcy: boolean
+  sdo: boolean
+  /** `all`: every object of the device files; `configured`: startup SDO and mapped objects only. */
+  sdoValues: 'all' | 'configured'
+}
+
+/** Export choices kept in the project; not part of `conf/canopen.json`. */
+export interface CanopenExportOptions {
+  dbc?: CanopenDbcExportOptions
+}
+
 export interface CanopenConfig {
   network: CanopenNetworkSettings
   nodes: CanopenNode[]
   /** The nodes' device files by SHA-256 of their text, each once. */
   files?: Record<string, CanopenStoredFile>
+  export?: CanopenExportOptions
 }
