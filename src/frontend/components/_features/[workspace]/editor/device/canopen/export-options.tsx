@@ -1,6 +1,16 @@
 import { cn } from '@root/frontend/utils/cn'
-import type { CanopenConfig, CanopenDbcExportOptions } from '@root/middleware/shared/ports/canopen-types'
-import { DBC_FRAME_TYPES, dbcExportOptions, dbcFrameUnavailable } from '@root/middleware/shared/utils/canopen'
+import type {
+  CanopenConfig,
+  CanopenDbcExportOptions,
+  CanopenHtmlExportOptions,
+} from '@root/middleware/shared/ports/canopen-types'
+import {
+  DBC_FRAME_TYPES,
+  dbcExportOptions,
+  dbcFrameUnavailable,
+  HTML_SECTIONS,
+  htmlSections,
+} from '@root/middleware/shared/utils/canopen'
 import type { ReactNode } from 'react'
 
 import { compactCardClassName, compactHeadingClassName, hintClassName, labelClassName } from './styles'
@@ -87,6 +97,36 @@ export const DbcExportOptionsCard = ({ config, onChange }: DbcExportOptionsCardP
         </select>
       </label>
       <p className={cn(hintClassName, 'mt-2')}>Remembered in the project.</p>
+    </div>
+  )
+}
+
+type HtmlExportOptionsCardProps = {
+  config: CanopenConfig
+  onChange: (options: CanopenHtmlExportOptions) => void
+}
+
+/** The sections of an HTML export; the choice is kept in the project. */
+export const HtmlExportOptionsCard = ({ config, onChange }: HtmlExportOptionsCardProps) => {
+  const sections = htmlSections(config.export?.html)
+  return (
+    <div className={compactCardClassName} data-testid='canopen-export-html-options'>
+      <h4 className={compactHeadingClassName}>In the document</h4>
+      <div className='flex flex-wrap gap-1.5' role='group' aria-label='In the document'>
+        {HTML_SECTIONS.map((s) => (
+          <ExportChip
+            key={s.section}
+            checked={sections.has(s.section)}
+            testId={`canopen-export-html-${s.section}`}
+            onChange={(checked) =>
+              onChange({ ...config.export?.html, sections: { ...config.export?.html?.sections, [s.section]: checked } })
+            }
+          >
+            {s.label}
+          </ExportChip>
+        ))}
+      </div>
+      <p className={cn(hintClassName, 'mt-2')}>Printed on A4 landscape pages. Remembered in the project.</p>
     </div>
   )
 }

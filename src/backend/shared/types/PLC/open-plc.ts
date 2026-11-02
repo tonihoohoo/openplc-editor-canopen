@@ -1145,7 +1145,29 @@ const CanopenConfigSchema = z.object({
   network: CanopenNetworkSettingsSchema,
   nodes: z.array(CanopenNodeSchema),
   files: z.record(z.string(), z.object({ fileName: z.string(), text: z.string() })).optional(),
-  export: z.object({ dbc: CanopenDbcExportOptionsSchema.optional() }).optional(),
+  export: z
+    .object({
+      dbc: CanopenDbcExportOptionsSchema.optional(),
+      html: z
+        .object({
+          sections: z
+            .object({
+              network: z.boolean(),
+              nodes: z.boolean(),
+              canIds: z.boolean(),
+              ioList: z.boolean(),
+              pdoPictures: z.boolean(),
+              sdos: z.boolean(),
+              bootWrites: z.boolean(),
+              objects: z.boolean(),
+              plcVariables: z.boolean(),
+            })
+            .partial()
+            .optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 })
 type CanopenConfigData = z.infer<typeof CanopenConfigSchema>
 

@@ -278,6 +278,23 @@ export interface CanopenNetworkSettings {
   newNodeDefaults: CanopenNewNodeDefaults
 }
 
+/** A section of the HTML documentation export. */
+export type CanopenHtmlSection =
+  | 'network'
+  | 'nodes'
+  | 'canIds'
+  | 'ioList'
+  | 'pdoPictures'
+  | 'sdos'
+  | 'bootWrites'
+  | 'objects'
+  | 'plcVariables'
+
+/** The HTML export's choices; a section without a stored choice is in, except the object dictionaries. */
+export interface CanopenHtmlExportOptions {
+  sections?: Partial<Record<CanopenHtmlSection, boolean>>
+}
+
 /** What a DBC export holds: frame types, and the objects whose SDO values it decodes. */
 export interface CanopenDbcExportOptions {
   pdo: boolean
@@ -294,6 +311,7 @@ export interface CanopenDbcExportOptions {
 /** Export choices kept in the project; not part of `conf/canopen.json`. */
 export interface CanopenExportOptions {
   dbc?: CanopenDbcExportOptions
+  html?: CanopenHtmlExportOptions
 }
 
 export interface CanopenConfig {

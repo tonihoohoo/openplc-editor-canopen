@@ -492,6 +492,7 @@ export const ExportDialog = ({
   const [showAll, setShowAll] = useState(false)
   const errors = checkErrors(files, missing)
   const ok = errors.length === 0
+  const standard = exportStandard(format)
   const picked = EXPORT_FORMATS.find((f) => f.format === format)
   const shown = showAll ? losses : losses.slice(0, COLLAPSED_LOSSES)
   return (
@@ -564,7 +565,7 @@ export const ExportDialog = ({
         {ok ? null : (
           <div className={compactCardClassName}>
             <h4 className={compactHeadingClassName}>
-              Check of the files <span className='normal-case'>({exportStandard(format)})</span>
+              Check of the files{standard ? <span className='normal-case'> ({standard})</span> : null}
             </h4>
             <ul data-testid='canopen-export-results'>
               {errors.map((e) => (
