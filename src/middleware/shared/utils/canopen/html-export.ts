@@ -199,7 +199,7 @@ function pdoPicture(node: CanopenNode, pdo: CanopenPdo): string {
   const segments = pdo.entries.map((entry, i) => {
     const bits = canopenTypeBits(entry.dataType)
     const gap = isDummyEntry(entry)
-    const label = gap ? 'gap' : (entry.alias ?? entryName(node, entry))
+    const label = gap ? 'gap' : entry.alias ? entry.alias : entryName(node, entry)
     const range = bits > 1 ? `${at}-${at + bits - 1}` : `${at}`
     const colour = gap ? '' : `;--c:${PALETTE[i % PALETTE.length]}`
     const cell = `<div class="seg${gap ? ' gap' : ''}" style="grid-column:${at + 1} / span ${bits}${colour}" title="${esc(label)}"><span>${esc(label)}</span><small>bit ${range}</small></div>`
@@ -622,7 +622,7 @@ footer{margin-top:40px;color:var(--dim);font-size:11px;border-top:1px solid var(
 @media (max-width:800px){.page{display:block}nav{display:none}.cols{grid-template-columns:1fr}main{padding:16px}}
 @media print{
  @page{size:A4 landscape;margin:12mm}
- :root{font-size:10.5px}table{font-size:9.5px}code{font-size:9px}
+ :root{font-size:10.5px;-webkit-print-color-adjust:exact;print-color-adjust:exact}table{font-size:9.5px}code{font-size:9px}
  .page{display:block}nav{display:none}main{padding:0}
  section.node{break-before:page}
  h2,h3,h4{break-after:avoid}

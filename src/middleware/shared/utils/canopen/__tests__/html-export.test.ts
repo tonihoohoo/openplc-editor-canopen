@@ -139,6 +139,17 @@ describe('buildHtmlDocument', () => {
     expect(html).toMatch(/COB-ID 0x182/)
   })
 
+  it('names each PDO picture segment by its alias, else by its object', () => {
+    const config = network()
+    const [, n2] = config.nodes
+    n2.rpdos[0].entries[0] = { ...n2.rpdos[0].entries[0], alias: '' }
+    const doc = new DOMParser().parseFromString(buildHtmlDocument(input({ config })), 'text/html')
+    const labels = [...doc.querySelectorAll('#node-2 .bar .seg span')].map((s) => s.textContent)
+    expect(labels).toContain('tank_level')
+    expect(labels).toContain('Digital outputs / Outputs 1-8')
+    expect(labels.every((l) => l)).toBe(true)
+  })
+
   it('shows the object dictionary when included', () => {
     const html = buildHtmlDocument(input({ sections: htmlSections({ sections: { objects: true } }) }))
     expect(html).toContain('<details class="od"><summary>Object dictionary')
