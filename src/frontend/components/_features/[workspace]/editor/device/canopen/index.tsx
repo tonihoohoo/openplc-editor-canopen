@@ -27,6 +27,7 @@ import {
   exportFileType,
   type ExportFormat,
   exportLosses,
+  exportNeedsDeviceFile,
   fixAllCanopenProblems,
   lowestFreeNodeId,
   plcCycleUs,
@@ -36,6 +37,7 @@ import {
   storedFileText,
   updateNode,
   validateCanopenProject,
+  withDbcExportOptions,
   withEntryAlias,
   withNodeId,
   withStoredFile,
@@ -44,6 +46,7 @@ import { describeAliasRejection, validateAliasEdit } from '@root/middleware/shar
 import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { DeviceFileDialog, type DeviceFileRequest, ExportDialog } from './device-file-dialogs'
+import { DbcExportOptionsCard } from './export-options'
 import { NetworkSettings } from './network-settings'
 import { NetworkSwitch } from './network-switch'
 import { NodeList } from './node-list'
@@ -288,13 +291,13 @@ const CanopenEditor = () => {
     const fileType = exportFileType(exportFormat)
     if (exportTarget.kind === 'node') {
       const node = config.nodes.find((n) => n.id === exportTarget.node.id) ?? exportTarget.node
-      const text = storedFileText(config, node)
-      const files = text ? [buildNodeExport(exportFormat, node, text, config, options)] : []
+      const text = exportNeedsDeviceFile(exportFormat) ? storedFileText(config, node) : ''
+      const files = text !== undefined ? [buildNodeExport(exportFormat, node, text, config, options)] : []
       return {
         title: `Export node ${node.nodeId}`,
         files,
-        missing: text ? [] : [node],
-        losses: exportLosses(exportFormat, [node], false),
+        missing: text !== undefined ? [] : [node],
+        losses: exportLosses(exportFormat, [node], false, config),
         saveLabel: `Save ${files[0]?.fileName ?? ext}...`,
         save: () =>
           files[0]
@@ -308,12 +311,30 @@ const CanopenEditor = () => {
       }
     }
     const { files, missing } = buildNetworkExport(exportFormat, config, options)
+    const losses = exportLosses(exportFormat, config.nodes, true, config)
+    if (!exportNeedsDeviceFile(exportFormat) && files.length === 1) {
+      const [file] = files
+      return {
+        title: `Export network ${deviceName}`,
+        files,
+        missing,
+        losses,
+        saveLabel: `Save ${file.fileName}...`,
+        save: () =>
+          saveExport(
+            file.fileName,
+            new TextEncoder().encode(file.text),
+            { name: fileType.name, extensions: fileType.extensions },
+            fileType.mime,
+          ),
+      }
+    }
     const zipName = `${deviceName}-${exportFormat}.zip`
     return {
       title: `Export network ${deviceName}`,
       files,
       missing,
-      losses: exportLosses(exportFormat, config.nodes, true),
+      losses,
       saveLabel: `Save ${zipName}...`,
       save: async () =>
         saveExport(
@@ -471,8 +492,8 @@ const CanopenEditor = () => {
         <Tabs.Content value='network' className='flex-1 data-[state=inactive]:hidden'>
           <div className='mb-4 flex items-center justify-between gap-4'>
             <p className={hintClassName}>
-              The device files of all nodes, as DCF or XDC files with the values the master writes, or as EDS or XDD
-              files.
+              The device files of all nodes, as DCF or XDC files with the values the master writes or as EDS or XDD
+              files, or the whole network as a DBC file for CAN analysers.
             </p>
             <button
               type='button'
@@ -517,6 +538,11 @@ const CanopenEditor = () => {
           missing={exportRequest.missing}
           losses={exportRequest.losses}
           saveLabel={exportRequest.saveLabel}
+          options={
+            exportFormat === 'dbc' ? (
+              <DbcExportOptionsCard config={config} onChange={(dbc) => commit((c) => withDbcExportOptions(c, dbc))} />
+            ) : undefined
+          }
           onFormatChange={setExportFormat}
           onCancel={() => setExportTarget(null)}
           onSave={() => {

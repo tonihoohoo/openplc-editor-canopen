@@ -6,6 +6,11 @@ export const cardClassName =
 
 export const headingClassName = 'mb-3 text-xs font-semibold uppercase text-neutral-500 dark:text-neutral-400'
 
+export const compactCardClassName =
+  'rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900'
+
+export const compactHeadingClassName = 'mb-2 text-xs font-semibold uppercase text-neutral-500 dark:text-neutral-400'
+
 export const labelClassName = 'text-xs font-medium text-neutral-700 dark:text-neutral-300'
 
 export const hintClassName = 'text-[10px] text-neutral-500 dark:text-neutral-500'

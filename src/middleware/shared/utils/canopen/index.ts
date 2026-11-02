@@ -1,5 +1,6 @@
 export * from './check-fix'
 export * from './data-types'
+export * from './dbc-export'
 export * from './dcf-export'
 export * from './dcf-import'
 export * from './device-export'

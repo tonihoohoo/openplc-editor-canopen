@@ -1,9 +1,10 @@
 /**
  * Export of a node or a network as DCF, EDS, XDC or XDD, whatever format the node's device file
- * came in, and the list of what each format does not hold.
+ * came in, or as a DBC of its frames, and the list of what each format does not hold.
  */
 
 import type { CanopenConfig, CanopenNode } from '../../ports/canopen-types'
+import { buildDbc, dbcExportOptions, dbcOptionLosses } from './dbc-export'
 import {
   buildNodeDcf,
   buildNodeEds,
@@ -17,7 +18,7 @@ import { writeEds } from './device-writer'
 import { buildNetworkXdcs, buildNetworkXdds, buildNodeXdc, buildNodeXdd } from './xdd-export'
 
 /** The formats a node or a network can be exported as. */
-export type ExportFormat = 'dcf' | 'eds' | 'xdc' | 'xdd'
+export type ExportFormat = 'dcf' | 'eds' | 'xdc' | 'xdd' | 'dbc'
 
 export const EXPORT_FORMATS: ReadonlyArray<{ format: ExportFormat; label: string; description: string }> = [
   {
@@ -32,11 +33,23 @@ export const EXPORT_FORMATS: ReadonlyArray<{ format: ExportFormat; label: string
     description: 'The CiA 311 description with actualValue on every object the master writes, and the commissioning.',
   },
   { format: 'xdd', label: 'XDD', description: 'The CiA 311 device description only, without values.' },
+  {
+    format: 'dbc',
+    label: 'DBC',
+    description:
+      'For CAN analysers: the frames on the bus and how to decode them. Not a device file, and it cannot be read back.',
+  },
 ]
+
+/** Whether the format is built from the node's stored device file. */
+export function exportNeedsDeviceFile(format: ExportFormat): boolean {
+  return format !== 'dbc'
+}
 
 /** The file's MIME type and file dialog filter. */
 export function exportFileType(format: ExportFormat): { mime: string; name: string; extensions: string[] } {
   const xml = format === 'xdc' || format === 'xdd'
+  if (format === 'dbc') return { mime: 'text/plain;charset=utf-8', name: 'DBC file', extensions: ['dbc'] }
   return {
     mime: xml ? 'application/xml' : 'text/plain;charset=utf-8',
     name: `${format.toUpperCase()} file`,
@@ -44,8 +57,9 @@ export function exportFileType(format: ExportFormat): { mime: string; name: stri
   }
 }
 
-/** The check the exported files get: CiA 311 for XDC and XDD, else CiA 306. */
-export function exportStandard(format: ExportFormat): 'CiA 306' | 'CiA 311' {
+/** The check the exported files get: CiA 311 for XDC and XDD, the DBC rules for DBC, else CiA 306. */
+export function exportStandard(format: ExportFormat): 'CiA 306' | 'CiA 311' | 'DBC' {
+  if (format === 'dbc') return 'DBC'
   return format === 'xdc' || format === 'xdd' ? 'CiA 311' : 'CiA 306'
 }
 
@@ -104,11 +118,41 @@ function nodeLosses(format: ExportFormat, node: CanopenNode): string[] {
   return out
 }
 
+function dbcLosses(nodes: readonly CanopenNode[], network: boolean, config: CanopenConfig | undefined): string[] {
+  const options = config ? dbcExportOptions(config) : undefined
+  const out = config ? dbcOptionLosses(config) : []
+  out.push(
+    options?.sdoValues === 'configured'
+      ? 'the object dictionaries: SDO values decode only for the startup SDO and mapped objects'
+      : 'the object dictionaries beyond names and types: access, defaults and limits',
+    'the startup SDOs as a list: their frames decode, but the file does not say which writes the master makes at boot',
+    'the data of SDO transfers over 4 bytes (strings, domains): shown as raw segment bytes, not linked to the object',
+    'the device files and the device identity (vendor ID, product code, revision)',
+    'how the master handles the nodes: optional or required, identity checks, restore, supervision and receive timeouts, what the inputs do on loss',
+  )
+  if (network)
+    out.push('the network settings beyond bit rate, SYNC and TIME: interface, master node ID, behaviour on PLC stop')
+  if (nodes.some((n) => [...n.tpdos, ...n.rpdos].some((p) => p.entries.length > 0)))
+    out.push(
+      'the IEC addresses and aliases as data: they are kept as signal names, comments and an IecLocation attribute',
+    )
+  if (config?.network.syncMode === 'plc_cycle')
+    out.push('the cycle time of SYNC and of synchronous PDOs: SYNC follows the PLC cycle')
+  return out
+}
+
 /**
  * What the exported files do not hold, in plain sentences, so the dialog can say what is lost.
- * `nodes` are the exported nodes; a network export adds the network's own settings.
+ * `nodes` are the exported nodes; a network export adds the network's own settings. `config` gives
+ * the export options of the formats that have them.
  */
-export function exportLosses(format: ExportFormat, nodes: readonly CanopenNode[], network: boolean): string[] {
+export function exportLosses(
+  format: ExportFormat,
+  nodes: readonly CanopenNode[],
+  network: boolean,
+  config?: CanopenConfig,
+): string[] {
+  if (format === 'dbc') return dbcLosses(nodes, network, config)
   const out: string[] = []
   const perNode = format === 'dcf' || format === 'xdc'
   if (network)
@@ -152,6 +196,8 @@ export function buildNodeExport(
       return buildNodeXdc(node, storedText, config, options)
     case 'xdd':
       return buildNodeXdd(node, storedText, options.now)
+    case 'dbc':
+      return buildDbc(config, { networkName: options.networkName ?? '', nodes: [node] })
     default: {
       const never: never = format
       throw new Error(`Unknown export format ${String(never)}`)
@@ -165,6 +211,7 @@ export function buildNetworkExport(
   config: CanopenConfig,
   options: DcfExportOptions,
 ): NetworkExport {
+  if (format === 'dbc') return { files: [buildDbc(config, { networkName: options.networkName ?? '' })], missing: [] }
   if (format === 'xdc') return buildNetworkXdcs(config, options)
   if (format === 'xdd') return buildNetworkXdds(config, options.now)
   const files: DeviceFileExport[] = []

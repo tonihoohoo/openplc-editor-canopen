@@ -525,7 +525,7 @@ describe('CanopenEditor', () => {
       expect(config()?.nodes[0].eds.source?.sha256).toBe(Object.keys(files)[0])
       fireEvent.click(screen.getByRole('button', { name: 'Export...' }))
       const dialog = screen.getByTestId('canopen-export-dialog')
-      expect(within(dialog).getByTestId('canopen-export-results').textContent).toContain('node_1.dcf')
+      expect(within(dialog).getByTestId('canopen-export-check').textContent).toContain('node_1.dcf')
       await act(async () => {
         fireEvent.click(within(dialog).getByTestId('canopen-export-save'))
         await new Promise((resolve) => setTimeout(resolve, 20))
@@ -540,13 +540,57 @@ describe('CanopenEditor', () => {
       expect(text).toContain('LastEDS=generic-io-module.eds')
     })
 
+    it('exports the network as one DBC with frame options kept in the project', async () => {
+      await importEds()
+      openTab('Network')
+      fireEvent.click(screen.getByRole('button', { name: 'Export network...' }))
+      const dialog = screen.getByTestId('canopen-export-dialog')
+      fireEvent.click(within(dialog).getByRole('radio', { name: 'DBC' }))
+      expect(within(dialog).getByTestId('canopen-export-format-description').textContent).toContain('CAN analysers')
+      expect(within(dialog).getByTestId('canopen-export-dbc-time')).toHaveProperty('disabled', true)
+      expect(within(dialog).getByTestId('canopen-export-dbc-time').textContent).toContain('off in network')
+      const check = () => within(dialog).getByTestId('canopen-export-check').textContent ?? ''
+      const frames = () => Number(/(\d+) frames/.exec(check())?.[1])
+      const lossCount = () =>
+        Number(/\((\d+)\)/.exec(within(dialog).getByText(/^Not in the file/).textContent ?? '')?.[1])
+      expect(check()).toMatch(/^✓ DBC OK .*\.dbc /)
+      expect(within(dialog).getByTestId('canopen-export-losses').querySelectorAll('li')).toHaveLength(3)
+      const before = { frames: frames(), losses: lossCount() }
+      fireEvent.click(within(dialog).getByTestId('canopen-export-dbc-heartbeat'))
+      expect(config()?.export?.dbc?.heartbeat).toBe(false)
+      expect(frames()).toBe(before.frames - 2)
+      expect(lossCount()).toBe(before.losses + 1)
+      fireEvent.click(within(dialog).getByTestId('canopen-export-dbc-sdo'))
+      expect(within(dialog).getByTestId('canopen-export-dbc-sdo-values')).toHaveProperty('disabled', true)
+      expect(frames()).toBe(before.frames - 4)
+      fireEvent.click(within(dialog).getByTestId('canopen-export-losses-toggle'))
+      expect(within(dialog).getByTestId('canopen-export-losses').querySelectorAll('li')).toHaveLength(before.losses + 2)
+      expect(within(dialog).getByTestId('canopen-export-losses').textContent).toContain('left out above: heartbeat')
+      expect(within(dialog).getByTestId('canopen-export-save').textContent).toMatch(/^Save .*\.dbc\.\.\.$/)
+      await act(async () => {
+        fireEvent.click(within(dialog).getByTestId('canopen-export-save'))
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+      expect(saved).toHaveLength(1)
+      const text = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.readAsText(saved[0])
+      })
+      expect(text).toContain('BU_: PLC')
+      expect(text).not.toMatch(/_SDO_Rx/)
+      expect(text).not.toMatch(/BO_ 1793 /)
+    })
+
     it('exports a node as its EDS unchanged when EDS is picked', async () => {
       await importEds()
       fireEvent.click(screen.getByRole('button', { name: 'Export...' }))
       const dialog = screen.getByTestId('canopen-export-dialog')
       fireEvent.click(within(dialog).getByRole('radio', { name: /^EDS/ }))
-      expect(within(dialog).getByTestId('canopen-export-results').textContent).toContain('generic-io-module.eds')
+      expect(within(dialog).getByTestId('canopen-export-check').textContent).toContain('generic-io-module.eds')
       expect(within(dialog).getByTestId('canopen-export-save').textContent).toBe('Save generic-io-module.eds...')
+      const toggle = within(dialog).queryByTestId('canopen-export-losses-toggle')
+      if (toggle) fireEvent.click(toggle)
       expect(within(dialog).getByTestId('canopen-export-losses').textContent).toContain('node ID, name, PDO settings')
       await act(async () => {
         fireEvent.click(within(dialog).getByTestId('canopen-export-save'))

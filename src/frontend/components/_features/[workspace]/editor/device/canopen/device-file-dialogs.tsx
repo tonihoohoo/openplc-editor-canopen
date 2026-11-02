@@ -26,6 +26,8 @@ import { v4 as uuidv4 } from 'uuid'
 
 import {
   cardClassName,
+  compactCardClassName,
+  compactHeadingClassName,
   headingClassName,
   hintClassName,
   primaryButtonClassName,
@@ -447,12 +449,34 @@ type ExportDialogProps = {
   /** What the files do not hold. */
   losses: readonly string[]
   saveLabel: string
+  /** Options of the picked format, shown below the format row. */
+  options?: ReactNode
   onFormatChange: (format: ExportFormat) => void
   onCancel: () => void
   onSave: () => void
 }
 
-/** Format choice and the check of the files about to be saved; nothing is saved while one has an error. */
+const COLLAPSED_LOSSES = 3
+
+type CheckError = { key: string; file: string; text: ReactNode; plain: string }
+
+const checkErrors = (files: readonly DeviceFileExport[], missing: readonly CanopenNode[]): CheckError[] => [
+  ...missing.map((node) => {
+    const plain = `node ${node.nodeId} (${node.name}): no device file is stored for it. Use Replace device file... to add it.`
+    return { key: node.id, file: '', text: plain, plain }
+  }),
+  ...files.flatMap((f) => [
+    ...f.errors.map((e, k) => ({
+      key: `${f.fileName}-e${k}`,
+      file: f.fileName,
+      text: <FindingText finding={e} />,
+      plain: `${deviceFindingPlace(e)}: ${e.message}`,
+    })),
+    ...f.problems.map((p, k) => ({ key: `${f.fileName}-p${k}`, file: f.fileName, text: p.message, plain: p.message })),
+  ]),
+]
+
+/** Format choice, its options and the check of the files about to be saved; nothing is saved while one has an error. */
 export const ExportDialog = ({
   title,
   format,
@@ -460,88 +484,127 @@ export const ExportDialog = ({
   missing,
   losses,
   saveLabel,
+  options,
   onFormatChange,
   onCancel,
   onSave,
 }: ExportDialogProps) => {
-  const ok = missing.length === 0 && files.every((f) => f.errors.length === 0 && f.problems.length === 0)
+  const [showAll, setShowAll] = useState(false)
+  const errors = checkErrors(files, missing)
+  const ok = errors.length === 0
+  const picked = EXPORT_FORMATS.find((f) => f.format === format)
+  const shown = showAll ? losses : losses.slice(0, COLLAPSED_LOSSES)
   return (
     <Modal open onOpenChange={(open) => (open ? undefined : onCancel())}>
       <ModalContent
         onClose={onCancel}
-        className='!inset-x-0 !bottom-auto !top-[7vh] !h-[min(86vh,640px)] max-h-[86vh] w-[640px] p-6 pb-0'
+        className='!inset-x-0 !bottom-auto !top-[7vh] !h-[min(86vh,640px)] max-h-[86vh] w-[640px] gap-3 p-6 pb-0'
         data-testid='canopen-export-dialog'
       >
         <ModalTitle className='text-base font-semibold'>{title}</ModalTitle>
-        <fieldset className={cardClassName} data-testid='canopen-export-format'>
-          <legend className={cn(headingClassName, 'mb-1')}>Format</legend>
-          {EXPORT_FORMATS.map((f) => (
-            <label key={f.format} className='flex cursor-pointer items-start gap-2 py-1 text-xs'>
-              <input
-                type='radio'
-                name='canopen-export-format'
-                value={f.format}
-                checked={format === f.format}
-                onChange={() => onFormatChange(f.format)}
-                className='mt-0.5 accent-brand'
-              />
-              <span>
-                <span className='font-medium'>{f.label}</span>
-                <span className={cn(hintClassName, 'block')}>{f.description}</span>
-              </span>
-            </label>
-          ))}
+        <fieldset className={compactCardClassName} data-testid='canopen-export-format'>
+          <legend className='sr-only'>Format</legend>
+          <h4 className={compactHeadingClassName} aria-hidden>
+            Format
+          </h4>
+          <div className='inline-flex overflow-hidden rounded-md border border-neutral-300 dark:border-neutral-700'>
+            {EXPORT_FORMATS.map((f) => (
+              <label
+                key={f.format}
+                className={cn(
+                  'relative cursor-pointer border-l border-neutral-300 px-3 py-1 text-xs font-medium first:border-l-0 dark:border-neutral-700 [&:has(:focus-visible)]:ring-2 [&:has(:focus-visible)]:ring-inset [&:has(:focus-visible)]:ring-brand',
+                  format === f.format
+                    ? 'bg-brand text-white'
+                    : 'bg-white text-neutral-700 hover:bg-neutral-100 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800',
+                )}
+              >
+                <input
+                  type='radio'
+                  name='canopen-export-format'
+                  value={f.format}
+                  checked={format === f.format}
+                  onChange={() => onFormatChange(f.format)}
+                  className='absolute inset-0 m-0 cursor-pointer appearance-none opacity-0'
+                />
+                {f.label}
+              </label>
+            ))}
+          </div>
+          <p className={cn(hintClassName, 'mt-2 text-xs')} data-testid='canopen-export-format-description'>
+            {picked?.description}
+          </p>
         </fieldset>
+        {options}
         {losses.length > 0 ? (
-          <div className={cardClassName}>
-            <h4 className={headingClassName}>Not in the exported files</h4>
-            <p className={cn(hintClassName, 'mb-1')}>
-              The project keeps these; a file read back into the editor does not bring them.
-            </p>
+          <div className={compactCardClassName}>
+            <h4 className={compactHeadingClassName}>
+              Not in the {files.length === 1 ? 'file' : 'files'} ({losses.length})
+            </h4>
             <ul data-testid='canopen-export-losses'>
-              {losses.map((l) => (
+              {shown.map((l) => (
                 <Row key={l} kind='lost'>
-                  {l}
+                  <span className={showAll ? undefined : 'block truncate'} title={showAll ? undefined : l}>
+                    {l}
+                  </span>
                 </Row>
               ))}
             </ul>
+            {losses.length > COLLAPSED_LOSSES ? (
+              <button
+                type='button'
+                className='mt-1 text-xs font-medium text-brand hover:underline'
+                data-testid='canopen-export-losses-toggle'
+                onClick={() => setShowAll(!showAll)}
+              >
+                {showAll ? 'Show fewer' : `Show all ${losses.length}`}
+              </button>
+            ) : null}
           </div>
         ) : null}
-        <div className={cardClassName}>
-          <h4 className={headingClassName}>
-            Check of the files <span className='normal-case'>({exportStandard(format)})</span>
-          </h4>
-          <ul data-testid='canopen-export-results'>
-            {missing.map((node) => (
-              <Row key={node.id} kind='error'>
-                node {node.nodeId} ({node.name}): no device file is stored for it. Use Replace device file... to add it.
-              </Row>
-            ))}
-            {files.map((f) =>
-              f.errors.length === 0 && f.problems.length === 0 ? (
-                <Row key={f.fileName} kind='ok'>
-                  <code className='font-mono text-[11px]'>{f.fileName}</code>{' '}
-                  <span className={hintClassName}>{f.summary}</span>
+        {ok ? null : (
+          <div className={compactCardClassName}>
+            <h4 className={compactHeadingClassName}>
+              Check of the files <span className='normal-case'>({exportStandard(format)})</span>
+            </h4>
+            <ul data-testid='canopen-export-results'>
+              {errors.map((e) => (
+                <Row key={e.key} kind='error'>
+                  {e.file ? <code className='font-mono text-[11px]'>{e.file}</code> : null} {e.text}
                 </Row>
-              ) : (
-                [
-                  ...f.errors.map((e, k) => (
-                    <Row key={`${f.fileName}-e${k}`} kind='error'>
-                      <code className='font-mono text-[11px]'>{f.fileName}</code> <FindingText finding={e} />
-                    </Row>
-                  )),
-                  ...f.problems.map((p, k) => (
-                    <Row key={`${f.fileName}-p${k}`} kind='error'>
-                      <code className='font-mono text-[11px]'>{f.fileName}</code> {p.message}
-                    </Row>
-                  )),
-                ]
-              ),
+              ))}
+            </ul>
+            <p className={cn(hintClassName, 'mt-2')}>Nothing is saved while a file has an error.</p>
+          </div>
+        )}
+        <div className='sticky bottom-0 -mx-6 mt-auto flex shrink-0 items-center gap-2 border-t border-neutral-200 bg-white px-6 py-4 dark:border-neutral-800 dark:bg-neutral-950'>
+          <p
+            className='min-w-0 flex-1 truncate text-xs'
+            data-testid='canopen-export-check'
+            title={
+              ok ? files.map((f) => `${f.fileName}: ${f.summary}`).join('\n') : errors.map((e) => e.plain).join('\n')
+            }
+          >
+            {ok ? (
+              <>
+                <span className='text-green-700 dark:text-green-400'>✓ {exportStandard(format)} OK</span>{' '}
+                {files.length === 1 ? (
+                  <>
+                    <code className='font-mono text-[11px]'>{files[0].fileName}</code>{' '}
+                    <span className={cn(hintClassName, 'text-xs')}>{files[0].summary}</span>
+                  </>
+                ) : (
+                  <span className='text-neutral-700 dark:text-neutral-300'>
+                    {files.length} files:{' '}
+                    <code className='font-mono text-[11px]'>{files.map((f) => f.fileName).join(', ')}</code>
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className='text-red-700 dark:text-red-400'>
+                ✕ {errors.length === 1 ? '1 error' : `${errors.length} errors`}: {errors[0].plain}
+              </span>
             )}
-          </ul>
-          {ok ? null : <p className={cn(hintClassName, 'mt-2')}>Nothing is saved while a file has an error.</p>}
-        </div>
-        <div className='sticky bottom-0 -mx-6 mt-auto flex shrink-0 justify-end gap-2 border-t border-neutral-200 bg-white px-6 py-4 dark:border-neutral-800 dark:bg-neutral-950'>
+          </p>
           <button type='button' className={secondaryButtonClassName} onClick={onCancel}>
             Cancel
           </button>
