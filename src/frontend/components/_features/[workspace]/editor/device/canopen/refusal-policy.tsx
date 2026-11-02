@@ -27,6 +27,14 @@ const targetLineOf = (node: CanopenNode, sdo: CanopenSdo): number | undefined =>
   return at < 0 ? undefined : at + 1
 }
 
+/** The current jump target as a line and object, for a select whose valid targets no longer include it. */
+const currentTarget = (node: CanopenNode, sdo: CanopenSdo): { line: number; ref: string } | undefined => {
+  const to = targetLineOf(node, sdo)
+  if (to === undefined) return undefined
+  const target = node.sdos[to - 1]
+  return { line: to, ref: objectRef(target.index, target.subIndex) }
+}
+
 /** The policy in words when it is not the default, else null. */
 const refusalSummary = (node: CanopenNode, sdo: CanopenSdo): string | null => {
   if (sdo.onAbort === 'continue') return 'If refused: continue'
@@ -49,6 +57,7 @@ export const RefusalSelect = ({ node, sdo, line, onChange }: RefusalPolicyProps)
   const value = policy === 'jump' ? `jump:${sdo.jumpTo ?? ''}` : policy
   const listed = policy !== 'jump' || targets.some((t) => t.sdo.id === sdo.jumpTo)
   const hint = skippedHint(node, sdo, line)
+  const current = currentTarget(node, sdo)
   return (
     <div className='flex flex-col gap-0.5'>
       <select
@@ -63,7 +72,11 @@ export const RefusalSelect = ({ node, sdo, line, onChange }: RefusalPolicyProps)
       >
         <option value='stop'>Stop the boot</option>
         <option value='continue'>Continue</option>
-        {listed ? null : <option value={value}>Jump (pick a line)</option>}
+        {listed ? null : (
+          <option value={value}>
+            {current ? `Jump to line ${current.line} (${current.ref})` : 'Jump (pick a line)'}
+          </option>
+        )}
         {targets.map((t) => (
           <option key={t.sdo.id} value={`jump:${t.sdo.id}`}>
             {`Jump to line ${t.line} (${objectRef(t.sdo.index, t.sdo.subIndex)})`}
@@ -85,6 +98,7 @@ const RefusalPopover = ({ node, sdo, line, onChange, trigger }: RefusalPolicyPro
   const targets = jumpTargets(node, sdo)
   const listed = targets.some((t) => t.sdo.id === sdo.jumpTo)
   const hint = skippedHint(node, sdo, line)
+  const current = currentTarget(node, sdo)
   const radio = (value: CanopenSdoOnAbort, label: string, explanation: string, disabled = false) => (
     <label
       className={cn(
@@ -135,7 +149,11 @@ const RefusalPopover = ({ node, sdo, line, onChange, trigger }: RefusalPolicyPro
                 onChange={(e) => onChange('jump', e.target.value)}
                 className={inputClassName}
               >
-                {listed ? null : <option value={sdo.jumpTo ?? ''}>Pick a line</option>}
+                {listed ? null : (
+                  <option value={sdo.jumpTo ?? ''}>
+                    {current ? `Line ${current.line}: ${current.ref}` : 'Pick a line'}
+                  </option>
+                )}
                 {targets.map((t) => (
                   <option key={t.sdo.id} value={t.sdo.id}>
                     {`Line ${t.line}: ${objectRef(t.sdo.index, t.sdo.subIndex)}`}

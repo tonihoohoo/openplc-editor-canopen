@@ -138,6 +138,25 @@ describe('CanopenEditor boot SDO options', () => {
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     fireEvent.click(within(row(1)).getByRole('button', { name: 'Move SDO 0x2300:00 down' }))
     expect(within(row(0)).getByText('line 2 is the next line; use Continue')).toBeTruthy()
+    // The chip and the popover name the same line.
+    fireEvent.click(within(row(0)).getByRole('button', { name: 'If refused: jump to line 2' }))
+    expect(screen.getByLabelText('Line 0x2100:00 jumps to').querySelector('option:checked')?.textContent).toBe(
+      'Line 2: 0x2400:00',
+    )
+  })
+
+  it('names a jump target that a reorder made invalid in the wide column', async () => {
+    jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1000, 400))
+    await importEds(BOOT_EDS)
+    openTab(/Startup SDOs/)
+    addFourLines()
+    const row = (i: number) => screen.getAllByTestId('canopen-sdo-row')[i]
+    const ids = node()?.sdos.map((s) => s.id) ?? []
+    fireEvent.change(within(row(0)).getByLabelText('If 0x2100:00 is refused'), { target: { value: `jump:${ids[2]}` } })
+    fireEvent.click(within(row(1)).getByRole('button', { name: 'Move SDO 0x2300:00 down' }))
+    const select = within(row(0)).getByLabelText('If 0x2100:00 is refused')
+    expect(select.querySelector('option:checked')?.textContent).toBe('Jump to line 2 (0x2400:00)')
+    expect(within(row(0)).getByText('line 2 is the next line; use Continue')).toBeTruthy()
   })
 
   it('shows the choice in its own column in a wide table', async () => {
