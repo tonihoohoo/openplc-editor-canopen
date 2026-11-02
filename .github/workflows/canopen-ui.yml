@@ -5,13 +5,11 @@ name: CANopen UI
 # .github/scripts/canopen-ui-changed.sh); otherwise the job is skipped, which counts as passed.
 # Screenshots go to the ci-screenshots branch and one comment on the pull request; key views are
 # compared with the baselines in e2e/*-snapshots/.
-# The editor is built without minification or source maps, with webpack's filesystem cache kept in
-# the Actions cache; each push to canopen refreshes that cache for the pull requests.
+# The editor is built without minification, source maps or module concatenation
+# (.github/scripts/canopen-ui-build.sh), which cuts the build from minutes to about one.
 
 on:
   pull_request:
-    branches: [canopen]
-  push:
     branches: [canopen]
   workflow_dispatch:
 
@@ -25,7 +23,6 @@ concurrency:
 jobs:
   changes:
     name: Changed files
-    if: ${{ github.event_name != 'push' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -72,13 +69,6 @@ jobs:
           # Ubuntu 24.04's AppArmor blocks the unprivileged user namespaces Electron's sandbox needs.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
-      - name: Restore the webpack cache
-        uses: actions/cache/restore@v4
-        with:
-          path: node_modules/.cache/webpack
-          key: canopen-webpack-${{ hashFiles('package-lock.json', 'configs/webpack/**') }}-${{ github.sha }}
-          restore-keys: canopen-webpack-${{ hashFiles('package-lock.json', 'configs/webpack/**') }}-
-
       - name: Build
         run: |
           .github/scripts/canopen-ui-build.sh
@@ -88,12 +78,6 @@ jobs:
           # The app looks for STruC++'s runtime headers next to main.js.
           mkdir -p release/app/dist/main/node_modules
           ln -sfn "$PWD/node_modules/strucpp" release/app/dist/main/node_modules/strucpp
-
-      - name: Save the webpack cache
-        uses: actions/cache/save@v4
-        with:
-          path: node_modules/.cache/webpack
-          key: canopen-webpack-${{ hashFiles('package-lock.json', 'configs/webpack/**') }}-${{ github.sha }}
 
       - name: Tests
         id: tests
@@ -133,37 +117,3 @@ jobs:
             echo "::error::CANopen UI tests failed; see the pull request comment and the artifact"
             exit 1
           fi
-
-  build-cache:
-    name: Editor build cache
-    if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install
-        run: |
-          npm ci --ignore-scripts
-          npm run setup:strucpp
-
-      - name: Restore the webpack cache
-        uses: actions/cache/restore@v4
-        with:
-          path: node_modules/.cache/webpack
-          key: canopen-webpack-${{ hashFiles('package-lock.json', 'configs/webpack/**') }}-${{ github.sha }}
-          restore-keys: canopen-webpack-${{ hashFiles('package-lock.json', 'configs/webpack/**') }}-
-
-      - name: Build
-        run: .github/scripts/canopen-ui-build.sh
-
-      - name: Save the webpack cache
-        uses: actions/cache/save@v4
-        with:
-          path: node_modules/.cache/webpack
-          key: canopen-webpack-${{ hashFiles('package-lock.json', 'configs/webpack/**') }}-${{ github.sha }}

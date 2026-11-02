@@ -464,8 +464,7 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   path under `src/` or `e2e/` with `canopen` in it, an e2e helper, the dependencies or the workflow,
   and on upstream sync pull requests; for any other pull request the job is skipped. It builds the app
   once on `ubuntu-24.04` with `.github/scripts/canopen-ui-build.sh` (production mode without
-  minification or source maps, webpack's filesystem cache kept in the Actions cache and refreshed by
-  the "Editor build cache" job on each push to `canopen`) and runs the tests under `xvfb`. Their screenshots go to the `ci-screenshots`
+  minification, source maps or module concatenation, about a minute instead of six) and runs the tests under `xvfb`. Their screenshots go to the `ci-screenshots`
   branch and one comment on the pull request, updated on each run.
 - Key views are compared with the baselines in `e2e/<spec>-snapshots/` (`keyView` in
   `e2e/helpers/canopen-shots.ts`), in CI only, because the baselines are Linux renderings. A view that
