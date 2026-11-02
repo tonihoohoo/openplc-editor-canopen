@@ -92,8 +92,11 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
      then the heartbeats the node watches. Each row names the setting that makes it (a link to its
      tab) and what happens when the node refuses it: generated writes always stop the boot.
    - **If refused** on each startup SDO: **Stop the boot** (default; the master boots the node again
-     later), **Continue** with the next write, or **Jump to line** N, a later startup SDO; the lines
-     in between are skipped. A jump to a line that is gone or not later is an error. A write refused
+     later), **Continue** with the next write, or **Jump to line** N, a startup SDO at least two lines
+     below; the lines in between are skipped. In a wide editor the choice has its own "If refused"
+     column; in a narrow one it opens from the gear button of the row, and a row that does not stop
+     the boot shows a chip such as "If refused: jump to line 5" under its value. A jump to a line that
+     is gone, not later or the next line (use Continue) is an error. A write refused
      with Continue or Jump is logged, and the node's Status tab lists it under "Refused writes at
      boot". Written as `on_abort` and `jump_to` in `canopen.json` format version 4.
    - Startup SDOs on VISIBLE_STRING objects take text; OCTET_STRING and DOMAIN objects (also DOMAIN
