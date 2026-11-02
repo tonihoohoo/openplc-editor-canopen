@@ -18,6 +18,8 @@ import {
   buildNodeExport,
   type CanopenCheck,
   canopenNameProblems,
+  canopenNodeRemoval,
+  canopenNodeRemovalText,
   canopenSdoWarnings,
   checkCanopenNetwork,
   checkText,
@@ -49,6 +51,7 @@ import { NetworkSwitch } from './network-switch'
 import { NodeList } from './node-list'
 import { NodePanel } from './node-panel'
 import { ServiceBus } from './online-tab'
+import { RemoveNodeConfirm } from './remove-node-confirm'
 import { SCROLLER_ATTRIBUTE, useScrollBackOnSwitch } from './scroll'
 import { BusStatusLine } from './status-view'
 import { hintClassName, secondaryButtonClassName } from './styles'
@@ -195,6 +198,7 @@ const CanopenEditor = () => {
   useScrollBackOnSwitch(editorTabsAnchor, tab)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [nodeOnlineShown, setNodeOnlineShown] = useState(false)
+  const [removing, setRemoving] = useState<CanopenNode | null>(null)
   const selected = config.nodes.find((n) => n.id === selectedId) ?? config.nodes[0]
 
   const cycleUs = useMemo(() => plcCycleUs(tasks), [tasks])
@@ -417,6 +421,18 @@ const CanopenEditor = () => {
           <TabItem value='network' label='Network' active={tab === 'network'} />
         </Tabs.List>
 
+        {removing ? (
+          <RemoveNodeConfirm
+            node={removing}
+            lost={canopenNodeRemovalText(canopenNodeRemoval(removing, globals, pous))}
+            onCancel={() => setRemoving(null)}
+            onRemove={() => {
+              commit((c) => pruneStoredFiles({ ...c, nodes: c.nodes.filter((n) => n.id !== removing.id) }))
+              setSelectedId(null)
+              setRemoving(null)
+            }}
+          />
+        ) : null}
         <Tabs.Content value='nodes' className='flex flex-1 items-start gap-4 data-[state=inactive]:hidden'>
           <NodeList
             nodes={config.nodes}
@@ -449,10 +465,7 @@ const CanopenEditor = () => {
               sdoWarnings={sdoWarnings}
               onChange={(update) => commit((c) => updateNode(c, selected.id, update))}
               onNodeIdChange={(nodeId) => commit((c) => updateNode(c, selected.id, (n) => withNodeId(n, nodeId)))}
-              onRemove={() => {
-                commit((c) => pruneStoredFiles({ ...c, nodes: c.nodes.filter((n) => n.id !== selected.id) }))
-                setSelectedId(null)
-              }}
+              onRemove={() => setRemoving(selected)}
               onExport={() => setExportTarget({ kind: 'node', node: selected })}
               onReplaceFile={(fileName, bytes) => chooseFile(fileName, bytes, selected)}
               onAliasChange={(entry, alias) => changeAlias(selected, entry, alias)}

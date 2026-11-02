@@ -657,4 +657,62 @@ describe('CanopenEditor', () => {
       expect(saved[0].type).toBe('application/zip')
     })
   })
+
+  it('asks before removing a node and keeps it on Cancel or Escape', async () => {
+    await importEds()
+    await waitFor(() => expect(config()?.nodes).toHaveLength(1))
+    const address = config()?.nodes[0].tpdos[0].entries[0].iecLocation ?? ''
+    const state = store.getState()
+    const resource = state.project.data.configurations.resource
+    store.setState({
+      project: {
+        ...state.project,
+        data: {
+          ...state.project.data,
+          configurations: {
+            ...state.project.data.configurations,
+            resource: {
+              ...resource,
+              globalVariables: [
+                ...resource.globalVariables,
+                {
+                  name: 'level',
+                  location: address,
+                  type: { definition: 'base-type', value: 'byte' },
+                  documentation: '',
+                },
+              ],
+            },
+          },
+        },
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove node' }))
+    const confirm = await screen.findByTestId('canopen-remove-node-confirm')
+    expect(confirm.textContent).toContain('Are you sure you want to remove node 1: Generic_I_O_module?')
+    expect(confirm.textContent).toContain('Its PDO mapping and the location of 1 PLC variable go with it.')
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByTestId('canopen-remove-node-confirm')).toBeNull())
+    expect(config()?.nodes).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove node' }))
+    fireEvent.keyDown(await screen.findByTestId('canopen-remove-node-confirm'), { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByTestId('canopen-remove-node-confirm')).toBeNull())
+    expect(config()?.nodes).toHaveLength(1)
+    expect(screen.getByText('Node 1: Generic_I_O_module')).toBeTruthy()
+  })
+
+  it('removes the node only on Remove', async () => {
+    await importEds()
+    await waitFor(() => expect(config()?.nodes).toHaveLength(1))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove node' }))
+    const confirm = await screen.findByTestId('canopen-remove-node-confirm')
+    expect(confirm.textContent).toContain('Its PDO mapping goes with it.')
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(config()?.nodes).toHaveLength(0))
+    expect(config()?.files).toBeUndefined()
+    expect(screen.queryByTestId('canopen-remove-node-confirm')).toBeNull()
+    expect(screen.getByText('No nodes yet')).toBeTruthy()
+  })
 })
