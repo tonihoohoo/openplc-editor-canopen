@@ -73,7 +73,7 @@ test('the network and a node export as DBC with frame options', async () => {
     await expect(dialog.getByTestId('canopen-export-dbc-time')).toContainText('off in network')
     const check = dialog.getByTestId('canopen-export-check')
     await expect(check).toContainText('canopen_1.dbc')
-    await expect(check).toContainText('passes the DBC check')
+    await expect(check).toContainText('DBC OK')
     await expect(dialog.getByTestId('canopen-export-losses').locator('li')).toHaveCount(3)
     for (const id of [
       'canopen-export-format',

@@ -553,7 +553,7 @@ describe('CanopenEditor', () => {
       const frames = () => Number(/(\d+) frames/.exec(check())?.[1])
       const lossCount = () =>
         Number(/\((\d+)\)/.exec(within(dialog).getByText(/^Not in the file/).textContent ?? '')?.[1])
-      expect(check()).toMatch(/\.dbc .*passes the DBC check/)
+      expect(check()).toMatch(/^✓ DBC OK .*\.dbc /)
       expect(within(dialog).getByTestId('canopen-export-losses').querySelectorAll('li')).toHaveLength(3)
       const before = { frames: frames(), losses: lossCount() }
       fireEvent.click(within(dialog).getByTestId('canopen-export-dbc-heartbeat'))

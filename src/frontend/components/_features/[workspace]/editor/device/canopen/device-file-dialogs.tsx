@@ -586,17 +586,15 @@ export const ExportDialog = ({
           >
             {ok ? (
               <>
-                <span className='text-green-700 dark:text-green-400'>✓</span>{' '}
+                <span className='text-green-700 dark:text-green-400'>✓ {exportStandard(format)} OK</span>{' '}
                 {files.length === 1 ? (
                   <>
                     <code className='font-mono text-[11px]'>{files[0].fileName}</code>{' '}
-                    <span className={cn(hintClassName, 'text-xs')}>
-                      {files[0].summary}, passes the {exportStandard(format)} check
-                    </span>
+                    <span className={cn(hintClassName, 'text-xs')}>{files[0].summary}</span>
                   </>
                 ) : (
                   <span className='text-neutral-700 dark:text-neutral-300'>
-                    {files.length} files pass the {exportStandard(format)} check:{' '}
+                    {files.length} files:{' '}
                     <code className='font-mono text-[11px]'>{files.map((f) => f.fileName).join(', ')}</code>
                   </span>
                 )}
