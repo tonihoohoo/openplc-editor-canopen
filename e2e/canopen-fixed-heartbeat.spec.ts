@@ -46,6 +46,7 @@ test('a read-only heartbeat time is shown from the file and checked against the 
     await setField(page, 'Timeout (ms)', '150')
     const checks = page.getByRole('status', { name: 'Network checks' })
     await expect(checks).toContainText("must be longer than the node's heartbeat time (1000 ms)")
+    await heartbeat.evaluate((el) => el.scrollIntoView({ block: 'center' }))
     await shot(page, 'fixed-heartbeat-timeout-check')
   } finally {
     await quitApp(app, page)
