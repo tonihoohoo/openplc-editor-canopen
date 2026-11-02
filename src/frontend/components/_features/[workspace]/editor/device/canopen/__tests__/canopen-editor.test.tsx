@@ -582,6 +582,39 @@ describe('CanopenEditor', () => {
       expect(text).not.toMatch(/BO_ 1793 /)
     })
 
+    it('exports the network as one HTML document with sections kept in the project', async () => {
+      await importEds()
+      openTab('Network')
+      fireEvent.click(screen.getByRole('button', { name: 'Export network...' }))
+      const dialog = screen.getByTestId('canopen-export-dialog')
+      fireEvent.click(within(dialog).getByRole('radio', { name: 'HTML' }))
+      expect(within(dialog).getByTestId('canopen-export-format-description').textContent).toContain(
+        'document for people',
+      )
+      expect(within(dialog).getByTestId('canopen-export-html-objects').getAttribute('aria-checked')).toBe('false')
+      const check = () => within(dialog).getByTestId('canopen-export-check').textContent ?? ''
+      expect(check()).toMatch(/\.html 1 node, \d+ I\/O, \d+ KB$/)
+      fireEvent.click(within(dialog).getByTestId('canopen-export-html-bootWrites'))
+      expect(config()?.export?.html?.sections?.bootWrites).toBe(false)
+      expect(within(dialog).getByTestId('canopen-export-losses').textContent).toContain(
+        'the writes the master makes at boot (left out above)',
+      )
+      expect(within(dialog).getByTestId('canopen-export-save').textContent).toMatch(/^Save .*\.html\.\.\.$/)
+      await act(async () => {
+        fireEvent.click(within(dialog).getByTestId('canopen-export-save'))
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      })
+      expect(saved).toHaveLength(1)
+      const text = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.readAsText(saved[0])
+      })
+      expect(text).toContain('<!doctype html>')
+      expect(text).toContain('id="io"')
+      expect(text).not.toContain('What the master writes at boot')
+    })
+
     it('exports a node as its EDS unchanged when EDS is picked', async () => {
       await importEds()
       fireEvent.click(screen.getByRole('button', { name: 'Export...' }))

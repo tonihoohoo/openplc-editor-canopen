@@ -1,6 +1,6 @@
 /**
  * Export of a node or a network as DCF, EDS, XDC or XDD, whatever format the node's device file
- * came in, or as a DBC of its frames, and the list of what each format does not hold.
+ * came in, as a DBC of its frames or as an HTML document, and the list of what each format does not hold.
  */
 
 import type { CanopenConfig, CanopenNode } from '../../ports/canopen-types'
@@ -15,10 +15,11 @@ import {
   uniqueFileName,
 } from './dcf-export'
 import { writeEds } from './device-writer'
+import { buildHtmlExport, htmlLosses, htmlSections, type PlcVariableUse } from './html-export'
 import { buildNetworkXdcs, buildNetworkXdds, buildNodeXdc, buildNodeXdd } from './xdd-export'
 
 /** The formats a node or a network can be exported as. */
-export type ExportFormat = 'dcf' | 'eds' | 'xdc' | 'xdd' | 'dbc'
+export type ExportFormat = 'dcf' | 'eds' | 'xdc' | 'xdd' | 'dbc' | 'html'
 
 export const EXPORT_FORMATS: ReadonlyArray<{ format: ExportFormat; label: string; description: string }> = [
   {
@@ -39,17 +40,37 @@ export const EXPORT_FORMATS: ReadonlyArray<{ format: ExportFormat; label: string
     description:
       'For CAN analysers: the frames on the bus and how to decode them. Not a device file, and it cannot be read back.',
   },
+  {
+    format: 'html',
+    label: 'HTML',
+    description:
+      'A document for people: the network, its nodes, CAN identifiers, I/O list, PDO layouts and what the master writes at boot. Opens in any browser and prints to PDF. Not a device file, and it cannot be read back.',
+  },
 ]
+
+/** What an HTML document names besides the network: the project, the editor and the PLC variables. */
+export interface DocumentContext {
+  projectName: string
+  editorVersion: string
+  /** PLC variables by the alias or address their location holds (`plcVariableUses`). */
+  uses: ReadonlyMap<string, readonly PlcVariableUse[]>
+}
+
+/** Options of every format; `document` is used by HTML only. */
+export interface ExportOptions extends DcfExportOptions {
+  document?: DocumentContext
+}
 
 /** Whether the format is built from the node's stored device file. */
 export function exportNeedsDeviceFile(format: ExportFormat): boolean {
-  return format !== 'dbc'
+  return format !== 'dbc' && format !== 'html'
 }
 
 /** The file's MIME type and file dialog filter. */
 export function exportFileType(format: ExportFormat): { mime: string; name: string; extensions: string[] } {
   const xml = format === 'xdc' || format === 'xdd'
   if (format === 'dbc') return { mime: 'text/plain;charset=utf-8', name: 'DBC file', extensions: ['dbc'] }
+  if (format === 'html') return { mime: 'text/html;charset=utf-8', name: 'HTML document', extensions: ['html'] }
   return {
     mime: xml ? 'application/xml' : 'text/plain;charset=utf-8',
     name: `${format.toUpperCase()} file`,
@@ -57,9 +78,10 @@ export function exportFileType(format: ExportFormat): { mime: string; name: stri
   }
 }
 
-/** The check the exported files get: CiA 311 for XDC and XDD, the DBC rules for DBC, else CiA 306. */
-export function exportStandard(format: ExportFormat): 'CiA 306' | 'CiA 311' | 'DBC' {
+/** The check the exported files get: CiA 311 for XDC and XDD, the DBC rules for DBC, none for HTML, else CiA 306. */
+export function exportStandard(format: ExportFormat): 'CiA 306' | 'CiA 311' | 'DBC' | null {
   if (format === 'dbc') return 'DBC'
+  if (format === 'html') return null
   return format === 'xdc' || format === 'xdd' ? 'CiA 311' : 'CiA 306'
 }
 
@@ -153,6 +175,7 @@ export function exportLosses(
   config?: CanopenConfig,
 ): string[] {
   if (format === 'dbc') return dbcLosses(nodes, network, config)
+  if (format === 'html') return htmlLosses(config)
   const out: string[] = []
   const perNode = format === 'dcf' || format === 'xdc'
   if (network)
@@ -170,13 +193,27 @@ export function exportLosses(
   return out
 }
 
+function buildHtml(config: CanopenConfig, options: ExportOptions, node?: CanopenNode): DeviceFileExport {
+  const context = options.document
+  return buildHtmlExport({
+    projectName: context?.projectName ?? '',
+    networkName: options.networkName ?? '',
+    config,
+    uses: context?.uses ?? new Map(),
+    sections: htmlSections(config.export?.html),
+    editorVersion: context?.editorVersion ?? '',
+    now: options.now,
+    nodeId: node?.id,
+  })
+}
+
 /** The node's file in the format; `storedText` is its stored device file. */
 export function buildNodeExport(
   format: ExportFormat,
   node: CanopenNode,
   storedText: string,
   config: CanopenConfig,
-  options: DcfExportOptions,
+  options: ExportOptions,
 ): DeviceFileExport {
   switch (format) {
     case 'dcf':
@@ -198,6 +235,8 @@ export function buildNodeExport(
       return buildNodeXdd(node, storedText, options.now)
     case 'dbc':
       return buildDbc(config, { networkName: options.networkName ?? '', nodes: [node] })
+    case 'html':
+      return buildHtml(config, options, node)
     default: {
       const never: never = format
       throw new Error(`Unknown export format ${String(never)}`)
@@ -206,11 +245,8 @@ export function buildNodeExport(
 }
 
 /** The network's files in the format. */
-export function buildNetworkExport(
-  format: ExportFormat,
-  config: CanopenConfig,
-  options: DcfExportOptions,
-): NetworkExport {
+export function buildNetworkExport(format: ExportFormat, config: CanopenConfig, options: ExportOptions): NetworkExport {
+  if (format === 'html') return { files: [buildHtml(config, options)], missing: [] }
   if (format === 'dbc') return { files: [buildDbc(config, { networkName: options.networkName ?? '' })], missing: [] }
   if (format === 'xdc') return buildNetworkXdcs(config, options)
   if (format === 'xdd') return buildNetworkXdds(config, options.now)

@@ -21,17 +21,17 @@ import { type BootWrite, nodeBootWrites } from './generate-canopen-config'
 import { effectiveEmcy, isDummyEntry, pdoBits, restoreChoiceName } from './model'
 import { describeValue, pdoMappingMeaning } from './object-info'
 
-/** The sections in the order the dialog shows them, with their labels. */
-export const HTML_SECTIONS: ReadonlyArray<{ section: CanopenHtmlSection; label: string }> = [
-  { section: 'network', label: 'Network' },
-  { section: 'nodes', label: 'Nodes' },
-  { section: 'canIds', label: 'CAN identifiers' },
-  { section: 'ioList', label: 'I/O list' },
-  { section: 'pdoPictures', label: 'PDO pictures' },
-  { section: 'sdos', label: 'Startup SDOs' },
-  { section: 'bootWrites', label: 'Boot writes' },
-  { section: 'objects', label: 'Object dictionaries' },
-  { section: 'plcVariables', label: 'PLC variables' },
+/** The sections in the order the dialog shows them, with their labels and how a left-out one is listed. */
+export const HTML_SECTIONS: ReadonlyArray<{ section: CanopenHtmlSection; label: string; lost: string }> = [
+  { section: 'network', label: 'Network', lost: 'the network settings' },
+  { section: 'nodes', label: 'Nodes', lost: 'the table of the nodes' },
+  { section: 'canIds', label: 'CAN identifiers', lost: 'the CAN identifier table' },
+  { section: 'ioList', label: 'I/O list', lost: 'the I/O list' },
+  { section: 'pdoPictures', label: 'PDO pictures', lost: 'the PDO pictures' },
+  { section: 'sdos', label: 'Startup SDOs', lost: 'the startup SDOs' },
+  { section: 'bootWrites', label: 'Boot writes', lost: 'the writes the master makes at boot' },
+  { section: 'objects', label: 'Object dictionaries', lost: 'the object dictionaries' },
+  { section: 'plcVariables', label: 'PLC variables', lost: 'the PLC variables that use each address' },
 ]
 
 /** The sections in a document when the project has no choice stored: all but the object dictionaries. */
@@ -41,6 +41,23 @@ export function htmlSections(options: CanopenHtmlExportOptions | undefined): Set
     const stored = options?.sections?.[section]
     if (stored ?? section !== 'objects') out.add(section)
   }
+  return out
+}
+
+/** The config with new HTML export choices. */
+export function withHtmlExportOptions(config: CanopenConfig, options: CanopenHtmlExportOptions): CanopenConfig {
+  return { ...config, export: { ...config.export, html: options } }
+}
+
+/** What an HTML document does not hold: the sections left out first, then what it never holds. */
+export function htmlLosses(config: CanopenConfig | undefined): string[] {
+  const sections = htmlSections(config?.export?.html)
+  const out = HTML_SECTIONS.filter((s) => !sections.has(s.section)).map((s) => `${s.lost} (left out above)`)
+  out.push(
+    'the device files themselves: only their names and SHA-256',
+    'live values and node states from the online view',
+    'anything the editor can read back: the document is for people only',
+  )
   return out
 }
 

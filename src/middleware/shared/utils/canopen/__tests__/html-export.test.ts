@@ -3,12 +3,22 @@ import { join } from 'path'
 
 import type { CanopenConfig, CanopenNode } from '../../../ports/canopen-types'
 import {
+  buildNetworkExport,
+  buildNodeExport,
+  exportFileType,
+  exportLosses,
+  exportNeedsDeviceFile,
+  exportStandard,
+} from '../device-export'
+import {
   buildHtmlDocument,
   buildHtmlExport,
   canIdRows,
   type HtmlExportInput,
+  htmlLosses,
   htmlSections,
   plcVariableUses,
+  withHtmlExportOptions,
 } from '../html-export'
 import { createCanopenNode, defaultCanopenConfig, withEntryAlias } from '../model'
 import { parseXdd } from '../xdd-parser'
@@ -173,5 +183,37 @@ describe('buildHtmlExport', () => {
     expect(node.fileName).toBe('node_2.html')
     expect(node.summary).toMatch(/^1 node, \d+ I\/O, \d+ KB$/)
     expect(node.errors).toEqual([])
+  })
+})
+
+describe('HTML export format', () => {
+  it('needs no device file and saves one file for the network', () => {
+    expect(exportNeedsDeviceFile('html')).toBe(false)
+    expect(exportFileType('html')).toEqual({
+      mime: 'text/html;charset=utf-8',
+      name: 'HTML document',
+      extensions: ['html'],
+    })
+    expect(exportStandard('html')).toBeNull()
+    const config = network()
+    const exported = buildNetworkExport('html', config, {
+      now: new Date('2026-11-02T09:30:00Z'),
+      networkName: 'canopen1',
+      document: { projectName: 'line', editorVersion: '1.0.0', uses: new Map() },
+    })
+    expect(exported.missing).toEqual([])
+    expect(exported.files.map((f) => f.fileName)).toEqual(['canopen1.html'])
+    expect(exported.files[0].text).toContain('Project line')
+    const node = buildNodeExport('html', config.nodes[0], '', config, { now: new Date(), networkName: 'canopen1' })
+    expect(node.fileName).toBe('node_3.html')
+  })
+
+  it('lists the sections left out first', () => {
+    const config = withHtmlExportOptions(network(), { sections: { bootWrites: false } })
+    const losses = exportLosses('html', config.nodes, true, config)
+    expect(losses[0]).toBe('the writes the master makes at boot (left out above)')
+    expect(losses[1]).toBe('the object dictionaries (left out above)')
+    expect(losses).toContain('the device files themselves: only their names and SHA-256')
+    expect(htmlLosses(undefined)[0]).toBe('the object dictionaries (left out above)')
   })
 })

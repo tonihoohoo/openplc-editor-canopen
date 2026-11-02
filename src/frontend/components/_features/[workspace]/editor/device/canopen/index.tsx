@@ -1,5 +1,6 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { toast } from '@root/frontend/components/_features/[app]/toast/use-toast'
+import { APP_VERSION } from '@root/frontend/data/constants/app-version'
 import { useAliasRegistry } from '@root/frontend/hooks/use-alias-registry'
 import { useCanopenOnline } from '@root/frontend/hooks/use-canopen-online'
 import { useCanopenOnlineReads } from '@root/frontend/hooks/use-canopen-online-reads'
@@ -31,6 +32,7 @@ import {
   fixAllCanopenProblems,
   lowestFreeNodeId,
   plcCycleUs,
+  plcVariableUses,
   prepareDeviceFile,
   projectNamesForCanopen,
   pruneStoredFiles,
@@ -39,6 +41,7 @@ import {
   validateCanopenProject,
   withDbcExportOptions,
   withEntryAlias,
+  withHtmlExportOptions,
   withNodeId,
   withStoredFile,
 } from '@root/middleware/shared/utils/canopen'
@@ -46,7 +49,7 @@ import { describeAliasRejection, validateAliasEdit } from '@root/middleware/shar
 import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { DeviceFileDialog, type DeviceFileRequest, ExportDialog } from './device-file-dialogs'
-import { DbcExportOptionsCard } from './export-options'
+import { DbcExportOptionsCard, HtmlExportOptionsCard } from './export-options'
 import { NetworkSettings } from './network-settings'
 import { NetworkSwitch } from './network-switch'
 import { NodeList } from './node-list'
@@ -284,9 +287,26 @@ const CanopenEditor = () => {
     [project],
   )
 
+  const projectName = useOpenPLCStore((s) => s.project.meta.name)
+  const documentContext = useMemo(
+    () => ({
+      projectName,
+      editorVersion: APP_VERSION,
+      uses: plcVariableUses([
+        ...pous.map((p) => ({ pou: p.name, variables: p.interface?.variables ?? [] })),
+        { pou: 'global', variables: globals },
+      ]),
+    }),
+    [projectName, pous, globals],
+  )
+
   const exportRequest = useMemo((): ExportRequest | null => {
     if (!exportTarget) return null
-    const options = { now: new Date(), networkName: deviceName }
+    const options = {
+      now: new Date(),
+      networkName: deviceName,
+      document: exportFormat === 'html' ? documentContext : undefined,
+    }
     const ext = exportFormat.toUpperCase()
     const fileType = exportFileType(exportFormat)
     if (exportTarget.kind === 'node') {
@@ -344,7 +364,7 @@ const CanopenEditor = () => {
           'application/zip',
         ),
     }
-  }, [exportTarget, exportFormat, config, deviceName, saveExport])
+  }, [exportTarget, exportFormat, config, deviceName, saveExport, documentContext])
 
   const changeAlias = useCallback(
     (node: CanopenNode, entry: CanopenEntry, alias: string): string | null => {
@@ -541,6 +561,11 @@ const CanopenEditor = () => {
           options={
             exportFormat === 'dbc' ? (
               <DbcExportOptionsCard config={config} onChange={(dbc) => commit((c) => withDbcExportOptions(c, dbc))} />
+            ) : exportFormat === 'html' ? (
+              <HtmlExportOptionsCard
+                config={config}
+                onChange={(html) => commit((c) => withHtmlExportOptions(c, html))}
+              />
             ) : undefined
           }
           onFormatChange={setExportFormat}
