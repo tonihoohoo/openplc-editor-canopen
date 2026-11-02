@@ -211,7 +211,8 @@ in any format, whatever file it was added from; the dialog lists what the picked
   raw data on every level the device file does not describe. Requests, confirmations, segmented
   initiates and aborts name the object; aborts give the CiA 301 abort text. Segment data over 4 bytes
   and block transfers show only raw bytes. Names longer than 32 characters are cut with a hash and
-  keep their full name in the long-name attributes. No device identity is written. The DBC options
+  keep their full name in the long-name attributes; multiplexer signals always get names of 32 characters
+  or less (by node ID when the node name is long), since some readers resolve `SG_MUL_VAL_` by long name. No device identity is written. The DBC options
   (`CanopenConfig.export.dbc`, `dbcExportOptions`) leave out PDOs, NMT, SYNC, TIME, heartbeat and node
   guarding, EMCY or SDO, and choose SDO values for every object in the device files (the default) or
   only the startup SDO and mapped objects, which also makes the file smaller and faster to load. A

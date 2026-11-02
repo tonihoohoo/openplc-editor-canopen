@@ -492,8 +492,8 @@ const CanopenEditor = () => {
         <Tabs.Content value='network' className='flex-1 data-[state=inactive]:hidden'>
           <div className='mb-4 flex items-center justify-between gap-4'>
             <p className={hintClassName}>
-              The device files of all nodes, as DCF or XDC files with the values the master writes, or as EDS or XDD
-              files.
+              The device files of all nodes, as DCF or XDC files with the values the master writes or as EDS or XDD
+              files, or the whole network as a DBC file for CAN analysers.
             </p>
             <button
               type='button'

@@ -48,7 +48,8 @@ function network(): CanopenConfig {
     multiplier: 0.1,
     label: 'Temperature',
   })
-  const config = configWith(io2, ai3)
+  const long = { ...genericNode(4), name: 'Generic_I_O_module_with_a_long_name' }
+  const config = configWith(io2, ai3, long)
   return {
     ...config,
     network: {

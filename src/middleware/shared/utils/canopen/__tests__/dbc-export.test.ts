@@ -277,6 +277,23 @@ describe('DBC export: network frames', () => {
   })
 })
 
+describe('DBC export: long node names', () => {
+  it('keeps every multiplexer name within 32 characters so the chain resolves by short name', () => {
+    const node = { ...genericNode(2), name: 'Generic_I_O_module_with_a_long_name' }
+    const dbc = buildDbc(configWith(node), { networkName: 'n' })
+    expect(dbc.problems).toEqual([])
+    const muxers = [...dbc.text.matchAll(/^ SG_ (\w+) (?:m\d+)?M :/gm)].map((x) => x[1])
+    expect(muxers.length).toBeGreaterThan(4)
+    for (const name of muxers) {
+      expect(name.length).toBeLessThanOrEqual(32)
+      expect(dbc.text).not.toMatch(new RegExp(`SystemSignalLongSymbol" SG_ \\d+ ${name} `))
+    }
+    const v = decode(dbc.text, 0x602, '2B 17 10 00 64 00 00 00')
+    const name = /CM_ SG_ 1538 (\w+) "0x1017:0 /.exec(dbc.text)?.[1] ?? ''
+    expect(v[name]).toBe(100)
+  })
+})
+
 describe('DBC export: SDO', () => {
   const dbc = buildDbc(configWith(genericNode(2)), { networkName: 'n' }).text
 

@@ -151,6 +151,12 @@ class Names {
   }
 }
 
+/** A multiplexer name of the node: by node name when it fits in 32 characters, else by node ID. */
+function muxName(node: CanopenNode, part: string): string {
+  const named = `${node.name}_${part}`.replace(/[^A-Za-z0-9_]+/g, '_')
+  return named.length <= NAME_MAX - 2 ? named : `N${node.nodeId}_${part}`
+}
+
 function hash4(text: string): string {
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0
@@ -692,29 +698,46 @@ class DbcBuilder {
       const commandNames: string[] = []
       for (const b of branches)
         for (const [a, z] of b.ranges) for (let v = a; v <= z; v++) commandNames[v] ??= b.meaning
-      const cmd = this.signal(m, `${node.name}_${label}_Cmd`, 0, 8, [rx], {
+      // Multiplexers keep names of 32 characters or less: some readers resolve SG_MUL_VAL_ by long name.
+      const mux = (part: string) => muxName(node, `${label}_${part}`)
+      const cmd = this.signal(m, mux('Cmd'), 0, 8, [rx], {
         muxer: true,
         values: commandNames.map((t, v): [string, string] => [String(v), t]),
       })
       for (const b of branches) {
-        const s = this.signal(m, `${node.name}_${label}_${b.suffix}`, b.start, b.length, [rx], {
-          muxer: b.role === 'value',
-          muxedBy: { muxer: cmd.name, ranges: b.ranges },
-          comment: b.meaning,
-          values:
-            b.role === 'object'
-              ? objectNames
-              : b.role === 'abort'
-                ? SDO_ABORT_CODES.map(([c, t]): [string, string] => [String(c), t])
-                : undefined,
-        })
-        if (b.role === 'value') this.sdoValues(m, s, objects, `${node.name}_${prefix}`, [rx])
+        const s = this.signal(
+          m,
+          b.role === 'value' ? mux(b.suffix) : `${node.name}_${label}_${b.suffix}`,
+          b.start,
+          b.length,
+          [rx],
+          {
+            muxer: b.role === 'value',
+            muxedBy: { muxer: cmd.name, ranges: b.ranges },
+            comment: b.meaning,
+            values:
+              b.role === 'object'
+                ? objectNames
+                : b.role === 'abort'
+                  ? SDO_ABORT_CODES.map(([c, t]): [string, string] => [String(c), t])
+                  : undefined,
+          },
+        )
+        if (b.role === 'value')
+          this.sdoValues(m, s, objects, `${node.name}_${prefix}`, (part) => muxName(node, `${prefix}_${part}`), [rx])
       }
     }
   }
 
   /** Index high byte, then index low byte, then sub-index, then the typed value; raw data elsewhere. */
-  private sdoValues(m: DbcMessage, indexHi: DbcSignal, objects: SdoObject[], prefix: string, rx: string[]) {
+  private sdoValues(
+    m: DbcMessage,
+    indexHi: DbcSignal,
+    objects: SdoObject[],
+    prefix: string,
+    mux: (part: string) => string,
+    rx: string[],
+  ) {
     const raw = (muxer: string, keys: number[], label: string) => {
       const ranges = complement(keys, 255)
       if (ranges.length === 0) return
@@ -727,7 +750,7 @@ class DbcBuilder {
     raw(indexHi.name, his, '')
     for (const hi of his) {
       const inHi = objects.filter((o) => o.index >> 8 === hi)
-      const lo = this.signal(m, `${prefix}_Idx${hex2(hi)}`, 8, 8, rx, {
+      const lo = this.signal(m, mux(`Idx${hex2(hi)}`), 8, 8, rx, {
         muxer: true,
         muxedBy: { muxer: indexHi.name, ranges: [[hi, hi]] },
       })
@@ -736,7 +759,7 @@ class DbcBuilder {
       for (const l of los) {
         const index = (hi << 8) | l
         const subs = inHi.filter((o) => o.index === index)
-        const sub = this.signal(m, `${prefix}_Sub${hex4(index)}`, 24, 8, rx, {
+        const sub = this.signal(m, mux(`Sub${hex4(index)}`), 24, 8, rx, {
           muxer: true,
           muxedBy: { muxer: lo.name, ranges: [[l, l]] },
         })
@@ -797,6 +820,8 @@ function checkDbc(messages: readonly DbcMessage[]): DcfExportProblem[] {
       return c
     }
     for (const s of m.signals) {
+      if (s.muxer && s.longName)
+        out.push({ section: where, key: s.name, message: 'a multiplexer needs a name of 32 characters or less' })
       if (s.start + s.length > m.dlc * 8)
         out.push({ section: where, key: s.name, message: 'the signal does not fit in the message' })
       if (s.muxedBy && !byName.get(s.muxedBy.muxer)?.muxer)
