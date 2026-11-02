@@ -510,7 +510,7 @@ export const ExportDialog = ({
               <label
                 key={f.format}
                 className={cn(
-                  'cursor-pointer border-l border-neutral-300 px-3 py-1 text-xs font-medium first:border-l-0 focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand dark:border-neutral-700',
+                  'relative cursor-pointer border-l border-neutral-300 px-3 py-1 text-xs font-medium first:border-l-0 focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand dark:border-neutral-700',
                   format === f.format
                     ? 'bg-brand text-white'
                     : 'bg-white text-neutral-700 hover:bg-neutral-100 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800',
@@ -522,7 +522,7 @@ export const ExportDialog = ({
                   value={f.format}
                   checked={format === f.format}
                   onChange={() => onFormatChange(f.format)}
-                  className='sr-only'
+                  className='absolute inset-0 m-0 cursor-pointer appearance-none opacity-0'
                 />
                 {f.label}
               </label>
