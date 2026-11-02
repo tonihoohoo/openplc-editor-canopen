@@ -198,9 +198,36 @@ in any format, whatever file it was added from; the dialog lists what the picked
   (`writeXdd` in `device-writer.ts`). A node from an XDD or XDC exported as EDS or DCF gets an EDS
   written from its description (`writeEds`), so the descriptions, units, value meanings and bit names
   of the XDD are lost, as the dialog says.
+- **DBC** writes the frames on the bus and how to decode them, for CAN analysers (`buildDbc` in
+  `dbc-export.ts`): `node_<id>.dbc` for a node (its frames plus NMT, SYNC, TIME and the master's
+  heartbeat), or `<network>.dbc` for the network, a single file and no zip. It needs no stored device
+  file and cannot be read back. PDOs become messages with little-endian signals named by alias or
+  object, REAL32 as float, XDD units, multipliers and value meanings as unit, factor and value tables,
+  and named bits as 1-bit signals; the IEC address is a comment and an `IecLocation` attribute, the
+  event timer or SYNC period gives `GenMsgCycleTime`, the inhibit time `GenMsgDelayTime`. Heartbeat
+  frames decode the NMT state and toggle bit, EMCY frames the error code with the CiA 301 texts and
+  each error register bit. SDO frames (0x600 and 0x580 plus the node ID) decode through extended
+  multiplexing: command byte, index high byte, index low byte, sub-index, then the typed value, with
+  raw data on every level the device file does not describe. Requests, confirmations, segmented
+  initiates and aborts name the object; aborts give the CiA 301 abort text. Segment data over 4 bytes
+  and block transfers show only raw bytes. Names longer than 32 characters are cut with a hash and
+  keep their full name in the long-name attributes. No device identity is written. The DBC options
+  (`CanopenConfig.export.dbc`, `dbcExportOptions`) leave out PDOs, NMT, SYNC, TIME, heartbeat and node
+  guarding, EMCY or SDO, and choose SDO values for every object in the device files (the default) or
+  only the startup SDO and mapped objects, which also makes the file smaller and faster to load. A
+  frame type the network does not use is disabled with the reason. The options are kept in the
+  project and do not change `conf/canopen.json`. Before saving, the file is checked for duplicate or
+  out-of-range IDs, DLCs over 8, signals outside their message and overlapping signals.
 
-A network export writes one zip: a DCF or XDC per node, or an EDS or XDD per stored file. Each exported file is
-checked again; the dialog shows the result per file and **Save** is disabled when one has an error. **Save** opens the system save dialog attached to the editor window (`ProjectPort.exportFile`); a platform without it downloads the file.
+A network export writes one zip: a DCF or XDC per node, or an EDS or XDD per stored file (DBC writes one
+file). Each exported file is checked again and **Save** is disabled when one has an error.
+
+The dialog has a fixed size. The formats are one row of buttons with the picked format's description
+below; the options of the format (DBC: frame chips and the SDO values select, `export-options.tsx`)
+follow. What the files do not hold shows three lines, its count and **Show all**; the content scrolls
+as one area. The bottom bar shows the check result beside **Cancel** and **Save**: the file name and a
+summary, or the first error and the number of errors, which are then listed in full above. An option
+change only changes texts and counts; a disabled control stays in its place. **Save** opens the system save dialog attached to the editor window (`ProjectPort.exportFile`); a platform without it downloads the file.
 
 **Replace device file...** on a node page swaps the node's file for a newer one, in any of the four
 formats. The node keeps its ID, name, startup SDOs and options where the new file still allows them.
@@ -227,6 +254,16 @@ the CiA 311 fixtures (`__tests__/fixtures/cia311/`, each with its expected schem
 `expected.json`) and every XDD and XDC the export writes against the CiA 311 v1.1 schema, taken at run
 time from the pinned EdsDcfNet commit and never added to this repository, and reads the exports back
 with EdsDcfNet (`.github/scripts/canopen_xdd_crosscheck.py`).
+
+**DBC cross-check.** `.github/workflows/canopen-dbc-crosscheck.yml` loads the DBC files the export
+writes (`__tests__/dbc-crosscheck-writer.test.ts`) with cantools in strict mode and with canmatrix,
+fails a load over 60 seconds, and decodes with cantools the PDO, NMT, heartbeat and EMCY frames
+listed in the corpus's `expected.json`, every SDO command byte in both directions, and the SDO
+transfers (expedited, segmented, aborts) python-canopen makes between a client and a server on a
+virtual bus, comparing every expedited value with the typed signal
+(`.github/scripts/canopen_dbc_crosscheck.py`). It runs on pull requests to `canopen` that change the
+DBC writer, the export code, their tests or its own files (`.github/scripts/canopen-dbc-changed.sh`),
+and when started by hand; otherwise the job is skipped.
 
 ## Startup and supervision options
 
@@ -421,6 +458,7 @@ entry of a PDO the master does not exchange has no address and no alias.
 | DCF import, export and Replace device file                | `src/middleware/shared/utils/canopen/dcf-import.ts`, `dcf-export.ts`, `device-import.ts` |
 | XDD and XDC reader, CiA 311 check, export                 | `src/middleware/shared/utils/canopen/xdd-parser.ts`, `xdd-check.ts`, `xdd-export.ts` |
 | Export formats and losses, files written from a description | `src/middleware/shared/utils/canopen/device-export.ts`, `device-writer.ts` |
+| DBC export and its options                                 | `src/middleware/shared/utils/canopen/dbc-export.ts`, `.../device/canopen/export-options.tsx` |
 | Object information (meanings, units, bits) and standard meanings | `src/middleware/shared/utils/canopen/object-info.ts`, `standard-meanings.ts` |
 | Node construction and edits                               | `src/middleware/shared/utils/canopen/model.ts`                         |
 | Editing rules (transmission types, SDO objects, search)   | `src/middleware/shared/utils/canopen/editing.ts`                       |
@@ -449,7 +487,7 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
 
 - Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, CiA 306 check with the fixtures in
   `fixtures/cia306/`, DCF import and export, XDD and XDC reading, the CiA 311 check with the fixtures
-  in `fixtures/cia311/`, XDD and XDC export, object information, model, editing rules, generator, validator,
+  in `fixtures/cia311/`, XDD and XDC export, DBC export, object information, model, editing rules, generator, validator,
   receive timeout, node options and checks, status schema and texts, online tools), the status polling in
   `src/frontend/hooks/__tests__/use-canopen-status.test.ts`
   with the generic I/O module EDS in `__tests__/fixtures/`, the store action in
