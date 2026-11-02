@@ -11,7 +11,7 @@ import { join } from 'node:path'
 
 import { expect, type Page, test } from '@playwright/test'
 
-import { keyView } from './helpers/canopen-shots'
+import { keyView, shot } from './helpers/canopen-shots'
 import {
   buildFromMenu,
   findFile,
@@ -118,7 +118,7 @@ test('refusal policies, text and byte values, a gap and a deadline reach conf/ca
     )
     await expect(rows.nth(1).getByLabel('If 0x2300:00 is refused')).toHaveValue('continue')
     await rows.nth(0).evaluate((e) => e.scrollIntoView({ block: 'center' }))
-    await keyView(page, 'boot-refusal-column')
+    await shot(page, 'boot-refusal-column')
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1280, 720)))
     await page
       .getByTestId('canopen-boot-write')
