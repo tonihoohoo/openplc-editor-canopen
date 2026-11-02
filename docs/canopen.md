@@ -249,6 +249,10 @@ The dialog asks whether to keep the node's PDO mapping (entries with their addre
 the default) or to use the new file's default mapping, and lists what is not kept before anything
 changes.
 
+**Remove node** on a node page asks "Are you sure?" first, with one line naming what goes with the
+node: its PDO mapping, its startup SDOs and the number of PLC variables located at its aliases or
+addresses, which become unlocated. Only **Remove** removes the node; Cancel or Escape keeps it.
+
 **Storage.** The text of each file is kept in the network's device file
 (`devices/remote/<name>.json`, `files`, by SHA-256), and each node names its file in `eds.source`
 (format, file name, SHA-256), so a project exports DCFs without the original files. Files no node uses
@@ -509,7 +513,7 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   `src/frontend/store/__tests__/canopen-config.test.ts`, and the device editor in
   `.../device/canopen/__tests__/`.
 - End-to-end: `e2e/canopen-*.spec.ts` drive the built app (Playwright, Electron). They cover adding a
-  node from an EDS and building it, PDO and startup SDO editing, adding and removing PDOs, moving entries, PDOs between two nodes, aliases, the Network tab settings and
+  node from an EDS and building it, removing a node, PDO and startup SDO editing, adding and removing PDOs, moving entries, PDOs between two nodes, aliases, the Network tab settings and
   the bit rates the nodes support, the defaults for new nodes, the checks that stop a build and their
   fixes, receive timeouts, node options, EDS and DCF import and export, the basic and expert view, heartbeat consuming, emergency and
   TIME settings, turning a network off, the PLC block library and node names in a program, the upload check against a runtime without CANopen, and,
