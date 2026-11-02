@@ -230,6 +230,18 @@ as one area. The bottom bar shows the check result beside **Cancel** and **Save*
 summary, or the first error and the number of errors, which are then listed in full above. An option
 change only changes texts and counts; a disabled control stays in its place. **Save** opens the system save dialog attached to the editor window (`ProjectPort.exportFile`); a platform without it downloads the file.
 
+**HTML documentation.** The HTML format writes a document for people, not a device file: one
+`<network>.html` for a network or `node_<id>.html` for a node, built from the configuration alone
+(`html-export.ts`), so no stored device file is needed. It has the network settings, a table of the
+nodes, every CAN identifier the configuration puts on the bus (a COB-ID with two senders is marked),
+an I/O list by address with aliases, units, value meanings, bit names and the PLC variables that use
+each address, and per node its identity and device file, how the master handles it, each PDO as a
+picture of its bits and a table, the startup SDOs and the writes the master makes at boot with their
+values decoded. The object dictionaries are left out unless chosen. The sections are picked in the
+dialog and kept in the project (`canopenConfig.export.html`), never in `conf/canopen.json`. The file
+has no scripts and loads nothing from elsewhere, so it opens offline in any browser; printed, it uses
+A4 landscape pages and starts each node on a new page. The editor does not read it back.
+
 **Replace device file...** on a node page swaps the node's file for a newer one, in any of the four
 formats. The node keeps its ID, name, startup SDOs and options where the new file still allows them.
 The dialog asks whether to keep the node's PDO mapping (entries with their addresses and aliases,
@@ -460,6 +472,7 @@ entry of a PDO the master does not exchange has no address and no alias.
 | XDD and XDC reader, CiA 311 check, export                 | `src/middleware/shared/utils/canopen/xdd-parser.ts`, `xdd-check.ts`, `xdd-export.ts` |
 | Export formats and losses, files written from a description | `src/middleware/shared/utils/canopen/device-export.ts`, `device-writer.ts` |
 | DBC export and its options                                 | `src/middleware/shared/utils/canopen/dbc-export.ts`, `.../device/canopen/export-options.tsx` |
+| HTML documentation export                                 | `src/middleware/shared/utils/canopen/html-export.ts` |
 | Object information (meanings, units, bits) and standard meanings | `src/middleware/shared/utils/canopen/object-info.ts`, `standard-meanings.ts` |
 | Node construction and edits                               | `src/middleware/shared/utils/canopen/model.ts`                         |
 | Editing rules (transmission types, SDO objects, search)   | `src/middleware/shared/utils/canopen/editing.ts`                       |
@@ -488,7 +501,7 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
 
 - Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, CiA 306 check with the fixtures in
   `fixtures/cia306/`, DCF import and export, XDD and XDC reading, the CiA 311 check with the fixtures
-  in `fixtures/cia311/`, XDD and XDC export, DBC export, object information, model, editing rules, generator, validator,
+  in `fixtures/cia311/`, XDD and XDC export, DBC export, HTML export, object information, model, editing rules, generator, validator,
   receive timeout, node options and checks, status schema and texts, online tools), the status polling in
   `src/frontend/hooks/__tests__/use-canopen-status.test.ts`
   with the generic I/O module EDS in `__tests__/fixtures/`, the store action in
