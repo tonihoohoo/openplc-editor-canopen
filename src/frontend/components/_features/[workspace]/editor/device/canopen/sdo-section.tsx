@@ -34,6 +34,14 @@ import { BootWrites, type BootWriteTarget } from './boot-writes'
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { ObjectDetails } from './object-details'
 import { ObjectPicker } from './object-picker'
+import {
+  type LaterLine,
+  PolicyChipC,
+  RefusalPopoverB,
+  RefusalSelectA,
+  refusalVariant,
+  RowMenuC,
+} from './refusal-mockup'
 import { MoveButtons, SortableBody, SortableRow } from './sortable-rows'
 import { hintClassName, iconButtonClassName, secondaryButtonClassName } from './styles'
 import { useAddedHighlight } from './use-added-highlight'
@@ -102,6 +110,7 @@ const SdoSection = ({ node, network, warnings, onChange, onGoTo }: SdoSectionPro
       return next
     })
   const [addedId, setAddedId] = useAddedHighlight()
+  const variant = refusalVariant()
   const candidates = useMemo(() => startupSdoCandidates(node), [node])
   const items = useMemo(
     () =>
@@ -184,8 +193,8 @@ const SdoSection = ({ node, network, warnings, onChange, onGoTo }: SdoSectionPro
             <th className='w-[66px] whitespace-nowrap py-1 font-medium'>Sub-index</th>
             <th className='py-1 font-medium'>Name</th>
             <th className='w-[110px] py-1 font-medium'>Type</th>
-            <th className='w-[170px] py-1 font-medium'>Value</th>
-            <th className='w-[76px] py-1' />
+            <th className={cn('py-1 font-medium', variant === 'b' ? 'w-[160px]' : 'w-[170px]')}>Value</th>
+            <th className={cn('py-1', variant === 'b' ? 'w-[88px]' : variant === 'c' ? 'w-[56px]' : 'w-[76px]')} />
           </tr>
         </thead>
         <SortableBody ids={node.sdos.map((s) => s.id)} onMove={move} className='text-neutral-850 dark:text-neutral-300'>
@@ -209,6 +218,15 @@ const SdoSection = ({ node, network, warnings, onChange, onGoTo }: SdoSectionPro
               label: `Line ${i + k + 2}: ${objectRef(s.index, s.subIndex)}`,
             }))
             const jumpProblem = jumpTargetProblem(node, sdo)
+            const laterLines: LaterLine[] = node.sdos
+              .map((s, k) => ({ value: s.id, line: k + 1, ref: objectRef(s.index, s.subIndex) }))
+              .slice(i + 2)
+            const setPolicy = (onAbort: CanopenSdoOnAbort, jumpTo?: string) =>
+              update(sdo.id, {
+                onAbort: onAbort === 'stop' ? undefined : onAbort,
+                jumpTo: onAbort === 'jump' ? (jumpTo ?? sdo.jumpTo ?? later[0]?.value) : undefined,
+              })
+            const mock = { sdo, ref_: ref, line: i + 1, later: laterLines, onSet: setPolicy }
             return (
               <SortableRow
                 key={sdo.id}
@@ -337,58 +355,81 @@ const SdoSection = ({ node, network, warnings, onChange, onGoTo }: SdoSectionPro
                   ) : warning ? (
                     <span className='text-[10px] text-amber-600 dark:text-amber-400'>{warning}</span>
                   ) : null}
-                  <div className='mt-1 flex flex-col gap-0.5'>
-                    <span className={hintClassName}>If refused</span>
-                    <SelectField
-                      label={`If ${ref} is refused`}
-                      hideLabel
-                      value={policy}
-                      options={POLICY_OPTIONS.map((o) =>
-                        o.value === 'jump' && later.length === 0 ? { ...o, disabledReason: 'no later line' } : o,
-                      )}
-                      onChange={(onAbort) =>
-                        update(sdo.id, {
-                          onAbort: onAbort === 'stop' ? undefined : onAbort,
-                          jumpTo: onAbort === 'jump' ? (sdo.jumpTo ?? later[0]?.value) : undefined,
-                        })
-                      }
-                    />
-                  </div>
-                  {policy === 'jump' ? (
-                    <div className='mt-1 flex flex-col gap-0.5'>
-                      <span className={hintClassName}>Jumps to</span>
-                      <SelectField
-                        label={`Line ${ref} jumps to`}
-                        hideLabel
-                        value={sdo.jumpTo ?? ''}
-                        options={
-                          later.some((l) => l.value === sdo.jumpTo)
-                            ? later
-                            : [{ value: sdo.jumpTo ?? '', label: 'Pick a line' }, ...later]
-                        }
-                        onChange={(jumpTo) => update(sdo.id, { jumpTo })}
-                      />
-                    </div>
+                  {variant === 'a' ? <RefusalSelectA {...mock} /> : null}
+                  {variant === 'b' ? <RefusalPopoverB {...mock} chip /> : null}
+                  {variant === 'c' ? <PolicyChipC sdo={sdo} line={i + 1} later={laterLines} onSet={setPolicy} /> : null}
+                  {variant === 'current' ? (
+                    <>
+                      <div className='mt-1 flex flex-col gap-0.5'>
+                        <span className={hintClassName}>If refused</span>
+                        <SelectField
+                          label={`If ${ref} is refused`}
+                          hideLabel
+                          value={policy}
+                          options={POLICY_OPTIONS.map((o) =>
+                            o.value === 'jump' && later.length === 0 ? { ...o, disabledReason: 'no later line' } : o,
+                          )}
+                          onChange={(onAbort) =>
+                            update(sdo.id, {
+                              onAbort: onAbort === 'stop' ? undefined : onAbort,
+                              jumpTo: onAbort === 'jump' ? (sdo.jumpTo ?? later[0]?.value) : undefined,
+                            })
+                          }
+                        />
+                      </div>
+                      {policy === 'jump' ? (
+                        <div className='mt-1 flex flex-col gap-0.5'>
+                          <span className={hintClassName}>Jumps to</span>
+                          <SelectField
+                            label={`Line ${ref} jumps to`}
+                            hideLabel
+                            value={sdo.jumpTo ?? ''}
+                            options={
+                              later.some((l) => l.value === sdo.jumpTo)
+                                ? later
+                                : [{ value: sdo.jumpTo ?? '', label: 'Pick a line' }, ...later]
+                            }
+                            onChange={(jumpTo) => update(sdo.id, { jumpTo })}
+                          />
+                        </div>
+                      ) : null}
+                    </>
                   ) : null}
                   {jumpProblem ? (
-                    <span className='text-[10px] text-red-600 dark:text-red-400'>{jumpProblem}</span>
-                  ) : policy === 'jump' ? (
+                    <span className='block text-[10px] text-red-600 dark:text-red-400'>{jumpProblem}</span>
+                  ) : policy === 'jump' && variant === 'current' ? (
                     <span className={hintClassName}>Skips every line in between</span>
                   ) : null}
                 </td>
                 <td className='py-1'>
-                  <div className='flex h-[30px] items-center justify-end'>
-                    <MoveButtons name={`SDO ${ref}`} index={i} count={node.sdos.length} onMove={move} />
-                    <button
-                      type='button'
-                      aria-label={`Remove SDO ${ref}`}
-                      title='Remove SDO'
-                      onClick={() => onChange(node.sdos.filter((s) => s.id !== sdo.id))}
-                      className={iconButtonClassName}
-                    >
-                      <TrashIcon className='h-4 w-4' />
-                    </button>
-                  </div>
+                  {variant === 'c' ? (
+                    <div className='flex h-[30px] items-center justify-end'>
+                      <RowMenuC {...mock} count={node.sdos.length} onMove={(to) => move(i, to)} />
+                      <button
+                        type='button'
+                        aria-label={`Remove SDO ${ref}`}
+                        title='Remove SDO'
+                        onClick={() => onChange(node.sdos.filter((s) => s.id !== sdo.id))}
+                        className={iconButtonClassName}
+                      >
+                        <TrashIcon className='h-4 w-4' />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className='flex h-[30px] items-center justify-end'>
+                      {variant === 'b' ? <RefusalPopoverB {...mock} chip={false} /> : null}
+                      <MoveButtons name={`SDO ${ref}`} index={i} count={node.sdos.length} onMove={move} />
+                      <button
+                        type='button'
+                        aria-label={`Remove SDO ${ref}`}
+                        title='Remove SDO'
+                        onClick={() => onChange(node.sdos.filter((s) => s.id !== sdo.id))}
+                        className={iconButtonClassName}
+                      >
+                        <TrashIcon className='h-4 w-4' />
+                      </button>
+                    </div>
+                  )}
                 </td>
               </SortableRow>
             )
