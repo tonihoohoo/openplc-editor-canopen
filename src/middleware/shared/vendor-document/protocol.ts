@@ -17,12 +17,19 @@ export const MAX_ARCHIVE_HEX_LENGTH = 16 * 1024 * 1024
 export const MAX_DEVICE_SETUP_DEVICES = 256
 const MAX_IDENTIFIER_LENGTH = 256
 
+/** Length first, then a plain loop: a regexp over 16 MiB can overflow the stack in some engines. */
+function isBoundedEvenHex(text: string): boolean {
+  if (text.length === 0 || text.length > MAX_ARCHIVE_HEX_LENGTH || text.length % 2 !== 0) return false
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i)
+    const isHex = (c >= 48 && c <= 57) || (c >= 65 && c <= 70) || (c >= 97 && c <= 102)
+    if (!isHex) return false
+  }
+  return true
+}
+
 /** The configurator's opaque station archive: non-empty, even-length hex. */
-export const configuratorArchiveSchema = z
-  .string()
-  .max(MAX_ARCHIVE_HEX_LENGTH)
-  .regex(/^[0-9a-fA-F]+$/, 'is not hex')
-  .refine((hex) => hex.length % 2 === 0, 'is not hex')
+export const configuratorArchiveSchema = z.string().refine(isBoundedEvenHex, 'is not hex or is too long')
 
 export const deviceReferenceSchema = z.object({
   guid: z.string().max(MAX_IDENTIFIER_LENGTH),
