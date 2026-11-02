@@ -22,10 +22,12 @@ export const RemoveNodeConfirm = ({ node, lost, onCancel, onRemove }: RemoveNode
         <WarningIcon className='mt-2 h-[73px] w-[73px]' />
         <div className='flex flex-col gap-2'>
           <ModalTitle className='sr-only'>Remove node {node.nodeId}</ModalTitle>
-          <p className='text-m w-full text-center font-bold text-gray-600 dark:text-neutral-100'>
+          <p className='text-m w-full text-balance text-center font-bold text-gray-600 dark:text-neutral-100'>
             Are you sure you want to remove node {node.nodeId}: {node.name}?
           </p>
-          {lost ? <p className='w-full text-center text-xs text-neutral-500 dark:text-neutral-400'>{lost}</p> : null}
+          {lost ? (
+            <p className='w-full text-balance text-center text-xs text-neutral-500 dark:text-neutral-400'>{lost}</p>
+          ) : null}
         </div>
         <div className='flex w-[200px] flex-col gap-1 space-y-2 text-sm'>
           <button
