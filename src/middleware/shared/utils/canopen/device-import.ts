@@ -19,7 +19,6 @@ import { EdsParseError, findObject, masterMayWrite, parseEdsDocument } from './e
 import {
   type AllocateAddress,
   canBeGuarded,
-  canProduceHeartbeat,
   canReceiveTime,
   canWatchMaster,
   consumerSlots,
@@ -29,6 +28,7 @@ import {
   type PdoDirection,
   pdoObjectIndices,
   restoreChoices,
+  sendsHeartbeat,
 } from './model'
 import { checkXdd, type DeviceFileCheckResult } from './xdd-check'
 import { parseXdd, xdcToDcfContent } from './xdd-parser'
@@ -192,9 +192,12 @@ export function replaceDeviceFile(
     tpdos: (mapping === 'keep' ? keepPdos : resetPdos)(node, eds, 'input', newId, allocate, dropped),
     rpdos: (mapping === 'keep' ? keepPdos : resetPdos)(node, eds, 'output', newId, allocate, dropped),
   }
-  if (next.supervision === 'heartbeat' && !canProduceHeartbeat(eds)) {
+  if (next.supervision === 'heartbeat' && !sendsHeartbeat(eds, next.nodeId)) {
     next = { ...next, supervision: 'none' }
-    dropped.push({ what: 'Supervision', detail: 'heartbeat (the new file has no writable 0x1017)' })
+    dropped.push({
+      what: 'Supervision',
+      detail: 'heartbeat (the new file has no writable 0x1017 and no heartbeat time)',
+    })
   } else if (next.supervision === 'guarding' && !canBeGuarded(eds)) {
     next = { ...next, supervision: 'none' }
     dropped.push({ what: 'Supervision', detail: 'node guarding (the new file has no writable 0x100C and 0x100D)' })

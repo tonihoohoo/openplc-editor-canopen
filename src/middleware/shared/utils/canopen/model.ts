@@ -148,9 +148,19 @@ export function consumerSlots(eds: CanopenEdsInfo): number {
   return eds.objects.filter((o) => o.index === 0x1016 && o.subIndex >= 1 && masterMayWrite(o)).length
 }
 
+/** The heartbeat time the device file gives the node (0x1017 default), 0 when none. */
+export function fileHeartbeatMs(eds: CanopenEdsInfo, nodeId: number): number {
+  return defaultInt(eds, 0x1017, 0, nodeId) ?? 0
+}
+
+/** Whether the node can send heartbeats: the master sets its time, or the device file gives one above 0. */
+export function sendsHeartbeat(eds: CanopenEdsInfo, nodeId: number): boolean {
+  return canProduceHeartbeat(eds) || fileHeartbeatMs(eds, nodeId) > 0
+}
+
 /** The supervision `auto` picks for this EDS. */
-export function autoSupervision(eds: CanopenEdsInfo): CanopenSupervision {
-  if (canProduceHeartbeat(eds)) return 'heartbeat'
+export function autoSupervision(eds: CanopenEdsInfo, nodeId = 0): CanopenSupervision {
+  if (sendsHeartbeat(eds, nodeId)) return 'heartbeat'
   if (canBeGuarded(eds)) return 'guarding'
   return 'none'
 }
@@ -162,7 +172,9 @@ export function edsDefault(eds: CanopenEdsInfo, index: number, subIndex: number,
 
 /** The node's heartbeat producer time as it will run: its own default when the master does not configure it. */
 export function effectiveProducerMs(node: CanopenNode): number {
-  return node.configure ? node.heartbeatProducerMs : (edsDefault(node.eds, 0x1017, 0, node.nodeId) ?? 0)
+  return node.configure && canProduceHeartbeat(node.eds)
+    ? node.heartbeatProducerMs
+    : fileHeartbeatMs(node.eds, node.nodeId)
 }
 
 /** The node settings that decide how a TPDO is sent and what a late TPDO does to its inputs. */
@@ -330,6 +342,62 @@ const UNKNOWN_TYPES: Readonly<Record<number, CanopenDataType>> = {
   64: 'UNSIGNED64',
 }
 
+/** A default mapping entry the master cannot read as one value: its object's type or length is unsupported. */
+export interface UnreadableMapping {
+  index: number
+  subIndex: number
+  bits: number
+  name: string
+}
+
+/** Whether a mapping entry of this object and length can be read as one PLC value (or kept as one gap). */
+function readableMapping(object: CanopenObject | undefined, bits: number): boolean {
+  if (object && toCanopenDataType(object.dataType)) return true
+  return UNKNOWN_TYPES[bits] !== undefined
+}
+
+/** The entries of PDO `number`'s default mapping that the master cannot read as one value, in mapping order. */
+export function unreadableDefaultMappings(
+  eds: CanopenEdsInfo,
+  direction: PdoDirection,
+  number: number,
+  nodeId: number,
+): UnreadableMapping[] {
+  const { map } = pdoObjectIndices(direction, number)
+  const out: UnreadableMapping[] = []
+  const count = defaultInt(eds, map, 0, nodeId) ?? 0
+  for (let k = 1; k <= count; k++) {
+    const value = defaultInt(eds, map, k, nodeId)
+    if (value === null || value === 0) continue
+    const index = (value >>> 16) & 0xffff
+    const subIndex = (value >>> 8) & 0xff
+    const bits = value & 0xff
+    if (isDummyEntry({ index, subIndex })) continue
+    const object = findObject(eds, index, subIndex)
+    if (bits === 0 || readableMapping(object, bits)) continue
+    out.push({ index, subIndex, bits, name: object?.name ?? 'Not in the device file' })
+  }
+  return out
+}
+
+/** Dummy objects (0x0007, 0x0006, 0x0005, 0x0001) that together take `bits`, largest first. */
+export function gapPieces(bits: number): number[] {
+  const out: number[] = []
+  let left = bits
+  for (const [dummy, size] of [
+    [7, 32],
+    [6, 16],
+    [5, 8],
+    [1, 1],
+  ] as const) {
+    while (left >= size) {
+      out.push(dummy)
+      left -= size
+    }
+  }
+  return out
+}
+
 /** PDO numbers the EDS defines in one direction (those with a communication parameter sub 1), ascending. */
 export function edsPdoNumbers(eds: CanopenEdsInfo, direction: PdoDirection): number[] {
   const out: number[] = []
@@ -394,6 +462,12 @@ export function edsPdo(
       continue
     }
     const unknownType = UNKNOWN_TYPES[value & 0xff]
+    if (!unknownType && fixedMapping) {
+      // The node sends it as mapped: its bits are skipped so later entries keep their offsets.
+      const name = `${object?.name ?? 'Not in the device file'} (${value & 0xff} bits, not readable)`
+      for (const dummy of gapPieces(value & 0xff)) pdo.entries.push({ ...gapEntry(dummy, newId()), name })
+      continue
+    }
     if (unknownType)
       pdo.entries.push({
         channelId: newId(),
@@ -523,9 +597,9 @@ export interface CreateNodeOptions {
 export function createCanopenNode(eds: CanopenEdsInfo, options: CreateNodeOptions): CanopenNode {
   const { nodeId, newId, allocate } = options
   const defaults = options.defaults ?? defaultNewNodeDefaults()
-  const wanted = defaults.supervision === 'auto' ? autoSupervision(eds) : defaults.supervision
+  const wanted = defaults.supervision === 'auto' ? autoSupervision(eds, nodeId) : defaults.supervision
   const supervision =
-    (wanted === 'heartbeat' && !canProduceHeartbeat(eds)) || (wanted === 'guarding' && !canBeGuarded(eds))
+    (wanted === 'heartbeat' && !sendsHeartbeat(eds, nodeId)) || (wanted === 'guarding' && !canBeGuarded(eds))
       ? 'none'
       : wanted
   return {
@@ -540,7 +614,10 @@ export function createCanopenNode(eds: CanopenEdsInfo, options: CreateNodeOption
     configure: true,
     restoreDefaults: 0,
     supervision,
-    heartbeatConsumerMs: consumerTimeFor(DEFAULT_HEARTBEAT_PRODUCER_MS, defaults.heartbeatTimeoutPercent),
+    heartbeatConsumerMs: consumerTimeFor(
+      canProduceHeartbeat(eds) ? DEFAULT_HEARTBEAT_PRODUCER_MS : fileHeartbeatMs(eds, nodeId),
+      defaults.heartbeatTimeoutPercent,
+    ),
     heartbeatProducerMs: DEFAULT_HEARTBEAT_PRODUCER_MS,
     guardTimeMs: edsDefault(eds, 0x100c, 0, nodeId) || DEFAULT_GUARD_TIME_MS,
     lifeTimeFactor: edsDefault(eds, 0x100d, 0, nodeId) || DEFAULT_LIFE_TIME_FACTOR,

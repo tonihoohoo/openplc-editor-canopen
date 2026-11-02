@@ -31,7 +31,9 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
    - **General**: name, node ID, **Optional node**, which identity values the master checks at boot
      (vendor ID and product code by default; the revision is off so newer firmware still boots),
      supervision (heartbeat with the node's producer time and the master's timeout, or node guarding
-     with guard time and life time factor), what the node's inputs do
+     with guard time and life time factor; when the file makes the producer time 0x1017 read-only,
+     the field shows the file's time, disabled, and the timeout is checked against it, and a time
+     of 0 there means the node sends no heartbeat), what the node's inputs do
      when it is lost, and the `%IB` that reads its NMT state. **Watch the master** is on for a node
      whose EDS has a writable 0x1016: the node then reacts when the master's heartbeat stops, for
      example when the runtime dies, by going pre-operational (or stopped, or nothing, through
@@ -108,14 +110,19 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
      `[DummyUsage]` (XDD `dummyUsage`), and the button is off without it. A gap has no address or
      alias. A default mapping keeps its dummy entries as gaps, and an entry for an object the file
      does not describe becomes a gap of its size with a warning, so the later entries keep their
-     offsets.
+     offsets. In a read-only default mapping, an object the master cannot read (a 24-bit value, for
+     example) becomes gaps of its length with a warning; in a writable one it is left out of the
+     mapping the master writes, also with a warning.
    - An RPDO whose event timer (`0x14xx:05`) the node has writable has a **Deadline (ms)**, 0 for
      none: the node reacts (CiA 301) when the PDO stops arriving. The master then sends that RPDO at
      least every half of the deadline, rounded down to the PLC cycle, also when no output changed;
      the field shows that period. A deadline shorter than two PLC cycles stops the build.
    - On the **Network** tab, a bit rate a node's EDS marks unsupported (`BaudRate_x=0`) is disabled
      and names the node.
-5. Give entries aliases and bind variables to them, as with other remote I/O.
+5. Give entries aliases and bind variables to them, as with other remote I/O. An entry keeps its
+   address when other entries, PDOs, nodes or devices are added, removed or moved: a new entry takes
+   the lowest free address, and a removed one leaves a hole. Only an entry whose address a hardware
+   pin takes moves. An address must lie inside the runtime's I/O image (index 1023 at most).
 
 Problems that would stop the build are listed at the top of the editor as they appear.
 

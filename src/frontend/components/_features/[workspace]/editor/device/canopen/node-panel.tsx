@@ -17,6 +17,7 @@ import type {
 } from '@root/middleware/shared/ports/canopen-types'
 import {
   canBeGuarded,
+  canProduceHeartbeat,
   canReceiveTime,
   canWatchMaster,
   consumerSlots,
@@ -269,6 +270,7 @@ const NodePanel = ({
   const freeSlots = consumerSlots(eds) - (canWatchMaster(eds) && node.watchMaster.enabled ? 1 : 0)
   const guarding = effectiveGuarding(node)
   const notWritten = 'From the device file: the master does not configure this node'
+  const heartbeatFromFile = 'From the device file: read-only there, so the master cannot set it'
   const noInit = node.configure ? null : 'Not with No initialization'
   const emcySupported = emcySupport(eds)
   const emcy = effectiveEmcy(node)
@@ -487,7 +489,9 @@ const NodePanel = ({
                       value={effectiveProducerMs(node)}
                       min={1}
                       max={65535}
-                      disabledReason={node.configure ? null : notWritten}
+                      disabledReason={
+                        !node.configure ? notWritten : canProduceHeartbeat(eds) ? null : heartbeatFromFile
+                      }
                       objectRef={heartbeatObject.ref}
                       hint={heartbeatObject.notWrittenReason ?? 'Written to the node at boot'}
                       onCommit={(heartbeatProducerMs) => onChange((n) => ({ ...n, heartbeatProducerMs }))}
