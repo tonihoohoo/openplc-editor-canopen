@@ -7,7 +7,7 @@
 import type { CanopenNode, CanopenPdo, CanopenSdo } from '../../ports/canopen-types'
 import type { PLCRemoteDevice } from '../../ports/types'
 import { checkCanopenNetwork, checkText, reservedCobId } from './check-fix'
-import { CANOPEN_BITRATES, canopenTypeBits, iecPrefixFor } from './data-types'
+import { CANOPEN_BITRATES, canopenTypeBits, iecPrefixFor, objectRef } from './data-types'
 import { findObject } from './eds-parser'
 import { pdoConfigured, watchesMaster } from './generate-canopen-config'
 import {
@@ -116,7 +116,7 @@ export function validateCanopenProject(
       if (watch) errors.push(`${label}: ${watch}`)
 
       for (const sdo of node.sdos) {
-        const where = `${label} startup SDO ${hex(sdo.index, 4)}:${sdo.subIndex}`
+        const where = `${label} startup SDO ${objectRef(sdo.index, sdo.subIndex)}`
         if (sdo.index === 0x1010) errors.push(`${where}: the master never writes 0x1010 (store parameters)`)
         else if (sdo.index === 0x1011)
           errors.push(`${where}: 0x1011 is written only by the node's "Restore defaults" setting`)

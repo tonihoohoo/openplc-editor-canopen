@@ -78,15 +78,17 @@ describe('validateCanopenProject', () => {
       { id: 'a', index: 0x1010, subIndex: 1, dataType: 'UNSIGNED32', value: '0x65766173' },
       { id: 'b', index: 0x2100, subIndex: 0, dataType: 'UNSIGNED8', value: '300' },
       { id: 'c', index: 0x1011, subIndex: 1, dataType: 'UNSIGNED32', value: '0x64616F6C' },
+      { id: 'd', index: 0x2101, subIndex: 10, dataType: 'UNSIGNED8', value: '256' },
     ]
     const errors = errorsOf(configWith(node))
     expect(errors).toContain(
-      'CANopen "net" node 2 (io2) startup SDO 0x1010:1: the master never writes 0x1010 (store parameters)',
+      'CANopen "net" node 2 (io2) startup SDO 0x1010:01: the master never writes 0x1010 (store parameters)',
     )
     expect(errors).toContain(
-      'CANopen "net" node 2 (io2) startup SDO 0x1011:1: 0x1011 is written only by the node\'s "Restore defaults" setting',
+      'CANopen "net" node 2 (io2) startup SDO 0x1011:01: 0x1011 is written only by the node\'s "Restore defaults" setting',
     )
-    expect(errors.some((e) => e.includes('0x2100:0: 300 is out of range'))).toBe(true)
+    expect(errors.some((e) => e.includes('0x2100:00: 300 is out of range'))).toBe(true)
+    expect(errors.some((e) => e.includes('startup SDO 0x2101:0A: 256 is out of range'))).toBe(true)
   })
 })
 
