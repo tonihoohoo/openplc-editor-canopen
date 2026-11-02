@@ -333,6 +333,12 @@ const PdoCard = ({
     isInput && pdo.exchanged ? receiveTimeoutWarning({ eds, nodeId, configure, onLoss }, pdo, syncPeriodUs) : null
 
   const sendPeriod = isInput ? null : rpdoSendPeriodMs(pdo, cycleUs)
+  // One line, so the header keeps its height when the exchange setting changes.
+  const summary = `${bits} of ${MAX_PDO_BITS} bits mapped · ${
+    pdo.exchanged
+      ? `entries are PLC ${isInput ? 'inputs (%I)' : 'outputs (%Q)'}`
+      : `configured on the node only${partners.length > 0 ? '' : ' (a PDO between two nodes)'}`
+  }`
   const addGap = (dummy: number) => {
     const entry = gapEntry(dummy, uuidv4())
     onChange({ ...pdo, entries: [...pdo.entries, entry] })
@@ -350,20 +356,17 @@ const PdoCard = ({
   return (
     <div className={cn(cardClassName, 'flex flex-col gap-3')} data-testid={`canopen-pdo-${direction}-${pdo.number}`}>
       <div className='flex items-start justify-between gap-2'>
-        <div className='flex flex-col'>
+        <div className='flex min-w-0 flex-1 flex-col'>
           <span className='text-xs font-semibold text-neutral-1000 dark:text-neutral-100'>{title}</span>
-          <span className={hintClassName} data-testid={`canopen-pdo-summary-${direction}-${pdo.number}`}>
-            {bits} of {MAX_PDO_BITS} bits mapped ·{' '}
-            {pdo.exchanged
-              ? isInput
-                ? 'entries are PLC inputs (%I)'
-                : 'entries are PLC outputs (%Q)'
-              : partners.length > 0
-                ? 'configured on the node only'
-                : 'configured on the node only (a PDO between two nodes)'}
+          <span
+            className={cn(hintClassName, 'truncate')}
+            title={summary}
+            data-testid={`canopen-pdo-summary-${direction}-${pdo.number}`}
+          >
+            {summary}
           </span>
         </div>
-        <div ref={exchangeBox} className='flex items-start gap-3'>
+        <div ref={exchangeBox} className='flex shrink-0 items-start gap-3'>
           <CheckboxField
             label='Exchanged by the master'
             checked={pdo.exchanged}
