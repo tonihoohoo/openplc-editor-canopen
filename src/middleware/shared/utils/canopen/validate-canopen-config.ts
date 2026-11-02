@@ -138,7 +138,15 @@ export function jumpTargetProblem(node: CanopenNode, sdo: CanopenSdo): string | 
   const to = node.sdos.findIndex((s) => s.id === sdo.jumpTo)
   if (to < 0) return 'the line it jumps to when refused is gone; pick another'
   if (to <= from) return 'it can jump only to a later line'
+  if (to === from + 1) return `line ${to + 1} is the next line; use Continue`
   return null
+}
+
+/** The lines a startup SDO may jump to when refused: those at least two after it (1-based line numbers). */
+export function jumpTargets(node: CanopenNode, sdo: CanopenSdo): Array<{ sdo: CanopenSdo; line: number }> {
+  const from = node.sdos.findIndex((s) => s.id === sdo.id)
+  if (from < 0) return []
+  return node.sdos.slice(from + 2).map((s, k) => ({ sdo: s, line: from + 3 + k }))
 }
 
 /** Why the node's "Watch the master" setting cannot work with this master heartbeat, or null. */

@@ -45,11 +45,12 @@ import {
   type ValueDisplay,
   valueMeaning,
 } from '@root/middleware/shared/utils/canopen'
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 
 import { ObjectDetails, StandardMark } from './object-details'
 import { StatusDot } from './status-view'
 import { cardClassName, headingClassName, hintClassName, inputClassName, secondaryButtonClassName } from './styles'
+import { useElementWidth } from './use-element-width'
 
 /** Abort 0x08000022: the node does not take the write in its present state. */
 const ABORT_DEVICE_STATE = 0x08000022
@@ -109,22 +110,6 @@ export const ConfirmBar = ({ confirm, onClose }: { confirm: ConfirmRequest | nul
       </button>
     </div>
   ) : null
-
-/** The width of an element, kept up to date while it is mounted; 0 before the first measure. */
-function useElementWidth<T extends HTMLElement>(): [(el: T | null) => void, number] {
-  const [width, setWidth] = useState(0)
-  const observer = useRef<ResizeObserver | null>(null)
-  const ref = useCallback((el: T | null) => {
-    observer.current?.disconnect()
-    observer.current = null
-    if (!el) return
-    setWidth(el.getBoundingClientRect().width)
-    if (typeof ResizeObserver === 'undefined') return
-    observer.current = new ResizeObserver((entries) => setWidth(entries[0]?.contentRect.width ?? 0))
-    observer.current.observe(el)
-  }, [])
-  return [ref, width]
-}
 
 /** Below this width left for Name, Type and Access move under the name to keep it readable. */
 const MIN_NAME_PX = 220

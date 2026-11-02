@@ -78,13 +78,29 @@ test('refusal policies, text and byte values, a gap and a deadline reach conf/ca
     await addSdo(page, 'station')
     await addSdo(page, 'block')
     const rows = page.getByTestId('canopen-sdo-row')
+    const refusalHeader = page
+      .locator('table')
+      .filter({ has: rows.first() })
+      .locator('th', { hasText: /^If refused$/ })
     await expect(rows).toHaveCount(3)
     await rows.nth(1).getByLabel('Value').fill('Line 3')
     await rows.nth(1).getByLabel('Value').press('Enter')
     await rows.nth(2).getByLabel('Value').fill('01 02 A0')
     await rows.nth(2).getByLabel('Value').press('Enter')
-    await rows.nth(0).getByLabel('If 0x2100:00 is refused').selectOption('jump')
-    await rows.nth(0).getByLabel('Line 0x2100:00 jumps to').selectOption({ label: 'Line 3: 0x2400:00' })
+    // 1280x720 is the narrow layout: the choice opens from the row's button.
+    await expect(refusalHeader).toHaveCount(0)
+    await rows.nth(0).getByRole('button', { name: 'If 0x2100:00 is refused' }).click()
+    await page.getByRole('radio', { name: /Jump to a later line/ }).check()
+    await expect(page.getByLabel('Line 0x2100:00 jumps to').locator('option:checked')).toHaveText('Line 3: 0x2400:00')
+    await expect(page.getByText('Skips line 2')).toBeVisible()
+    await keyView(page, 'boot-refusal-popover')
+    await page.keyboard.press('Escape')
+    await rows.nth(1).getByRole('button', { name: 'If 0x2300:00 is refused' }).click()
+    await page.getByRole('radio', { name: /Continue/ }).check()
+    await page.keyboard.press('Escape')
+    await expect(rows.nth(0).getByRole('button', { name: 'If refused: jump to line 3' })).toBeVisible()
+    await expect(rows.nth(1).getByRole('button', { name: 'If refused: continue' })).toBeVisible()
+    await expect(rows.nth(2).getByText(/If refused:/)).toHaveCount(0)
     await page.getByRole('button', { name: /Written at boot/ }).click()
     await expect(page.getByTestId('canopen-boot-write').filter({ hasText: 'Jump to SDO line 3' })).toBeVisible()
     await expect(page.getByTestId('canopen-boot-write').filter({ hasText: '"Line 3"' })).toBeVisible()
@@ -93,6 +109,17 @@ test('refusal policies, text and byte values, a gap and a deadline reach conf/ca
     await keyView(page, 'boot-startup-sdos')
     await page.getByTestId('canopen-boot-writes').evaluate((e) => e.scrollIntoView({ block: 'start' }))
     await keyView(page, 'boot-writes')
+
+    // A wide window gives the choice its own column, one row per startup SDO.
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1920, 1080)))
+    await expect(refusalHeader).toBeVisible({ timeout: 15000 })
+    await expect(rows.nth(0).getByLabel('If 0x2100:00 is refused').locator('option:checked')).toHaveText(
+      'Jump to line 3 (0x2400:00)',
+    )
+    await expect(rows.nth(1).getByLabel('If 0x2300:00 is refused')).toHaveValue('continue')
+    await rows.nth(0).evaluate((e) => e.scrollIntoView({ block: 'center' }))
+    await keyView(page, 'boot-refusal-column')
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => w.setSize(1280, 720)))
     await page
       .getByTestId('canopen-boot-write')
       .filter({ hasText: '0x2300:00' })
@@ -122,6 +149,7 @@ test('refusal policies, text and byte values, a gap and a deadline reach conf/ca
         { index: 0x2400, subindex: 0, data: '0102A0' },
       ]),
     )
+    expect(node.sdo.find((s) => s.index === 0x2300)?.on_abort).toBe('continue')
     const jump = node.sdo.findIndex((s) => s.index === 0x2100)
     const target = node.sdo.findIndex((s) => s.index === 0x2400)
     expect(node.sdo[jump]).toMatchObject({ on_abort: 'jump', jump_to: target })

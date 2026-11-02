@@ -5,7 +5,7 @@ import { parseEds } from '../eds-parser'
 import { generateCanopenConfig, nodeBootWrites, rpdoSendPeriodMs } from '../generate-canopen-config'
 import { createCanopenNode, defaultCanopenConfig, gapEntry, isGapEntry } from '../model'
 import { encodeCanopenValue, toHex } from '../sdo-value'
-import { jumpTargetProblem, validateCanopenProject } from '../validate-canopen-config'
+import { jumpTargetProblem, jumpTargets, validateCanopenProject } from '../validate-canopen-config'
 import { canopenDevice, GENERIC_IO_EDS, genericNode, sequentialAllocator } from './fixtures/helpers'
 
 /** The generic module with TPDO 1 mapping `second` between its two inputs. */
@@ -150,6 +150,19 @@ describe('refusal policies', () => {
     expect(jumpTargetProblem(node, node.sdos[0])).toBeNull()
     const errors = validateCanopenProject([canopenDevice('CANopen_1', { ...defaultCanopenConfig(), nodes: [node] })])
     expect(errors.filter((e) => e.includes('jump'))).toHaveLength(2)
+  })
+
+  it('refuses a jump to the next line and offers only lines at least two ahead', () => {
+    const node = genericNode(2)
+    node.sdos = [sdo('a', 1, { onAbort: 'jump', jumpTo: 'b' }), sdo('b', 2), sdo('c', 3), sdo('d', 4)]
+    expect(jumpTargetProblem(node, node.sdos[0])).toBe('line 2 is the next line; use Continue')
+    expect(jumpTargets(node, node.sdos[0]).map((t) => [t.sdo.id, t.line])).toEqual([
+      ['c', 3],
+      ['d', 4],
+    ])
+    expect(jumpTargets(node, node.sdos[2])).toEqual([])
+    node.sdos[0] = { ...node.sdos[0], jumpTo: 'c' }
+    expect(jumpTargetProblem(node, node.sdos[0])).toBeNull()
   })
 })
 
