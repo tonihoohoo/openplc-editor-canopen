@@ -3,7 +3,10 @@
 # filesystem cache in node_modules/.cache/webpack. Release packaging keeps `npm run build`.
 set -euo pipefail
 
-flags='--no-optimization-minimize --no-devtool --cache-type filesystem'
+cache=node_modules/.cache/webpack
+echo "webpack cache before: $(du -sh "$cache"/* 2>/dev/null | tr '\n' ' ')"
+flags='--no-optimization-minimize --no-devtool --cache-type filesystem --infrastructure-logging-level verbose'
 npx concurrently --kill-others-on-fail --names main,renderer \
     "npm run build:main -- $flags --cache-name main" \
     "npm run build:renderer -- $flags --cache-name renderer"
+echo "webpack cache after: $(du -sh "$cache"/* | tr '\n' ' ')"
