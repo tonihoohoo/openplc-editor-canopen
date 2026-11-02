@@ -58,6 +58,7 @@ jobs:
 
   format:
     needs: [changes, architecture, build-check, lint]
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/ci-format.yml
     with:
       docs_only: ${{ needs.changes.outputs.docs_only == 'true' }}
