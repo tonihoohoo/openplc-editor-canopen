@@ -35,6 +35,7 @@ Editor:
 - "Remove empty parameters" quick fix for calls: [docs/st-calls.md](docs/st-calls.md#remove-empty-parameters)
 - A function block dragged from the library into ST gets its outputs too: [docs/st-calls.md](docs/st-calls.md#library-drop)
 - Documentation in ST hovers and in the suggestion details: [docs/st-calls.md](docs/st-calls.md#documentation-in-st)
+- Language server suggestions show their own icons (upstream showed most with the wrong icon): [docs/st-calls.md](docs/st-calls.md#suggestion-icons)
 
 Releases:
 

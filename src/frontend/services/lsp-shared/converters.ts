@@ -11,10 +11,9 @@
  *     are 0-indexed.
  *   - Monaco's `IRange` uses `start{Line,Column}` + `end{Line,Column}`;
  *     LSP's `Range` uses `{start,end}.{line,character}`.
- *   - Monaco's `CompletionItemKind` is its own enum; LSP's is the
- *     standard `CompletionItemKind`.  Identical ordering for the
- *     subset language services typically surface, so a direct cast
- *     suffices.
+ *   - Monaco's `CompletionItemKind` is its own enum, in a different
+ *     order from LSP's 1-based `CompletionItemKind`, so kinds go
+ *     through a lookup table.
  *
  * All converters are total — invalid inputs surface as a defaulted
  * sentinel rather than a thrown error, so a single malformed LSP
@@ -126,12 +125,47 @@ function lspSeverityToMonaco(
 // Completion
 // ---------------------------------------------------------------------------
 
-/**
- * LSP and Monaco use parallel `CompletionItemKind` enums.  Identical
- * for the kinds language services typically surface (keywords,
- * variables, functions, properties, fields).  Direct cast — the
- * values map 1:1 by spec.
- */
+type MonacoCompletionKindName = keyof typeof monaco.languages.CompletionItemKind
+
+/** Monaco's `CompletionItemKind` name for each LSP `CompletionItemKind` (index = LSP value). */
+const LSP_COMPLETION_KIND_NAMES: readonly MonacoCompletionKindName[] = [
+  'Text',
+  'Text',
+  'Method',
+  'Function',
+  'Constructor',
+  'Field',
+  'Variable',
+  'Class',
+  'Interface',
+  'Module',
+  'Property',
+  'Unit',
+  'Value',
+  'Enum',
+  'Keyword',
+  'Snippet',
+  'Color',
+  'File',
+  'Reference',
+  'Folder',
+  'EnumMember',
+  'Constant',
+  'Struct',
+  'Event',
+  'Operator',
+  'TypeParameter',
+]
+
+/** Monaco's completion kind for an LSP completion kind; Text when missing or unknown. */
+export function lspCompletionKindToMonaco(
+  kind: number | undefined,
+  monacoApi: typeof monaco,
+): monaco.languages.CompletionItemKind {
+  const name = (kind !== undefined ? LSP_COMPLETION_KIND_NAMES[kind] : undefined) ?? 'Text'
+  return monacoApi.languages.CompletionItemKind[name]
+}
+
 export function lspCompletionToMonaco(
   item: LspCompletionItem,
   defaultRange: monaco.IRange,
@@ -154,7 +188,7 @@ export function lspCompletionToMonaco(
 
   return {
     label: item.label,
-    kind: (item.kind ?? 1) as monaco.languages.CompletionItemKind,
+    kind: lspCompletionKindToMonaco(item.kind, monacoApi),
     insertText,
     insertTextRules,
     range,

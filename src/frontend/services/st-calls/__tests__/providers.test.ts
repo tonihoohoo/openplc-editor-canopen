@@ -36,7 +36,7 @@ const disposable = { dispose: jest.fn() }
 const fakeMonaco = {
   Range: FakeRange,
   languages: {
-    CompletionItemKind: { Field: 3, Function: 1 },
+    CompletionItemKind: { Variable: 4, Function: 1 },
     CompletionItemInsertTextRule: { InsertAsSnippet: 4 },
     registerCompletionItemProvider: jest.fn(() => disposable),
     registerCodeActionProvider: jest.fn(() => disposable),
@@ -106,7 +106,7 @@ describe('completion provider', () => {
       suggestions: Monaco.languages.CompletionItem[]
     }
     const pt = result.suggestions.find((item) => typeof item.label !== 'string' && item.label.label === 'PT :=')
-    expect(pt).toMatchObject({ label: { detail: ' TIME', description: 'IN' }, kind: 3, insertTextRules: 4 })
+    expect(pt).toMatchObject({ label: { detail: ' TIME', description: 'IN' }, kind: 4, insertTextRules: 4 })
     expect(pt?.range).toEqual(new FakeRange(2, 8, 2, 8))
     expect(result.suggestions[0]).toMatchObject({ preselect: true, kind: 1 })
     expect(provider.triggerCharacters).toEqual(['(', ','])

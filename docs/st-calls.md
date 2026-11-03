@@ -67,6 +67,16 @@ The suggestion list offers calls next to the language server's own suggestions:
 
 Members of nested instances (`outer.inner(`), methods and Instruction List are not covered.
 
+## Suggestion icons
+
+Call items and groups use the function icon, since they write a call; single parameters use the
+variable icon, the same one the language server shows for `timer1.IN`.
+
+The language server's own suggestions (ST and Python) now show the icon of their kind: a variable
+as a variable, a function as a function, a type as a type. Upstream passed the language server's
+kind number to Monaco unchanged, and the two number the kinds in different orders, so a variable
+showed as a structure and a function as a field.
+
 ## Remove empty parameters
 
 On a call with parameters left without a value (`Q => ,`, or an empty unnamed value as in
