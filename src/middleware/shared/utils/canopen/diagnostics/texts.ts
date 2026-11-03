@@ -210,7 +210,9 @@ export function eventText(event: CanopenEvent): string {
   const pdo = `TPDO ${event.pdo ?? 0}${event.cob_id !== undefined ? ` (COB-ID ${hex(event.cob_id, 3)})` : ''}`
   switch (event.kind) {
     case 'boot_ok':
-      return 'Boot finished, the node is operational.'
+      return event.waits
+        ? 'Boot finished, the node waits for the PLC program to start it.'
+        : 'Boot finished, the node is operational.'
     case 'boot_failed':
       if (!event.problem) return 'Boot failed.'
       // The stack's own reason already starts with "The boot failed".
@@ -251,8 +253,12 @@ export function eventText(event: CanopenEvent): string {
         ? `Online write to ${object} refused: ${sdoAbortText(code)} (${hex(code, 8)}).`
         : `Online write to ${object} failed.`
     }
-    case 'nmt_command':
-      return `NMT ${nmtCommandLabel(event.command ?? 'start').toLowerCase()} sent from the online tools.`
+    case 'nmt_command': {
+      const command = nmtCommandLabel(event.command ?? 'start').toLowerCase()
+      return event.source === 'program'
+        ? `NMT ${command} sent by the PLC program.`
+        : `NMT ${command} sent from the online tools.`
+    }
     case 'service':
       return event.open ? 'Service mode opened.' : 'Service mode closed.'
     case 'node_on':

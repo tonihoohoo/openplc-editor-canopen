@@ -134,8 +134,12 @@ export const CanopenEventSchema = z.object({
   subindex: count.optional(),
   ok: z.boolean().optional(),
   abort_code: count.optional(),
-  /** nmt_command: the command a client sent. */
+  /** nmt_command: the command sent. */
   command: z.enum(['start', 'stop', 'pre_operational', 'reset_node', 'reset_communication']).optional(),
+  /** nmt_command: who sent it; older runtimes send none (a client). */
+  source: z.enum(['client', 'program']).optional(),
+  /** boot_ok: the node waits for the PLC program's start. */
+  waits: z.boolean().optional(),
   /** service: opened (true) or closed. */
   open: z.boolean().optional(),
   /** sdo_abort: what the boot did; absent from runtimes before refusal policies. */
