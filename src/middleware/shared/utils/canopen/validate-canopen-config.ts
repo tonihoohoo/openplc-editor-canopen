@@ -101,6 +101,8 @@ export function validateCanopenProject(
               errors.push(`${where}: ${e.name} needs a ${prefix} address, has "${e.iecLocation}"`)
               continue
             }
+            const outside = outsideImage(e.iecLocation)
+            if (outside) errors.push(`${where}: ${e.name} at ${e.iecLocation} ${outside}`)
             if (direction === 'input') {
               const owner = inputs.get(e.iecLocation)
               if (owner) errors.push(`${where}: ${e.iecLocation} is also written by ${owner}`)
@@ -109,6 +111,8 @@ export function validateCanopenProject(
           }
         }
       }
+      const stateOutside = node.state.iecLocation ? outsideImage(node.state.iecLocation) : null
+      if (stateOutside) errors.push(`${label}: the state location ${node.state.iecLocation} ${stateOutside}`)
       checkPdos(node.tpdos, 'input')
       checkPdos(node.rpdos, 'output')
 
@@ -129,6 +133,18 @@ export function validateCanopenProject(
     }
   }
   return errors
+}
+
+/** Entries per table of the runtime's I/O image (%IX bytes, %IB, %IW, %ID and %IL alike, and the outputs). */
+export const RUNTIME_IMAGE_SIZE = 1024
+
+/** Why an address lies outside the runtime's I/O image, or null when it is inside. */
+export function outsideImage(location: string): string | null {
+  const match = /^%[IQ][XBWDL](\d+)/i.exec(location)
+  if (!match) return null
+  return Number(match[1]) >= RUNTIME_IMAGE_SIZE
+    ? `lies outside the runtime's I/O image (index ${RUNTIME_IMAGE_SIZE - 1} at most)`
+    : null
 }
 
 /** Why a startup SDO's "jump to" target cannot be used, or null (also null without a jump). */

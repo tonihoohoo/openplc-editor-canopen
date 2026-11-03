@@ -152,3 +152,19 @@ describe('canopenSdoWarnings', () => {
     expect(canopenSdoWarnings(canopenDevice('net', configWith(node)))).toEqual([])
   })
 })
+
+describe('addresses inside the runtime I/O image', () => {
+  it('stops the build for an entry or a state location past index 1023', () => {
+    const node = genericNode(2)
+    node.tpdos[0].entries[0].iecLocation = '%IB1024'
+    node.state.iecLocation = '%IB2000'
+    const errors = errorsOf(configWith(node))
+    expect(errors.some((e) => e.includes('TPDO 1') && e.includes('%IB1024') && e.includes("runtime's I/O image"))).toBe(
+      true,
+    )
+    expect(errors.some((e) => e.includes('state location %IB2000'))).toBe(true)
+    node.tpdos[0].entries[0].iecLocation = '%IB1023'
+    node.state.iecLocation = '%IB1022'
+    expect(errorsOf(configWith(node))).toEqual([])
+  })
+})

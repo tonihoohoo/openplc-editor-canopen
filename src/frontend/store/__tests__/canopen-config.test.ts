@@ -131,4 +131,54 @@ describe('CANopen device in the project store', () => {
     store.getState().projectActions.updateCanopenConfig('CANopen_1', renamed)
     expect(store.getState().project.data.configurations.resource.globalVariables[0].location).toBe('lamp1')
   })
+
+  describe('stable addresses', () => {
+    const inputs = (store: OpenPLCStore, nodeIndex: number) => {
+      const node = configOf(store)?.nodes[nodeIndex]
+      return node ? canopenPoolEntries(node).map((e) => [e.channelId, e.iecLocation]) : []
+    }
+    const twoNodes = () => {
+      store.getState().projectActions.createRemoteDevice({ data: { name: 'CANopen_1', protocol: 'canopen' } })
+      const a = genericNode(2, placeholderAddress)
+      const b = { ...genericNode(3, placeholderAddress), id: 'node-3b' }
+      store.getState().projectActions.updateCanopenConfig('CANopen_1', configWith(a, b))
+    }
+
+    it('keeps the addresses of later nodes when an entry is added to an earlier one', () => {
+      twoNodes()
+      const before = inputs(store, 1)
+      const config = configOf(store)
+      if (!config) throw new Error('no config')
+      const first = config.nodes[0]
+      const extra = { ...first.tpdos[0].entries[0], channelId: 'extra', iecLocation: placeholderAddress('%IB', false) }
+      const grown = { ...first, tpdos: [{ ...first.tpdos[0], entries: [...first.tpdos[0].entries, extra] }] }
+      store.getState().projectActions.updateCanopenConfig('CANopen_1', { ...config, nodes: [grown, config.nodes[1]] })
+      expect(inputs(store, 1)).toEqual(before)
+      const used = [...inputs(store, 0), ...inputs(store, 1)].map(([, l]) => l)
+      expect(new Set(used).size).toBe(used.length)
+      expect(inputs(store, 0).find(([id]) => id === 'extra')?.[1]).toBe('%IB4')
+    })
+
+    it('frees an address without moving the others when an entry is removed', () => {
+      twoNodes()
+      const before = inputs(store, 1)
+      const config = configOf(store)
+      if (!config) throw new Error('no config')
+      const first = config.nodes[0]
+      const freed = first.tpdos[0].entries[0].iecLocation
+      const shrunk = { ...first, tpdos: [{ ...first.tpdos[0], entries: first.tpdos[0].entries.slice(1) }] }
+      store.getState().projectActions.updateCanopenConfig('CANopen_1', { ...config, nodes: [shrunk, config.nodes[1]] })
+      expect(inputs(store, 1)).toEqual(before)
+      const again = configOf(store)
+      if (!again) throw new Error('no config')
+      const extra = { ...first.tpdos[0].entries[0], channelId: 'again', iecLocation: placeholderAddress('%IB', false) }
+      const regrown = {
+        ...again.nodes[0],
+        tpdos: [{ ...again.nodes[0].tpdos[0], entries: [extra, ...again.nodes[0].tpdos[0].entries] }],
+      }
+      store.getState().projectActions.updateCanopenConfig('CANopen_1', { ...again, nodes: [regrown, again.nodes[1]] })
+      expect(inputs(store, 0).find(([id]) => id === 'again')?.[1]).toBe(freed)
+      expect(inputs(store, 1)).toEqual(before)
+    })
+  })
 })

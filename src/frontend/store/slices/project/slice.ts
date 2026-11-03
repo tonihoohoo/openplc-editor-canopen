@@ -12,7 +12,12 @@ import type {
   S7CommPlcIdentity,
   S7CommServerSettings,
 } from '../../../../middleware/shared/ports/types'
-import { defaultCanopenConfig, nodeEntries as canopenNodeEntries } from '../../../../middleware/shared/utils/canopen'
+import {
+  addressNewCanopenEntries,
+  defaultCanopenConfig,
+  keepCanopenAddresses,
+  nodeEntries as canopenNodeEntries,
+} from '../../../../middleware/shared/utils/canopen'
 import {
   type AddressPool,
   buildAddressPool,
@@ -305,6 +310,9 @@ type ProjectGetState = () => ProjectSliceRoot
  *  own commit. */
 const ALLOCATED_KINDS: ReadonlySet<string> = new Set(['vpp-io', 'modbus-tcp-remote', 'ethercat', 'canopen'])
 
+/** Kinds whose addresses are packed again on each recalculation; CANopen entries keep theirs. */
+const PACKED_KINDS: ReadonlySet<string> = new Set([...ALLOCATED_KINDS].filter((kind) => kind !== 'canopen'))
+
 /** IO-mapping (VPP) entry shape the recalc reads/writes. */
 type VppMappingEntry = {
   iecAddress: string
@@ -469,7 +477,7 @@ function buildIecRegistry(live: ProjectSliceRoot): IecAddressRegistry {
   })
   const restored = restoreAliasesFromMemory(seeded, live.iecAliasMemory ?? {})
   const activeKinds = activeKindsForAllocation(live)
-  const unpinned = unpinAllocatableChannels(restored, ALLOCATED_KINDS)
+  const unpinned = keepCanopenAddresses(unpinAllocatableChannels(restored, PACKED_KINDS))
   return recalculateRegistry(unpinned, activeKinds ? { activeKinds } : {}).registry
 }
 
@@ -2810,6 +2818,7 @@ const createProjectSlice: StateCreator<ProjectSliceRoot, [], [], ProjectSlice> =
         }
       }
 
+      const pool = buildModbusProducerPool(getState())
       let response = ok()
       setState(
         produce((slice: ProjectSlice) => {
@@ -2822,7 +2831,7 @@ const createProjectSlice: StateCreator<ProjectSliceRoot, [], [], ProjectSlice> =
             response = { ok: false, message: 'Device is not a CANopen device' }
             return
           }
-          device.canopenConfig = canopenConfig
+          device.canopenConfig = addressNewCanopenEntries(prevDevice?.canopenConfig, canopenConfig, pool)
         }),
       )
       if (response.ok) {

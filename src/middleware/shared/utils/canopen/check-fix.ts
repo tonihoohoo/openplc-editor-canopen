@@ -12,6 +12,7 @@ import { changeOnlyTimeoutText, timeoutOnChangeOnlyPdo } from './editing'
 import { pdoConfigured, pdoExchanged, watchesMaster } from './generate-canopen-config'
 import {
   canBeGuarded,
+  canProduceHeartbeat,
   consumerSlots,
   consumerTimeFor,
   effectiveEmcy,
@@ -21,6 +22,7 @@ import {
   isGapEntry,
   type PdoDirection,
   restoreChoices,
+  unreadableDefaultMappings,
   updateNode,
   updatePdo,
   writesEventTimer,
@@ -310,7 +312,7 @@ function checkCycle(config: CanopenConfig, cycleUs: number, out: CanopenCheck[])
     )
   for (const node of nodes) {
     if (!node.configure) continue
-    if (node.supervision === 'heartbeat' && off(node.heartbeatProducerMs))
+    if (node.supervision === 'heartbeat' && canProduceHeartbeat(node.eds) && off(node.heartbeatProducerMs))
       warn(label(node), 'the heartbeat time', node.heartbeatProducerMs, node.id, (ms) =>
         setNode(node.id, (n) => ({ ...n, heartbeatProducerMs: ms })),
       )
@@ -340,9 +342,22 @@ function checkHeartbeats(config: CanopenConfig, out: CanopenCheck[]): void {
           level: 'error',
           nodeId: node.id,
           where: label(node),
-          text: node.configure
-            ? 'is supervised by heartbeat with a heartbeat time of 0'
-            : 'is supervised by heartbeat, but its file default heartbeat time is 0 and the master does not set it',
+          text:
+            node.configure && canProduceHeartbeat(node.eds)
+              ? 'is supervised by heartbeat with a heartbeat time of 0'
+              : node.configure
+                ? 'is supervised by heartbeat, but its file default heartbeat time is 0 and the master cannot set it, so it sends no heartbeat'
+                : 'is supervised by heartbeat, but its file default heartbeat time is 0 and the master does not set it',
+          ...(node.configure && !canProduceHeartbeat(node.eds)
+            ? {
+                fix: canBeGuarded(node.eds)
+                  ? {
+                      label: 'Use node guarding',
+                      apply: setNode(node.id, (n) => ({ ...n, supervision: 'guarding' })),
+                    }
+                  : { label: 'Turn supervision off', apply: setNode(node.id, (n) => ({ ...n, supervision: 'none' })) },
+              }
+            : {}),
         })
       else if (node.heartbeatConsumerMs <= producer) {
         const to = longer(producer)
@@ -532,6 +547,17 @@ function checkGaps(config: CanopenConfig, out: CanopenCheck[]): void {
             nodeId: node.id,
             where: `${label(node)} ${direction === 'input' ? 'TPDO' : 'RPDO'} ${pdo.number}`,
             text: `maps ${objectRef(e.index, e.subIndex)}, which the device file does not describe; it is kept as a gap of ${canopenTypeBits(e.dataType)} bits`,
+          })
+        }
+        for (const u of unreadableDefaultMappings(node.eds, direction, pdo.number, node.nodeId)) {
+          const what = `${objectRef(u.index, u.subIndex)} (${u.name}, ${u.bits} bits)`
+          out.push({
+            level: 'warning',
+            nodeId: node.id,
+            where: `${label(node)} ${direction === 'input' ? 'TPDO' : 'RPDO'} ${pdo.number}`,
+            text: pdo.fixedMapping
+              ? `maps ${what}, which the master cannot read; its bits are kept as gaps`
+              : `has ${what} in its default mapping, which the master cannot read; it is left out of the mapping the master writes`,
           })
         }
       }

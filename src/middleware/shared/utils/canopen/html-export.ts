@@ -18,7 +18,7 @@ import type { DeviceFileExport } from './dcf-export'
 import { objectLabel } from './editing'
 import { findObject } from './eds-parser'
 import { type BootWrite, nodeBootWrites } from './generate-canopen-config'
-import { effectiveEmcy, isDummyEntry, pdoBits, restoreChoiceName } from './model'
+import { effectiveEmcy, effectiveProducerMs, isDummyEntry, pdoBits, restoreChoiceName } from './model'
 import { describeValue, pdoMappingMeaning } from './object-info'
 
 /** The sections in the order the dialog shows them, with their labels and how a left-out one is listed. */
@@ -307,7 +307,7 @@ function nodeSection(input: HtmlExportInput, node: CanopenNode): string {
   const emcy = effectiveEmcy(node)
   const supervision =
     node.supervision === 'heartbeat'
-      ? `heartbeat: the node sends every ${node.heartbeatProducerMs} ms, the master times out after ${node.heartbeatConsumerMs} ms`
+      ? `heartbeat: the node sends every ${effectiveProducerMs(node)} ms, the master times out after ${node.heartbeatConsumerMs} ms`
       : node.supervision === 'guarding'
         ? `node guarding: every ${node.guardTimeMs} ms, life time factor ${node.lifeTimeFactor}`
         : 'none'
@@ -519,7 +519,7 @@ export function canIdRows(network: CanopenNetworkSettings, nodes: readonly Canop
         frame: 'Heartbeat',
         from: name,
         to: 'master',
-        when: `every ${n.heartbeatProducerMs} ms`,
+        when: `every ${effectiveProducerMs(n)} ms`,
         sender: name,
       })
     if (n.supervision === 'guarding')
