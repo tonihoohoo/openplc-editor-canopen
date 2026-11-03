@@ -10,7 +10,7 @@
 // dlopen, dlsym and dlclose are declared here as glibc declares them.
 //
 // Derived from canworks ec7fd59, library/src/common.inc (Apache-2.0), adapted to the plugin's
-// interface version 1 (core/src/drivers/plugins/native/canopen/plc_api.h in the runtime fork).
+// interface version 2 (core/src/drivers/plugins/native/canopen/plc_api.h in the runtime fork).
 #ifndef CANOPEN_FB_SHARED_INCLUDED
 #define CANOPEN_FB_SHARED_INCLUDED
 #if defined(__linux__)
@@ -21,7 +21,8 @@ extern "C" int dlclose(void *handle) noexcept(true);
 
 namespace canopen_fb {
 
-// A copy of the plugin's C interface, version 1 with the flags field; keep in step with plc_api.h.
+// A copy of the plugin's C interface, version 2; keep in step with plc_api.h. Version 1 is asked
+// for, since a version 2 plugin answers it with its version 2 table; `size` tells which it is.
 const uint32_t api_version = 1;
 const uint32_t max_data = 256;
 enum {
@@ -32,7 +33,8 @@ enum {
 enum {
   r_none = 0, r_booting = 1, r_full = 2, r_not_run = 3, r_restart = 4, r_link = 5,
   r_too_large = 6, r_length = 7, r_command = 8, r_version = 9,
-  r_not_in_eds = 100  // the blocks' own: DATALENGTH 0 for an object the EDS does not list
+  r_not_in_eds = 100,  // the blocks' own: DATALENGTH 0 for an object the EDS does not list
+  r_needs_v2 = 101     // the blocks' own: the plugin's table has no version 2 functions
 };
 enum { k_read = 0, k_write = 1, k_nmt = 2 };
 struct request {
@@ -77,6 +79,33 @@ struct api_v1 {
 };
 // flags: the plugin is never unmapped, so its table stays valid for the life of the process.
 const uint32_t flag_permanent = 0x1;
+// node_info::flags
+const uint8_t node_enabled = 0x01;
+const uint8_t node_optional = 0x02;
+const uint8_t node_program_start = 0x04;
+const uint32_t status_text = 80;
+struct node_info {
+  uint8_t run_state;
+  uint8_t flags;
+  uint8_t reserved[2];
+  char problem[status_text];
+};
+struct network_info {
+  uint8_t mandatory_up;
+  uint8_t optional_up;
+  uint8_t configured;
+  uint8_t operational;
+  uint8_t waiting;
+  uint8_t disabled;
+  uint8_t faulty;
+  uint8_t nodes;
+};
+struct api_v2 {
+  api_v1 v1;
+  int (*node_status)(uint8_t network, uint8_t node, node_info *out);
+  int (*network_status)(uint8_t network, network_info *out);
+  int (*node_enable)(uint8_t network, uint8_t node, uint8_t on);
+};
 // After a lookup that found no plugin, this many lookups are skipped before the next one.
 const uint32_t miss_skip = 1024;
 
@@ -131,6 +160,17 @@ inline const api_v1 *api(uint8_t &why) {
   }
   if (api_is_permanent(t)) __atomic_store_n(&kept, t, __ATOMIC_RELEASE);
   return t;
+}
+
+// The table with the version 2 functions, or null with `why` set (r_needs_v2 for an older plugin).
+inline const api_v2 *api2(uint8_t &why) {
+  const api_v1 *t = api(why);
+  if (!t) return nullptr;
+  if (t->version < 2 || t->size < sizeof(api_v2)) {
+    why = r_needs_v2;
+    return nullptr;
+  }
+  return static_cast<const api_v2 *>(static_cast<const void *>(t));
 }
 
 // ---- Error text, written into a fixed buffer (no allocation, no libc). ----
@@ -330,6 +370,8 @@ inline uint32_t describe(text &t, const what &w, const result &r) {
         put(t, "request cancelled by the PLC stop");
       else if (r.reason == r_version)
         put(t, "the CANopen plugin does not offer the blocks' interface version 1");
+      else if (r.reason == r_needs_v2)
+        put(t, "the runtime's CANopen plugin is too old for this block; update the runtime");
       else
         put(t, "no CANopen network runs");
       return 0;

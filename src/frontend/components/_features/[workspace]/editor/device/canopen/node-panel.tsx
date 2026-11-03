@@ -54,6 +54,11 @@ const ON_LOSS_OPTIONS: ReadonlyArray<{ value: CanopenOnLoss; label: string }> = 
   { value: 'zero', label: 'Set to 0' },
 ]
 
+const START_OPTIONS: ReadonlyArray<{ value: CanopenNode['start']; label: string }> = [
+  { value: 'master', label: 'Master' },
+  { value: 'program', label: 'PLC program' },
+]
+
 const ON_COMM_ERROR_OPTIONS: ReadonlyArray<{ value: CanopenOnCommError; label: string }> = [
   { value: 'pre_operational', label: 'Go pre-operational' },
   { value: 'stopped', label: 'Go stopped' },
@@ -403,6 +408,25 @@ const NodePanel = ({
                   checked={node.optional}
                   hint='The network runs without it; the master keeps looking for it and starts it when it appears'
                   onChange={(optional) => onChange((n) => ({ ...n, optional }))}
+                />
+                <CheckboxField
+                  label='On at PLC start'
+                  checked={node.enabled}
+                  hint='When off, the master leaves the node alone until the PLC program turns it on with CANOPEN_NODE_ENABLE'
+                  onChange={(enabled) => onChange((n) => ({ ...n, enabled }))}
+                />
+              </div>
+              <div className='mt-4 grid max-w-[640px] grid-cols-2 gap-4'>
+                <SelectField
+                  label='Started by'
+                  value={node.start}
+                  options={START_OPTIONS}
+                  hint={
+                    node.start === 'program'
+                      ? 'After every boot the node waits pre-operational until the PLC program starts it with the NMT block'
+                      : 'The master starts the node once it is configured'
+                  }
+                  onChange={(start) => onChange((n) => ({ ...n, start }))}
                 />
               </div>
             </Card>

@@ -206,6 +206,10 @@ export interface CanopenNode {
   optional: boolean
   /** false: no identity check, restore or configuration SDOs; the master only starts the node. */
   configure: boolean
+  /** Who sends the NMT start after the boot: the master, or the PLC program (the node waits pre-operational). */
+  start: 'master' | 'program'
+  /** On at PLC start; the program can turn the node on and off while the PLC runs. */
+  enabled: boolean
   /** 0x1011 sub-index restored before the configuration (1 all, 2 communication, 3 application, 4+ manufacturer); 0 for none. */
   restoreDefaults: number
   checkVendorId: boolean

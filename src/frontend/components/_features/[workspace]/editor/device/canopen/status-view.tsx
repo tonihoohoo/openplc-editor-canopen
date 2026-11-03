@@ -136,9 +136,9 @@ export const NodeStatusTab = ({
           <div className={cardClassName}>
             <h4 className={headingClassName}>State</h4>
             <div className='mb-3 flex items-center gap-2'>
-              <StatusDot dot={nodeDot(node)} title={nodeStateLabel(node.state)} />
+              <StatusDot dot={nodeDot(node)} title={nodeStateLabel(node.state, node.off_by)} />
               <span className='text-sm font-medium text-neutral-1000 dark:text-neutral-100'>
-                {nodeStateLabel(node.state)}
+                {nodeStateLabel(node.state, node.off_by)}
               </span>
               <span className={hintClassName}>since {localTime(node.since)}</span>
             </div>
@@ -146,6 +146,20 @@ export const NodeStatusTab = ({
               <p className='mb-3 text-xs text-neutral-850 dark:text-neutral-200' data-testid='canopen-node-manual'>
                 Stopped or pre-operational by a command from the online tools. The master does not boot it again and
                 does not report its PDOs as late; Start puts it back.
+              </p>
+            ) : null}
+            {node.state === 'waiting_start' ? (
+              <p className='mb-3 text-xs text-neutral-850 dark:text-neutral-200' data-testid='canopen-node-waiting'>
+                Booted and configured, pre-operational until the PLC program starts it with the NMT block. Its outputs
+                are not sent until then.
+              </p>
+            ) : null}
+            {node.state === 'disabled' ? (
+              <p className='mb-3 text-xs text-neutral-850 dark:text-neutral-200' data-testid='canopen-node-off'>
+                {node.off_by === 'program'
+                  ? 'Turned off by the PLC program (CANOPEN_NODE_ENABLE). '
+                  : 'Off at PLC start; the PLC program can turn it on with CANOPEN_NODE_ENABLE. '}
+                The master does not boot, supervise or warn about it and sends it no PDOs.
               </p>
             ) : null}
             {node.state === 'service' ? (
@@ -167,6 +181,7 @@ export const NodeStatusTab = ({
             <dl className='grid max-w-[480px] grid-cols-[160px_1fr] gap-x-4 gap-y-1 text-xs'>
               <Row label='NMT state'>{nmtStateLabel(node.nmt)}</Row>
               <Row label='Optional'>{node.optional ? 'Yes' : 'No'}</Row>
+              <Row label='Started by'>{node.start === 'program' ? 'PLC program' : 'Master'}</Row>
               <Row label='Boot attempts'>{node.boot_attempts}</Row>
               <Row label='Losses'>{node.losses}</Row>
             </dl>

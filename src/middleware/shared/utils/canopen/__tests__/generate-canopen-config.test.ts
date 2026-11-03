@@ -101,7 +101,7 @@ describe('generateCanopenConfig', () => {
     expect(text).not.toBeNull()
     const json: unknown = JSON.parse(text ?? '')
     expect(json).toMatchObject({
-      version: 4,
+      version: 5,
       networks: [
         {
           name: 'CANopen_1',
@@ -116,6 +116,8 @@ describe('generateCanopenConfig', () => {
             {
               node_id: 2,
               name: 'io2',
+              start: 'master',
+              enabled: true,
               identity: { vendor_id: 1, product_code: 2, revision: 0 },
               supervision: { type: 'heartbeat', consumer_ms: 150 },
               on_loss: 'hold',
@@ -138,6 +140,23 @@ describe('generateCanopenConfig', () => {
                 },
               ],
             },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('writes who starts each node and whether it is on at PLC start', () => {
+    const later: CanopenNode = { ...genericNode(2), start: 'program' }
+    const off: CanopenNode = { ...genericNode(3), name: 'io3', enabled: false }
+    const json: unknown = JSON.parse(generateCanopenConfig([canopenDevice('CANopen_1', configWith(later, off))]) ?? '')
+    expect(json).toMatchObject({
+      version: 5,
+      networks: [
+        {
+          nodes: [
+            { node_id: 2, start: 'program', enabled: true },
+            { node_id: 3, start: 'master', enabled: false },
           ],
         },
       ],

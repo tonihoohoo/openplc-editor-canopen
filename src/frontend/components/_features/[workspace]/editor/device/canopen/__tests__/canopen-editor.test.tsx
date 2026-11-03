@@ -444,6 +444,19 @@ describe('CanopenEditor', () => {
     expect(screen.getAllByText('expert').length).toBeGreaterThan(0)
   })
 
+  it('lets the PLC program start a node and turn it on, in the basic view', async () => {
+    await importEds()
+    const on = await screen.findByLabelText<HTMLInputElement>('On at PLC start')
+    expect(on.checked).toBe(true)
+    fireEvent.click(on)
+    expect(config()?.nodes[0].enabled).toBe(false)
+    const started = screen.getByLabelText<HTMLSelectElement>('Started by')
+    expect(started.value).toBe('master')
+    fireEvent.change(started, { target: { value: 'program' } })
+    expect(config()?.nodes[0].start).toBe('program')
+    expect(screen.getByText(/waits pre-operational until the PLC program starts it/)).toBeTruthy()
+  })
+
   it('makes a node optional and offers node guarding only when the device has it', async () => {
     await importEds()
     fireEvent.click(await screen.findByLabelText('Optional node'))

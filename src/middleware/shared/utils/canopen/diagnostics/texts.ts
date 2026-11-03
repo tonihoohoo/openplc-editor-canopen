@@ -26,6 +26,8 @@ const NODE_STATES: Record<CanopenNodeState, string> = {
   stopped: 'Stopped',
   manual: 'Held by you',
   service: 'Service mode',
+  waiting_start: 'Waiting for program start',
+  disabled: 'Off at PLC start',
 }
 
 const NMT_COMMANDS: Record<CanopenNmtCommand, string> = {
@@ -41,7 +43,9 @@ export function nmtCommandLabel(command: CanopenNmtCommand): string {
   return NMT_COMMANDS[command]
 }
 
-export function nodeStateLabel(state: CanopenNodeState): string {
+/** The node's state as a label; `offBy` tells a node the program turned off from one off at PLC start. */
+export function nodeStateLabel(state: CanopenNodeState, offBy?: CanopenNodeStatus['off_by']): string {
+  if (state === 'disabled' && offBy === 'program') return 'Off by the program'
   return NODE_STATES[state]
 }
 
@@ -110,7 +114,9 @@ export function nodeDot(node: Pick<CanopenNodeStatus, 'state' | 'warning'>): Can
     case 'lost':
       return 'red'
     case 'manual':
+    case 'waiting_start':
       return 'amber'
+    case 'disabled':
     case 'waiting':
     case 'absent':
     case 'stopped':
@@ -249,6 +255,10 @@ export function eventText(event: CanopenEvent): string {
       return `NMT ${nmtCommandLabel(event.command ?? 'start').toLowerCase()} sent from the online tools.`
     case 'service':
       return event.open ? 'Service mode opened.' : 'Service mode closed.'
+    case 'node_on':
+      return 'Turned on by the PLC program.'
+    case 'node_off':
+      return 'Turned off by the PLC program.'
     default: {
       const unreachable: never = event.kind
       return unreachable

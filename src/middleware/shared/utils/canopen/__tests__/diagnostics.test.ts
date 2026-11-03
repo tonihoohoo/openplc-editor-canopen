@@ -58,6 +58,16 @@ describe('CANopen status texts', () => {
     expect(nodeDot({ state: 'booting', warning: false })).toBe('amber')
     for (const state of ['silent', 'failed', 'lost'] as const) expect(nodeDot({ state, warning: false })).toBe('red')
     for (const state of ['waiting', 'stopped'] as const) expect(nodeDot({ state, warning: false })).toBe('grey')
+    expect(nodeDot({ state: 'waiting_start', warning: false })).toBe('amber')
+    expect(nodeDot({ state: 'disabled', warning: false })).toBe('grey')
+  })
+
+  it('labels a node that waits for the program or is off', () => {
+    expect(nodeStateLabel('waiting_start')).toBe('Waiting for program start')
+    expect(nodeStateLabel('disabled', 'configuration')).toBe('Off at PLC start')
+    expect(nodeStateLabel('disabled', 'program')).toBe('Off by the program')
+    expect(eventText({ time: 0, node: 3, kind: 'node_on' })).toBe('Turned on by the PLC program.')
+    expect(eventText({ time: 0, node: 3, kind: 'node_off' })).toBe('Turned off by the PLC program.')
   })
 
   it('labels states', () => {
@@ -161,6 +171,32 @@ describe('the status answer', () => {
     expect(status?.active).toBe(true)
     if (status?.active) expect(status.networks[0].nodes.map((n) => n.state)).toEqual(['operational', 'failed'])
     expect(parseCanopenStatus({ active: false })).toEqual({ active: false })
+  })
+
+  it('reads the start and on settings, with defaults for runtimes before them', () => {
+    const body = sampleStatus()
+    const [first, second] = body.networks[0].nodes
+    const status = parseCanopenStatus({
+      ...body,
+      networks: [
+        {
+          ...body.networks[0],
+          nodes: [
+            { ...first, state: 'waiting_start', start: 'program', enabled: true },
+            { ...second, state: 'disabled', enabled: false, off_by: 'program' },
+          ],
+        },
+      ],
+    })
+    expect(status?.active && status.networks[0].nodes.map((n) => [n.state, n.start, n.enabled, n.off_by])).toEqual([
+      ['waiting_start', 'program', true, undefined],
+      ['disabled', 'master', false, 'program'],
+    ])
+    const old = parseCanopenStatus(sampleStatus())
+    expect(old?.active && old.networks[0].nodes.map((n) => [n.start, n.enabled])).toEqual([
+      ['master', true],
+      ['master', true],
+    ])
   })
 
   it('refuses other versions and shapes', () => {

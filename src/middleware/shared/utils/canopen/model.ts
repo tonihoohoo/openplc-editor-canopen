@@ -631,6 +631,8 @@ export function createCanopenNode(eds: CanopenEdsInfo, options: CreateNodeOption
     checkRevision: false,
     optional: false,
     configure: true,
+    start: 'master',
+    enabled: true,
     restoreDefaults: 0,
     supervision,
     heartbeatConsumerMs: consumerTimeFor(

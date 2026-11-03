@@ -1,6 +1,7 @@
 /**
  * Node startup and supervision options: the expert view, an optional node, a check with its fix,
- * and the network's error behaviour and TIME, written to canopen.json format version 3.
+ * who starts the node and whether it is on at PLC start, and the network's error behaviour and TIME,
+ * written to canopen.json.
  *
  * Needs a production build plus the preload copy; see "Electron e2e" in CLAUDE.md.
  */
@@ -59,6 +60,10 @@ test('node options, a fix and the network error behaviour reach the build', asyn
     await keyView(page, 'node-expert')
     await expect(page.getByLabel('Emergency messages', { exact: true })).toBeChecked()
     await page.getByLabel('Optional node', { exact: true }).check()
+    await expect(page.getByLabel('On at PLC start', { exact: true })).toBeChecked()
+    await page.getByLabel('Started by', { exact: true }).selectOption('program')
+    await expect(page.getByText(/waits pre-operational until the PLC program starts it/)).toBeVisible()
+    await shot(page, 'node-started-by-program')
 
     const timeout = page.getByLabel('Timeout (ms)', { exact: true })
     await timeout.fill('100')
@@ -83,7 +88,7 @@ test('node options, a fix and the network error behaviour reach the build', asyn
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 4,
+      version: 5,
       networks: [
         {
           boot_timeout_ms: 2000,
@@ -93,6 +98,8 @@ test('node options, a fix and the network error behaviour reach the build', asyn
             {
               node_id: 1,
               optional: true,
+              start: 'program',
+              enabled: true,
               configure: true,
               restore_defaults: 0,
               emcy: { enabled: true, cob_id: 0x81 },

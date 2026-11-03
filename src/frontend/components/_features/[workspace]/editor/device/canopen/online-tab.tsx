@@ -268,8 +268,8 @@ export const NodeStateLine = ({
         </>
       ) : (
         <>
-          <StatusDot dot={nodeDot(status)} title={nodeStateLabel(status.state)} />
-          <span>{nodeStateLabel(status.state)}</span>
+          <StatusDot dot={nodeDot(status)} title={nodeStateLabel(status.state, status.off_by)} />
+          <span>{nodeStateLabel(status.state, status.off_by)}</span>
         </>
       )}
       <span className={hintClassName}>NMT state: {nmtStateLabel(status.nmt)}</span>
