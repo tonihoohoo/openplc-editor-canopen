@@ -48,7 +48,7 @@ extern "C" int dlclose(void *handle) noexcept(true);
 
 namespace canopen_fb {
 
-// A copy of the plugin's C interface, version 1; keep in step with plc_api.h.
+// A copy of the plugin's C interface, version 1 with the flags field; keep in step with plc_api.h.
 const uint32_t api_version = 1;
 const uint32_t max_data = 256;
 enum {
@@ -100,12 +100,18 @@ struct api_v1 {
   int (*local_node_id)(uint8_t network, uint8_t *node_id);
   int (*emcy_cursor)(uint8_t network, uint64_t *cursor);
   int (*emcy_next)(uint8_t network, uint8_t node, uint64_t *cursor, emcy *out);
+  uint32_t flags;  // present when size covers it
 };
+// flags: the plugin is never unmapped, so its table stays valid for the life of the process.
+const uint32_t flag_permanent = 0x1;
+// After a lookup that found no plugin, this many lookups are skipped before the next one.
+const uint32_t miss_skip = 1024;
 
-// The loaded plugin's table, looked up on every call that needs it: the runtime loads the plugin
-// again at each PLC start while this program stays loaded, so nothing is kept. Null with `why`
-// set (r_not_run or r_version) when there is none.
-inline const api_v1 *api(uint8_t &why) {
+// The loaded plugin's table, or null with `why` set (r_not_run or r_version). The runtime loads
+// the plugin again at each PLC start while this program stays loaded, so a table is kept only
+// when its flags say it stays valid; otherwise it is looked up on each call. While no plugin is
+// found, only one lookup in miss_skip runs; the others answer r_not_run at once.
+inline const api_v1 *lookup_api(uint8_t &why) {
   const void *table = nullptr;
   why = r_not_run;
 #if defined(__linux__)
@@ -120,10 +126,37 @@ inline const api_v1 *api(uint8_t &why) {
   dlclose(lib);
 #endif
   const api_v1 *t = static_cast<const api_v1 *>(table);
-  if (t && t->size < sizeof(api_v1)) {
+  if (t && t->size < __builtin_offsetof(api_v1, flags)) {
     why = r_version;
     return nullptr;
   }
+  return t;
+}
+
+inline bool api_is_permanent(const api_v1 *t) {
+  return t->size >= sizeof(api_v1) && (t->flags & flag_permanent) != 0;
+}
+
+inline const api_v1 *api(uint8_t &why) {
+  static const api_v1 *kept = nullptr;
+  static uint32_t skip = 0;
+  const api_v1 *t = __atomic_load_n(&kept, __ATOMIC_ACQUIRE);
+  if (t) {
+    why = r_not_run;
+    return t;
+  }
+  uint32_t left = __atomic_load_n(&skip, __ATOMIC_RELAXED);
+  if (left > 0) {
+    __atomic_store_n(&skip, left - 1, __ATOMIC_RELAXED);
+    why = r_not_run;
+    return nullptr;
+  }
+  t = lookup_api(why);
+  if (!t) {
+    if (why == r_not_run) __atomic_store_n(&skip, miss_skip, __ATOMIC_RELAXED);
+    return nullptr;
+  }
+  if (api_is_permanent(t)) __atomic_store_n(&kept, t, __ATOMIC_RELEASE);
   return t;
 }
 

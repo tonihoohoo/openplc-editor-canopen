@@ -17,11 +17,12 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
 ## Using it
 
 1. Add a remote device and pick **CANopen**. One device is one CAN interface.
-2. **Network** tab: the SocketCAN interface on the runtime device (`can0`), the bit rate (or
+2. **Network** tab: the SocketCAN interface on the runtime device (`can0`, spaces around it are
+   dropped), the bit rate (or
    "Leave as configured" for a link set up outside the runtime), the master node ID, the master's
    heartbeat (100 ms for a new network), the real-time priority of the bus work on the runtime
-   (1 to 97, default 90, above the PLC tasks), SYNC (none, once per PLC cycle, or a fixed period)
-   and the NMT state the nodes get when the PLC stops. Further groups set the startup and error
+   (1 to 97, default 90, above the PLC tasks), SYNC (none, once per PLC cycle, or a fixed period
+   of 1000 to 10000000 µs) and the NMT state the nodes get when the PLC stops. Further groups set the startup and error
    behaviour, TIME and the defaults for new nodes (see "Startup and supervision options").
 3. **Nodes** tab: **Add node from device file...** reads an EDS, DCF, XDD or XDC file, picks the
    lowest free node ID and maps the PDOs the file defines by default. Set the node ID to the one set
@@ -31,7 +32,8 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
    - **General**: name, node ID, **Optional node**, which identity values the master checks at boot
      (vendor ID and product code by default; the revision is off so newer firmware still boots),
      supervision (heartbeat with the node's producer time and the master's timeout, or node guarding
-     with guard time and life time factor; when the file makes the producer time 0x1017 read-only,
+     with guard time and life time factor, taken from the file for a node that is not initialized,
+     where a value of 0 or none is an error; when the file makes the producer time 0x1017 read-only,
      the field shows the file's time, disabled, and the timeout is checked against it, and a time
      of 0 there means the node sends no heartbeat), what the node's inputs do
      when it is lost, and the `%IB` that reads its NMT state. **Watch the master** is on for a node
@@ -99,7 +101,8 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
      below; the lines in between are skipped. In a wide editor the choice has its own "If refused"
      column; in a narrow one it opens from the gear button of the row, and a row that does not stop
      the boot shows a chip such as "If refused: jump to line 5" under its value. A jump to a line that
-     is gone, not later or the next line (use Continue) is an error. A write refused
+     is gone, not later, the next line (use Continue), or not written because its object refuses
+     writes is an error. A write refused
      with Continue or Jump is logged, and the node's Status tab lists it under "Refused writes at
      boot". Written as `on_abort` and `jump_to` in `canopen.json` format version 4.
    - Startup SDOs on VISIBLE_STRING objects take text; OCTET_STRING and DOMAIN objects (also DOMAIN
@@ -307,7 +310,7 @@ basic view, marked "expert".
 | Node guarding                         | Writes 0x100C and 0x100D (and 0x1017 = 0); the master guards the node and loses it when it stops answering                                                                                                      |
 | Heartbeats this node watches (expert) | Extra 0x1016 entries after the master's, for heartbeats of other nodes                                                                                                                                          |
 | When the master is gone (expert)      | 0x1029:1 for a node that watches the master                                                                                                                                                                     |
-| Emergency messages (expert)           | On by default; the COB-ID the master listens on, written to 0x1014 when it differs from the EDS. Off and greyed out when the EDS has no 0x1014; with a read-only 0x1014 the COB-ID is the EDS value, greyed out |
+| Emergency messages (expert)           | On by default; the COB-ID the master listens on, written to 0x1014 when it differs from the EDS. Off and greyed out when the EDS has no 0x1014, or a read-only one with bit 31 set or a COB-ID of 0 (check and fix warns that its emergencies are not watched); with a read-only 0x1014 the COB-ID is the EDS value, greyed out |
 | Receive TIME (expert)                 | Writes 0x1012 so the node takes the network's TIME                                                                                                                                                              |
 
 With **No initialization** the heartbeat or guarding values shown are the EDS defaults, read-only.
@@ -329,7 +332,11 @@ heartbeat timeouts not longer than the heartbeat (set to the default percentage)
 window not shorter than the SYNC period, restore on a node that is not initialized or has no such
 sub-index (turn it off), heartbeats watched that no node sends, receive timeouts on TPDOs sent only
 after a change (set an event timer or clear the timeout), and times that are not multiples of the
-PLC cycle (round up). **Fix all** applies every fix as one change. These options need
+PLC cycle (round up), a SYNC period outside 1000 - 10000000 µs (set to the nearest valid multiple of
+the PLC cycle), and node guarding on a node that is not initialized whose file gives a guard time
+or life time factor of 0 (use heartbeat when the node sends one, else none). Every value written
+to `canopen.json` lies in the range the runtime takes; `__tests__/runtime-ranges.test.ts` holds a
+copy of those ranges, taken from the runtime's parser, and must change with it. **Fix all** applies every fix as one change. These options need
 `canopen.json` format version 3 or later.
 
 ## Live status
@@ -411,7 +418,11 @@ and no Open bus, and turning it off closes the service mode the editor opened.
 The editor ships the **canopen** library ("CANopen" in the library tree) with CiA 405 function blocks for the
 project's CANopen networks. The project's first CANopen network turns it on; it can be turned off and
 on in the project's libraries like any other. The blocks are C++ blocks that run inside the program and
-hand each request to the runtime's canopen plugin, so a call never waits for the bus.
+hand each request to the runtime's canopen plugin, so a call never waits for the bus. They find the plugin
+once and keep its function table when the plugin says the table stays valid across PLC stops and
+starts (plugins of this release onwards); with an older plugin they look it up on each call. While no
+plugin is found, only one call in 1024 looks for it again, so no scan waits for the system's library
+loader.
 
 | Block                                 | What it does                                                       |
 | ------------------------------------- | ------------------------------------------------------------------ |
@@ -514,7 +525,7 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
 - Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, CiA 306 check with the fixtures in
   `fixtures/cia306/`, DCF import and export, XDD and XDC reading, the CiA 311 check with the fixtures
   in `fixtures/cia311/`, XDD and XDC export, DBC export, HTML export, object information, model, editing rules, generator, validator,
-  receive timeout, node options and checks, status schema and texts, online tools), the status polling in
+  receive timeout, node options and checks, the runtime's `canopen.json` ranges, status schema and texts, online tools), the status polling in
   `src/frontend/hooks/__tests__/use-canopen-status.test.ts`
   with the generic I/O module EDS in `__tests__/fixtures/`, the store action in
   `src/frontend/store/__tests__/canopen-config.test.ts`, and the device editor in

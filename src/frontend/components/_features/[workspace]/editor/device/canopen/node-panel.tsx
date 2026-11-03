@@ -26,6 +26,7 @@ import {
   effectiveEmcy,
   effectiveGuarding,
   effectiveProducerMs,
+  emcyMissingReason,
   emcySupport,
   findObject,
   hasErrorBehaviour,
@@ -657,7 +658,7 @@ const NodePanel = ({
                         checked={emcy.enabled}
                         disabledReason={
                           emcySupported === 'none'
-                            ? 'The device sends no emergency messages: its device file has no 0x1014'
+                            ? `The device sends no emergency messages: ${emcyMissingReason(eds) ?? 'its device file has no 0x1014'}`
                             : null
                         }
                         hint="The master logs the node's emergency messages and shows them in its status"
