@@ -6,12 +6,39 @@
 > In a project you add a CANopen network and its nodes, import each node's EDS, map its PDO entries
 > to PLC variables, set start-up SDOs and node options, and watch the nodes' status online. The
 > project runs on the [OpenPLC Runtime (CANopen edition)](https://github.com/tonihoohoo/openplc-runtime-canopen),
-> and the editor refuses to upload a CANopen project to a runtime without CANopen support. Everything
-> else works as in upstream OpenPLC Editor.
+> and the editor refuses to upload a CANopen project to a runtime without CANopen support. The fork
+> also adds a few editor improvements; every difference from upstream is listed below.
 >
 > Installing it replaces an installed OpenPLC Editor, and it offers updates from this fork's
 > [releases](https://github.com/tonihoohoo/openplc-editor-canopen/releases) only. More:
 > [docs/canopen.md](docs/canopen.md).
+
+## Changes from upstream OpenPLC Editor
+
+Everything not listed here works as in upstream OpenPLC Editor.
+
+CANopen:
+
+- CANopen network and nodes as a remote device, with PDO entries mapped to PLC variables: [docs/canopen.md](docs/canopen.md#using-it)
+- Nodes from EDS, DCF, XDD and XDC files with a CiA 306 / CiA 311 check, and export to EDS, DCF, XDD, XDC, DBC and HTML: [docs/canopen.md](docs/canopen.md#device-files)
+- Node startup and supervision options, startup SDOs and their refusal policies: [docs/canopen.md](docs/canopen.md#startup-and-supervision-options)
+- Live status of the bus and the nodes while connected: [docs/canopen.md](docs/canopen.md#live-status)
+- Online SDO and NMT tools and service mode: [docs/canopen.md](docs/canopen.md#online-tools)
+- The `canopen` function block library (CiA 405 names) for SDO, NMT and node control from the PLC program: [docs/canopen.md](docs/canopen.md#plc-function-blocks)
+- CANopen addresses from the central registry, up to the runtime's limit of 65536 per table: [docs/canopen.md](docs/canopen.md#addresses)
+- Upload refused to a runtime without CANopen support: [docs/canopen.md](docs/canopen.md#installing-a-release-and-the-runtime-check)
+
+Editor:
+
+- Function block calls from the variable table: drag a row by its `#` cell into the ST body, or "Insert call" in the variables code view: [docs/st-calls.md](docs/st-calls.md#inserting-a-call-for-an-instance)
+- Call completion in ST for instances and functions, also single parameters added later: [docs/st-calls.md](docs/st-calls.md#call-completion)
+- "Remove empty parameters" quick fix for calls: [docs/st-calls.md](docs/st-calls.md#remove-empty-parameters)
+- A function block dragged from the library into ST gets its outputs too: [docs/st-calls.md](docs/st-calls.md#library-drop)
+- Documentation in ST hovers and in the suggestion details: [docs/st-calls.md](docs/st-calls.md#documentation-in-st)
+
+Releases:
+
+- Releases, the update notice and the runtime's Change version dialog use this fork's releases: [docs/canopen-releases.md](docs/canopen-releases.md)
 
 ## Running a preview version
 

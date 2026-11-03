@@ -1,3 +1,6 @@
+import { buildCallSnippet } from '../../../../../../utils/st-calls/build-call'
+import { functionBlockFromVariables } from '../../../../../../utils/st-calls/callable'
+
 export const parsePouToStText = (
   pou: {
     name: string
@@ -45,3 +48,9 @@ function getDefaultValueForType(type: { definition: string; value: string }): st
       return 'value'
   }
 }
+
+/** The call a library drop inserts: the full call with outputs for a function block, inputs only otherwise. */
+export const parseLibraryDropToStText = (pou: Parameters<typeof parsePouToStText>[0], instanceName: string) =>
+  pou.type === 'function-block' && pou.variables
+    ? buildCallSnippet(functionBlockFromVariables(pou.name, pou.variables), { target: instanceName })
+    : parsePouToStText({ ...pou, name: instanceName })

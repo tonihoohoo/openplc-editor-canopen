@@ -19,6 +19,7 @@
 import type { PlatformPorts } from '../../../middleware/shared/providers/types'
 import type { OpenPLCStore } from '../../store'
 import { toast } from '../../utils/toast'
+import { registerStCallProviders } from '../st-calls/providers'
 import { startStLsp } from './index'
 import { attachMonacoModelSync, type MonacoModelSyncHandle } from './monaco-model-sync'
 import {
@@ -116,9 +117,17 @@ export function bootStLsp(
     console.warn('[strucpp-lsp] Monaco model sync failed to attach:', err)
   }
 
+  let callProviders: { dispose(): void } | null = null
+  try {
+    callProviders = registerStCallProviders(store, monaco)
+  } catch (err) {
+    console.warn('[st-calls] call providers failed to register:', err)
+  }
+
   return {
     service,
     dispose() {
+      callProviders?.dispose()
       unsubscribeBundledLibrariesSync()
       unsubscribeEnabledLibrariesSync()
       unsubscribeLibrarySync()

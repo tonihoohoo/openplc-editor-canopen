@@ -11,6 +11,7 @@ import {
   EditableNameCell,
 } from './editable-cell'
 import { SelectableClassCell, SelectableDebugCell, SelectableFlagCell, SelectableTypeCell } from './selectable-cell'
+import { VariableDragCell } from './variable-drag-cell'
 
 const columnHelper = createColumnHelper<PLCVariable>()
 
@@ -22,7 +23,7 @@ const columnsPrograms = [
     minSize: 32,
     maxSize: 64,
     enableResizing: true,
-    cell: (props) => props.row.index,
+    cell: (props) => <VariableDragCell name={props.row.original.name} index={props.row.index} />,
   }),
   columnHelper.accessor('name', {
     header: 'Name',
@@ -82,7 +83,7 @@ const columns = [
     minSize: 32,
     maxSize: 64,
     enableResizing: true,
-    cell: (props) => props.row.index,
+    cell: (props) => <VariableDragCell name={props.row.original.name} index={props.row.index} />,
   }),
   columnHelper.accessor('name', {
     header: 'Name',

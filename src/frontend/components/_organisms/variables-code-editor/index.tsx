@@ -3,7 +3,9 @@ import type { editor as MonacoEditor } from 'monaco-editor'
 import * as monaco from 'monaco-editor'
 import { useEffect, useRef, useState } from 'react'
 
+import { registerInsertCallAction } from '../../../services/st-calls/insert-call'
 import { pouVarsUri } from '../../../services/st-lsp/types'
+import { useOpenPLCStoreApi } from '../../../store'
 
 interface VariablesCodeEditorProps {
   code: string
@@ -77,12 +79,20 @@ const VariablesCodeEditor = ({
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [editorMounted, setEditorMounted] = useState(false)
+  const store = useOpenPLCStoreApi()
 
   const handleEditorDidMount: OnMount = (editor) => {
     editorRef.current = editor
     editor.layout()
     setEditorMounted(true)
   }
+
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editorMounted || !editor || !pouName || language !== 'st' || modelUri) return
+    const action = registerInsertCallAction(editor, monaco, store, pouName)
+    return () => action.dispose()
+  }, [editorMounted, pouName, language, modelUri, store])
 
   useEffect(() => {
     if (!containerRef.current) return
