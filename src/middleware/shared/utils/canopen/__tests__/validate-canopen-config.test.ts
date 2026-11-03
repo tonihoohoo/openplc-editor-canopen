@@ -20,8 +20,8 @@ describe('validateCanopenProject', () => {
     expect(errorsOf(config)).toEqual([
       'CANopen "net": no CAN interface',
       'CANopen "net": bit rate 123 is not a CANopen bit rate',
-      'CANopen "net": periodic SYNC needs a period',
       'CANopen "net": no nodes',
+      'CANopen "net": the SYNC period (0 µs) must be 1000 - 10000000 µs',
     ])
     config.network.interface = 'a-very-long-interface'
     expect(errorsOf(config)[0]).toMatch(/longer than 15 characters/)

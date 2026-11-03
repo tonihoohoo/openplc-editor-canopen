@@ -317,7 +317,7 @@ export function generateCanopenConfig(
       const { network, nodes } = d.canopenConfig ?? defaultCanopenConfig()
       return {
         name: d.name,
-        interface: network.interface,
+        interface: network.interface.trim(),
         bitrate: network.bitrate,
         master_node_id: network.masterNodeId,
         heartbeat_producer_ms: network.heartbeatProducerMs,

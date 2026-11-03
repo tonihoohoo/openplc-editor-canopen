@@ -10,7 +10,9 @@ import {
   CANOPEN_BITRATES,
   hasSyncWindow,
   MAX_BUS_PRIORITY,
+  MAX_SYNC_PERIOD_US,
   MIN_BUS_PRIORITY,
+  MIN_SYNC_PERIOD_US,
 } from '@root/middleware/shared/utils/canopen'
 
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
@@ -79,7 +81,8 @@ const NetworkSettings = ({ network, nodes, cycleUs, onChange }: NetworkSettingsP
             label='Interface'
             value={network.interface}
             hint='SocketCAN interface on the runtime device, e.g. can0'
-            onCommit={(value) => {
+            onCommit={(typed) => {
+              const value = typed.trim()
               if (value === '') return 'Enter the interface name.'
               if (value.length > 15) return 'Interface names have at most 15 characters.'
               onChange({ interface: value })
@@ -156,8 +159,8 @@ const NetworkSettings = ({ network, nodes, cycleUs, onChange }: NetworkSettingsP
             <NumberField
               label='SYNC period (µs)'
               value={network.syncPeriodUs}
-              min={100}
-              max={10000000}
+              min={MIN_SYNC_PERIOD_US}
+              max={MAX_SYNC_PERIOD_US}
               onCommit={(value) => onChange({ syncPeriodUs: value })}
             />
           ) : null}

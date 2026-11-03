@@ -8,7 +8,7 @@ import type { CanopenNode, CanopenPdo, CanopenSdo } from '../../ports/canopen-ty
 import type { PLCRemoteDevice } from '../../ports/types'
 import { checkCanopenNetwork, checkText, reservedCobId } from './check-fix'
 import { CANOPEN_BITRATES, canopenTypeBits, iecPrefixFor, objectRef } from './data-types'
-import { findObject } from './eds-parser'
+import { findObject, OBJ_FLAG_REFUSE_WRITE } from './eds-parser'
 import { pdoConfigured, watchesMaster } from './generate-canopen-config'
 import {
   isDummyEntry,
@@ -50,13 +50,20 @@ export function validateCanopenProject(
     else interfaces.set(iface, net)
     if (network.bitrate !== 0 && !CANOPEN_BITRATES.some((b) => b === network.bitrate))
       errors.push(`${net}: bit rate ${network.bitrate} is not a CANopen bit rate`)
-    if (network.syncMode === 'period' && network.syncPeriodUs <= 0) errors.push(`${net}: periodic SYNC needs a period`)
     if (network.priority < MIN_BUS_PRIORITY || network.priority > MAX_BUS_PRIORITY)
       errors.push(`${net}: real-time priority ${network.priority} is outside ${MIN_BUS_PRIORITY} - ${MAX_BUS_PRIORITY}`)
     if (nodes.length === 0) errors.push(`${net}: no nodes`)
 
     for (const p of checkCanopenNetwork(device.canopenConfig, cycleUs))
       if (p.level === 'error') errors.push(p.where ? `${net} ${checkText(p)}` : `${net}: ${p.text}`)
+    if (!Number.isInteger(network.masterNodeId) || network.masterNodeId < 1 || network.masterNodeId > 127)
+      errors.push(`${net}: the master node ID must be 1 - 127`)
+    if (network.heartbeatProducerMs < 0 || network.heartbeatProducerMs > 65535)
+      errors.push(`${net}: the master heartbeat must be 0 - 65535 ms`)
+    if (network.sdoTimeoutMs < 10 || network.sdoTimeoutMs > 60000)
+      errors.push(`${net}: the SDO timeout must be 10 - 60000 ms`)
+    if (network.time.enabled && (network.time.cobId < 1 || network.time.cobId > 0x7ff))
+      errors.push(`${net}: the TIME COB-ID must be 0x001 - 0x7FF`)
     if (network.bootTimeoutMs < 100 || network.bootTimeoutMs > 60000)
       errors.push(`${net}: the boot-up timeout must be 100 - 60000 ms`)
     if (network.time.enabled && (network.time.periodMs < 10 || network.time.periodMs > 65535))
@@ -155,6 +162,10 @@ export function jumpTargetProblem(node: CanopenNode, sdo: CanopenSdo): string | 
   if (to < 0) return 'the line it jumps to when refused is gone; pick another'
   if (to <= from) return 'it can jump only to a later line'
   if (to === from + 1) return `line ${to + 1} is the next line; use Continue`
+  const target = node.sdos[to]
+  const object = findObject(node.eds, target.index, target.subIndex)
+  if (object && ((object.objFlags ?? 0) & OBJ_FLAG_REFUSE_WRITE) !== 0)
+    return `line ${to + 1} is not written (the device refuses writes to its object); pick another`
   return null
 }
 

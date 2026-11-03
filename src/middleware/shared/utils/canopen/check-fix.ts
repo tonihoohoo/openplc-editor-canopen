@@ -9,6 +9,7 @@
 import type { CanopenConfig, CanopenNode, CanopenPdo } from '../../ports/canopen-types'
 import { canopenTypeBits, objectRef } from './data-types'
 import { changeOnlyTimeoutText, timeoutOnChangeOnlyPdo } from './editing'
+import { findObject } from './eds-parser'
 import { pdoConfigured, pdoExchanged, watchesMaster } from './generate-canopen-config'
 import {
   canBeGuarded,
@@ -16,10 +17,14 @@ import {
   consumerSlots,
   consumerTimeFor,
   effectiveEmcy,
+  effectiveGuarding,
   effectiveProducerMs,
+  emcyMissingReason,
   emcySupport,
   isDummyEntry,
   isGapEntry,
+  MAX_SYNC_PERIOD_US,
+  MIN_SYNC_PERIOD_US,
   type PdoDirection,
   restoreChoices,
   unreadableDefaultMappings,
@@ -370,13 +375,29 @@ function checkHeartbeats(config: CanopenConfig, out: CanopenCheck[]): void {
         })
       }
     }
-    if (node.supervision === 'guarding' && node.configure && (node.guardTimeMs === 0 || node.lifeTimeFactor === 0))
+    const guarding = effectiveGuarding(node)
+    if (
+      node.supervision === 'guarding' &&
+      canBeGuarded(node.eds) &&
+      (guarding.guardTimeMs === 0 || guarding.lifeTimeFactor === 0)
+    ) {
+      const heartbeat = effectiveProducerMs({ ...node, supervision: 'heartbeat' }) > 0
       out.push({
         level: 'error',
         nodeId: node.id,
         where: label(node),
-        text: 'node guarding needs a guard time and a life time factor above 0',
+        text: node.configure
+          ? 'node guarding needs a guard time and a life time factor above 0'
+          : 'is supervised by node guarding, but its file default guard time or life time factor is 0 and the master does not set it',
+        ...(node.configure
+          ? {}
+          : {
+              fix: heartbeat
+                ? { label: 'Use heartbeat', apply: setNode(node.id, (n) => ({ ...n, supervision: 'heartbeat' })) }
+                : { label: 'Turn supervision off', apply: setNode(node.id, (n) => ({ ...n, supervision: 'none' })) },
+            }),
       })
+    }
     if (node.supervision === 'guarding' && !canBeGuarded(node.eds))
       out.push({
         level: 'error',
@@ -454,6 +475,22 @@ function checkHeartbeats(config: CanopenConfig, out: CanopenCheck[]): void {
 
 function checkSync(config: CanopenConfig, cycleUs: number | null, out: CanopenCheck[]): void {
   const { network, nodes } = config
+  if (
+    network.syncMode === 'period' &&
+    (network.syncPeriodUs < MIN_SYNC_PERIOD_US || network.syncPeriodUs > MAX_SYNC_PERIOD_US)
+  ) {
+    const step = cycleUs !== null && cycleUs > 0 ? cycleUs : 1
+    const to =
+      network.syncPeriodUs < MIN_SYNC_PERIOD_US
+        ? Math.ceil(MIN_SYNC_PERIOD_US / step) * step
+        : Math.floor(MAX_SYNC_PERIOD_US / step) * step
+    out.push({
+      level: 'error',
+      where: '',
+      text: `the SYNC period (${network.syncPeriodUs} µs) must be ${MIN_SYNC_PERIOD_US} - ${MAX_SYNC_PERIOD_US} µs`,
+      fix: { label: `Set to ${to} µs`, apply: (c) => ({ ...c, network: { ...c.network, syncPeriodUs: to } }) },
+    })
+  }
   if (network.syncMode !== 'none') {
     for (const node of nodes) {
       for (const sdo of node.sdos) {
@@ -487,6 +524,17 @@ function checkSync(config: CanopenConfig, cycleUs: number | null, out: CanopenCh
 }
 
 function checkOptions(config: CanopenConfig, out: CanopenCheck[]): void {
+  for (const node of config.nodes) {
+    const noEmcy = findObject(node.eds, 0x1014, 0) !== undefined ? emcyMissingReason(node.eds) : null
+    if (noEmcy)
+      out.push({
+        level: 'warning',
+        nodeId: node.id,
+        where: label(node),
+        field: 'emcy',
+        text: `its emergencies are not watched: ${noEmcy}`,
+      })
+  }
   for (const node of config.nodes) {
     if (node.restoreDefaults === 0) continue
     const turnOff = {

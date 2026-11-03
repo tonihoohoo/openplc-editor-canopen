@@ -36,6 +36,9 @@ export const STATE_CHANNEL_ID = 'state'
 
 /** Real-time priority of a network's bus thread: above every PLC task (at most 49), below 98. */
 export const DEFAULT_BUS_PRIORITY = 90
+/** The periodic SYNC the runtime accepts, in µs. */
+export const MIN_SYNC_PERIOD_US = 1000
+export const MAX_SYNC_PERIOD_US = 10000000
 export const MIN_BUS_PRIORITY = 1
 export const MAX_BUS_PRIORITY = 97
 export const DEFAULT_MASTER_HEARTBEAT_MS = 100
@@ -102,7 +105,23 @@ export type EmcySupport = 'none' | 'fixed' | 'writable'
 export function emcySupport(eds: CanopenEdsInfo): EmcySupport {
   if (findObject(eds, 0x1014, 0) === undefined) return 'none'
   if (writableObject(eds, 0x1014, 0)) return 'writable'
-  return ((defaultInt(eds, 0x1014, 0, 0) ?? 0) & 0x80000000) !== 0 ? 'none' : 'fixed'
+  return fixedEmcyProblem(eds) === null ? 'fixed' : 'none'
+}
+
+/** Why a read-only 0x1014 gives no usable emergency (not valid, or COB-ID 0), or null. */
+function fixedEmcyProblem(eds: CanopenEdsInfo): string | null {
+  const value = defaultInt(eds, 0x1014, 0, 1)
+  if (value === null) return null
+  if ((value & 0x80000000) !== 0) return 'its device file marks the emergency COB-ID (0x1014) as not valid'
+  if ((value & 0x7ff) === 0) return 'its device file gives a read-only emergency COB-ID (0x1014) of 0'
+  return null
+}
+
+/** Why the node sends no emergency the master can watch, or null when it sends one. */
+export function emcyMissingReason(eds: CanopenEdsInfo): string | null {
+  if (findObject(eds, 0x1014, 0) === undefined) return 'its device file has no 0x1014'
+  if (writableObject(eds, 0x1014, 0)) return null
+  return fixedEmcyProblem(eds)
 }
 
 /** Whether the emergency COB-ID can be written to the node (a writable 0x1014). */
