@@ -127,7 +127,7 @@ describe('code action provider', () => {
     const model = fakeModel(text, uri)
     const at = model.getPositionAt(offset)
     const range = new FakeRange(at.lineNumber, at.column, at.lineNumber, at.column) as unknown as Monaco.Range
-    return provider.provideCodeActions(model, range, { markers: [{}] } as never, {} as never) as {
+    return provider.provideCodeActions(model, range, { markers: [{}] } as never, {} as never) as unknown as {
       actions: Monaco.languages.CodeAction[]
     }
   }
