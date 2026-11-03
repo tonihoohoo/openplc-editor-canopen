@@ -84,6 +84,11 @@ test('ST call helpers', async () => {
     await page.keyboard.press('Home')
     await page.keyboard.press('Control+.')
     await expect(page.getByText('Remove empty parameters').first()).toBeVisible({ timeout: 15000 })
+    const clipped = await page
+      .locator('.action-widget .monaco-list-row.action .title')
+      .first()
+      .evaluate((title) => title.scrollWidth > title.clientWidth)
+    expect(clipped).toBe(false)
     await shot(page, '03-quick-fix-menu')
     await page.keyboard.press('Enter')
     await expect.poll(() => bodyText(page)).toContain('timer1(IN := start, PT := T#5s);')
@@ -146,13 +151,6 @@ test('ST call helpers', async () => {
     await expect(page.locator('.monaco-hover:visible')).toContainText('timer1 : TON')
     await page.waitForTimeout(500)
     await shot(page, '10-hover-instance')
-    const box = await word.boundingBox()
-    if (!box) throw new Error('no timer1 on screen')
-    const charWidth = box.width / 'timer1'.length
-    const column = 'timer1(IN := start, PT'.indexOf('PT')
-    await page.mouse.move(box.x + charWidth * (column + 0.5), box.y + box.height / 2)
-    await page.waitForTimeout(1500)
-    await shot(page, '11-hover-parameter')
 
     // 9. Insert call from the variables code view.
     await setBody(page, 'total := 0;\n')
@@ -160,10 +158,10 @@ test('ST call helpers', async () => {
     const declaration = page.locator('.view-lines:visible').first().getByText('timer1', { exact: false }).first()
     await declaration.click({ button: 'right' })
     await expect(page.getByText('Insert call', { exact: true })).toBeVisible({ timeout: 15000 })
-    await shot(page, '12-insert-call-menu')
+    await shot(page, '11-insert-call-menu')
     await page.getByText('Insert call', { exact: true }).click()
     await expect.poll(() => bodyText(page)).toContain('timer1(')
-    await shot(page, '13-insert-call-done')
+    await shot(page, '12-insert-call-done')
   } finally {
     await quitApp(app, page)
   }

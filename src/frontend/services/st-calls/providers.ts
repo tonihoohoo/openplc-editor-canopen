@@ -57,9 +57,7 @@ export const createCallCompletionProvider = (
       kind:
         item.kind === 'param'
           ? monaco.languages.CompletionItemKind.Field
-          : item.kind === 'group'
-            ? monaco.languages.CompletionItemKind.Snippet
-            : monaco.languages.CompletionItemKind.Function,
+          : monaco.languages.CompletionItemKind.Function,
       insertText: item.insertText,
       insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
       range: rangeOf(model, monaco, item.start, item.end),
