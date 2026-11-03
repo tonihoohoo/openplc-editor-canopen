@@ -143,7 +143,7 @@ export function validateCanopenProject(
 }
 
 /** Entries per table of the runtime's I/O image (%IX bytes, %IB, %IW, %ID and %IL alike, and the outputs). */
-export const RUNTIME_IMAGE_SIZE = 1024
+export const RUNTIME_IMAGE_SIZE = 65536
 
 /** Why an address lies outside the runtime's I/O image, or null when it is inside. */
 export function outsideImage(location: string): string | null {

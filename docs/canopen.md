@@ -126,7 +126,7 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
 5. Give entries aliases and bind variables to them, as with other remote I/O. An entry keeps its
    address when other entries, PDOs, nodes or devices are added, removed or moved: a new entry takes
    the lowest free address, and a removed one leaves a hole. Only an entry whose address a hardware
-   pin takes moves. An address must lie inside the runtime's I/O image (index 1023 at most).
+   pin takes moves. An address must lie inside the runtime's I/O image (index 65535 at most).
 
 Problems that would stop the build are listed at the top of the editor as they appear.
 
