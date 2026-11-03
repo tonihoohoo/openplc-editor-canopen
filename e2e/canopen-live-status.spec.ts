@@ -69,8 +69,9 @@ function nodeControl(now: number) {
       bus: { state: 'error_active', tx_errors: 0, rx_errors: 0, load_percent: 2.5 },
       all_mandatory_up: true,
       events: [
+        { time: now - 6000, node: 2, kind: 'nmt_command', command: 'reset_node', source: 'program' },
         { time: now - 5000, node: 9, kind: 'node_off' },
-        { time: now - 4000, node: 2, kind: 'boot_ok' },
+        { time: now - 4000, node: 2, kind: 'boot_ok', waits: true },
       ],
     },
   )
@@ -134,6 +135,10 @@ test('a node waiting for the program is amber and a node the program turned off 
     await page.getByRole('tab', { name: 'Status' }).click()
     await expect(page.getByTestId('canopen-node-waiting')).toContainText('until the PLC program starts it')
     await keyView(page, 'live-status-waiting-start', [page.getByText(/^since /), page.locator('td.font-mono')])
+    await expect(page.getByText('Boot finished, the node waits for the PLC program to start it.')).toBeVisible()
+    await expect(page.getByText('NMT reset node sent by the PLC program.')).toBeVisible()
+    await page.getByText('NMT reset node sent by the PLC program.').scrollIntoViewIfNeeded()
+    await shot(page, 'live-status-program-events')
     await nodes.getByRole('button', { name: /9: io9/ }).click()
     await page.getByRole('tab', { name: 'Status' }).click()
     await expect(page.getByTestId('canopen-node-off')).toContainText('Turned off by the PLC program')
