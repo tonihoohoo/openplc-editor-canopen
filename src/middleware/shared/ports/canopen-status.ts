@@ -24,6 +24,10 @@ export const CanopenNodeStateSchema = z.enum([
   'manual',
   /** Service mode: nobody manages the node. */
   'service',
+  /** Booted and configured, pre-operational until the PLC program starts it. */
+  'waiting_start',
+  /** Off: at PLC start (configuration) or turned off by the PLC program. */
+  'disabled',
 ])
 
 export const CanopenBusStateSchema = z.enum([
@@ -66,6 +70,12 @@ export const CanopenNodeStatusSchema = z.object({
   name: z.string(),
   /** Absent from runtimes before node options. */
   optional: z.boolean().default(false),
+  /** Who starts the node after its boot; absent before format 5. */
+  start: z.enum(['master', 'program']).default('master'),
+  /** On now; absent before format 5. */
+  enabled: z.boolean().default(true),
+  /** Why a node that is off is off. */
+  off_by: z.enum(['program', 'configuration']).optional(),
   state: CanopenNodeStateSchema,
   /** Stopped after an error until the PLC restarts (the network's "on node error" is stop). */
   held: z.boolean().default(false),
@@ -107,6 +117,9 @@ export const CanopenEventSchema = z.object({
     'sdo_write',
     'nmt_command',
     'service',
+    /** The PLC program turned the node on or off. */
+    'node_on',
+    'node_off',
   ]),
   problem: CanopenProblemSchema.nullable().optional(),
   code: count.optional(),

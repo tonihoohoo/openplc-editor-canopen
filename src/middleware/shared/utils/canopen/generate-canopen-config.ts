@@ -40,7 +40,7 @@ import {
 } from './model'
 import { encodeCanopenValue, toHex } from './sdo-value'
 
-export const CANOPEN_CONFIG_VERSION = 4
+export const CANOPEN_CONFIG_VERSION = 5
 
 interface SdoOut {
   index: number
@@ -336,6 +336,8 @@ export function generateCanopenConfig(
           name: node.name,
           optional: node.optional,
           configure: node.configure,
+          start: node.start,
+          enabled: node.enabled,
           restore_defaults: node.configure ? node.restoreDefaults : 0,
           emcy: emcyOut(node),
           identity: {

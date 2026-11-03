@@ -78,6 +78,35 @@ describe('CANopen live status', () => {
     expect(tab.textContent).toContain('Boot failed. The product code')
   })
 
+  it('shows a node waiting for the program in amber and one turned off in grey', async () => {
+    const body = sampleStatus()
+    const [first, second] = body.networks[0].nodes
+    const status = {
+      ...body,
+      networks: [
+        {
+          ...body.networks[0],
+          nodes: [
+            { ...first, state: 'waiting_start', start: 'program', emcy: [], late_pdos: [], problem: null },
+            { ...second, state: 'disabled', enabled: false, off_by: 'program', problem: null },
+          ],
+        },
+      ],
+    }
+    await renderEditor(true, CAPABILITIES_WITH_STATUS, () => ok(status))
+    expect(dots()).toEqual(['amber', 'grey'])
+    openTab('Status')
+    let tab = screen.getByTestId('canopen-node-status')
+    expect(tab.textContent).toContain('Waiting for program start')
+    expect(within(tab).getByTestId('canopen-node-waiting').textContent).toContain('until the PLC program starts it')
+    expect(tab.textContent).toContain('Started byPLC program')
+    fireEvent.click(screen.getByRole('button', { name: /3: io3/ }))
+    openTab('Status')
+    tab = screen.getByTestId('canopen-node-status')
+    expect(tab.textContent).toContain('Off by the program')
+    expect(within(tab).getByTestId('canopen-node-off').textContent).toContain('Turned off by the PLC program')
+  })
+
   it('decodes the emergencies and late PDOs of a node', async () => {
     await renderEditor(true)
     openTab('Status')

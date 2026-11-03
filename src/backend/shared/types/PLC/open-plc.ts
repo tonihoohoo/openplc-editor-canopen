@@ -1053,6 +1053,8 @@ const CanopenNodeSchema = z
     checkRevision: z.boolean(),
     optional: z.boolean().default(false),
     configure: z.boolean().default(true),
+    start: z.enum(['master', 'program']).default('master'),
+    enabled: z.boolean().default(true),
     restoreDefaults: z.number().int().min(0).max(127).default(0),
     supervision: z.enum(['none', 'heartbeat', 'guarding']),
     heartbeatConsumerMs: z.number().int().min(0).max(65535),

@@ -57,6 +57,25 @@ function leftOperational(now: number) {
   )
 }
 
+/** Node 2 waits for the program's start; the program turned node 9 off. */
+function nodeControl(now: number) {
+  return networkStatus(
+    now,
+    [
+      nodeStatus(now, 2, 'io2', { state: 'waiting_start', nmt: 'pre_operational', start: 'program' }),
+      nodeStatus(now, 9, 'io9', { state: 'disabled', nmt: 'stopped', enabled: false, off_by: 'program' }),
+    ],
+    {
+      bus: { state: 'error_active', tx_errors: 0, rx_errors: 0, load_percent: 2.5 },
+      all_mandatory_up: true,
+      events: [
+        { time: now - 5000, node: 9, kind: 'node_off' },
+        { time: now - 4000, node: 2, kind: 'boot_ok' },
+      ],
+    },
+  )
+}
+
 async function openDevice(features: string[], name: string, make = status) {
   const runtime = fakeRuntime({ features, status: () => make(Date.now()) })
   const { userData } = writeEthercatProject(join(tmpdir(), name), '127.0.0.1', STATION)
@@ -99,6 +118,26 @@ test('a node that left operational by itself is shown lost with that reason', as
       'The node left operational: it went pre-operational or stopped without a command from the master.',
     )
     await shot(page, 'live-status-left-operational')
+  } finally {
+    await quitApp(app, page)
+    runtime.close()
+  }
+})
+
+test('a node waiting for the program is amber and a node the program turned off is grey', async () => {
+  test.setTimeout(180000)
+  const { app, page, runtime } = await openDevice(['status'], 'openplc-e2e-canopen-node-control', nodeControl)
+  try {
+    const nodes = page.getByRole('list', { name: 'CANopen nodes' })
+    await expect(nodes.locator('[data-dot="amber"]')).toHaveCount(1, { timeout: 15000 })
+    await expect(nodes.locator('[data-dot="grey"]')).toHaveCount(1)
+    await page.getByRole('tab', { name: 'Status' }).click()
+    await expect(page.getByTestId('canopen-node-waiting')).toContainText('until the PLC program starts it')
+    await keyView(page, 'live-status-waiting-start', [page.getByText(/^since /), page.locator('td.font-mono')])
+    await nodes.getByRole('button', { name: /9: io9/ }).click()
+    await page.getByRole('tab', { name: 'Status' }).click()
+    await expect(page.getByTestId('canopen-node-off')).toContainText('Turned off by the PLC program')
+    await shot(page, 'live-status-off-by-program')
   } finally {
     await quitApp(app, page)
     runtime.close()

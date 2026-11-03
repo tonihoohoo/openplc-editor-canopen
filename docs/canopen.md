@@ -29,7 +29,8 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
    on the device. The file is checked first (see "Device files"), and a dialog shows the result
    before the node is added.
 4. For each node:
-   - **General**: name, node ID, **Optional node**, which identity values the master checks at boot
+   - **General**: name, node ID, **Optional node**, **On at PLC start**, **Started by** (the master
+     or the PLC program), which identity values the master checks at boot
      (vendor ID and product code by default; the revision is off so newer firmware still boots),
      supervision (heartbeat with the node's producer time and the master's timeout, or node guarding
      with guard time and life time factor, taken from the file for a node that is not initialized,
@@ -297,7 +298,7 @@ and when started by hand; otherwise the job is skipped.
 
 The node page has a basic and an expert view; the **Expert view** switch is an editor preference,
 kept across sessions and not in the project. The basic view shows the name, node ID, optional,
-supervision, inputs on loss, watch the master with its timeout, and the state channel. The expert
+on at PLC start, started by, supervision, inputs on loss, watch the master with its timeout, and the state channel. The expert
 view adds the settings below. An expert setting that is not at its default stays visible in the
 basic view, marked "expert".
 
@@ -305,6 +306,8 @@ basic view, marked "expert".
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Identity check (expert)               | Vendor ID, product code and revision checked at boot                                                                                                                                                            |
 | Optional node                         | The network runs without it; the master keeps looking for it and starts it when it appears                                                                                                                      |
+| On at PLC start                       | On by default. When off, the master does not look for, boot, supervise or warn about the node and sends it no PDOs, until the program turns it on with `CANOPEN_NODE_ENABLE`                                     |
+| Started by                            | Master (default): the master starts the node once it is configured. PLC program: after every boot the node waits pre-operational ("Waiting for program start") until the program sends it `NMT` start            |
 | No initialization (expert)            | No identity check, restore or configuration SDOs; the master only starts the node, which keeps its settings                                                                                                     |
 | Restore defaults (expert)             | Restores defaults through a writable 0x1011 sub (1 all, 2 comm, 3 app, 4+ manufacturer), resets, then configures the node                                                                                       |
 | Node guarding                         | Writes 0x100C and 0x100D (and 0x1017 = 0); the master guards the node and loses it when it stops answering                                                                                                      |
@@ -312,6 +315,10 @@ basic view, marked "expert".
 | When the master is gone (expert)      | 0x1029:1 for a node that watches the master                                                                                                                                                                     |
 | Emergency messages (expert)           | On by default; the COB-ID the master listens on, written to 0x1014 when it differs from the EDS. Off and greyed out when the EDS has no 0x1014, or a read-only one with bit 31 set or a COB-ID of 0 (check and fix warns that its emergencies are not watched); with a read-only 0x1014 the COB-ID is the EDS value, greyed out |
 | Receive TIME (expert)                 | Writes 0x1012 so the node takes the network's TIME                                                                                                                                                              |
+
+**On at PLC start** and **Started by** are written as `enabled` and `start` in `canopen.json` format
+version 5. A node that is not initialized can also be started by the program: it gets no SDOs and
+waits once it is found.
 
 With **No initialization** the heartbeat or guarding values shown are the EDS defaults, read-only.
 A setting the node cannot take is greyed out, and hovering it says why (the missing object, or No
@@ -344,9 +351,10 @@ copy of those ranges, taken from the runtime's parser, and must change with it. 
 While the editor is connected to a runtime whose `/api/capabilities` lists `"status"` in
 `canopen.features`, the CANopen device editor reads `GET /api/canopen/status` once a second and shows:
 
-- a dot before each node: green operational, amber booting or operational with an active emergency
-  or a late PDO, red not answering, boot failed or lost, grey waiting, stopped, an optional node
-  that is absent, or not in the running program; its tooltip gives the state and the reason;
+- a dot before each node: green operational, amber booting, waiting for the program's start, or
+  operational with an active emergency or a late PDO, red not answering, boot failed or lost, grey
+  waiting, stopped, off ("Off at PLC start" or "Off by the program"), an optional node that is
+  absent, or not in the running program; its tooltip gives the state and the reason;
 - the bus status under the network header: the controller state, error counters, bus load and
   dropped frames, how often the runtime reset the link (after a bus-off, at a wrong bit rate or when
   it stopped sending), and, while the link is faulty, when the runtime is not permitted to reset it
@@ -434,6 +442,9 @@ loader.
 | `GET_LOCAL_NODE_ID`                   | The master's node ID                                               |
 | `GET_CANOPEN_KERNEL_STATE`            | The bus state (no error, error passive, bus off, no driver)        |
 | `RECV_EMCY`, `RECV_EMCY_DEV`          | Emergency messages of the network, or of one node, oldest first    |
+| `CANOPEN_NODE_ENABLE`                 | Turn a node on or off while the PLC runs (`ACTIVE`, a level)       |
+| `CANOPEN_NODE_STATUS`                 | How the master runs a node (`RUNSTATE`) and its settings           |
+| `CANOPEN_NETWORK_STATE`               | `MANDATORY_UP`, `OPTIONAL_UP` and node counts of a network         |
 
 - **Addressing.** `NETWORK` counts the networks that are on from 1 (default 1) and `DEVICE` is the node
   ID. Each network and node name is also a constant of the program, so `DEVICE := io2` and
@@ -449,9 +460,33 @@ loader.
   node and object. A runtime without the canopen plugin, or one too old, gives
   `CANOPEN_KERNEL_NO_DRIVER`.
 - **Types.** STruC++ does not export a library's enumerations, so the CiA 405 enumerations are `USINT`
-  types (`CANOPEN_KERNEL_ERROR`, `DEVICE_STATE`, `TRANSITION_STATE`) with their values as constants
+  types (`CANOPEN_KERNEL_ERROR`, `DEVICE_STATE`, `TRANSITION_STATE`, `CANOPEN_RUN_STATE`) with their values as constants
   (`STOPPED`, `START_REMOTE_NODE`, ...). `CANOPEN_DWORD_TO_REAL` and `CANOPEN_REAL_TO_DWORD` keep every
   bit for REAL32 objects.
+- **Node control.** The three `CANOPEN_` blocks have no CiA 405 counterpart. `CANOPEN_NODE_ENABLE`
+  sends one request per change of `ACTIVE` while `ENABLE` is TRUE; `BUSY` until the master has
+  applied it, then `CONFIRM`. The choice lasts until the PLC stops. `CANOPEN_NODE_STATUS.RUNSTATE` is a
+  `RUN_*` constant (`RUN_WAITING_START`, `RUN_OPERATIONAL`, `RUN_DISABLED`, ...), and its `ERRORTEXT`
+  gives the reason while the node is failed, lost or held. `CANOPEN_NETWORK_STATE.MANDATORY_UP` is TRUE
+  when every mandatory node that is on is operational or waits for the program's start, so a program
+  can wait for it and then start the waiting nodes with `NMT`. `NMT` with `DEVICE := 0` skips nodes
+  that are off. These blocks need the runtime's block interface version 2; an older runtime gives
+  `CANOPEN_KERNEL_NO_DRIVER` with a text asking for an update.
+
+  A program for a machine whose gripper (node `Gripper`) is optional per machine and whose I/O
+  module (node `IO_Module`, started by the PLC program) must start only once every mandatory node
+  is up:
+
+  ```
+  gripper(ENABLE := TRUE, DEVICE := Gripper, ACTIVE := has_gripper);
+  net(ENABLE := TRUE);
+  io(ENABLE := TRUE, DEVICE := IO_Module);
+  start_io(ENABLE := net.MANDATORY_UP AND io.RUNSTATE = RUN_WAITING_START,
+           DEVICE := IO_Module, STATE := START_REMOTE_NODE);
+  ```
+
+  with `gripper : CANOPEN_NODE_ENABLE`, `net : CANOPEN_NETWORK_STATE`, `io : CANOPEN_NODE_STATUS` and
+  `start_io : NMT`. After every new boot of `IO_Module` the start is sent again.
 - **PLC stop and start.** A request in progress when the PLC stops is cancelled; after a start the
   blocks begin again from idle. `SDO_WRITE4` with `DATALENGTH := 0` takes the object's size from the
   node's EDS.

@@ -36,6 +36,9 @@ describe('the canopen block library', () => {
     const blocks = archive.manifest.functionBlocks ?? []
     expect(blocks.map((b) => b.name).sort()).toEqual(
       [
+        'CANOPEN_NETWORK_STATE',
+        'CANOPEN_NODE_ENABLE',
+        'CANOPEN_NODE_STATUS',
         'GET_CANOPEN_KERNEL_STATE',
         'GET_LOCAL_NODE_ID',
         'GET_STATE',
@@ -60,7 +63,7 @@ describe('the canopen block library', () => {
     const archive = JSON.parse(read('canopen.stlib')) as StlibArchiveDTO
     const project = { pous: [], libraries: [{ name: 'canopen', version: '1.0.0' }] } as unknown as PLCProjectData
     const grafted = injectLibraryBlocks(project, [archive]).pous
-    expect(grafted).toHaveLength(12)
+    expect(grafted).toHaveLength(15)
     const read4 = grafted.find((p) => p.name === 'SDO_READ4')
     const vars = read4?.interface?.variables ?? []
     expect(pins(vars, 'input')).toEqual([
@@ -80,6 +83,32 @@ describe('the canopen block library', () => {
       'DATA:DWORD',
       'DATALENGTH:USINT',
     ])
+    const enable = grafted.find((p) => p.name === 'CANOPEN_NODE_ENABLE')?.interface?.variables ?? []
+    expect(pins(enable, 'input')).toEqual(['NETWORK:USINT', 'ENABLE:BOOL', 'DEVICE:USINT', 'ACTIVE:BOOL'])
+    expect(pins(enable, 'output')).toEqual(['CONFIRM:BOOL', 'BUSY:BOOL', 'ERROR:USINT', 'ERRORTEXT:STRING'])
+    const status = grafted.find((p) => p.name === 'CANOPEN_NODE_STATUS')?.interface?.variables ?? []
+    expect(pins(status, 'output')).toEqual([
+      'CONFIRM:BOOL',
+      'ERROR:USINT',
+      'ERRORTEXT:STRING',
+      'RUNSTATE:USINT',
+      'ENABLED:BOOL',
+      'OPTIONAL:BOOL',
+      'PROGRAMSTART:BOOL',
+    ])
+    const network = grafted.find((p) => p.name === 'CANOPEN_NETWORK_STATE')?.interface?.variables ?? []
+    expect(pins(network, 'output')).toEqual([
+      'CONFIRM:BOOL',
+      'ERROR:USINT',
+      'ERRORTEXT:STRING',
+      'MANDATORY_UP:BOOL',
+      'OPTIONAL_UP:BOOL',
+      'CONFIGURED:USINT',
+      'OPERATIONAL:USINT',
+      'WAITING:USINT',
+      'DISABLED:USINT',
+      'FAULTY:USINT',
+    ])
     const body = read4?.body.value
     expect(typeof body === 'string' ? body : '').toContain('#ifndef CANOPEN_FB_SHARED_INCLUDED')
     // Not enabled: nothing is grafted.
@@ -93,6 +122,7 @@ VAR r : REAL; d : DWORD; e : USINT; END_VAR
 r := CANOPEN_DWORD_TO_REAL(16#3FC00000);
 d := CANOPEN_REAL_TO_DWORD(r);
 IF e = CANOPEN_KERNEL_TIMEOUT OR e = STOPPED THEN e := START_REMOTE_NODE; END_IF;
+IF e = RUN_WAITING_START OR e = RUN_DISABLED THEN e := RUN_OPERATIONAL; END_IF;
 END_PROGRAM
 CONFIGURATION c RESOURCE r ON PLC TASK t(INTERVAL := T#20ms, PRIORITY := 1); PROGRAM i WITH t : main; END_RESOURCE END_CONFIGURATION
 `

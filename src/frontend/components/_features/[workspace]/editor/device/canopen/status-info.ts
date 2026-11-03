@@ -14,5 +14,5 @@ export function nodeDotInfo(live: CanopenLiveStatus, nodeId: number): { dot: Can
   if (!node) return { dot: 'grey', title: 'Not in the program running on the runtime' }
   const reason = node.problem && node.state !== 'operational' ? ` ${problemText(node.problem)}` : ''
   const warning = node.warning ? ' Has an active emergency or a late PDO.' : ''
-  return { dot: nodeDot(node), title: `${nodeStateLabel(node.state)}.${reason}${warning}` }
+  return { dot: nodeDot(node), title: `${nodeStateLabel(node.state, node.off_by)}.${reason}${warning}` }
 }

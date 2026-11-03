@@ -161,6 +161,15 @@ describe('buildHtmlDocument', () => {
     expect(doc.querySelector('#node-3')).not.toBeNull()
     expect(doc.body.textContent).not.toContain('2 io2')
   })
+
+  it('says who starts a node and whether it is on at PLC start', () => {
+    const config = network()
+    config.nodes = config.nodes.map((n) => (n.nodeId === 3 ? { ...n, start: 'program', enabled: false } : n))
+    const doc = new DOMParser().parseFromString(buildHtmlDocument(input({ config, nodeId: 'node-3' })), 'text/html')
+    const text = doc.body.textContent ?? ''
+    expect(text).toContain('On at PLC startno, the PLC program turns it on')
+    expect(text).toContain('Started bythe PLC program (waits pre-operational)')
+  })
 })
 
 describe('canIdRows', () => {

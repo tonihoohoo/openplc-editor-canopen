@@ -346,7 +346,9 @@ function nodeSection(input: HtmlExportInput, node: CanopenNode): string {
   out.push(
     `<div><h3>How the master handles it</h3>${kv([
       ['Required', node.optional ? 'no, optional' : 'yes'],
-      ['Configured by the master', node.configure ? 'yes' : 'no, only started'],
+      ['On at PLC start', node.enabled ? 'yes' : 'no, the PLC program turns it on'],
+      ['Started by', node.start === 'program' ? 'the PLC program (waits pre-operational)' : 'the master'],
+      ['Configured by the master', node.configure ? 'yes' : node.start === 'program' ? 'no' : 'no, only started'],
       ['Identity checks', checks.length ? checks.join(', ') : 'none'],
       ['Restore before configuring', restore],
       ['Supervision', esc(supervision)],

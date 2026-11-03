@@ -167,9 +167,20 @@ interface StateBlock {
   outputs: string
   /** Sets `l_error` (a canopen_fb error) and the outputs; `l_node` names the node for the text. */
   read: string
+  /** Uses the interface version 2 functions (`l_api` is a `canopen_fb::api_v2`). */
+  v2?: boolean
+  /** `read` sets ERRORTEXT while there is no error; the block clears it whenever ENABLE is FALSE. */
+  textInRead?: boolean
 }
 
 function stateBlock(b: StateBlock): string {
+  const api = b.v2
+    ? 'const canopen_fb::api_v2 *l_api = canopen_fb::api2(l_why);'
+    : 'const canopen_fb::api_v1 *l_api = canopen_fb::api(l_why);'
+  const clearText = b.textInRead ? 'ERRORTEXT = "";' : 'if (cop_last != 0) ERRORTEXT = "";'
+  const showText = b.textInRead
+    ? 'if (l_error != canopen_fb::e_no_error) ERRORTEXT = l_text.buf;'
+    : 'ERRORTEXT = l_text.buf;'
   return `(* ${b.doc} *)
 FUNCTION_BLOCK ${b.name}
 VAR_INPUT
@@ -192,17 +203,96 @@ void loop() {
   if (!ENABLE) {
     CONFIRM = false;
     ERROR = 0;
-    if (cop_last != 0) ERRORTEXT = "";
+    ${clearText}
     cop_last = 0;
     return;
   }
   uint8_t l_why = 0;
-  const canopen_fb::api_v1 *l_api = canopen_fb::api(l_why);
+  ${api}
   int l_error = canopen_fb::e_no_driver;
   uint8_t l_node = 0;
   if (l_api) {
 ${indent(b.read, 4)}  }
   CONFIRM = l_error == canopen_fb::e_no_error;
+  ERROR = static_cast<uint8_t>(l_error);
+  if (l_error != cop_last) {
+    canopen_fb::result l_res = canopen_fb::fail(static_cast<uint8_t>(l_error), l_api ? 0 : l_why, 0);
+    canopen_fb::text l_text;
+    canopen_fb::clear(l_text);
+    if (l_error != canopen_fb::e_no_error)
+      canopen_fb::describe(l_text, canopen_fb::what_of(NETWORK, l_node, 0, 0, 0, 0), l_res);
+    ${showText}
+    cop_last = static_cast<uint8_t>(l_error);
+  }
+}
+END_FUNCTION_BLOCK
+`
+}
+
+function nodeEnableBlock(doc: string): string {
+  return `(* ${doc} *)
+FUNCTION_BLOCK CANOPEN_NODE_ENABLE
+VAR_INPUT
+  NETWORK : USINT := 1;
+  ENABLE : BOOL;
+  DEVICE : USINT;
+  ACTIVE : BOOL;
+END_VAR
+VAR_OUTPUT
+  CONFIRM : BOOL;
+  BUSY : BOOL;
+  ERROR : USINT;
+  ERRORTEXT : STRING;
+END_VAR
+VAR
+  cop_last : USINT;
+  cop_sent : BOOL;
+  cop_want : BOOL;
+  cop_net : USINT;
+  cop_node : USINT;
+END_VAR
+@@SHARED@@
+void setup() {
+}
+
+void loop() {
+  if (!ENABLE) {
+    CONFIRM = false;
+    BUSY = false;
+    ERROR = 0;
+    if (cop_last != 0) ERRORTEXT = "";
+    cop_last = 0;
+    cop_sent = false;
+    return;
+  }
+  uint8_t l_why = 0;
+  const canopen_fb::api_v2 *l_api = canopen_fb::api2(l_why);
+  int l_error = canopen_fb::e_no_driver;
+  uint8_t l_node = DEVICE;
+  bool l_want = ACTIVE;
+  bool l_done = false;
+  if (l_api) {
+    l_error = canopen_fb::e_no_error;
+    // A level: each change of ACTIVE (or of the node) sends one request.
+    if (!cop_sent || cop_want != l_want || cop_net != NETWORK || cop_node != l_node) {
+      l_error = l_api->node_enable(NETWORK, l_node, l_want ? 1 : 0);
+      if (l_error == canopen_fb::e_no_error) {
+        cop_sent = true;
+        cop_want = l_want;
+        cop_net = NETWORK;
+        cop_node = l_node;
+      }
+    }
+    if (l_error == canopen_fb::e_no_error) {
+      canopen_fb::node_info l_status;
+      l_error = l_api->node_status(NETWORK, l_node, &l_status);
+      if (l_error == canopen_fb::e_no_error)
+        l_done = ((l_status.flags & canopen_fb::node_enabled) != 0) == l_want;
+    }
+  }
+  bool l_ok = l_error == canopen_fb::e_no_error;
+  CONFIRM = l_ok && l_done;
+  BUSY = l_ok && !l_done;
   ERROR = static_cast<uint8_t>(l_error);
   if (l_error != cop_last) {
     canopen_fb::result l_res = canopen_fb::fail(static_cast<uint8_t>(l_error), l_api ? 0 : l_why, 0);
@@ -521,6 +611,59 @@ Example: emcy(ENABLE := TRUE); IF emcy.CONFIRM THEN last_code := emcy.EMCY.ERROR
 Example: emcy(ENABLE := TRUE, DEVICE := IO_Module); IF emcy.CONFIRM AND emcy.EMCY.ERRORCODE <> 0 THEN alarm := TRUE; END_IF;`,
         true,
       ),
+    ],
+    [
+      'CANOPEN_NODE_ENABLE',
+      nodeEnableBlock(
+        `Turns a node on or off while the PLC runs: while ENABLE is TRUE the node is on when ACTIVE is TRUE and off when it is FALSE. Each change of ACTIVE sends one request; BUSY until the master has applied it, then CONFIRM. A node that is off is not booted, supervised or warned about and gets no PDOs; turning off a running node sends it NMT stop and handles its inputs as on a loss. The choice lasts until the PLC stops; at the next start the node's "On at PLC start" setting applies again. NETWORK counts from 1; DEVICE is the node ID or its name.
+Example: gripper(ENABLE := TRUE, DEVICE := Gripper, ACTIVE := has_gripper);`,
+      ),
+    ],
+    [
+      'CANOPEN_NODE_STATUS',
+      stateBlock({
+        name: 'CANOPEN_NODE_STATUS',
+        doc: `Gives how the master runs a node, in the same call while ENABLE is TRUE: RUNSTATE is RUN_NOT_FOUND, RUN_BOOTING, RUN_FAILED, RUN_WAITING_START, RUN_OPERATIONAL, RUN_MANUAL, RUN_LOST, RUN_HELD, RUN_DISABLED or RUN_STOPPED; ENABLED, OPTIONAL and PROGRAMSTART give its settings as they are now. While the node is failed, lost or held, ERRORTEXT says why. NETWORK counts from 1; DEVICE is the node ID or its name.
+Example: status(ENABLE := TRUE, DEVICE := IO_Module); IF status.RUNSTATE = RUN_WAITING_START THEN ... END_IF;`,
+        inputs: '  DEVICE : USINT;\n',
+        outputs: '  RUNSTATE : USINT;\n  ENABLED : BOOL;\n  OPTIONAL : BOOL;\n  PROGRAMSTART : BOOL;\n',
+        v2: true,
+        read: `canopen_fb::node_info l_status;
+l_node = DEVICE;
+l_error = l_api->node_status(NETWORK, l_node, &l_status);
+if (l_error == canopen_fb::e_no_error) {
+  RUNSTATE = l_status.run_state;
+  ENABLED = (l_status.flags & canopen_fb::node_enabled) != 0;
+  OPTIONAL = (l_status.flags & canopen_fb::node_optional) != 0;
+  PROGRAMSTART = (l_status.flags & canopen_fb::node_program_start) != 0;
+  l_status.problem[canopen_fb::status_text - 1] = 0;
+  ERRORTEXT = l_status.problem;
+}`,
+        textInRead: true,
+      }),
+    ],
+    [
+      'CANOPEN_NETWORK_STATE',
+      stateBlock({
+        name: 'CANOPEN_NETWORK_STATE',
+        doc: `Gives the state of a whole network, in the same call while ENABLE is TRUE: MANDATORY_UP when every mandatory node that is on is operational or waits for the program's start, OPTIONAL_UP the same for the optional nodes, and the number of nodes CONFIGURED (operational, waiting or set by hand), OPERATIONAL, WAITING for the program's start, DISABLED (off) and FAULTY (failed, lost, held, or mandatory and not answering). Nodes that are off count in neither flag. NETWORK counts from 1.
+Example: net(ENABLE := TRUE); IF net.MANDATORY_UP THEN start(ENABLE := TRUE, DEVICE := IO_Module, STATE := START_REMOTE_NODE); END_IF;`,
+        inputs: '',
+        outputs:
+          '  MANDATORY_UP : BOOL;\n  OPTIONAL_UP : BOOL;\n  CONFIGURED : USINT;\n  OPERATIONAL : USINT;\n  WAITING : USINT;\n  DISABLED : USINT;\n  FAULTY : USINT;\n',
+        v2: true,
+        read: `canopen_fb::network_info l_net;
+l_error = l_api->network_status(NETWORK, &l_net);
+if (l_error == canopen_fb::e_no_error) {
+  MANDATORY_UP = l_net.mandatory_up != 0;
+  OPTIONAL_UP = l_net.optional_up != 0;
+  CONFIGURED = l_net.configured;
+  OPERATIONAL = l_net.operational;
+  WAITING = l_net.waiting;
+  DISABLED = l_net.disabled;
+  FAULTY = l_net.faulty;
+}`,
+      }),
     ],
   ]
   return blocks.map(([name, source]) => ({ fileName: `${name}.cpp`, source }))
