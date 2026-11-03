@@ -10,7 +10,7 @@
         "globalVariables": []
       }
     },
-    "libraries": [],
+    "libraries": [{ "name": "canopen", "version": "1.0.0" }],
     "debugVariables": { "global": [], "pous": {} }
   }
 }
