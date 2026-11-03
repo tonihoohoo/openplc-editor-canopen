@@ -154,17 +154,24 @@ describe('canopenSdoWarnings', () => {
 })
 
 describe('addresses inside the runtime I/O image', () => {
-  it('stops the build for an entry or a state location past index 1023', () => {
+  it('stops the build for an entry or a state location past index 65535', () => {
+    const node = genericNode(2)
+    node.tpdos[0].entries[0].iecLocation = '%IB65536'
+    node.state.iecLocation = '%IB70000'
+    const errors = errorsOf(configWith(node))
+    expect(
+      errors.some((e) => e.includes('TPDO 1') && e.includes('%IB65536') && e.includes('index 65535 at most')),
+    ).toBe(true)
+    expect(errors.some((e) => e.includes('state location %IB70000'))).toBe(true)
+    node.tpdos[0].entries[0].iecLocation = '%IB65535'
+    node.state.iecLocation = '%IB65534'
+    expect(errorsOf(configWith(node))).toEqual([])
+  })
+
+  it('accepts addresses above the old limit of 1024 entries', () => {
     const node = genericNode(2)
     node.tpdos[0].entries[0].iecLocation = '%IB1024'
     node.state.iecLocation = '%IB2000'
-    const errors = errorsOf(configWith(node))
-    expect(errors.some((e) => e.includes('TPDO 1') && e.includes('%IB1024') && e.includes("runtime's I/O image"))).toBe(
-      true,
-    )
-    expect(errors.some((e) => e.includes('state location %IB2000'))).toBe(true)
-    node.tpdos[0].entries[0].iecLocation = '%IB1023'
-    node.state.iecLocation = '%IB1022'
     expect(errorsOf(configWith(node))).toEqual([])
   })
 })
