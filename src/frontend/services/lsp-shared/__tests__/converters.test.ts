@@ -4,6 +4,7 @@
 import type * as monaco from 'monaco-editor'
 
 import {
+  lspCompletionKindToMonaco,
   lspCompletionListToMonaco,
   lspCompletionToMonaco,
   lspDiagnosticToMonaco,
@@ -34,6 +35,37 @@ const monacoStub = {
   },
   languages: {
     CompletionItemInsertTextRule: { None: 0, InsertAsSnippet: 4 },
+    CompletionItemKind: {
+      Method: 0,
+      Function: 1,
+      Constructor: 2,
+      Field: 3,
+      Variable: 4,
+      Class: 5,
+      Struct: 6,
+      Interface: 7,
+      Module: 8,
+      Property: 9,
+      Event: 10,
+      Operator: 11,
+      Unit: 12,
+      Value: 13,
+      Constant: 14,
+      Enum: 15,
+      EnumMember: 16,
+      Keyword: 17,
+      Text: 18,
+      Color: 19,
+      File: 20,
+      Reference: 21,
+      Customcolor: 22,
+      Folder: 23,
+      TypeParameter: 24,
+      User: 25,
+      Issue: 26,
+      Tool: 27,
+      Snippet: 28,
+    },
   },
 } as unknown as typeof monaco
 
@@ -181,6 +213,30 @@ describe('lspCompletionToMonaco', () => {
       monacoStub,
     )
     expect(result.documentation).toBe('**docs**')
+  })
+})
+
+describe('lspCompletionKindToMonaco', () => {
+  it('maps LSP kinds to the Monaco kinds of the same name', () => {
+    // LSP: Function 3, Field 5, Variable 6, Class 7, Keyword 14, Snippet 15, Struct 22, TypeParameter 25
+    expect(lspCompletionKindToMonaco(3, monacoStub)).toBe(1)
+    expect(lspCompletionKindToMonaco(5, monacoStub)).toBe(3)
+    expect(lspCompletionKindToMonaco(6, monacoStub)).toBe(4)
+    expect(lspCompletionKindToMonaco(7, monacoStub)).toBe(5)
+    expect(lspCompletionKindToMonaco(14, monacoStub)).toBe(17)
+    expect(lspCompletionKindToMonaco(15, monacoStub)).toBe(28)
+    expect(lspCompletionKindToMonaco(22, monacoStub)).toBe(6)
+    expect(lspCompletionKindToMonaco(25, monacoStub)).toBe(24)
+  })
+
+  it('falls back to Text for a missing or unknown kind', () => {
+    expect(lspCompletionKindToMonaco(undefined, monacoStub)).toBe(18)
+    expect(lspCompletionKindToMonaco(99, monacoStub)).toBe(18)
+  })
+
+  it('is used for completion items', () => {
+    const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }
+    expect(lspCompletionToMonaco({ label: 'timer1', kind: 6 }, range, monacoStub).kind).toBe(4)
   })
 })
 

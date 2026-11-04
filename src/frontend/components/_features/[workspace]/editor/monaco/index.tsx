@@ -11,12 +11,15 @@ import { useDebugBoolValuesMap, useDebugNonBoolValuesMap } from '../../../../../
 import { registerAIInlineCompletions } from '../../../../../services/ai/inline-completions'
 import { getCppMemberCompletions, projectTypeNamePredicate } from '../../../../../services/cpp-scope'
 import { executeSaveActiveFile, executeSaveProject } from '../../../../../services/save-actions'
+import { trackBodyCursor } from '../../../../../services/st-calls/insert-call'
+import { callScopeFor } from '../../../../../services/st-calls/providers'
 import { pouUri, splitExpression } from '../../../../../services/st-lsp'
 import { useOpenPLCStore, useOpenPLCStoreApi } from '../../../../../store'
 import { applyAcceptedHunks, computeHunks } from '../../../../../utils/ai-diff-review'
 import { memberChainBefore } from '../../../../../utils/cpp/member-chain'
 import { getExtensionFromLanguage, getFolderFromPouType } from '../../../../../utils/PLC/pou-file-extensions'
 import { parseHybridPouFromString, parseTextualPouFromString } from '../../../../../utils/PLC/pou-text-parser'
+import { VARIABLE_DRAG_TYPE, variableDropSnippet } from '../../../../../utils/st-calls/variable-drop'
 import { Modal, ModalContent, ModalTitle } from '../../../../_molecules/modal'
 import { toast } from '../../../[app]/toast/use-toast'
 import { renderDiffReview } from './ai-diff-review'
@@ -31,7 +34,7 @@ import {
   tableGlobalVariablesCompletion,
   tableVariablesCompletion,
 } from './completion'
-import { parsePouToStText } from './drag-and-drop/st'
+import { parseLibraryDropToStText, parsePouToStText } from './drag-and-drop/st'
 import { runWithoutDirtying } from './model-sync-guard'
 import { cleanupPythonLSP, initPythonLSP, setupPythonLSPForEditor, updatePythonLspContext } from './python-lsp'
 import { applyThemeNow, ensureOpenplcThemes } from './theme-utils'
@@ -811,6 +814,7 @@ const MonacoEditor = (props: monacoEditorProps): ReturnType<typeof PrimitiveEdit
     focusDisposables.current.onBlur = editorInstance.onDidBlurEditorText(() => {
       store.getState().editorActions.setMonacoFocused(false)
     })
+    if (language === 'st') trackBodyCursor(editorInstance)
 
     const isDark = store.getState().workspace.systemConfigs.shouldUseDarkMode
     if (!didApplyInitialTheme) {
@@ -1230,6 +1234,12 @@ void loop()
     ev.preventDefault()
     ev.stopPropagation()
 
+    const droppedVariable = ev.dataTransfer.getData(VARIABLE_DRAG_TYPE)
+    if (droppedVariable) {
+      insertDroppedVariable(droppedVariable, ev.clientX, ev.clientY)
+      return
+    }
+
     let pouToAppend
     const pouPath = ev.dataTransfer.getData('application/library')
 
@@ -1272,6 +1282,19 @@ void loop()
     }
   }
 
+  const insertDroppedVariable = (variableName: string, clientX: number, clientY: number) => {
+    const editorInstance = editorRef.current
+    if (language !== 'st' || !editorInstance) return
+    const scope = callScopeFor(store, pouUri(name))
+    const snippet = scope ? variableDropSnippet(variableName, scope) : null
+    if (!snippet) return
+    const position = editorInstance.getTargetAtClientPoint(clientX, clientY)?.position
+    if (position) editorInstance.setPosition(position)
+    editorInstance.focus()
+    const snippetController = editorInstance.getContribution('snippetController2') as unknown as SnippetController
+    snippetController?.insert(snippet)
+  }
+
   function checkIfVariableExists(existingNames: string[], baseName: string): string {
     let varName = baseName
     let index = 1
@@ -1300,8 +1323,7 @@ void loop()
     const existingNames = currentVars.map((variable) => variable.name)
     const uniqueName = checkIfVariableExists(existingNames, newName)
 
-    const renamedContent = { ...contentToDrop, name: uniqueName }
-    const contentToInsert = parsePouToStText(renamedContent)
+    const contentToInsert = parseLibraryDropToStText(contentToDrop, uniqueName)
 
     const snippetController = editorRef.current.getContribution('snippetController2') as unknown as SnippetController
     if (snippetController) {
