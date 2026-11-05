@@ -119,6 +119,17 @@
         ]
       },
       {
+        "id": "copy",
+        "index": 8448,
+        "subIndex": 4,
+        "name": "Copy",
+        "dataType": "INTEGER16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW2",
+        "defaultValue": "0"
+      },
+      {
         "id": "serial",
         "index": 8704,
         "subIndex": 1,
@@ -130,11 +141,35 @@
         "defaultValue": "SN-0001"
       }
     ],
-    "tpdos": [
-      { "transmissionType": 255, "inhibitTime": 0, "eventTimerMs": 0 },
-      { "transmissionType": 255, "inhibitTime": 0, "eventTimerMs": 0 },
-      { "transmissionType": 255, "inhibitTime": 0, "eventTimerMs": 0 },
-      { "transmissionType": 255, "inhibitTime": 0, "eventTimerMs": 0 }
-    ]
+    "pdos": {
+      "rpdos": [
+        {
+          "number": 1,
+          "objects": ["setpoint", "mode", "valves"],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 0,
+          "eventTimerMs": 0
+        }
+      ],
+      "tpdos": [
+        {
+          "number": 1,
+          "objects": ["echo", "limit-echo", "lamps"],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 0,
+          "eventTimerMs": 0
+        },
+        {
+          "number": 5,
+          "objects": ["copy"],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 0,
+          "eventTimerMs": 0
+        }
+      ]
+    }
   }
 }

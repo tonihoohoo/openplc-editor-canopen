@@ -20,6 +20,10 @@ import {
   SLAVE_PACKED_HINT,
   SLAVE_PACKED_LABEL,
   slaveAddressText,
+  type SlavePdo,
+  slavePdoLayout,
+  slavePdoName,
+  slavePdoOf,
   type SlaveProblem,
   slaveValueProblem,
 } from '@root/middleware/shared/utils/canopen'
@@ -42,7 +46,27 @@ type DataTabProps = {
   commit: Update
   /** Why the alias cannot be given to the object (or to its bit `bit`), or null. */
   aliasProblem: (object: CanopenSlaveObject, alias: string, bit?: number) => string | null
+  /** Opens the PDOs tab at the PDO named by its layout key, such as `tpdos5`. */
+  onShowPdo: (key: string) => void
 }
+
+/** The PDO an object is in, as a link to the PDOs tab. */
+const PdoCell = ({ pdo, onShowPdo }: { pdo: SlavePdo | null; onShowPdo: (key: string) => void }) => (
+  <div className='flex h-[30px] items-center whitespace-nowrap text-xs'>
+    {pdo ? (
+      <button
+        type='button'
+        className='text-brand hover:underline'
+        title='Show it on the PDOs tab'
+        onClick={() => onShowPdo(`${pdo.direction === 'from_master' ? 'rpdos' : 'tpdos'}${pdo.number}`)}
+      >
+        {slavePdoName(pdo.direction, pdo.number)}
+      </button>
+    ) : (
+      <span className={hintClassName}>—</span>
+    )}
+  </div>
+)
 
 /** The type picker's choices: the data types, then an UNSIGNED8 packed as 8 BOOLs. */
 type TypeChoice = CanopenSlaveDataType | 'PACKED'
@@ -139,16 +163,18 @@ type ObjectRowProps = {
   problems: readonly string[]
   commit: Update
   aliasProblem: DataTabProps['aliasProblem']
+  pdo: SlavePdo | null
+  onShowPdo: DataTabProps['onShowPdo']
 }
 
-const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRowProps) => {
+const ObjectRow = ({ config, object, problems, commit, aliasProblem, pdo, onShowPdo }: ObjectRowProps) => {
   const fromMaster = object.direction === 'from_master'
   const constant = object.exchange === 'constant'
   const string = object.dataType === 'VISIBLE_STRING'
   const packed = isSlavePacked(object)
   const [open, setOpen] = useState(true)
   const change = (update: Partial<CanopenSlaveObject>) => commit((c) => updateObject(c, object.id, update))
-  const columns = fromMaster ? 10 : 8
+  const columns = fromMaster ? 11 : 9
   return (
     <>
       <tr
@@ -210,7 +236,7 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRow
             />
           </div>
         </td>
-        <td className={cn(cellClassName, 'w-[210px]')}>
+        <td className={cn(cellClassName, 'w-[190px]')}>
           <SelectField
             hideLabel
             label='Type'
@@ -231,6 +257,9 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRow
             options={exchangeOptions(object)}
             onChange={(exchange) => change({ exchange })}
           />
+        </td>
+        <td className={cn(cellClassName, 'w-[56px]')} data-testid='canopen-slave-in-pdo'>
+          <PdoCell pdo={pdo} onShowPdo={onShowPdo} />
         </td>
         <td className={cn(cellClassName, 'w-[104px]')}>
           <div
@@ -375,6 +404,7 @@ const BitRow = ({ object, bit, value, commit, aliasProblem, columns }: BitRowPro
         <div className='flex h-[30px] items-center px-1'>BOOL</div>
       </td>
       <td className={cellClassName} />
+      <td className={cellClassName} />
       <td className={cellClassName}>
         <div
           className='flex h-[30px] items-center font-mono text-xs text-neutral-700 dark:text-neutral-300'
@@ -397,7 +427,7 @@ const BitRow = ({ object, bit, value, commit, aliasProblem, columns }: BitRowPro
           }}
         />
       </td>
-      <td className={cellClassName} colSpan={columns - 6}>
+      <td className={cellClassName} colSpan={columns - 7}>
         <div className='flex h-[30px] items-center px-1'>
           <input
             type='checkbox'
@@ -419,9 +449,10 @@ const BitRow = ({ object, bit, value, commit, aliasProblem, columns }: BitRowPro
 type ObjectTableProps = Omit<DataTabProps, 'problems'> & {
   direction: CanopenSlaveDirection
   problemsOf: (id: string) => string[]
+  pdoOf: (id: string) => SlavePdo | null
 }
 
-const ObjectTable = ({ config, direction, commit, aliasProblem, problemsOf }: ObjectTableProps) => {
+const ObjectTable = ({ config, direction, commit, aliasProblem, problemsOf, pdoOf, onShowPdo }: ObjectTableProps) => {
   const fromMaster = direction === 'from_master'
   const objects = config.objects.filter((o) => o.direction === direction)
   const place = nextSlaveObjectPlace(config, direction)
@@ -475,6 +506,7 @@ const ObjectTable = ({ config, direction, commit, aliasProblem, problemsOf }: Ob
                 <th className={headClassName}>Name</th>
                 <th className={headClassName}>Type</th>
                 <th className={headClassName}>Exchange</th>
+                <th className={headClassName}>In</th>
                 <th className={headClassName}>Address</th>
                 <th className={headClassName}>Alias</th>
                 <th className={headClassName}>Default</th>
@@ -496,6 +528,8 @@ const ObjectTable = ({ config, direction, commit, aliasProblem, problemsOf }: Ob
                   problems={problemsOf(o.id)}
                   commit={commit}
                   aliasProblem={aliasProblem}
+                  pdo={pdoOf(o.id)}
+                  onShowPdo={onShowPdo}
                 />
               ))}
             </tbody>
@@ -507,8 +541,10 @@ const ObjectTable = ({ config, direction, commit, aliasProblem, problemsOf }: Ob
 }
 
 /** The slave's application objects, one table per direction. */
-const DataTab = ({ config, problems, commit, aliasProblem }: DataTabProps) => {
+const DataTab = ({ config, problems, commit, aliasProblem, onShowPdo }: DataTabProps) => {
   const problemsOf = (id: string): string[] => problems.filter((p) => p.where === id).map((p) => p.text)
+  const layout = slavePdoLayout(config)
+  const pdoOf = (id: string): SlavePdo | null => slavePdoOf(layout, id)
   return (
     <div className='flex flex-col gap-4 pb-4'>
       <ObjectTable
@@ -517,6 +553,8 @@ const DataTab = ({ config, problems, commit, aliasProblem }: DataTabProps) => {
         commit={commit}
         aliasProblem={aliasProblem}
         problemsOf={problemsOf}
+        pdoOf={pdoOf}
+        onShowPdo={onShowPdo}
       />
       <ObjectTable
         config={config}
@@ -524,6 +562,8 @@ const DataTab = ({ config, problems, commit, aliasProblem }: DataTabProps) => {
         commit={commit}
         aliasProblem={aliasProblem}
         problemsOf={problemsOf}
+        pdoOf={pdoOf}
+        onShowPdo={onShowPdo}
       />
     </div>
   )

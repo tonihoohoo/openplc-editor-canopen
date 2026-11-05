@@ -618,10 +618,22 @@ network and a slave at the same time. The page has four tabs:
   alias, a default and, from the master, an optional range; the slave refuses SDO writes outside it
   (abort 0609 0031h / 0032h). A constant has no address, and a STRING is always a constant. See
   [Objects packed as 8 bits](#objects-packed-as-8-bits) for the **UNSIGNED8 (8 × BOOL)** type.
-- **PDOs**: the default layout, four RPDOs and four TPDOs of 8 bytes filled in table order from the
-  objects marked PDO, with the pre-defined COB-IDs from the node ID. Each used TPDO is sent on change
-  (with inhibit time and event timer) or every N SYNC. The master may remap the PDOs in
-  pre-operational; values are not stored over a restart.
+- **PDOs**: the default layout of up to 16 RPDOs and 16 TPDOs of 8 bytes each. A new object marked
+  PDO goes to the first PDO of its direction with room, or to a new one; the layout is kept, so an
+  object stays where it is when others change. **Add RPDO** and **Add TPDO** add an empty PDO of the
+  lowest free number, and × removes a PDO (its objects become SDO only). Click an object for its
+  menu: move it to another PDO of its direction (a full one shows why not), to a new PDO, left or
+  right within its PDO, or make it SDO only. Each used TPDO is sent on change (with inhibit time and
+  event timer) or every N SYNC; each RPDO has a **Receive timeout** (0x140n:05, 0 for off): when no
+  frame comes in time the slave sends EMCY 8250h, keeps the last values and its NMT state, and clears
+  the error with the next frame. PDOs 1-4 use the pre-defined COB-IDs from the node ID. PDOs 5-16 have
+  none in CiA 301: their **COB-ID** is **Given by the master** (the slave starts them off, 0x80000000,
+  until a master writes a COB-ID, and a master project that adds the slave's device file gives them
+  the lowest free COB-ID) or **Fixed** (a value that does not follow an LSS node ID, for a master that
+  does not set it or with **Start without a master**, which warns about a PDO given by the master). A
+  fixed COB-ID that is reserved or used by another PDO of the slave stops the build. The master may
+  remap all PDOs in pre-operational; values are not stored over a restart. The **In** column of the
+  Data tab names each object's PDO and opens this tab at it.
 - **Online**: the running slave as the runtime reports it, read once a second while the editor is
   connected, also while the PLC is stopped. It sends nothing to the slave. From the top: one notice
   when needed, a state strip (NMT state and who set it, the master's heartbeat with its age and
@@ -661,7 +673,7 @@ master) whose eight bits are separate BOOL addresses in the program, as CiA 401 
   per bit and the names of the bits that are on.
 - The EDS describes it as UNSIGNED8. The XDD names the bits through a struct data type, so a master
   network that adds the XDD shows the bit names in its DBC and HTML exports.
-- `conf/canopen.json` (version 11) lists the eight locations in the object's `bits` in place of
+- `conf/canopen.json` (version 12) lists the eight locations in the object's `bits` in place of
   `location`.
 
 ### LSS

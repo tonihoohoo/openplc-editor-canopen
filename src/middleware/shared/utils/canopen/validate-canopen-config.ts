@@ -6,8 +6,8 @@
 
 import type { CanopenNode, CanopenPdo, CanopenSdo } from '../../ports/canopen-types'
 import type { PLCRemoteDevice } from '../../ports/types'
-import { checkCanopenNetwork, checkText, reservedCobId } from './check-fix'
-import { CANOPEN_BITRATES, canopenTypeBits, iecPrefixFor, objectRef } from './data-types'
+import { checkCanopenNetwork, checkText } from './check-fix'
+import { CANOPEN_BITRATES, canopenTypeBits, iecPrefixFor, objectRef, reservedCobId } from './data-types'
 import { findObject, OBJ_FLAG_REFUSE_WRITE } from './eds-parser'
 import { pdoConfigured, watchesMaster } from './generate-canopen-config'
 import {

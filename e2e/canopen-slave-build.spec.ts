@@ -160,7 +160,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 11,
+      version: 12,
       networks: [{ interface: 'can0', nodes: [{ node_id: 1 }] }],
       devices: [
         {
@@ -180,6 +180,29 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
         },
       ],
     })
+
+    // PDO 5-16: an object moved to TPDO 5, whose COB-ID the master gives or is fixed.
+    await page.getByText(/^(\* )?slave$/).filter({ visible: true }).first().click()
+    await page.getByRole('tab', { name: 'PDOs' }).click()
+    const tpdos = page.getByTestId('canopen-slave-tpdos')
+    for (let i = 0; i < 4; i++) await tpdos.getByRole('button', { name: /Add TPDO/ }).click()
+    for (const n of [2, 3, 4]) await page.getByRole('button', { name: `Remove TPDO ${n}` }).click()
+    await page.getByRole('button', { name: 'ToMaster in TPDO 1' }).click()
+    await expect(page.getByRole('menuitem', { name: 'A new TPDO (TPDO 2)' })).toBeVisible()
+    await slaveKeyView(page, 'slave-pdos-menu')
+    await page.getByRole('menuitem', { name: 'TPDO 5' }).click()
+    const tpdo5 = page.getByTestId('canopen-slave-tpdo5')
+    await expect(tpdo5).toContainText('given by the master')
+    await expect(page.getByTestId('canopen-slave-tpdo1')).toContainText('Empty')
+    await slaveKeyView(page, 'slave-pdos-master-cob')
+    await tpdo5.getByLabel('COB-ID', { exact: true }).selectOption('fixed')
+    await commitField(page, 'Fixed COB-ID', '0x205')
+    await expect(tpdo5).toContainText("TPDO 5: COB-ID 0x205 is already RPDO 1's")
+    await slaveKeyView(page, 'slave-pdos-fixed-cob')
+
+    await page.getByRole('tab', { name: 'Data' }).click()
+    await page.getByTestId('canopen-slave-to-master').getByRole('button', { name: 'TPDO 5' }).click()
+    await expect(page.getByRole('tab', { name: 'PDOs' })).toHaveAttribute('aria-selected', 'true')
   } finally {
     await quitApp(app, page)
   }
@@ -247,7 +270,7 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 11,
+      version: 12,
       devices: [
         {
           name: 'slave',
@@ -338,7 +361,7 @@ test('a CANopen slave byte packed as 8 bits: bit rows, aliases, defaults, the PD
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 11,
+      version: 12,
       devices: [
         {
           name: 'slave',

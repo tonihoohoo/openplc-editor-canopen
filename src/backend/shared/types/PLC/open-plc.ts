@@ -659,6 +659,15 @@ const CanopenSlaveObjectSchema = z.object({
   bits: z.array(z.object({ name: z.string(), iecLocation: z.string(), alias: z.string().optional() })).optional(),
 })
 
+const CanopenSlavePdoSchema = z.object({
+  number: z.number().int().min(1).max(16),
+  objects: z.array(z.string()),
+  cobId: z.number().int().min(1).max(0x7ff).nullable(),
+  transmissionType: z.number().int().min(0).max(255),
+  inhibitTime: z.number().int().min(0).max(65535),
+  eventTimerMs: z.number().int().min(0).max(65535),
+})
+
 const CanopenSlaveConfigSchema = z.object({
   enabled: z.boolean(),
   interface: z.string(),
@@ -686,13 +695,16 @@ const CanopenSlaveConfigSchema = z.object({
     })
     .optional(),
   objects: z.array(CanopenSlaveObjectSchema),
-  tpdos: z.array(
-    z.object({
-      transmissionType: z.number().int().min(0).max(255),
-      inhibitTime: z.number().int().min(0).max(65535),
-      eventTimerMs: z.number().int().min(0).max(65535),
-    }),
-  ),
+  pdos: z.object({ rpdos: z.array(CanopenSlavePdoSchema), tpdos: z.array(CanopenSlavePdoSchema) }).optional(),
+  tpdos: z
+    .array(
+      z.object({
+        transmissionType: z.number().int().min(0).max(255),
+        inhibitTime: z.number().int().min(0).max(65535),
+        eventTimerMs: z.number().int().min(0).max(65535),
+      }),
+    )
+    .optional(),
   lastExport: z.object({ revision: z.number().int().min(0), layout: z.string() }).optional(),
 })
 

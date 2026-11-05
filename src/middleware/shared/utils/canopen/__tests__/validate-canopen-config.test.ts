@@ -1,5 +1,5 @@
 import type { CanopenConfig } from '../../../ports/canopen-types'
-import { reservedCobId } from '../check-fix'
+import { reservedCobId } from '../data-types'
 import { canopenSdoWarnings, validateCanopenProject, watchMasterProblem } from '../validate-canopen-config'
 import { canopenDevice, configWith, genericNode } from './fixtures/helpers'
 

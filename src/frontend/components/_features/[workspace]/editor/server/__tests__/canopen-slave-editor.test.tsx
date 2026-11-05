@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 import type { OpenPLCStore } from '@root/frontend/store'
 import { createStoreWrapper, createTestStore } from '@root/frontend/store/testing'
@@ -214,14 +215,56 @@ describe('CanopenSlaveEditor', () => {
     openTab('PDOs')
     const rpdo = screen.getByTestId('canopen-slave-rpdo1')
     expect(rpdo.textContent).toContain('0x205')
+    expect(rpdo.textContent).toContain('follows the node ID')
     expect(rpdo.textContent).toContain('2 bytes')
-    expect(screen.getByTestId('canopen-slave-rpdo2').textContent).toContain('Not used')
+    expect(screen.queryByTestId('canopen-slave-rpdo2')).toBeNull()
     const tpdo = screen.getByTestId('canopen-slave-tpdo1')
     expect(tpdo.textContent).toContain('0x185')
     fireEvent.change(within(tpdo).getByLabelText('Sending'), { target: { value: 'sync' } })
-    expect(config()?.tpdos[0].transmissionType).toBe(1)
+    expect(config()?.pdos?.tpdos[0].transmissionType).toBe(1)
     type(within(tpdo).getByLabelText('SYNC count'), '10')
-    expect(config()?.tpdos[0].transmissionType).toBe(10)
+    expect(config()?.pdos?.tpdos[0].transmissionType).toBe(10)
+    type(within(rpdo).getByLabelText('Receive timeout (ms)'), '500')
+    expect(config()?.pdos?.rpdos[0].eventTimerMs).toBe(500)
+  })
+
+  it('adds a TPDO given by the master, makes its COB-ID fixed and removes it', () => {
+    openTab('PDOs')
+    const add = within(screen.getByTestId('canopen-slave-tpdos')).getByRole('button', { name: /Add TPDO/ })
+    for (let i = 0; i < 5; i++) fireEvent.click(add)
+    expect(config()?.pdos?.tpdos.map((p) => p.number)).toEqual([1, 2, 3, 4, 5])
+    const tpdo5 = screen.getByTestId('canopen-slave-tpdo5')
+    expect(tpdo5.textContent).toContain('given by the master')
+    expect(tpdo5.textContent).toContain('Empty')
+    fireEvent.change(within(tpdo5).getByLabelText('COB-ID'), { target: { value: 'fixed' } })
+    expect(config()?.pdos?.tpdos[4].cobId).toBe(0x681)
+    type(within(tpdo5).getByLabelText('Fixed COB-ID'), '0x285')
+    expect(config()?.pdos?.tpdos[4].cobId).toBe(0x285)
+    fireEvent.click(within(tpdo5).getByRole('button', { name: 'Remove TPDO 5' }))
+    expect(config()?.pdos?.tpdos.map((p) => p.number)).toEqual([1, 2, 3, 4])
+  })
+
+  it('moves an object to a new TPDO from its menu, and the Data tab links to it', async () => {
+    openTab('Data')
+    addObject('to')
+    addObject('to')
+    openTab('PDOs')
+    const second = config()?.objects[1]
+    expect(second).toBeDefined()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: `${second?.name ?? ''} in TPDO 1` }))
+    expect(screen.getByRole('menuitem', { name: 'Move left' }).getAttribute('aria-disabled')).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'Move right' }).getAttribute('aria-disabled')).toBe('true')
+    await user.click(screen.getByRole('menuitem', { name: 'A new TPDO (TPDO 2)' }))
+    expect(config()?.pdos?.tpdos.map((p) => [p.number, p.objects])).toEqual([
+      [1, [config()?.objects[0].id]],
+      [2, [second?.id]],
+    ])
+    openTab('Data')
+    const row = screen.getByTestId(`canopen-slave-object-${second?.id ?? ''}`)
+    const link = within(row).getByRole('button', { name: 'TPDO 2' })
+    fireEvent.click(link)
+    expect(screen.getByRole('tab', { name: 'PDOs' }).getAttribute('aria-selected')).toBe('true')
   })
 
   it('exports an EDS that passes the check, and suggests a new revision after a change', async () => {

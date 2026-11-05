@@ -31,7 +31,7 @@ describe('the end-to-end CANopen slave project', () => {
     expect(validateCanopenSlaves([server], [])).toEqual([])
     const conf: unknown = JSON.parse(generateCanopenConfig([], null, [server]) ?? '')
     expect(conf).toMatchObject({
-      version: 11,
+      version: 12,
       networks: [],
       devices: [
         {
@@ -48,6 +48,7 @@ describe('the end-to-end CANopen slave project', () => {
             { index: 0x2100, subindex: 1, location: '%QW0' },
             { index: 0x2100, subindex: 2, location: '%QW1' },
             { index: 0x2100, subindex: 3, type: 'UNSIGNED8', bits: Array.from({ length: 8 }, (_, i) => `%QX0.${i}`) },
+            { index: 0x2100, subindex: 4, location: '%QW2' },
             { index: 0x2200, subindex: 1, exchange: 'constant', value: 'SN-0001' },
           ],
           rpdos: [
@@ -70,10 +71,13 @@ describe('the end-to-end CANopen slave project', () => {
                 { index: 0x2100, subindex: 3 },
               ],
             },
+            { number: 5, transmission: 255, entries: [{ index: 0x2100, subindex: 4 }] },
           ],
         },
       ],
     })
+    // TPDO 5 waits for the master's COB-ID, so the runtime starts it off.
+    expect(conf).not.toHaveProperty('devices.0.tpdos.1.cob_id')
   })
   it('writes the LSS project as the same slave waiting for the master with serial number 23', () => {
     const server = PLCServerSchema.parse(JSON.parse(readFileSync(fixture('canopen-slave-lss'), 'utf8')))

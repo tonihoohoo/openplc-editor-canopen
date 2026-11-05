@@ -22,6 +22,7 @@ import {
   slavesOn,
   suggestedSlaveRevision,
   usesCanopenLibrary,
+  withSlavePdoLayout,
 } from '@root/middleware/shared/utils/canopen'
 import {
   canopenSlavePoolName,
@@ -149,6 +150,11 @@ const CanopenSlaveEditor = () => {
   const on = config.enabled
 
   const [tab, setTab] = useState<SlaveTab>('general')
+  const [shownPdo, setShownPdo] = useState<{ key: string; at: number } | null>(null)
+  const showPdo = useCallback((key: string) => {
+    setShownPdo({ key, at: Date.now() })
+    setTab('pdos')
+  }, [])
   const live = useCanopenSlaveStatus(name, on)
   const [exporting, setExporting] = useState(false)
   const [format, setFormat] = useState<SlaveFormat>('eds')
@@ -171,7 +177,7 @@ const CanopenSlaveEditor = () => {
       const state = store.getState()
       const current =
         state.project.data.servers?.find((s) => s.name === name)?.canopenSlaveConfig ?? defaultCanopenSlaveConfig()
-      const result = state.projectActions.updateCanopenSlaveConfig(name, update(current))
+      const result = state.projectActions.updateCanopenSlaveConfig(name, withSlavePdoLayout(update(current)))
       if (!result.ok) {
         toast({ title: 'Cannot change the CANopen slave', description: result.message, variant: 'fail' })
         return
@@ -310,10 +316,16 @@ const CanopenSlaveEditor = () => {
           />
         </Tabs.Content>
         <Tabs.Content value='data' className='data-[state=inactive]:hidden'>
-          <DataTab config={config} problems={problems} commit={commit} aliasProblem={aliasProblem} />
+          <DataTab
+            config={config}
+            problems={problems}
+            commit={commit}
+            aliasProblem={aliasProblem}
+            onShowPdo={showPdo}
+          />
         </Tabs.Content>
         <Tabs.Content value='pdos' className='data-[state=inactive]:hidden'>
-          <PdosTab config={config} commit={commit} />
+          <PdosTab config={config} problems={problems} commit={commit} shown={shownPdo} />
         </Tabs.Content>
         <Tabs.Content value='online' className='data-[state=inactive]:hidden'>
           <OnlineTab config={config} live={live} lssSlot={lssSlot} />
