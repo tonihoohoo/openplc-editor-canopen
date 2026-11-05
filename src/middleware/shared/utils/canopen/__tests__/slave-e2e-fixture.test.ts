@@ -5,22 +5,25 @@ import { PLCServerSchema } from '../../../../../backend/shared/types/PLC/open-pl
 import { generateCanopenConfig } from '../generate-canopen-config'
 import { validateCanopenSlaves } from '../slave'
 
-const FIXTURE = join(
-  __dirname,
-  '..',
-  '..',
-  '..',
-  '..',
-  '..',
-  '..',
-  'e2e',
-  'fixtures',
-  'canopen-slave',
-  'project',
-  'devices',
-  'servers',
-  'slave.json',
-)
+const fixture = (project: string): string =>
+  join(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    '..',
+    '..',
+    '..',
+    'e2e',
+    'fixtures',
+    project,
+    'project',
+    'devices',
+    'servers',
+    'slave.json',
+  )
+
+const FIXTURE = fixture('canopen-slave')
 
 describe('the end-to-end CANopen slave project', () => {
   it('loads, validates and writes node 5 with the objects and PDOs the master script uses', () => {
@@ -28,7 +31,7 @@ describe('the end-to-end CANopen slave project', () => {
     expect(validateCanopenSlaves([server], [])).toEqual([])
     const conf: unknown = JSON.parse(generateCanopenConfig([], null, [server]) ?? '')
     expect(conf).toMatchObject({
-      version: 6,
+      version: 7,
       networks: [],
       devices: [
         {
@@ -67,5 +70,22 @@ describe('the end-to-end CANopen slave project', () => {
         },
       ],
     })
+  })
+  it('writes the LSS project as the same slave waiting for the master with serial number 23', () => {
+    const server = PLCServerSchema.parse(JSON.parse(readFileSync(fixture('canopen-slave-lss'), 'utf8')))
+    const plain = PLCServerSchema.parse(JSON.parse(readFileSync(FIXTURE, 'utf8')))
+    expect(validateCanopenSlaves([server], [])).toEqual([])
+    const conf: unknown = JSON.parse(generateCanopenConfig([], null, [server]) ?? '')
+    const plainConf: unknown = JSON.parse(generateCanopenConfig([], null, [plain]) ?? '')
+    expect(conf).toMatchObject({
+      devices: [
+        {
+          node_id: 5,
+          identity: { vendor_id: 0xabcd, product_code: 1, revision: 0x10000 },
+          lss: { enabled: true, wait_for_master: true, serial: 23, bitrate_change: true },
+        },
+      ],
+    })
+    expect(plainConf).toMatchObject({ devices: [{ lss: null }] })
   })
 })

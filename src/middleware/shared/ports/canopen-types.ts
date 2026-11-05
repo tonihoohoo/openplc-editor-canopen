@@ -98,6 +98,8 @@ export interface CanopenEdsInfo {
   dummyUsage?: number[]
   /** Bit rates (bit/s) the EDS marks as not supported (`BaudRate_x=0`). */
   unsupportedBitrates?: number[]
+  /** The device is a CiA 305 LSS slave (`LSS_Supported`). */
+  lssSupported?: boolean
   objects: CanopenObject[]
   /** The stored file the description was read from (see `CanopenConfig.files`). */
   source?: CanopenDeviceSource
@@ -370,6 +372,17 @@ export type CanopenSlaveOnMasterLost = 'pre_operational' | 'no_change' | 'stoppe
 
 export type CanopenSlaveOnPlcStop = 'hold' | 'zero'
 
+/** CiA 305 LSS slave settings. */
+export interface CanopenSlaveLss {
+  enabled: boolean
+  /** Starts with no node ID and stays silent apart from LSS until a master gives it one. */
+  waitForMaster: boolean
+  /** 0x1018 sub 4, the last part of the LSS address; null for one made once on the runtime device. */
+  serial: number | null
+  /** A master may configure and store a new bit rate, used from the slave's next start. */
+  bitrateChange: boolean
+}
+
 export interface CanopenSlaveConfig {
   /** Off: left out of conf/canopen.json; objects and addresses are kept. */
   enabled: boolean
@@ -391,6 +404,8 @@ export interface CanopenSlaveConfig {
   onPlcStop: CanopenSlaveOnPlcStop
   /** Goes operational by itself after its boot-up, without the master's NMT start. */
   startAlone: boolean
+  /** Absent in projects made before LSS: LSS off. */
+  lss?: CanopenSlaveLss
   objects: CanopenSlaveObject[]
   /** TPDO 1-4 sending settings, by PDO number - 1. */
   tpdos: CanopenSlaveTpdoSettings[]

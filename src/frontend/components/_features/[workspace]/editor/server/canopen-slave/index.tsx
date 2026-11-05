@@ -12,6 +12,7 @@ import {
   exportFileType,
   type ExportFormat,
   slaveLayoutText,
+  slaveLss,
   slavesOn,
   suggestedSlaveRevision,
 } from '@root/middleware/shared/utils/canopen'
@@ -174,6 +175,8 @@ const CanopenSlaveEditor = () => {
 
   const objects = config.objects.length
   const bitrate = config.bitrate > 0 ? `, ${config.bitrate / 1000} kbit/s` : ''
+  const lss = slaveLss(config)
+  const nodeText = lss.enabled && lss.waitForMaster ? 'node ID from the LSS master' : `node ID ${config.nodeId}`
 
   return (
     <div
@@ -188,7 +191,7 @@ const CanopenSlaveEditor = () => {
             data-testid='canopen-slave-summary'
           >
             {config.interface}
-            {bitrate}, node ID {config.nodeId}, {objects} object{objects === 1 ? '' : 's'}
+            {bitrate}, {nodeText}, {objects} object{objects === 1 ? '' : 's'}
           </p>
         </div>
         <div className='flex shrink-0 items-center gap-4'>

@@ -28,6 +28,7 @@ CANopen:
 - The `canopen` function block library (CiA 405 names) for SDO, NMT and node control from the PLC program: [docs/canopen.md](docs/canopen.md#plc-function-blocks)
 - CANopen addresses from the central registry, up to the runtime's limit of 65536 per table: [docs/canopen.md](docs/canopen.md#addresses)
 - CANopen slave server: the runtime as a CANopen device with objects, PDOs and an EDS or XDD export: [docs/canopen.md](docs/canopen.md#canopen-slave)
+- LSS (CiA 305) in the CANopen slave: an LSS master gives it its node ID and bit rate: [docs/canopen.md](docs/canopen.md#lss)
 - Upload refused to a runtime without CANopen support: [docs/canopen.md](docs/canopen.md#installing-a-release-and-the-runtime-check)
 
 Editor:

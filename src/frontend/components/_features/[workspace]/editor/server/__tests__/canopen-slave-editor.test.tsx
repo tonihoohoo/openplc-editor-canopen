@@ -61,6 +61,36 @@ describe('CanopenSlaveEditor', () => {
     expect(config()?.enabled).toBe(false)
   })
 
+  it('turns LSS on, waits for the master and keeps the typed node ID', () => {
+    expect(screen.queryByLabelText('At first start')).toBeNull()
+    fireEvent.click(screen.getByLabelText('An LSS master may set the node ID'))
+    expect(config()?.lss).toEqual({ enabled: true, waitForMaster: false, serial: null, bitrateChange: true })
+    fireEvent.change(screen.getByLabelText('At first start'), { target: { value: 'wait' } })
+    expect(config()?.lss?.waitForMaster).toBe(true)
+    expect(config()?.nodeId).toBe(5)
+    const nodeId = screen.getByLabelText('Node ID')
+    expect((nodeId as HTMLInputElement).value).toBe('Set by the LSS master')
+    expect((nodeId as HTMLInputElement).disabled).toBe(true)
+    expect(screen.getByTestId('canopen-slave-summary').textContent).toBe(
+      'can1, 500 kbit/s, node ID from the LSS master, 0 objects',
+    )
+    fireEvent.click(screen.getByLabelText('The master may change the bit rate'))
+    expect(config()?.lss?.bitrateChange).toBe(false)
+  })
+
+  it('takes a fixed LSS serial number and refuses 0', () => {
+    fireEvent.click(screen.getByLabelText('An LSS master may set the node ID'))
+    fireEvent.change(screen.getByLabelText('Serial number'), { target: { value: 'fixed' } })
+    expect(config()?.lss?.serial).toBe(1)
+    type(screen.getByLabelText('Fixed serial number'), '0')
+    expect(screen.getByText('The serial number is part of the LSS address and cannot be 0.')).toBeTruthy()
+    expect(config()?.lss?.serial).toBe(1)
+    type(screen.getByLabelText('Fixed serial number'), '0x17')
+    expect(config()?.lss?.serial).toBe(0x17)
+    fireEvent.change(screen.getByLabelText('Serial number'), { target: { value: 'auto' } })
+    expect(config()?.lss?.serial).toBeNull()
+  })
+
   it('refuses an empty interface and a heartbeat of 0', () => {
     type(screen.getByLabelText('Interface'), '')
     expect(screen.getByText('Enter the interface name.')).toBeTruthy()

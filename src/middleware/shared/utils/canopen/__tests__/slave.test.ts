@@ -16,6 +16,7 @@ import {
   slavePdoLayout,
   suggestedSlaveRevision,
   slaveLayoutText,
+  slaveLss,
   validateCanopenSlaves,
 } from '../slave'
 import { addressNewSlaveObjects } from '../stable-addresses'
@@ -167,11 +168,11 @@ describe('CANopen slave model', () => {
     expect(generateCanopenConfig([], null, [server({ ...io(), enabled: false })])).toBeNull()
   })
 
-  it('writes the slave under devices with format version 6', () => {
+  it('writes the slave under devices with format version 7', () => {
     const text = generateCanopenConfig([], null, [server(io())])
     expect(text).not.toBeNull()
     const json = JSON.parse(text ?? '{}') as { version: number; networks: unknown[]; devices: unknown[] }
-    expect(json.version).toBe(6)
+    expect(json.version).toBe(7)
     expect(json.networks).toEqual([])
     expect(json.devices).toEqual(slaveDevicesOut([server(io())]))
     expect(json.devices[0]).toMatchObject({
@@ -230,6 +231,35 @@ describe('CANopen slave model', () => {
         },
       ],
     })
+  })
+
+  it('writes no LSS for a slave without LSS settings or with LSS off', () => {
+    expect(slaveDevicesOut([server(io())])[0]).toMatchObject({ lss: null })
+    const off = { ...io(), lss: { enabled: false, waitForMaster: true, serial: 9, bitrateChange: false } }
+    expect(slaveDevicesOut([server(off)])[0]).toMatchObject({ lss: null })
+    expect(slaveLss(io())).toEqual({ enabled: false, waitForMaster: false, serial: null, bitrateChange: true })
+  })
+
+  it('writes the LSS settings, leaving out an automatic serial number', () => {
+    const waiting = { ...io(), lss: { enabled: true, waitForMaster: true, serial: null, bitrateChange: true } }
+    expect(slaveDevicesOut([server(waiting)])[0]).toMatchObject({
+      node_id: 5,
+      lss: { enabled: true, wait_for_master: true, bitrate_change: true },
+    })
+    expect(slaveDevicesOut([server(waiting)])[0]).not.toHaveProperty('lss.serial')
+    const fixed = { ...io(), lss: { enabled: true, waitForMaster: false, serial: 23, bitrateChange: false } }
+    expect(slaveDevicesOut([server(fixed)])[0]).toMatchObject({
+      lss: { enabled: true, wait_for_master: false, serial: 23, bitrate_change: false },
+    })
+  })
+
+  it('refuses a fixed LSS serial number of 0 only while LSS is on', () => {
+    const zero = { ...io(), lss: { enabled: true, waitForMaster: false, serial: 0, bitrateChange: true } }
+    expect(checkCanopenSlave('io', zero, []).filter((p) => p.where === 'lss')).toHaveLength(1)
+    const off = { ...zero, lss: { ...zero.lss, enabled: false } }
+    expect(checkCanopenSlave('io', off, []).filter((p) => p.where === 'lss')).toEqual([])
+    const waiting = { ...io(), lss: { enabled: true, waitForMaster: true, serial: null, bitrateChange: true } }
+    expect(checkCanopenSlave('io', waiting, []).filter((p) => p.where === 'lss' || p.where === 'nodeId')).toEqual([])
   })
 
   it('suggests the next revision after the objects changed since the last export', () => {
@@ -300,6 +330,22 @@ describe('CANopen slave device file', () => {
       dataType: '0x0009',
       defaultValue: '1.4.0',
     })
+  })
+
+  it('marks LSS support and the fixed serial number in the EDS and XDD when LSS is on', () => {
+    const lss = { ...io(), lss: { enabled: true, waitForMaster: true, serial: 0x17, bitrateChange: true } }
+    const eds = buildSlaveExport('io', lss, 'eds', now)
+    expect(eds.errors).toEqual([])
+    expect(eds.warnings).toEqual([])
+    expect(eds.text).toContain('LSS_Supported=1')
+    expect(parseEds(eds.text, eds.fileName).objects.find((o) => o.index === 0x1018 && o.subIndex === 4)).toMatchObject({
+      defaultValue: '0x00000017',
+    })
+    const xdd = buildSlaveExport('io', lss, 'xdd', now)
+    expect(xdd.errors).toEqual([])
+    expect(xdd.text).toContain('layerSettingServiceSlave="true"')
+    expect(buildSlaveExport('io', io(), 'eds', now).text).toContain('LSS_Supported=0')
+    expect(buildSlaveExport('io', io(), 'xdd', now).text).not.toContain('layerSettingServiceSlave')
   })
 
   it('exports an XDD that passes the check and reads back as the same objects', () => {

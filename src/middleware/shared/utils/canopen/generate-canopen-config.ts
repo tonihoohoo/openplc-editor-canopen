@@ -41,7 +41,7 @@ import {
 import { encodeCanopenValue, toHex } from './sdo-value'
 import { slaveDevicesOut } from './slave'
 
-export const CANOPEN_CONFIG_VERSION = 6
+export const CANOPEN_CONFIG_VERSION = 7
 
 interface SdoOut {
   index: number
