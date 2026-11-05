@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test'
 
 import { windowSize, writeEds } from './helpers/canopen-project'
-import { shot } from './helpers/canopen-shots'
+import { keyView, shot } from './helpers/canopen-shots'
 import {
   buildFromMenu,
   findFile,
@@ -20,6 +20,8 @@ import {
   quitApp,
   writeEthercatProject,
 } from './helpers/ethercat-project'
+
+const SLAVE_EDITOR = 'CANopen slave editor container'
 
 const STATION = {
   bus: join('canopen-empty', 'canopen_1.json'),
@@ -88,7 +90,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await expect(summary).toHaveText('can1, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
     await commitField(page, 'Heartbeat (ms)', '100')
     await commitField(page, 'Vendor ID', '0xABCD')
-    await shot(page, 'slave-general')
+    await keyView(page, 'slave-general', [], SLAVE_EDITOR)
 
     await page.getByRole('tab', { name: 'Data' }).click()
     const from = page.getByTestId('canopen-slave-from-master')
@@ -112,13 +114,13 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await to.locator('tbody tr').first().getByLabel('Alias').fill('slave_echo')
     await to.locator('tbody tr').first().getByLabel('Alias').press('Enter')
     await expect(summary).toHaveText('can1, 500 kbit/s, node ID 5, 3 objects')
-    await shot(page, 'slave-data')
+    await keyView(page, 'slave-data', [], SLAVE_EDITOR)
 
     await page.getByRole('tab', { name: 'PDOs' }).click()
     await expect(page.getByTestId('canopen-slave-rpdo1')).toContainText('0x205')
     await expect(page.getByTestId('canopen-slave-tpdo1')).toContainText('0x185')
     await page.getByTestId('canopen-slave-tpdo1').scrollIntoViewIfNeeded()
-    await shot(page, 'slave-pdos')
+    await keyView(page, 'slave-pdos', [], SLAVE_EDITOR)
 
     await page.getByRole('button', { name: 'Export EDS or XDD...' }).click()
     const dialog = page.getByTestId('canopen-export-dialog')

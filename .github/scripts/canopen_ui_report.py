@@ -4,7 +4,7 @@
 
 Run by ``.github/workflows/canopen-ui.yml`` after the tests, passed or failed:
 
-  canopen_ui_report.py --results test-results --outcome failure
+  canopen_ui_report.py --results test-results --outcome failure --slave true --master false
 
 1. Collects the named screenshots (``test-results/canopen-shots/*.png``) and, for every key view
    whose comparison failed, Playwright's ``-expected``, ``-actual`` and ``-diff`` images.
@@ -166,11 +166,29 @@ def img(url: Optional[str], alt: str) -> str:
     return f'<img src="{url}" alt="{alt}" width="400">' if url else "(none)"
 
 
+def scope(slave: bool, master: bool) -> Tuple[str, str]:
+    """The heading's name for the set that ran, and a note on the set that was skipped."""
+    if slave and not master:
+        return "slave tests", "Only the slave tests ran: no master file changed."
+    if master and not slave:
+        return "master tests", "Only the master tests ran: no slave file or file the slave uses changed."
+    return "all tests", ""
+
+
 def body(
-    outcome: str, run_url: str, sha: str, shots: List[Path], changed: List[Changed], urls: Dict[str, str]
+    outcome: str,
+    run_url: str,
+    sha: str,
+    shots: List[Path],
+    changed: List[Changed],
+    urls: Dict[str, str],
+    slave: bool = True,
+    master: bool = True,
 ) -> str:
     title = "passed" if outcome == "success" else "failed"
-    lines = [MARKER, f"### CANopen UI tests: {title}", "", f"[Run]({run_url}) on {sha[:7]}.", ""]
+    name, note = scope(slave, master)
+    lines = [MARKER, f"### CANopen UI tests ({name}): {title}", "", f"[Run]({run_url}) on {sha[:7]}."]
+    lines += [note, ""] if note else [""]
     if changed:
         lines += [
             "#### Key views that differ from their baseline",
@@ -205,6 +223,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--results", type=Path, required=True)
     parser.add_argument("--outcome", required=True)
+    parser.add_argument("--slave", default="true", help="whether the slave tests ran (true or false)")
+    parser.add_argument("--master", default="true", help="whether the master tests ran (true or false)")
     args = parser.parse_args()
 
     token = os.environ["GH_TOKEN"]
@@ -217,7 +237,7 @@ def main() -> int:
     shots = sorted((args.results / "canopen-shots").glob("*.png"))
     changed = collect_changed(args.results)
     urls = publish(repo, token, pr, run, shots, changed)
-    text = body(args.outcome, run_url, sha, shots, changed, urls)
+    text = body(args.outcome, run_url, sha, shots, changed, urls, args.slave == "true", args.master == "true")
 
     comments = api_pages(f"/repos/{repo}/issues/{pr}/comments", token)
     mine = [c for c in comments if MARKER in str(c.get("body", ""))]

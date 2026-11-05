@@ -22,11 +22,17 @@ export async function shot(page: Page, name: string): Promise<void> {
  * A key view: saved like `shot`, and in CI the CANopen device editor (not the rest of the window) is
  * compared with `e2e/<spec>-snapshots/<name>-chromium-linux.png`.
  * @param mask parts that change between runs, such as times
+ * @param container the element compared, by its label; the slave server page passes its own
  */
-export async function keyView(page: Page, name: string, mask: Locator[] = []): Promise<void> {
+export async function keyView(
+  page: Page,
+  name: string,
+  mask: Locator[] = [],
+  container = 'CANopen editor container',
+): Promise<void> {
   await shot(page, name)
   if (!visual) return
-  await expect(page.getByLabel('CANopen editor container')).toHaveScreenshot(`${name}.png`, {
+  await expect(page.getByLabel(container, { exact: true })).toHaveScreenshot(`${name}.png`, {
     animations: 'disabled',
     caret: 'hide',
     mask,

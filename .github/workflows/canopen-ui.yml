@@ -3,6 +3,8 @@ name: CANopen UI
 # The CANopen device editor's Playwright tests (e2e/canopen-*.spec.ts) against a production build
 # under a virtual display. Runs only when a pull request can change the CANopen screens (see
 # .github/scripts/canopen-ui-changed.sh); otherwise the job is skipped, which counts as passed.
+# A change only to the slave server page runs only e2e/canopen-slave-*.spec.ts, a change only to
+# master files runs the other specs, and a change to code both use runs all of them.
 # Screenshots go to the ci-screenshots branch and one comment on the pull request; key views are
 # compared with the baselines in e2e/*-snapshots/.
 # The editor is built without minification, source maps or module concatenation
@@ -29,10 +31,15 @@ jobs:
       pull-requests: read
     outputs:
       ui: ${{ steps.files.outputs.ui }}
+      slave: ${{ steps.files.outputs.slave }}
+      master: ${{ steps.files.outputs.master }}
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: .github/scripts
+          # src/ for the import walk that finds the files the slave and master tests share.
+          sparse-checkout: |
+            .github/scripts
+            src
 
       - name: CANopen UI files
         id: files
@@ -83,10 +90,19 @@ jobs:
         id: tests
         env:
           CANOPEN_UI_VISUAL: '1'
+          SLAVE: ${{ needs.changes.outputs.slave }}
+          MASTER: ${{ needs.changes.outputs.master }}
         run: |
+          if [ "$SLAVE" = true ] && [ "$MASTER" = true ]; then
+            specs=(e2e/canopen-)
+          elif [ "$SLAVE" = true ]; then
+            specs=(e2e/canopen-slave-)
+          else
+            mapfile -t specs < <(ls e2e/canopen-*.spec.ts | grep -v '^e2e/canopen-slave-')
+          fi
           status=0
           xvfb-run -a --server-args='-screen 0 1920x1080x24' \
-            npx playwright test e2e/canopen- --workers=1 --reporter=list,html || status=$?
+            npx playwright test "${specs[@]}" --workers=1 --reporter=list,html || status=$?
           echo "status=$status" >> "$GITHUB_OUTPUT"
 
       - name: Screenshots on the pull request
@@ -97,10 +113,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SLAVE: ${{ needs.changes.outputs.slave }}
+          MASTER: ${{ needs.changes.outputs.master }}
         run: |
           outcome=success
           [ "${{ steps.tests.outputs.status }}" = "0" ] || outcome=failure
-          python3 .github/scripts/canopen_ui_report.py --results test-results --outcome "$outcome"
+          python3 .github/scripts/canopen_ui_report.py --results test-results --outcome "$outcome" \
+            --slave "$SLAVE" --master "$MASTER"
 
       - uses: actions/upload-artifact@v4
         if: always()
