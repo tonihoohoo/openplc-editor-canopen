@@ -31,14 +31,14 @@ describe('the end-to-end CANopen slave project', () => {
     expect(validateCanopenSlaves([server], [])).toEqual([])
     const conf: unknown = JSON.parse(generateCanopenConfig([], null, [server]) ?? '')
     expect(conf).toMatchObject({
-      version: 11,
+      version: 12,
       networks: [],
       devices: [
         {
           interface: 'vcan0',
           node_id: 5,
           heartbeat_ms: 100,
-          identity: { vendor_id: 0xabcd },
+          identity: { vendor_id: 0xabcd, hardware_version: 'HW 2' },
           master_watch: { node_id: 127, time_ms: 500 },
           objects: [
             { index: 0x2000, subindex: 1, location: '%IW0' },

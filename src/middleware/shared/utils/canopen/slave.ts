@@ -7,6 +7,7 @@
 
 import type {
   CanopenDataType,
+  CanopenDeviceDetails,
   CanopenEdsInfo,
   CanopenObject,
   CanopenSlaveBit,
@@ -23,6 +24,7 @@ import type { DeviceFileExport } from './dcf-export'
 import { writeEds, writeXdd } from './device-writer'
 import { checkEds } from './eds-check'
 import { readEdsDocument } from './eds-document'
+import { slaveDeviceDetailProblems, slaveObjectDetailProblems, slaveObjectInfo } from './slave-details'
 import { checkXdd, type DeviceFileFinding } from './xdd-check'
 
 /** PDOs of each direction the slave has. */
@@ -356,6 +358,7 @@ export function slaveDevicesOut(servers: readonly PLCServer[] | undefined): obje
       priority: config.priority,
       identity: {
         device_name: config.deviceName,
+        hardware_version: config.hardwareVersion ?? '',
         software_version: config.softwareVersion,
         vendor_id: config.vendorId,
         product_code: config.productCode,
@@ -436,9 +439,11 @@ export function canopenSlaves(
 // ---- checks ----
 
 export interface SlaveProblem {
-  /** Field or object the problem concerns: 'interface', 'heartbeat', or an object id. */
+  /** Field or object the problem concerns: 'interface', 'heartbeat', 'details', or an object id. */
   where: string
   text: string
+  /** A field of the expert view: the basic view offers to turn it on. */
+  expert?: boolean
 }
 
 /** Problems of one slave, each naming the field or object; `others` are the other slaves that are on. */
@@ -449,8 +454,8 @@ export function checkCanopenSlave(
   others: readonly { name: string; config: CanopenSlaveConfig }[] = [],
 ): SlaveProblem[] {
   const problems: SlaveProblem[] = []
-  const add = (where: string, text: string): void => {
-    problems.push({ where, text })
+  const add = (where: string, text: string, expert?: boolean): void => {
+    problems.push(expert ? { where, text, expert } : { where, text })
   }
   const iface = config.interface.trim()
   if (iface === '') add('interface', 'no CAN interface')
@@ -491,11 +496,13 @@ export function checkCanopenSlave(
     config.vendorName.length > SLAVE_MAX_STRING
   )
     add('identity', `names are at most ${SLAVE_MAX_STRING} characters`)
+  for (const text of slaveDeviceDetailProblems(config)) add('details', `Device file details: ${text}`, true)
 
   const places = new Map<number, string>()
   const locations = new Map<string, string>()
   for (const o of config.objects) {
     const ref = `${objectRef(o.index, o.subIndex)} "${o.name}"`
+    for (const text of slaveObjectDetailProblems(o)) add(o.id, `${ref}: ${text}`, true)
     if (o.index < 0x2000 || o.index > 0x5fff || o.subIndex < 1 || o.subIndex > 254)
       add(o.id, `${ref}: the object must be in 0x2000:01 - 0x5FFF:FE`)
     const key = o.index * 256 + o.subIndex
@@ -680,6 +687,18 @@ export function slaveDeviceInfo(name: string, config: CanopenSlaveConfig, fileNa
     ...(config.deviceName !== ''
       ? [commObject(0x1008, 0, 'Manufacturer device name', 'VISIBLE_STRING', 'const', config.deviceName)]
       : []),
+    ...((config.hardwareVersion ?? '') !== ''
+      ? [
+          commObject(
+            0x1009,
+            0,
+            'Manufacturer hardware version',
+            'VISIBLE_STRING',
+            'const',
+            config.hardwareVersion ?? '',
+          ),
+        ]
+      : []),
     ...(config.softwareVersion !== ''
       ? [commObject(0x100a, 0, 'Manufacturer software version', 'VISIBLE_STRING', 'const', config.softwareVersion)]
       : []),
@@ -760,6 +779,7 @@ export function slaveDeviceInfo(name: string, config: CanopenSlaveConfig, fileNa
       const access: CanopenObject['access'] = constant ? 'const' : o.direction === 'from_master' ? 'rw' : 'ro'
       const ranged = !constant && o.direction === 'from_master'
       const value = isSlaveString(o) ? o.defaultValue : String(parseSlaveValue(o.defaultValue, o.dataType) ?? 0)
+      const info = slaveObjectInfo(o)
       objects.push({
         index,
         subIndex: o.subIndex,
@@ -769,9 +789,7 @@ export function slaveDeviceInfo(name: string, config: CanopenSlaveConfig, fileNa
         pdoMapping: o.exchange === 'pdo',
         defaultValue: value,
         parentName: groupName,
-        ...(isSlavePacked(o)
-          ? { info: { bits: (o.bits ?? []).map((b, i) => ({ value: String(i), label: b.name })) } }
-          : {}),
+        ...(info ? { info } : {}),
         ...(ranged && o.min !== undefined && o.min.trim() !== '' ? { lowLimit: o.min.trim() } : {}),
         ...(ranged && o.max !== undefined && o.max.trim() !== '' ? { highLimit: o.max.trim() } : {}),
       })
@@ -781,7 +799,7 @@ export function slaveDeviceInfo(name: string, config: CanopenSlaveConfig, fileNa
     fileName,
     vendorName: config.vendorName !== '' ? config.vendorName : 'OpenPLC',
     productName: config.deviceName !== '' ? config.deviceName : name,
-    details: { orderNumber: config.deviceName !== '' ? config.deviceName : name },
+    details: slaveDeviceDetails(name, config),
     deviceType: 0,
     vendorId: config.vendorId,
     productCode: config.productCode,
@@ -790,6 +808,19 @@ export function slaveDeviceInfo(name: string, config: CanopenSlaveConfig, fileNa
     txPdoCount: SLAVE_PDO_COUNT,
     ...(lss.enabled ? { lssSupported: true } : {}),
     objects,
+  }
+}
+
+function slaveDeviceDetails(name: string, config: CanopenSlaveConfig): CanopenDeviceDetails {
+  const order = (config.orderNumber ?? '').trim()
+  const product = (config.productText ?? '').trim()
+  const characteristics = (config.characteristics ?? [])
+    .filter((c) => c.value.trim() !== '' && c.label.trim() !== '')
+    .map((c) => ({ value: c.value.trim(), label: c.label.trim() }))
+  return {
+    orderNumber: order !== '' ? order : config.deviceName !== '' ? config.deviceName : name,
+    ...(product !== '' ? { productText: product } : {}),
+    ...(characteristics.length > 0 ? { characteristics } : {}),
   }
 }
 

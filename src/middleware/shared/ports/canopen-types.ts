@@ -376,6 +376,15 @@ export interface CanopenSlaveObject {
   max?: string
   /** An UNSIGNED8 packed as 8 BOOLs: one entry per bit, bit 0 first; `iecLocation` is then empty. */
   bits?: CanopenSlaveBit[]
+  /** Details only the XDD holds (CiA 311 parameter); none of them reach the runtime. */
+  description?: string
+  /** Numeric objects only. Engineering value = (raw + offset) x multiplier. */
+  unit?: string
+  multiplier?: number
+  offset?: number
+  /** Integer objects only: raw values and what they mean. */
+  values?: CanopenValueMeaning[]
+  group?: string
 }
 
 /** One bit of a packed slave object: its own %IX (from the master) or %QX (to the master) address. */
@@ -439,6 +448,14 @@ export interface CanopenSlaveConfig {
   objects: CanopenSlaveObject[]
   /** TPDO 1-4 sending settings, by PDO number - 1. */
   tpdos: CanopenSlaveTpdoSettings[]
+  /** Device file details; the XDD holds them all, the EDS the order number and 0x1009. */
+  productText?: string
+  /** The device name when empty. */
+  orderNumber?: string
+  /** 0x1009, printable ASCII; empty for none. */
+  hardwareVersion?: string
+  /** Name (`value`) and value (`label`) pairs, written as XDD characteristics. */
+  characteristics?: CanopenValueMeaning[]
   /** The revision and data layout of the last device file exported; suggests the next revision. */
   lastExport?: { revision: number; layout: string }
 }

@@ -33,6 +33,7 @@ CANopen:
 - CANopen slave server: the runtime as a CANopen device with objects, PDOs, an EDS or XDD export and an Online tab that shows the running slave and what its master changed: [docs/canopen.md](docs/canopen.md#canopen-slave)
 - LSS (CiA 305) in the CANopen slave: an LSS master gives it its node ID and bit rate: [docs/canopen.md](docs/canopen.md#lss)
 - CANopen slave objects packed as 8 bits: one UNSIGNED8 on the bus, eight named BOOL addresses in the program: [docs/canopen.md](docs/canopen.md#objects-packed-as-8-bits)
+- XDD details of the CANopen slave behind the Expert view: descriptions, units and scales, value meanings, groups, product text, characteristics and the hardware version 0x1009: [docs/canopen.md](docs/canopen.md#xdd-details-of-the-slave)
 - Upload refused to a runtime without CANopen support: [docs/canopen.md](docs/canopen.md#installing-a-release-and-the-runtime-check)
 
 Editor:

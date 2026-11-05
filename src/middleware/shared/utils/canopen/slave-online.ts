@@ -24,6 +24,7 @@ import {
   slavePdoLayout,
   slaveTpdoSettings,
 } from './slave'
+import { slaveEngineeringText, slaveHasNumber } from './slave-details'
 
 // ---- values ----
 
@@ -41,6 +42,18 @@ export function slaveValueText(
   if (isSlaveString(object)) return object.defaultValue === '' ? '""' : `"${object.defaultValue}"`
   const data = slaveValueData(slave, object.index, object.subIndex)
   return data === undefined ? '-' : formatCanopenValue(object.dataType, slaveValueBytes(data), display)
+}
+
+/** The engineering value or meaning of the reported value ("21.5 °C", "Auto"), always decimal; undefined without. */
+export function slaveValueEngineering(
+  object: CanopenSlaveObject,
+  slave: CanopenSlaveStatus | null,
+): string | undefined {
+  if (!slaveHasNumber(object)) return undefined
+  const data = slaveValueData(slave, object.index, object.subIndex)
+  if (data === undefined) return undefined
+  const raw = Number(formatCanopenValue(object.dataType, slaveValueBytes(data), 'decimal'))
+  return Number.isFinite(raw) ? slaveEngineeringText(object, raw) : undefined
 }
 
 /** The bits of a packed object's reported value: each bit's state, bit 0 first, and the names of those on. */

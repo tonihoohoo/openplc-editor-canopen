@@ -10,6 +10,10 @@
     "vendorName": "OpenPLC",
     "deviceName": "canopen-slave",
     "softwareVersion": "1.0",
+    "hardwareVersion": "HW 2",
+    "productText": "Generic I/O slave for the end-to-end test.",
+    "orderNumber": "IO-5",
+    "characteristics": [{ "value": "Supply", "label": "24 V DC" }],
     "vendorId": 43981,
     "productCode": 1,
     "revision": 65536,
@@ -28,7 +32,11 @@
         "direction": "from_master",
         "exchange": "pdo",
         "iecLocation": "%IW0",
-        "defaultValue": "0"
+        "defaultValue": "0",
+        "description": "Setpoint the master sends; the program copies it back.",
+        "unit": "°C",
+        "multiplier": 0.1,
+        "group": "Operation"
       },
       {
         "id": "mode",
@@ -39,7 +47,13 @@
         "direction": "from_master",
         "exchange": "pdo",
         "iecLocation": "%IB0",
-        "defaultValue": "0"
+        "defaultValue": "0",
+        "values": [
+          { "value": "0", "label": "Off" },
+          { "value": "1", "label": "Manual" },
+          { "value": "2", "label": "Auto" }
+        ],
+        "group": "Operation"
       },
       {
         "id": "limit",
