@@ -111,10 +111,10 @@ describe('LSS in the status', () => {
     const parsed = status({ result: 'given', previous_id: 255, stored: false, time: 1 }, [
       { time: 1, node: 3, kind: 'lss', lss: { result: 'given', previous_id: 255, stored: false, time: 1 } },
     ])
-    expect(parsed?.networks[0].nodes[1].lss?.result).toBe('given')
-    expect(parsed?.networks[0].nodes[0].lss).toBeUndefined()
-    const event = parsed?.networks[0].events[0]
-    expect(event && eventText(event)).toBe('Node ID 3 given (device had none); not stored.')
+    if (!parsed?.active) throw new Error('expected an active status')
+    expect(parsed.networks[0].nodes[1].lss?.result).toBe('given')
+    expect(parsed.networks[0].nodes[0].lss).toBeUndefined()
+    expect(eventText(parsed.networks[0].events[0])).toBe('Node ID 3 given (device had none); not stored.')
   })
 
   it('says what happened in words', () => {
