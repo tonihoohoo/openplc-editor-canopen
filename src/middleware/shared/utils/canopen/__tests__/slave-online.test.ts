@@ -215,12 +215,14 @@ describe('the notice of the Online tab', () => {
     expect(slaveNoticeText({ kind: 'master_lost', onMasterLost: 'stopped' }, slaveConfig()).text).toContain(
       'so the slave went stopped',
     )
-    expect(slaveNoticeText({ kind: 'plc_stopped', onPlcStop: 'zero' }, slaveConfig())).toMatchObject({
+    expect(
+      slaveNoticeText({ kind: 'plc_stopped', onPlcStop: 'zero', onPlcStopState: 'none' }, slaveConfig()),
+    ).toMatchObject({
       tone: 'warning',
     })
-    expect(slaveNoticeText({ kind: 'plc_stopped', onPlcStop: 'zero' }, slaveConfig()).text).toContain(
-      'values to the master are zero',
-    )
+    expect(
+      slaveNoticeText({ kind: 'plc_stopped', onPlcStop: 'zero', onPlcStopState: 'none' }, slaveConfig()).text,
+    ).toContain('values to the master are zero')
     expect(slaveNoticeText({ kind: 'changed', count: 1 }, slaveConfig()).text).toContain('changed 1 setting of')
   })
 
@@ -334,7 +336,7 @@ describe('the remaining texts', () => {
       { kind: 'offline', problem: 'no such device' },
       { kind: 'master_lost', onMasterLost: 'no_change', since: SLAVE_NOW },
       { kind: 'master_lost', onMasterLost: 'other' },
-      { kind: 'plc_stopped', onPlcStop: 'hold' },
+      { kind: 'plc_stopped', onPlcStop: 'hold', onPlcStopState: 'none' },
       { kind: 'changed', count: 3 },
       {
         kind: 'other_version',
