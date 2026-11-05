@@ -1561,6 +1561,25 @@ describe('createSharedSlice', () => {
           store.getState().remoteDeviceActions.create({ name: 'Device1', protocol: 'modbus-tcp' })
           expect(projectLibraries()).toEqual([])
         })
+
+        it('is turned on by the first CANopen slave', () => {
+          expect(store.getState().serverActions.create({ name: 'Line_IO', protocol: 'canopen-slave' }).ok).toBe(true)
+          expect(projectLibraries()).toEqual(['canopen'])
+        })
+
+        it('stays off when the user turned it off before adding a network to a project with a slave', () => {
+          store.getState().serverActions.create({ name: 'Line_IO', protocol: 'canopen-slave' })
+          store.getState().libraryActions.disableLibrary('canopen')
+          store.getState().remoteDeviceActions.create({ name: 'line_1', protocol: 'canopen' })
+          expect(projectLibraries()).toEqual([])
+        })
+
+        it('is not turned on again by a slave added to a project with a network', () => {
+          store.getState().remoteDeviceActions.create({ name: 'line_1', protocol: 'canopen' })
+          store.getState().libraryActions.disableLibrary('canopen')
+          store.getState().serverActions.create({ name: 'Line_IO', protocol: 'canopen-slave' })
+          expect(projectLibraries()).toEqual([])
+        })
       })
     })
 

@@ -396,6 +396,306 @@ END_FUNCTION_BLOCK
 `
 }
 
+/** The slave blocks' outputs and handling of a failed call, shared by the four. */
+const SLAVE_ERROR_TEXT = `  if (l_error != cop_last || l_reason != cop_reason) {
+    canopen_fb::text l_text;
+    canopen_fb::describe_slave(l_text, SLAVE, static_cast<uint8_t>(l_error), l_reason, l_index, l_sub);
+    ERRORTEXT = l_text.buf;
+    cop_last = static_cast<uint8_t>(l_error);
+    cop_reason = l_reason;
+  }`
+
+function slaveStatusBlock(doc: string): string {
+  return `(* ${doc} *)
+FUNCTION_BLOCK CANOPEN_SLAVE_STATUS
+VAR_INPUT
+  SLAVE : USINT := 1;
+  ENABLE : BOOL;
+END_VAR
+VAR_OUTPUT
+  CONFIRM : BOOL;
+  ERROR : USINT;
+  ERRORTEXT : STRING;
+  STATE : USINT;
+  OPERATIONAL : BOOL;
+  NODEID : USINT;
+  MASTERWATCHED : BOOL;
+  MASTERSEEN : BOOL;
+  BUSSTATE : USINT;
+  ERRORREGISTER : BYTE;
+  EMCYACTIVE : USINT;
+END_VAR
+VAR
+  cop_last : USINT;
+  cop_reason : USINT;
+END_VAR
+@@SHARED@@
+void setup() {
+}
+
+void loop() {
+  if (!ENABLE) {
+    CONFIRM = false;
+    ERROR = 0;
+    if (cop_last != 0) ERRORTEXT = "";
+    cop_last = 0;
+    cop_reason = 0;
+    return;
+  }
+  uint8_t l_why = 0;
+  const canopen_fb::api_v3 *l_api = canopen_fb::api3(l_why);
+  int l_error = canopen_fb::e_no_driver;
+  uint8_t l_reason = l_api ? 0 : l_why;
+  uint16_t l_index = 0;
+  uint8_t l_sub = 0;
+  if (l_api) {
+    canopen_fb::slave_info l_info;
+    l_error = l_api->slave_status(SLAVE, &l_info);
+    if (l_error == canopen_fb::e_no_error) {
+      STATE = l_info.state;
+      OPERATIONAL = l_info.state == 5;
+      NODEID = l_info.node_id;
+      MASTERWATCHED = (l_info.flags & canopen_fb::slave_master_watched) != 0;
+      MASTERSEEN = (l_info.flags & canopen_fb::slave_master_seen) != 0;
+      BUSSTATE = l_info.bus_state;
+      ERRORREGISTER = l_info.error_register;
+      EMCYACTIVE = l_info.emcy_active;
+    }
+  }
+  CONFIRM = l_error == canopen_fb::e_no_error;
+  ERROR = static_cast<uint8_t>(l_error);
+${SLAVE_ERROR_TEXT}
+}
+END_FUNCTION_BLOCK
+`
+}
+
+function slaveNmtBlock(doc: string): string {
+  return `(* ${doc} *)
+FUNCTION_BLOCK CANOPEN_SLAVE_NMT
+VAR_INPUT
+  SLAVE : USINT := 1;
+  ENABLE : BOOL;
+  STATE : USINT;
+END_VAR
+VAR_OUTPUT
+  CONFIRM : BOOL;
+  BUSY : BOOL;
+  ERROR : USINT;
+  ERRORTEXT : STRING;
+END_VAR
+VAR
+  cop_prev : BOOL;
+  cop_busy : BOOL;
+  cop_command : USINT;
+  cop_last : USINT;
+  cop_reason : USINT;
+END_VAR
+@@SHARED@@
+void setup() {
+}
+
+void loop() {
+  bool l_rising = ENABLE && !cop_prev;
+  cop_prev = ENABLE;
+  if (!ENABLE) {
+    CONFIRM = false;
+    BUSY = false;
+    ERROR = 0;
+    if (cop_last != 0) ERRORTEXT = "";
+    cop_last = 0;
+    cop_reason = 0;
+    cop_busy = false;
+    return;
+  }
+  uint8_t l_why = 0;
+  const canopen_fb::api_v3 *l_api = canopen_fb::api3(l_why);
+  int l_error = canopen_fb::e_no_error;
+  uint8_t l_reason = 0;
+  uint16_t l_index = 0;
+  uint8_t l_sub = 0;
+  if (l_rising) {
+    CONFIRM = false;
+    cop_busy = false;
+    switch (static_cast<uint8_t>(STATE)) {
+      case 0: cop_command = 1; break;
+      case 1: cop_command = 2; break;
+      case 2: cop_command = 0x80; break;
+      default: cop_command = 0; break;
+    }
+    if (!cop_command) {
+      l_error = canopen_fb::e_wrong_parameter;
+      l_reason = canopen_fb::r_reset;
+    } else if (!l_api) {
+      l_error = canopen_fb::e_no_driver;
+      l_reason = l_why;
+    } else {
+      l_error = l_api->slave_nmt(SLAVE, cop_command);
+      cop_busy = l_error == canopen_fb::e_no_error;
+    }
+  } else if (cop_busy) {
+    uint8_t l_done = 0;
+    if (!l_api) {
+      l_error = canopen_fb::e_no_driver;
+      l_reason = l_why;
+      cop_busy = false;
+    } else {
+      l_error = l_api->slave_nmt_done(SLAVE, cop_command, &l_done);
+      if (l_error != canopen_fb::e_no_error || l_done) cop_busy = false;
+      if (l_error == canopen_fb::e_no_error && l_done) CONFIRM = true;
+    }
+  } else {
+    l_error = cop_last;
+    l_reason = cop_reason;
+  }
+  BUSY = cop_busy;
+  ERROR = static_cast<uint8_t>(l_error);
+${SLAVE_ERROR_TEXT}
+}
+END_FUNCTION_BLOCK
+`
+}
+
+function slaveEmcyBlock(doc: string): string {
+  return `(* ${doc} *)
+FUNCTION_BLOCK CANOPEN_SLAVE_EMCY
+VAR_INPUT
+  SLAVE : USINT := 1;
+  ENABLE : BOOL;
+  ERRORCODE : WORD;
+  INFO : UDINT;
+END_VAR
+VAR_OUTPUT
+  CONFIRM : BOOL;
+  ERROR : USINT;
+  ERRORTEXT : STRING;
+  ACTIVE : BOOL;
+END_VAR
+VAR
+  cop_handle : UDINT;
+  cop_slave : USINT;
+  cop_last : USINT;
+  cop_reason : USINT;
+END_VAR
+@@SHARED@@
+void setup() {
+}
+
+void loop() {
+  uint8_t l_why = 0;
+  const canopen_fb::api_v3 *l_api = canopen_fb::api3(l_why);
+  int l_error = canopen_fb::e_no_error;
+  uint8_t l_reason = 0;
+  uint16_t l_index = ERRORCODE;
+  uint8_t l_sub = 0;
+  bool l_active = false;
+  if (!l_api) {
+    if (ENABLE) {
+      l_error = canopen_fb::e_no_driver;
+      l_reason = l_why;
+    }
+  } else if (cop_handle && cop_slave != SLAVE) {
+    // Moved to another slave: clear it on the old one and claim again.
+    l_api->slave_emcy(cop_slave, cop_handle, 0, 0, 0);
+    cop_handle = 0;
+  }
+  if (l_api && (ENABLE || cop_handle)) {
+    uint16_t l_code = ERRORCODE;
+    if (ENABLE && (l_code == 0 || l_code == 0x6200 || l_code == 0x8130)) {
+      l_error = canopen_fb::e_wrong_parameter;
+      l_reason = canopen_fb::r_own_code;
+      if (cop_handle) l_api->slave_emcy(SLAVE, cop_handle, 0, 0, 0);
+    } else {
+      for (int l_try = 0; l_try < 2; ++l_try) {
+        if (!cop_handle) {
+          if (!ENABLE) break;
+          uint32_t l_handle = 0;
+          l_error = l_api->slave_emcy_claim(SLAVE, &l_handle);
+          if (l_error != canopen_fb::e_no_error) {
+            if (l_error == canopen_fb::e_request_error) l_reason = canopen_fb::r_slots;
+            break;
+          }
+          cop_handle = l_handle;
+          cop_slave = SLAVE;
+        }
+        l_error = l_api->slave_emcy(SLAVE, cop_handle, ENABLE ? 1 : 0, l_code, INFO);
+        // A handle from before the last PLC stop is no longer valid: claim again.
+        if (l_error != canopen_fb::e_request_error) break;
+        cop_handle = 0;
+        l_error = canopen_fb::e_no_error;
+      }
+      if (!ENABLE) l_error = canopen_fb::e_no_error;
+      l_active = ENABLE && l_error == canopen_fb::e_no_error;
+    }
+  }
+  ACTIVE = l_active;
+  CONFIRM = ENABLE && l_error == canopen_fb::e_no_error;
+  ERROR = static_cast<uint8_t>(l_error);
+${SLAVE_ERROR_TEXT}
+}
+END_FUNCTION_BLOCK
+`
+}
+
+function slaveWrittenBlock(doc: string): string {
+  return `(* ${doc} *)
+FUNCTION_BLOCK CANOPEN_SLAVE_WRITTEN
+VAR_INPUT
+  SLAVE : USINT := 1;
+  ENABLE : BOOL;
+  INDEX : WORD;
+  SUBINDEX : BYTE;
+END_VAR
+VAR_OUTPUT
+  CONFIRM : BOOL;
+  ERROR : USINT;
+  ERRORTEXT : STRING;
+  COUNT : UDINT;
+  NEW : BOOL;
+END_VAR
+VAR
+  cop_seen : UDINT;
+  cop_last : USINT;
+  cop_reason : USINT;
+END_VAR
+@@SHARED@@
+void setup() {
+}
+
+void loop() {
+  NEW = false;
+  if (!ENABLE) {
+    CONFIRM = false;
+    ERROR = 0;
+    if (cop_last != 0) ERRORTEXT = "";
+    cop_last = 0;
+    cop_reason = 0;
+    return;
+  }
+  uint8_t l_why = 0;
+  const canopen_fb::api_v3 *l_api = canopen_fb::api3(l_why);
+  int l_error = canopen_fb::e_no_driver;
+  uint8_t l_reason = l_api ? 0 : l_why;
+  uint16_t l_index = INDEX;
+  uint8_t l_sub = SUBINDEX;
+  if (l_api) {
+    uint32_t l_count = 0;
+    l_error = l_api->slave_written(SLAVE, l_index, l_sub, &l_count);
+    if (l_error == canopen_fb::e_wrong_parameter) l_reason = canopen_fb::r_object;
+    if (l_error == canopen_fb::e_no_error) {
+      COUNT = l_count;
+      NEW = l_count != cop_seen;
+      cop_seen = l_count;
+    }
+  }
+  CONFIRM = l_error == canopen_fb::e_no_error;
+  ERROR = static_cast<uint8_t>(l_error);
+${SLAVE_ERROR_TEXT}
+}
+END_FUNCTION_BLOCK
+`
+}
+
 const SDO_DOC_TAIL =
   'NETWORK counts from 1; DEVICE is the node ID or its name; TIMEOUT T#0s uses the network SDO timeout.'
 
@@ -664,6 +964,34 @@ if (l_error == canopen_fb::e_no_error) {
   FAULTY = l_net.faulty;
 }`,
       }),
+    ],
+    [
+      'CANOPEN_SLAVE_STATUS',
+      slaveStatusBlock(
+        `Gives the state of this runtime's CANopen slave, in the same call while ENABLE is TRUE: STATE (PRE_OPERATIONAL, OPERATIONAL, STOPPED, or NOT_AVAIL while its interface is not open), OPERATIONAL, the node ID in use in NODEID, whether the master's heartbeat is watched (MASTERWATCHED) and received (MASTERSEEN), the link in BUSSTATE (BUS_ERROR_ACTIVE, BUS_ERROR_PASSIVE, BUS_OFF or BUS_UNKNOWN), the error register 0x1001 in ERRORREGISTER and the number of active emergencies in EMCYACTIVE. The values are at most 100 ms old. SLAVE is the slave's name or its place in the project's slaves, from 1.
+Example: slave(SLAVE := Line_IO, ENABLE := TRUE); IF NOT slave.MASTERSEEN THEN ... END_IF;`,
+      ),
+    ],
+    [
+      'CANOPEN_SLAVE_NMT',
+      slaveNmtBlock(
+        `Puts this runtime's CANopen slave into an NMT state by itself (CiA 301 local control): STATE is START_REMOTE_NODE, STOP_REMOTE_NODE or ENTER_PRE_OPERATIONAL; a reset is refused. A rising edge of ENABLE sends it; BUSY until the slave is in that state, then CONFIRM. The master sees a slave that leaves operational this way as left operational and acts on its own settings; raise an emergency first so it knows why. SLAVE is the slave's name or its place in the project's slaves, from 1.
+Example: nmt(SLAVE := Line_IO, ENABLE := fault, STATE := ENTER_PRE_OPERATIONAL);`,
+      ),
+    ],
+    [
+      'CANOPEN_SLAVE_EMCY',
+      slaveEmcyBlock(
+        `Holds one emergency of the program on this runtime's CANopen slave: while ENABLE is TRUE it is active with ERRORCODE and INFO (sent in bytes 4 to 7 of the EMCY); ENABLE FALSE clears it, and the slave sends EMCY 0000h once no emergency is left. A change of ERRORCODE or INFO while active sends one more EMCY, so do not change them every scan. The error register gets the generic bit and the bit of the code's class (2xxx current, 3xxx voltage, 4xxx temperature, 8xxx communication, FFxx manufacturer). Each instance holds one emergency, up to 31 per slave; 0000h, 6200h and 8130h are the slave's own and refused. A PLC stop clears them; after the start the block raises its emergency again. SLAVE is the slave's name or its place in the project's slaves, from 1.
+Example: overheat(SLAVE := Line_IO, ENABLE := temp > 80.0, ERRORCODE := 16#4210, INFO := REAL_TO_UDINT(temp * 10.0));`,
+      ),
+    ],
+    [
+      'CANOPEN_SLAVE_WRITTEN',
+      slaveWrittenBlock(
+        `Tells how often the master has written an object of this runtime's CANopen slave, by SDO or RPDO, also with the same value: COUNT since the slave started, and NEW TRUE in the call after COUNT changed (in the first call when it was written before). An object mapped to an RPDO counts every frame. INDEX and SUBINDEX name an object from the master. SLAVE is the slave's name or its place in the project's slaves, from 1.
+Example: cmd(SLAVE := Line_IO, ENABLE := TRUE, INDEX := 16#2000, SUBINDEX := 1); IF cmd.NEW THEN ... END_IF;`,
+      ),
     ],
   ]
   return blocks.map(([name, source]) => ({ fileName: `${name}.cpp`, source }))

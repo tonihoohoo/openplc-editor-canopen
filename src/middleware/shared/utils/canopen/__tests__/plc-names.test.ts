@@ -11,6 +11,8 @@ import {
   serializeCanopenConstantsToST,
   withCanopenConstants,
 } from '../plc-names'
+import type { PLCServer } from '../../../ports/types'
+import { defaultCanopenSlaveConfig } from '../slave'
 import { canopenDevice, configWith, genericNode } from './fixtures/helpers'
 
 const off = (config: CanopenConfig): CanopenConfig => ({ ...config, network: { ...config.network, enabled: false } })
@@ -27,6 +29,27 @@ describe('CANopen names as program constants', () => {
       { name: 'io2', value: 2, kind: 'node', network: 'line_1' },
       { name: 'valve', value: 5, kind: 'node', network: 'line_1' },
       { name: 'drive', value: 3, kind: 'node', network: 'line_2' },
+    ])
+  })
+
+  it('numbers the slaves that are on from 1, after the networks, and checks their names', () => {
+    const slave = (name: string, enabled: boolean): PLCServer => ({
+      name,
+      protocol: 'canopen-slave',
+      canopenSlaveConfig: { ...defaultCanopenSlaveConfig(), enabled },
+    })
+    const servers = [slave('spare_slave', false), slave('Line_IO', true), slave('Panel', true)]
+    expect(canopenPlcNames([line1], servers).filter((n) => n.kind === 'slave')).toEqual([
+      { name: 'Line_IO', value: 1, kind: 'slave', network: 'Line_IO' },
+      { name: 'Panel', value: 2, kind: 'slave', network: 'Panel' },
+    ])
+    expect(serializeCanopenConstantsToST([], false, servers)).toContain(
+      '  Line_IO : USINT := 1;\n  Panel : USINT := 2;',
+    )
+    expect(withCanopenConstants('PROGRAM p END_PROGRAM', { servers })).toContain('Panel : USINT := 2;')
+    expect(canopenNameProblems([line1], [], [slave('LINE_1', true), slave('bus_off', true)])).toEqual([
+      'CANopen slave "LINE_1": the name is also used by CANopen network "line_1"; a program reaches both by name',
+      'CANopen slave "bus_off": the name is also "BUS_OFF" of the canopen library; a program reaches it by name',
     ])
   })
 
@@ -95,8 +118,8 @@ describe('CANopen names as program constants', () => {
     it('refuses a name the project or the library uses', () => {
       const stopped = canopenDevice('line_1', configWith({ ...genericNode(2), name: 'stopped' }))
       expect(canopenNameProblems([stopped], [{ name: 'LINE_1', kind: 'POU' }])).toEqual([
-        'CANopen network "line_1": the name is also the POU "LINE_1"; a program reaches the node or network by name',
-        'CANopen "line_1" node "stopped": the name is also "STOPPED" of the canopen library; a program reaches the node or network by name',
+        'CANopen network "line_1": the name is also the POU "LINE_1"; a program reaches it by name',
+        'CANopen "line_1" node "stopped": the name is also "STOPPED" of the canopen library; a program reaches it by name',
       ])
     })
 
@@ -119,7 +142,7 @@ describe('CANopen names as program constants', () => {
         'data type:SPEED',
       ])
       expect(canopenNameProblems([red], names)).toEqual([
-        'CANopen "line_1" node "Red": the name is also the enumeration value "red"; a program reaches the node or network by name',
+        'CANopen "line_1" node "Red": the name is also the enumeration value "red"; a program reaches it by name',
       ])
     })
 

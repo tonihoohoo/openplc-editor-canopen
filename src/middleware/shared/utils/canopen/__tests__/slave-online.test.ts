@@ -3,6 +3,7 @@ import {
   ageText,
   mappingText,
   onMasterLostText,
+  onPlcStopStateText,
   slaveEventTone,
   slaveNmtByText,
   slaveStateLabel,
@@ -214,15 +215,70 @@ describe('the notice of the Online tab', () => {
     expect(slaveNoticeText({ kind: 'master_lost', onMasterLost: 'stopped' }, slaveConfig()).text).toContain(
       'so the slave went stopped',
     )
-    expect(slaveNoticeText({ kind: 'plc_stopped', onPlcStop: 'zero' }, slaveConfig())).toMatchObject({
+    expect(
+      slaveNoticeText({ kind: 'plc_stopped', onPlcStop: 'zero', onPlcStopState: 'none' }, slaveConfig()),
+    ).toMatchObject({
       tone: 'warning',
     })
-    expect(slaveNoticeText({ kind: 'plc_stopped', onPlcStop: 'zero' }, slaveConfig()).text).toContain(
-      'values to the master are zero',
-    )
+    expect(
+      slaveNoticeText({ kind: 'plc_stopped', onPlcStop: 'zero', onPlcStopState: 'none' }, slaveConfig()).text,
+    ).toContain('values to the master are zero')
     expect(slaveNoticeText({ kind: 'changed', count: 1 }, slaveConfig()).text).toContain('changed 1 setting of')
   })
+
+  it('says the NMT state the PLC stop gave the slave', () => {
+    const stopped = (onPlcStopState: 'none' | 'pre_operational' | 'stopped' | 'other') =>
+      slaveNoticeText({ kind: 'plc_stopped', onPlcStop: 'hold', onPlcStopState }, slaveConfig()).text
+    expect(stopped('pre_operational')).toContain(
+      "answers the master; it went pre-operational, and the master's NMT start brings it back.",
+    )
+    expect(stopped('stopped')).toContain('it went stopped')
+    expect(stopped('none')).toContain('answers the master. Values')
+    expect(
+      slaveNotice({
+        config: slaveConfig(),
+        connected: true,
+        answered: true,
+        slave: parse({ plc_running: false, on_plc_stop_state: 'stopped' }),
+        changes: 0,
+      }),
+    ).toMatchObject({ kind: 'plc_stopped', onPlcStopState: 'stopped' })
+  })
 })
+
+describe('the PLC program on the Online tab', () => {
+  it('words the program and the PLC stop as NMT sources, and the program emergencies', () => {
+    const say = (event: Record<string, unknown>) =>
+      slaveEventText(parse({ events: [{ time: SLAVE_NOW, ...event }] }).events?.[0] ?? never(), parse(), slaveConfig())
+    expect(say({ kind: 'nmt', state: 'pre_operational', by: 'program' })).toBe(
+      'The PLC program set the slave pre-operational.',
+    )
+    expect(say({ kind: 'nmt', state: 'operational', by: 'program' })).toBe(
+      'The PLC program started the slave: operational.',
+    )
+    expect(say({ kind: 'nmt', state: 'stopped', by: 'plc_stop' })).toBe(
+      'Went stopped at the PLC stop (setting "When the PLC stops: NMT state").',
+    )
+    expect(say({ kind: 'emcy', code: 0x4210, register: 9, program: true })).toMatch(
+      /^The PLC program sent EMCY 0x4210: /,
+    )
+  })
+
+  it('marks the NMT state on a PLC stop the master changed', () => {
+    const changes = slaveChanges(slaveConfig(), parse({ on_plc_stop_state: 'stopped' }))
+    expect(changes).toContainEqual({
+      key: 'on_plc_stop_state',
+      label: 'When the PLC stops: NMT state',
+      project: 'no change',
+      running: 'go stopped',
+    })
+    expect(onPlcStopStateText('other')).toBe('another behaviour')
+  })
+})
+
+function never(): never {
+  throw new Error('no event')
+}
 
 describe('slave events and texts', () => {
   const text = (event: Record<string, unknown>) => {
@@ -280,7 +336,7 @@ describe('the remaining texts', () => {
       { kind: 'offline', problem: 'no such device' },
       { kind: 'master_lost', onMasterLost: 'no_change', since: SLAVE_NOW },
       { kind: 'master_lost', onMasterLost: 'other' },
-      { kind: 'plc_stopped', onPlcStop: 'hold' },
+      { kind: 'plc_stopped', onPlcStop: 'hold', onPlcStopState: 'none' },
       { kind: 'changed', count: 3 },
       {
         kind: 'other_version',
@@ -307,6 +363,9 @@ describe('the remaining texts', () => {
     expect(by('start_alone')).toBe('Started by itself (start alone)')
     expect(by('boot', 'pre_operational')).toBe('After its boot-up, waiting for the master')
     expect(by('boot', 'stopped')).toBe('After its boot-up')
+    expect(by('program')).toBe('Started by the PLC program')
+    expect(by('program', 'pre_operational')).toBe('Set by the PLC program')
+    expect(by('plc_stop', 'pre_operational')).toBe('By the PLC stop')
     expect(slaveStateLabel('offline')).toBe('Not on the bus')
     expect(onMasterLostText('no_change')).toBe('no change')
   })

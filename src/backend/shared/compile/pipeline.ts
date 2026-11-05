@@ -703,6 +703,7 @@ async function runCompilePipelineInner(
       processedData.pous.map((p) => p.data.name),
       processedData.dataTypes ?? [],
     ),
+    processedData.servers as never,
   )
   if (canopenNames.length > 0) return bailError(emit, 'validate', `Compilation aborted: ${canopenNames.join('; ')}`)
   const programSt = withCanopenConstants(stResult.programSt, processedData)

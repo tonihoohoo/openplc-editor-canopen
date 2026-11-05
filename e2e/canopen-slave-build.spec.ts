@@ -99,7 +99,12 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await expect(summary).toHaveText('can1, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
     await commitField(page, 'Heartbeat (ms)', '100')
     await commitField(page, 'Vendor ID', '0xABCD')
+    await page.getByLabel('When the PLC stops: NMT state').selectOption('pre_operational')
+    // The network's library is on, so the program reaches the slave by name or number.
+    await expect(page.getByTestId('canopen-slave-program')).toContainText('address this slave as slave (or 1)')
     await slaveKeyView(page, 'slave-general')
+    await page.getByTestId('canopen-slave-program').scrollIntoViewIfNeeded()
+    await shot(page, 'slave-general-program')
 
     await page.getByRole('tab', { name: 'Data' }).click()
     const from = page.getByTestId('canopen-slave-from-master')
@@ -155,7 +160,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 10,
+      version: 11,
       networks: [{ interface: 'can0', nodes: [{ node_id: 1 }] }],
       devices: [
         {
@@ -164,6 +169,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
           node_id: 5,
           heartbeat_ms: 100,
           identity: { vendor_id: 0xabcd },
+          on_plc_stop_state: 'pre_operational',
           objects: [
             { index: 0x2000, subindex: 1, exchange: 'pdo', location: '%IW0' },
             { index: 0x2000, subindex: 2, exchange: 'sdo', type: 'UNSIGNED16', default: 1000, min: 100, max: 30000 },
@@ -241,7 +247,7 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 10,
+      version: 11,
       devices: [
         {
           name: 'slave',
@@ -332,7 +338,7 @@ test('a CANopen slave byte packed as 8 bits: bit rows, aliases, defaults, the PD
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 10,
+      version: 11,
       devices: [
         {
           name: 'slave',

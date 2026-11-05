@@ -214,8 +214,14 @@ export function attachProjectSync(store: OpenPLCStore, service: StLspService): P
 
   function reconcileSoftMotionGlobals(remoteDevices: PLCRemoteDevice[] | undefined): void {
     reconcileSyntheticDoc(SOFTMOTION_GLOBALS_URI, serializeSoftMotionAxisGlobalsToST({ remoteDevices } as never))
+    reconcileCanopenNames()
+  }
+
+  function reconcileCanopenNames(): void {
+    const data = store.getState().project.data
+    const text = serializeCanopenConstantsToST(data.remoteDevices, false, data.servers)
     // A POU is analysed against the names as they were when it was last sent, so re-send them all.
-    if (reconcileSyntheticDoc(CANOPEN_NAMES_URI, serializeCanopenConstantsToST(remoteDevices, false))) republishPous()
+    if (reconcileSyntheticDoc(CANOPEN_NAMES_URI, text)) republishPous()
   }
 
   /** Re-sends every POU document unchanged, with a new version, so the worker analyses it again. */
@@ -327,6 +333,11 @@ export function attachProjectSync(store: OpenPLCStore, service: StLspService): P
     (state) => state.project.data.remoteDevices,
     (remoteDevices) => reconcileSoftMotionGlobals(remoteDevices),
   )
+  // A CANopen slave's name is a program constant too.
+  const unsubscribeServers = store.subscribe(
+    (state) => state.project.data.servers,
+    () => reconcileCanopenNames(),
+  )
   // Global Variable Lists change on their own too — creating one, renaming it, or editing a
   // member has to refresh the synthesized document, or the editor keeps completing against
   // the list as it was.
@@ -393,6 +404,7 @@ export function attachProjectSync(store: OpenPLCStore, service: StLspService): P
       unsubscribeDataTypes()
       unsubscribeResourceGlobals()
       unsubscribeRemoteDevices()
+      unsubscribeServers()
       unsubscribeGlobalVariableLists()
       unsubscribeAliasIndex()
       // Close every doc we'd opened so the worker stays consistent

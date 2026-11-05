@@ -133,7 +133,7 @@ test('refusal policies, text and byte values, a gap and a deadline reach conf/ca
       version: number
       networks: Array<{ nodes: ConfNode[] }>
     }
-    expect(conf.version).toBe(10)
+    expect(conf.version).toBe(11)
     const node = conf.networks[0].nodes[0]
     expect(node.rpdos[0].entries).toEqual([
       { index: 5, subindex: 0, type: 'UNSIGNED8' },

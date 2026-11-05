@@ -4,6 +4,7 @@ import type {
   CanopenSlaveLss,
   CanopenSlaveOnMasterLost,
   CanopenSlaveOnPlcStop,
+  CanopenSlaveOnPlcStopState,
 } from '@root/middleware/shared/ports/canopen-types'
 import { CANOPEN_BITRATES, slaveLss, type SlaveProblem } from '@root/middleware/shared/utils/canopen'
 
@@ -17,8 +18,13 @@ import {
 } from '../../device/canopen/styles'
 
 type GeneralTabProps = {
+  name: string
   config: CanopenSlaveConfig
   problems: readonly SlaveProblem[]
+  /** The slave's number for the program's blocks (its place among the slaves that are on), null when off. */
+  slaveNumber: number | null
+  /** The project has the canopen block library. */
+  libraryOn: boolean
   onChange: (update: Partial<CanopenSlaveConfig>) => void
 }
 
@@ -39,6 +45,14 @@ const LOST_OPTIONS: ReadonlyArray<SelectOption<CanopenSlaveOnMasterLost>> = [
   { value: 'no_change', label: 'No change' },
   { value: 'stopped', label: 'Go stopped' },
 ]
+
+const STOP_STATE_OPTIONS: ReadonlyArray<SelectOption<CanopenSlaveOnPlcStopState>> = [
+  { value: 'none', label: 'No change' },
+  { value: 'pre_operational', label: 'Go pre-operational' },
+  { value: 'stopped', label: 'Go stopped' },
+]
+
+const SLAVE_BLOCKS = 'CANOPEN_SLAVE_STATUS, CANOPEN_SLAVE_NMT, CANOPEN_SLAVE_EMCY, CANOPEN_SLAVE_WRITTEN'
 
 const isStop = (v: string): v is CanopenSlaveOnPlcStop => v === 'hold' || v === 'zero'
 
@@ -165,7 +179,7 @@ const problemText = (problems: readonly SlaveProblem[], where: string): string |
   problems.find((p) => p.where === where)?.text
 
 /** Bus, identity and behaviour of the slave; each field names the object it sets. */
-const GeneralTab = ({ config, problems, onChange }: GeneralTabProps) => {
+const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, onChange }: GeneralTabProps) => {
   const interfaceProblem = problemText(problems, 'interface')
   const watching = config.masterWatch.timeMs > 0
   const lss = slaveLss(config)
@@ -293,7 +307,7 @@ const GeneralTab = ({ config, problems, onChange }: GeneralTabProps) => {
 
       <div className={cardClassName}>
         <h3 className={headingClassName}>Behaviour</h3>
-        <div className='grid max-w-[640px] grid-cols-2 gap-4'>
+        <div className='grid max-w-[960px] grid-cols-3 gap-4'>
           <NumberField
             label='Heartbeat (ms)'
             value={config.heartbeatMs}
@@ -304,13 +318,21 @@ const GeneralTab = ({ config, problems, onChange }: GeneralTabProps) => {
             onCommit={(value) => onChange({ heartbeatMs: value })}
           />
           <SelectField
-            label='When the PLC stops'
+            label='When the PLC stops: values'
             value={config.onPlcStop}
             options={STOP_OPTIONS}
             hint='The values sent to the master; the slave stays on the bus and sends EMCY 6200h'
             onChange={(value) => {
               if (isStop(value)) onChange({ onPlcStop: value })
             }}
+          />
+          <SelectField
+            label='When the PLC stops: NMT state'
+            value={config.onPlcStopState}
+            options={STOP_STATE_OPTIONS}
+            objectRef='0x1029:02'
+            hint="The slave's own state; the master can change it, and its NMT start brings the slave back"
+            onChange={(value) => onChange({ onPlcStopState: value })}
           />
           <NumberField
             label='Master node ID to watch'
@@ -347,6 +369,26 @@ const GeneralTab = ({ config, problems, onChange }: GeneralTabProps) => {
             onChange={(startAlone) => onChange({ startAlone })}
           />
         </div>
+      </div>
+
+      <div className={cardClassName} data-testid='canopen-slave-program'>
+        <h3 className={headingClassName}>In the PLC program</h3>
+        <p className='text-xs text-neutral-850 dark:text-neutral-100'>
+          {slaveNumber === null ? (
+            <>This slave is off, so the program has no name for it; the blocks answer that it is unknown.</>
+          ) : (
+            <>
+              Blocks of the <span className='font-semibold'>CANopen</span> library address this slave as{' '}
+              <code className='font-mono'>{name}</code> (or {slaveNumber}).
+            </>
+          )}{' '}
+          <span className='text-neutral-500 dark:text-neutral-400'>{SLAVE_BLOCKS}</span>
+        </p>
+        <p className='mt-1 text-[11px] text-neutral-500 dark:text-neutral-400'>
+          {libraryOn
+            ? 'Emergencies from the program: up to 31 at a time. Program NMT changes and emergencies show on the Online tab.'
+            : 'Turn on the CANopen library in the Library Manager to use them.'}
+        </p>
       </div>
     </div>
   )

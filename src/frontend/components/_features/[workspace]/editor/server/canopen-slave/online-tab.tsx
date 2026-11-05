@@ -96,6 +96,7 @@ const StateStrip = ({
   const watch = slave.master_watch_ms ?? 0
   const masterAge = age(slave.master_last_seen)
   const active = slave.emcy_active ?? []
+  const program = slave.emcy_program ?? []
   const register = slave.error_register ?? 0
   const bits = errorRegisterBits(register)
   const heartbeat = changes.get('heartbeat')
@@ -158,7 +159,11 @@ const StateStrip = ({
           ) : null}
         </Fact>
         <Fact label='Emergencies' value={active.length === 0 ? 'None active' : `${active.length} active`}>
-          {active.map((c) => `${hex(c, 4)} ${emcyText(c).toLowerCase()}`).join(' · ')}
+          {active
+            .map(
+              (c) => `${hex(c, 4)} ${emcyText(c).toLowerCase()}${program.includes(c) ? ', from the PLC program' : ''}`,
+            )
+            .join(' · ')}
           {active.length > 0 ? <br /> : null}
           Error register {hex(register, 2)}
           {bits.length > 0 ? ` (${bits.join(', ')})` : ''}

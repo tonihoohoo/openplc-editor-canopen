@@ -10,6 +10,7 @@ import type {
   CanopenSlaveObject,
   CanopenSlaveOnMasterLost,
   CanopenSlaveOnPlcStop,
+  CanopenSlaveOnPlcStopState,
 } from '../../ports/canopen-types'
 import { canopenTypeBits, objectRef } from './data-types'
 import { busStateLabel, emcyText, hex, resetText, sdoAbortText } from './diagnostics'
@@ -103,6 +104,17 @@ const ON_MASTER_LOST: Readonly<Record<CanopenSlaveOnMasterLost | 'other', string
 
 export function onMasterLostText(value: CanopenSlaveOnMasterLost | 'other'): string {
   return ON_MASTER_LOST[value]
+}
+
+const ON_PLC_STOP_STATE: Readonly<Record<CanopenSlaveOnPlcStopState | 'other', string>> = {
+  none: 'no change',
+  pre_operational: 'go pre-operational',
+  stopped: 'go stopped',
+  other: 'another behaviour',
+}
+
+export function onPlcStopStateText(value: CanopenSlaveOnPlcStopState | 'other'): string {
+  return ON_PLC_STOP_STATE[value]
 }
 
 /** A PDO as the project's slave has it after a PLC start. */
@@ -269,6 +281,13 @@ export function slaveChanges(project: CanopenSlaveConfig, slave: CanopenSlaveSta
       project: onMasterLostText(config.onMasterLost),
       running: onMasterLostText(slave.on_master_lost),
     })
+  if (slave.on_plc_stop_state !== undefined && slave.on_plc_stop_state !== config.onPlcStopState)
+    changes.push({
+      key: 'on_plc_stop_state',
+      label: 'When the PLC stops: NMT state',
+      project: onPlcStopStateText(config.onPlcStopState),
+      running: onPlcStopStateText(slave.on_plc_stop_state),
+    })
   if (slave.pdos && slave.node_id !== null)
     for (const expected of expectedSlavePdos(config)) {
       const running = slave.pdos.find((p) => p.dir === expected.dir && p.pdo === expected.pdo)
@@ -325,7 +344,12 @@ export type SlaveNotice =
   | { kind: 'not_running' }
   | { kind: 'offline'; problem?: string }
   | { kind: 'master_lost'; since?: number; onMasterLost: CanopenSlaveOnMasterLost | 'other' }
-  | { kind: 'plc_stopped'; since?: number; onPlcStop: CanopenSlaveOnPlcStop }
+  | {
+      kind: 'plc_stopped'
+      since?: number
+      onPlcStop: CanopenSlaveOnPlcStop
+      onPlcStopState: CanopenSlaveOnPlcStopState | 'other'
+    }
   | { kind: 'other_version'; diff: SlaveVersionDiff }
   | { kind: 'changed'; count: number }
 
@@ -373,6 +397,7 @@ export function slaveNotice({ config, connected, answered, slave, changes }: Sla
       kind: 'plc_stopped',
       since: lastEvent(slave, (e) => e.kind === 'plc' && e.running === false),
       onPlcStop: config.onPlcStop,
+      onPlcStopState: slave.on_plc_stop_state ?? config.onPlcStopState,
     }
   const diff = slaveVersionDiff(config, slave)
   if (diff) return { kind: 'other_version', diff }
@@ -389,6 +414,13 @@ const LOST_DOES: Readonly<Record<CanopenSlaveOnMasterLost | 'other', string>> = 
   no_change: 'and the slave stays in its state',
   stopped: 'so the slave went stopped',
   other: 'and the slave did what its error behaviour (0x1029) says',
+}
+
+const STOP_STATE_DOES: Readonly<Record<CanopenSlaveOnPlcStopState | 'other', string>> = {
+  none: '',
+  pre_operational: "; it went pre-operational, and the master's NMT start brings it back",
+  stopped: "; it went stopped, and the master's NMT start brings it back",
+  other: '',
 }
 
 /** The notice as a tone and a text. */
@@ -429,11 +461,12 @@ export function slaveNoticeText(notice: SlaveNotice, config: CanopenSlaveConfig)
     case 'plc_stopped': {
       const to =
         notice.onPlcStop === 'zero' ? 'values to the master are zero' : 'values to the master hold their last value'
+      const state = STOP_STATE_DOES[notice.onPlcStopState]
       return {
         tone: 'warning',
         text:
-          'The PLC is stopped. The slave stays on the bus and answers the master. Values from the master are not ' +
-          `read by the program; ${to} (setting "When the PLC stops" on General).`,
+          `The PLC is stopped. The slave stays on the bus and answers the master${state}. Values from the master ` +
+          `are not read by the program; ${to} (settings "When the PLC stops" on General).`,
       }
     }
     case 'other_version': {
@@ -485,6 +518,10 @@ export function slaveNmtByText(slave: CanopenSlaveStatus): string {
       return 'By itself'
     case 'start_alone':
       return 'Started by itself (start alone)'
+    case 'program':
+      return slave.state === 'operational' ? 'Started by the PLC program' : 'Set by the PLC program'
+    case 'plc_stop':
+      return 'By the PLC stop'
     case 'boot':
       return slave.state === 'pre_operational' ? 'After its boot-up, waiting for the master' : 'After its boot-up'
   }
@@ -530,6 +567,12 @@ function nmtEventText(event: CanopenSlaveEvent): string {
       return `Went ${state} by itself.`
     case 'start_alone':
       return 'Went operational by itself (start alone).'
+    case 'program':
+      return state === 'operational'
+        ? 'The PLC program started the slave: operational.'
+        : `The PLC program set the slave ${state}.`
+    case 'plc_stop':
+      return `Went ${state} at the PLC stop (setting "When the PLC stops: NMT state").`
     case 'boot':
       return `${label} after its boot-up.`
   }
@@ -566,7 +609,8 @@ export function slaveEventText(
       return event.seen ? `Heartbeat of master${masterNode} seen.` : `Heartbeat of master${masterNode} lost.`
     case 'emcy': {
       const code = event.code ?? 0
-      return `Sent EMCY ${hex(code, 4)}: ${emcyText(code)}, error register ${hex(event.register ?? 0, 2)}.`
+      const who = event.program ? 'The PLC program sent' : 'Sent'
+      return `${who} EMCY ${hex(code, 4)}: ${emcyText(code)}, error register ${hex(event.register ?? 0, 2)}.`
     }
     case 'emcy_reset':
       return 'Sent EMCY 0x0000: no error active.'

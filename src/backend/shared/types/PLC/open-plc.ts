@@ -675,6 +675,7 @@ const CanopenSlaveConfigSchema = z.object({
   masterWatch: z.object({ nodeId: z.number().int().min(1).max(127), timeMs: z.number().int().min(0).max(65535) }),
   onMasterLost: z.enum(['pre_operational', 'no_change', 'stopped']),
   onPlcStop: z.enum(['hold', 'zero']),
+  onPlcStopState: z.enum(['none', 'pre_operational', 'stopped']).default('none'),
   startAlone: z.boolean(),
   lss: z
     .object({

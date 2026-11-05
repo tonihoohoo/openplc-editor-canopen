@@ -93,6 +93,17 @@ describe('CanopenSlaveEditor', () => {
     expect(config()?.lss?.serial).toBeNull()
   })
 
+  it('sets the NMT state on a PLC stop and names the slave for the program', () => {
+    fireEvent.change(screen.getByLabelText('When the PLC stops: NMT state'), { target: { value: 'pre_operational' } })
+    expect(config()?.onPlcStopState).toBe('pre_operational')
+    const panel = screen.getByTestId('canopen-slave-program')
+    expect(panel.textContent).toContain('address this slave as slave (or 1)')
+    expect(panel.textContent).toContain('CANOPEN_SLAVE_EMCY')
+    expect(panel.textContent).toContain('Turn on the CANopen library')
+    fireEvent.click(screen.getByRole('switch', { name: 'Run this slave' }))
+    expect(screen.getByTestId('canopen-slave-program').textContent).toContain('This slave is off')
+  })
+
   it('refuses an empty interface and a heartbeat of 0', () => {
     type(screen.getByLabelText('Interface'), '')
     expect(screen.getByText('Enter the interface name.')).toBeTruthy()
