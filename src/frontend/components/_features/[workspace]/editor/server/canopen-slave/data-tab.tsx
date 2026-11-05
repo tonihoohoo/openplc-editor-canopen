@@ -132,7 +132,7 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRow
             }}
           />
         </td>
-        <td className={cn(cellClassName, 'w-[180px]')}>
+        <td className={cn(cellClassName, 'w-[210px]')}>
           <SelectField
             hideLabel
             label='Type'
@@ -152,11 +152,13 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRow
             onChange={(exchange) => change({ exchange })}
           />
         </td>
-        <td
-          className={cn(cellClassName, 'w-[80px] pt-[7px] font-mono text-xs text-neutral-700 dark:text-neutral-300')}
-          data-testid='canopen-slave-address'
-        >
-          {constant ? <span className={hintClassName}>none</span> : object.iecLocation}
+        <td className={cn(cellClassName, 'w-[80px]')}>
+          <div
+            className='flex h-[30px] items-center font-mono text-xs text-neutral-700 dark:text-neutral-300'
+            data-testid='canopen-slave-address'
+          >
+            {constant ? <span className={hintClassName}>none</span> : object.iecLocation}
+          </div>
         </td>
         <td className={cn(cellClassName, 'w-[140px]')}>
           {constant ? null : (
@@ -211,15 +213,17 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRow
             ))}
           </>
         ) : null}
-        <td className={cn(cellClassName, 'w-[32px] pt-1.5')}>
-          <button
-            type='button'
-            aria-label={`Remove ${object.name}`}
-            className={iconButtonClassName}
-            onClick={() => commit((c) => ({ ...c, objects: c.objects.filter((o) => o.id !== object.id) }))}
-          >
-            <TrashIcon />
-          </button>
+        <td className={cn(cellClassName, 'w-[32px]')}>
+          <div className='flex h-[30px] items-center'>
+            <button
+              type='button'
+              aria-label={`Remove ${object.name}`}
+              className={iconButtonClassName}
+              onClick={() => commit((c) => ({ ...c, objects: c.objects.filter((o) => o.id !== object.id) }))}
+            >
+              <TrashIcon />
+            </button>
+          </div>
         </td>
       </tr>
       {problems.length > 0 ? (
