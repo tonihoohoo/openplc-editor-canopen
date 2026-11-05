@@ -615,12 +615,16 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   `npx playwright test e2e/canopen-` after the build steps in CLAUDE.md ("Electron e2e").
 - CI: `.github/workflows/canopen-ui.yml` runs them on every pull request to `canopen` that changes a
   path under `src/` or `e2e/` with `canopen` in it, an e2e helper, the dependencies or the workflow,
-  and on upstream sync pull requests; for any other pull request the job is skipped. It builds the app
+  and on upstream sync pull requests; for any other pull request the job is skipped. A pull request
+  that changes only the slave server page, `slave.ts`, their tests or the slave e2e files runs only
+  `e2e/canopen-slave-*.spec.ts`; one that changes only other CANopen files runs the other specs; one
+  that changes a CANopen file the slave code imports (found by `.github/scripts/canopen-ui-groups.mjs`,
+  `--shared` lists them) runs both, and the comment names the set that ran. It builds the app
   once on `ubuntu-24.04` with `.github/scripts/canopen-ui-build.sh` (production mode without
   minification, source maps or module concatenation, about a minute instead of six) and runs the tests under `xvfb`. Their screenshots go to the `ci-screenshots`
   branch and one comment on the pull request, updated on each run.
-- Key views are compared with the baselines in `e2e/<spec>-snapshots/` (`keyView` in
-  `e2e/helpers/canopen-shots.ts`), in CI only, because the baselines are Linux renderings. A view that
+- Key views of the device editor and the slave server page are compared with the baselines in
+  `e2e/<spec>-snapshots/` (`keyView` in `e2e/helpers/canopen-shots.ts`), in CI only, because the baselines are Linux renderings. A view that
   differs fails the job, and the comment shows the baseline, the new image and the difference. For an
   intended change, take the new images from the run's `canopen-ui-results` artifact
   (`<view>-actual.png`), save them as `e2e/<spec>-snapshots/<view>-chromium-linux.png` and commit.

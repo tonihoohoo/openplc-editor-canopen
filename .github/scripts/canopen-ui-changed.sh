@@ -1,27 +1,31 @@
 #!/bin/bash
-# Writes ui=true to $GITHUB_OUTPUT when the CANopen UI tests should run: the pull request changes a
-# path under src/ or e2e/ with "canopen" in it, an e2e helper, the dependencies, the Playwright
-# config or these CI files, or it merges an upstream release (head branch main or sync/*). Any
-# other event (workflow_dispatch) writes ui=true.
+# Writes ui, slave and master to $GITHUB_OUTPUT: whether the CANopen UI tests run, and which sets.
+# A pull request runs them when it changes a path under src/ or e2e/ with "canopen" in it, an e2e
+# helper, the dependencies, the Playwright config or these CI files, or merges an upstream release
+# (head branch main or sync/*). canopen-ui-groups.mjs picks the slave set, the master set or both
+# from the changed files. Upstream syncs and any other event (workflow_dispatch) run both sets.
 set -euo pipefail
 
-ui=true
+slave=true
+master=true
 if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
-    ui=false
-    case "${HEAD_REF:-}" in
-        main | sync/*) ui=true ;;
-    esac
     files=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename')
-    while IFS= read -r file; do
-        lower=$(printf '%s' "$file" | tr '[:upper:]' '[:lower:]')
-        case "$lower" in
-            src/*canopen* | e2e/*canopen* | e2e/helpers/*) ui=true ;;
-            package.json | package-lock.json | playwright.config.ts) ui=true ;;
-            .github/workflows/canopen-ui.yml | .github/scripts/canopen-ui-*) ui=true ;;
-        esac
-    done <<<"$files"
     echo "Changed files:"
     echo "$files"
+    case "${HEAD_REF:-}" in
+        main | sync/*) ;;
+        *)
+            groups=$(printf '%s\n' "$files" | node "$(dirname "$0")/canopen-ui-groups.mjs")
+            echo "Groups:"
+            echo "$groups"
+            slave=$(printf '%s\n' "$groups" | sed -n 's/^slave=//p')
+            master=$(printf '%s\n' "$groups" | sed -n 's/^master=//p')
+            ;;
+    esac
 fi
-echo "ui=$ui"
-echo "ui=$ui" >>"${GITHUB_OUTPUT:-/dev/stdout}"
+ui=false
+if [ "$slave" = true ] || [ "$master" = true ]; then ui=true; fi
+for line in "ui=$ui" "slave=$slave" "master=$master"; do
+    echo "$line"
+    echo "$line" >>"${GITHUB_OUTPUT:-/dev/stdout}"
+done
