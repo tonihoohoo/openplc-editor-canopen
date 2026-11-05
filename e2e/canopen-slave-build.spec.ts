@@ -181,7 +181,12 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
 
 test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS flag and the build', async () => {
   test.setTimeout(300000)
-  const { project, userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-slave-lss'), '', STATION)
+  // No located variables: nothing on this slave produces them, and the build would refuse them.
+  const station = {
+    bus: STATION.bus,
+    program: 'PROGRAM main\n  VAR\n    n : INT;\n  END_VAR\n\nn := n + 1;\n\nEND_PROGRAM\n',
+  }
+  const { project, userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-slave-lss'), '', station)
   // No master network: an empty one would stop the build.
   rmSync(join(project, 'devices', 'remote', 'canopen_1.json'))
   const { app, page } = await launch(userData)
