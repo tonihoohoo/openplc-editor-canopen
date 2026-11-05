@@ -1,12 +1,15 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { toast } from '@root/frontend/components/_features/[app]/toast/use-toast'
 import { useAliasRegistry } from '@root/frontend/hooks/use-alias-registry'
+import { type CanopenSlaveLiveStatus, useCanopenSlaveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { useOpenPLCStore, useOpenPLCStoreApi } from '@root/frontend/store'
 import { cn } from '@root/frontend/utils/cn'
 import type { CanopenSlaveConfig, CanopenSlaveObject } from '@root/middleware/shared/ports/canopen-types'
 import { useProject } from '@root/middleware/shared/providers'
 import {
   buildSlaveExport,
+  busStateBad,
+  busStateLabel,
   checkCanopenSlave,
   defaultCanopenSlaveConfig,
   exportFileType,
@@ -32,11 +35,12 @@ import {
 } from '../../device/canopen/styles'
 import { DataTab } from './data-tab'
 import { GeneralTab } from './general-tab'
+import { OnlineTab } from './online-tab'
 import { PdosTab } from './pdos-tab'
 
-type SlaveTab = 'general' | 'data' | 'pdos'
+type SlaveTab = 'general' | 'data' | 'pdos' | 'online'
 
-const isSlaveTab = (v: string): v is SlaveTab => v === 'general' || v === 'data' || v === 'pdos'
+const isSlaveTab = (v: string): v is SlaveTab => v === 'general' || v === 'data' || v === 'pdos' || v === 'online'
 
 type SlaveFormat = 'eds' | 'xdd'
 
@@ -58,6 +62,32 @@ const TabItem = ({ value, label, active }: { value: SlaveTab; label: string; act
     {label}
   </Tabs.Trigger>
 )
+
+/** The slave's bus line in the header, while the runtime runs it and reports its link. */
+const SlaveBusLine = ({ live }: { live: CanopenSlaveLiveStatus | null }) => {
+  const slave = live?.slave
+  if (!live || !slave?.bus || !slave.bus_open) return null
+  const { bus } = slave
+  const parts = [busStateLabel(bus.state)]
+  if (bus.tx_errors !== undefined && bus.rx_errors !== undefined)
+    parts.push(`errors TX ${bus.tx_errors} RX ${bus.rx_errors}`)
+  if (bus.bus_off_count !== undefined && bus.bus_off_count > 0) parts.push(`bus off ${bus.bus_off_count} times`)
+  if (bus.load_percent !== undefined) parts.push(`load ${bus.load_percent.toFixed(1)} %`)
+  const resets = bus.link_resets ?? 0
+  if (resets > 0) parts.push(resets === 1 ? 'link reset once' : `link reset ${resets} times`)
+  return (
+    <p
+      data-testid='canopen-slave-bus-status'
+      className={cn(
+        'text-xs',
+        busStateBad(bus.state) ? 'text-red-600 dark:text-red-400' : 'text-neutral-600 dark:text-neutral-400',
+        live.stale && 'opacity-50',
+      )}
+    >
+      {parts.join(', ')}
+    </p>
+  )
+}
 
 /** Fallback when the platform has no save dialog: an anchor download. */
 const downloadFile = (fileName: string, content: BlobPart, mimeType: string) => {
@@ -113,6 +143,7 @@ const CanopenSlaveEditor = () => {
   const on = config.enabled
 
   const [tab, setTab] = useState<SlaveTab>('general')
+  const live = useCanopenSlaveStatus(name, on)
   const [exporting, setExporting] = useState(false)
   const [format, setFormat] = useState<SlaveFormat>('eds')
 
@@ -190,6 +221,7 @@ const CanopenSlaveEditor = () => {
             {config.interface}
             {bitrate}, node ID {config.nodeId}, {objects} object{objects === 1 ? '' : 's'}
           </p>
+          <SlaveBusLine live={live} />
         </div>
         <div className='flex shrink-0 items-center gap-4'>
           <button type='button' className={primaryButtonClassName} onClick={() => setExporting(true)}>
@@ -232,6 +264,7 @@ const CanopenSlaveEditor = () => {
           <TabItem value='general' label='General' active={tab === 'general'} />
           <TabItem value='data' label='Data' active={tab === 'data'} />
           <TabItem value='pdos' label='PDOs' active={tab === 'pdos'} />
+          <TabItem value='online' label='Online' active={tab === 'online'} />
         </Tabs.List>
         <Tabs.Content value='general' className='data-[state=inactive]:hidden'>
           <GeneralTab config={config} problems={problems} onChange={(update) => commit((c) => ({ ...c, ...update }))} />
@@ -241,6 +274,9 @@ const CanopenSlaveEditor = () => {
         </Tabs.Content>
         <Tabs.Content value='pdos' className='data-[state=inactive]:hidden'>
           <PdosTab config={config} commit={commit} />
+        </Tabs.Content>
+        <Tabs.Content value='online' className='data-[state=inactive]:hidden'>
+          <OnlineTab config={config} live={live} />
         </Tabs.Content>
       </Tabs.Root>
 

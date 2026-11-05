@@ -186,7 +186,7 @@ describe('the status answer', () => {
     const status = parseCanopenStatus(sampleStatus())
     expect(status?.active).toBe(true)
     if (status?.active) expect(status.networks[0].nodes.map((n) => n.state)).toEqual(['operational', 'failed'])
-    expect(parseCanopenStatus({ active: false })).toEqual({ active: false })
+    expect(parseCanopenStatus({ active: false })).toEqual({ active: false, slaves: [] })
   })
 
   it('reads the start and on settings, with defaults for runtimes before them', () => {
