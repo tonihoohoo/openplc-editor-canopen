@@ -130,6 +130,7 @@ const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
             </div>
             <CheckboxField
               label='The master may change the bit rate'
+              besideInputs
               checked={lss.bitrateChange}
               hint={
                 lss.bitrateChange
@@ -329,6 +330,7 @@ const GeneralTab = ({ config, problems, onChange }: GeneralTabProps) => {
           />
           <CheckboxField
             label='Start without a master'
+            besideInputs
             checked={config.startAlone}
             hint='Goes operational by itself after its boot-up, without waiting for the NMT start'
             onChange={(startAlone) => onChange({ startAlone })}
