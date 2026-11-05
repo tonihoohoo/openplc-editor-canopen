@@ -62,9 +62,11 @@ describe('CanopenSlaveEditor', () => {
   })
 
   it('turns LSS on, waits for the master and keeps the typed node ID', () => {
-    expect(screen.queryByLabelText('At first start')).toBeNull()
+    expect(screen.getByLabelText('At first start')).toHaveProperty('disabled', true)
+    expect(screen.getByLabelText('The master may change the bit rate')).toHaveProperty('disabled', true)
     fireEvent.click(screen.getByLabelText('An LSS master may set the node ID'))
     expect(config()?.lss).toEqual({ enabled: true, waitForMaster: false, serial: null, bitrateChange: true })
+    expect(screen.getByLabelText('At first start')).toHaveProperty('disabled', false)
     fireEvent.change(screen.getByLabelText('At first start'), { target: { value: 'wait' } })
     expect(config()?.lss?.waitForMaster).toBe(true)
     expect(config()?.nodeId).toBe(5)

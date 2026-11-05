@@ -212,6 +212,8 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await expect(summary).toHaveText('can0, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
     await commitField(page, 'Vendor ID', '0xABCD')
 
+    await expect(page.getByLabel('At first start', { exact: true })).toBeDisabled()
+    await slaveKeyView(page, 'slave-lss-off')
     await page.getByLabel('An LSS master may set the node ID', { exact: true }).check()
     await slaveKeyView(page, 'slave-lss-on')
     await page.getByLabel('At first start', { exact: true }).selectOption('wait')
