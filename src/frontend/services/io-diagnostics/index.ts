@@ -30,6 +30,7 @@ import type {
   BoardInfoLike,
   RuntimeClassification,
   ServerCapabilities,
+  TargetCapabilities,
 } from '../../../middleware/shared/utils/target-capabilities'
 import {
   classifyBoardRuntime,
@@ -234,9 +235,12 @@ export function buildIoDiagnostics(input: IoDiagnosticsInput): IoDiagnostics {
 
 /** One row per server. The three conditions stay separate because a project
  *  where they disagree is the normal case. */
+/** The CANopen slave runs where the CANopen master does: runtime v4 targets with EtherCAT. */
+type DiagnosticsServerCapabilities = ServerCapabilities & Pick<TargetCapabilities, 'ethercat'>
+
 function describeServers(
   servers: ComputeIoImageInput['projectData']['servers'],
-  serverCapabilities: ServerCapabilities,
+  serverCapabilities: DiagnosticsServerCapabilities,
 ): IoDiagnosticsServer[] {
   const list = servers ?? []
   // Mirrors `serverExposure`: first ENABLED server of each protocol carrying a
@@ -254,15 +258,20 @@ function describeServers(
   return list.map((server) => ({
     name: server.name,
     protocol: server.protocol,
-    enabled: server.modbusSlaveConfig?.enabled ?? server.s7commSlaveConfig?.server.enabled ?? false,
+    enabled:
+      server.modbusSlaveConfig?.enabled ??
+      server.s7commSlaveConfig?.server.enabled ??
+      server.canopenSlaveConfig?.enabled ??
+      false,
     runs: runsProtocol(server.protocol, serverCapabilities),
     dispatched: SIZING_PROTOCOLS.has(server.protocol),
     sizes: sizing.has(server),
   }))
 }
 
-function runsProtocol(protocol: string, capabilities: ServerCapabilities): boolean {
+function runsProtocol(protocol: string, capabilities: DiagnosticsServerCapabilities): boolean {
   if (protocol === 'modbus-tcp') return capabilities.modbusTcpServer
+  if (protocol === 'canopen-slave') return capabilities.ethercat
   if (protocol === 's7comm') return capabilities.s7Server
   if (protocol === 'opcua') return capabilities.opcuaServer
   return false

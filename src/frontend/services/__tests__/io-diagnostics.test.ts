@@ -222,6 +222,21 @@ describe('servers', () => {
 
     expect(result.servers[0]).toMatchObject({ runs: false, sizes: false })
   })
+
+  it('shows a CANopen slave with its own switch, run by a runtime v4 target only', () => {
+    const slave = (enabled: boolean) => ({ name: 'slave', protocol: 'canopen-slave', canopenSlaveConfig: { enabled } })
+    expect(snapshot({ projectData: makeProject({ servers: [slave(true)] }) }).servers[0]).toMatchObject({
+      enabled: true,
+      runs: true,
+      dispatched: false,
+    })
+    expect(snapshot({ projectData: makeProject({ servers: [slave(false)] }) }).servers[0]).toMatchObject({
+      enabled: false,
+    })
+    expect(snapshot({ ...BAREMETAL, projectData: makeProject({ servers: [slave(true)] }) }).servers[0]).toMatchObject({
+      runs: false,
+    })
+  })
 })
 
 describe('located declarations', () => {
