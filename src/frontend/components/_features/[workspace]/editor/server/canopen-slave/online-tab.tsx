@@ -46,6 +46,9 @@ const EVENT_CLASSES: Record<NoticeTone, string> = {
 
 const localTime = (ms: number): string => new Date(ms).toLocaleTimeString()
 
+/** A fixed width for a clock time, so the layout does not move with its digits. */
+const TIME_CLASS = 'inline-block min-w-[84px]'
+
 const Changed = ({ change }: { change: SlaveChange | undefined }) =>
   change ? <span className='ml-1 text-[10px] text-amber-700 dark:text-amber-400'>project {change.project}</span> : null
 
@@ -77,7 +80,7 @@ const StateStrip = ({
   changes: Map<string, SlaveChange>
 }) => {
   const age = (t: number | undefined) => (now > 0 && t !== undefined && t > 0 ? ageText(now - t) : null)
-  const since = slave.since !== undefined && slave.since > 0 ? ` at ${localTime(slave.since)}` : ''
+  const since = slave.since !== undefined && slave.since > 0 ? localTime(slave.since) : ''
   const watch = slave.master_watch_ms ?? 0
   const masterAge = age(slave.master_last_seen)
   const active = slave.emcy_active ?? []
@@ -101,7 +104,14 @@ const StateStrip = ({
           }
         >
           {slaveNmtByText(slave)}
-          <span data-testid='canopen-slave-online-since'>{since}</span>
+          {since ? (
+            <>
+              {' at '}
+              <span data-testid='canopen-slave-online-since' className={TIME_CLASS}>
+                {since}
+              </span>
+            </>
+          ) : null}
           <br />
           <span className={mark(heartbeat)}>Heartbeat sent every {slave.heartbeat_ms ?? 0} ms</span>
           <Changed change={heartbeat} />
@@ -128,7 +138,10 @@ const StateStrip = ({
           {plcSince !== undefined ? (
             <>
               <br />
-              Since <span data-testid='canopen-slave-online-since'>{localTime(plcSince)}</span>
+              Since{' '}
+              <span data-testid='canopen-slave-online-since' className={TIME_CLASS}>
+                {localTime(plcSince)}
+              </span>
             </>
           ) : null}
         </Fact>
