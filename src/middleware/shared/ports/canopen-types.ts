@@ -374,6 +374,15 @@ export interface CanopenSlaveObject {
   /** Range a master's write must keep; numeric objects from the master only. */
   min?: string
   max?: string
+  /** An UNSIGNED8 packed as 8 BOOLs: one entry per bit, bit 0 first; `iecLocation` is then empty. */
+  bits?: CanopenSlaveBit[]
+}
+
+/** One bit of a packed slave object: its own %IX (from the master) or %QX (to the master) address. */
+export interface CanopenSlaveBit {
+  name: string
+  iecLocation: string
+  alias?: string
 }
 
 /** Sending settings of one TPDO; its mapping and COB-ID follow from the objects and the node ID. */

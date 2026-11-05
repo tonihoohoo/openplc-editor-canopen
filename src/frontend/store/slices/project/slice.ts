@@ -20,6 +20,7 @@ import {
   defaultCanopenSlaveConfig,
   keepCanopenAddresses,
   nodeEntries as canopenNodeEntries,
+  slaveBitChannel,
 } from '../../../../middleware/shared/utils/canopen'
 import {
   type AddressPool,
@@ -654,6 +655,12 @@ function applyCanopenSlaveAddresses(
     if (server.protocol !== 'canopen-slave' || !server.canopenSlaveConfig) continue
     const consumerId = canopenConsumerId(canopenSlavePoolName(server.name), CANOPEN_SLAVE_POOL_NODE)
     for (const object of server.canopenSlaveConfig.objects) {
+      object.bits?.forEach((bit, i) => {
+        const info = index.get(channelKey(consumerId, slaveBitChannel(object.id, i)))
+        if (!info) return
+        if (info.address) bit.iecLocation = info.address
+        bit.alias = info.alias
+      })
       if (object.iecLocation === '') continue
       const info = index.get(channelKey(consumerId, object.id))
       if (!info) continue
@@ -2894,7 +2901,12 @@ const createProjectSlice: StateCreator<ProjectSliceRoot, [], [], ProjectSlice> =
     updateCanopenSlaveConfig: (serverName, config) => {
       const prev = getState().project.data.servers?.find((s) => s.name === serverName)?.canopenSlaveConfig
       const prevAlias = new Map<string, string>()
-      for (const object of prev?.objects ?? []) if (object.alias) prevAlias.set(object.id, object.alias)
+      for (const object of prev?.objects ?? []) {
+        if (object.alias) prevAlias.set(object.id, object.alias)
+        object.bits?.forEach((b, i) => {
+          if (b.alias) prevAlias.set(slaveBitChannel(object.id, i), b.alias)
+        })
+      }
       const pool = buildModbusProducerPool(getState())
       let response = ok()
       setState(
@@ -2911,6 +2923,10 @@ const createProjectSlice: StateCreator<ProjectSliceRoot, [], [], ProjectSlice> =
         for (const object of config.objects) {
           const old = prevAlias.get(object.id)
           if (old && old !== (object.alias ?? '')) getState().projectActions.renameAlias(old, object.alias ?? '')
+          object.bits?.forEach((b, i) => {
+            const was = prevAlias.get(slaveBitChannel(object.id, i))
+            if (was && was !== (b.alias ?? '')) getState().projectActions.renameAlias(was, b.alias ?? '')
+          })
         }
         getState().projectActions.recalculateIecAddresses()
       }

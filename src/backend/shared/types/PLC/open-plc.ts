@@ -656,6 +656,7 @@ const CanopenSlaveObjectSchema = z.object({
   defaultValue: z.string(),
   min: z.string().optional(),
   max: z.string().optional(),
+  bits: z.array(z.object({ name: z.string(), iecLocation: z.string(), alias: z.string().optional() })).optional(),
 })
 
 const CanopenSlaveConfigSchema = z.object({

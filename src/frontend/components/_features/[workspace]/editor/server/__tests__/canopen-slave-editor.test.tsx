@@ -156,6 +156,46 @@ describe('CanopenSlaveEditor', () => {
     expect(config()?.objects[1]).toMatchObject({ index: 0x2000, subIndex: 0x10 })
   })
 
+  it('packs a byte as 8 bits with their own addresses, aliases and defaults, and unpacks it', () => {
+    openTab('Data')
+    addObject('from')
+    addObject('from')
+    const [first, second] = config()?.objects ?? []
+    const row = () => screen.getByTestId(`canopen-slave-object-${second.id}`)
+    fireEvent.change(within(row()).getByLabelText('Type'), { target: { value: 'UNSIGNED8' } })
+    expect(config()?.objects[1].iecLocation).toBe('%IB0')
+    fireEvent.change(within(row()).getByLabelText('Type'), { target: { value: 'PACKED' } })
+    const packed = config()?.objects[1]
+    expect(packed).toMatchObject({ dataType: 'UNSIGNED8', iecLocation: '', exchange: 'pdo' })
+    expect(packed?.bits?.map((b) => [b.name, b.iecLocation])).toEqual(
+      Array.from({ length: 8 }, (_, i) => [`Bit ${i}`, `%IX0.${i}`]),
+    )
+    expect(within(row()).getByTestId('canopen-slave-address').textContent).toBe('%IX0.0-0.7')
+    expect(within(row()).getByText('One byte in a PDO, 8 %IX/%QX addresses. Works with any master.')).toBeTruthy()
+    expect(within(row()).queryByLabelText('Minimum')).toBeNull()
+    expect(screen.getByRole('option', { name: 'Constant - the bits have addresses' })).toBeTruthy()
+
+    const bit = (n: number) => screen.getByTestId(`canopen-slave-bit-${second.id}-${n}`)
+    type(within(bit(0)).getByLabelText('Name of bit 0'), 'Valve 1')
+    type(within(bit(1)).getByLabelText('Name of bit 1'), 'valve 1')
+    expect(within(bit(1)).getByText('Another bit has this name.')).toBeTruthy()
+    type(within(bit(2)).getByLabelText('Alias of bit 2'), 'valve_3')
+    fireEvent.click(within(bit(0)).getByLabelText('Default of bit 0'))
+    fireEvent.click(within(bit(7)).getByLabelText('Default of bit 7'))
+    expect(config()?.objects[1]).toMatchObject({ defaultValue: '129' })
+    expect(config()?.objects[1].bits?.[0].name).toBe('Valve 1')
+    expect(config()?.objects[1].bits?.[2].alias).toBe('valve_3')
+    expect(config()?.objects[0].iecLocation).toBe(first.iecLocation)
+
+    fireEvent.click(within(row()).getByRole('button', { name: `Hide the bits of ${second.name}` }))
+    expect(screen.queryByTestId(`canopen-slave-bit-${second.id}-0`)).toBeNull()
+
+    fireEvent.change(within(row()).getByLabelText('Type'), { target: { value: 'UNSIGNED8' } })
+    expect(config()?.objects[1].bits).toBeUndefined()
+    expect(config()?.objects[1].iecLocation).toMatch(/^%IB\d+$/)
+    expect(config()?.objects[1].defaultValue).toBe('129')
+  })
+
   it('shows the PDO layout with the COB-IDs and the TPDO settings', () => {
     openTab('Data')
     addObject('from')

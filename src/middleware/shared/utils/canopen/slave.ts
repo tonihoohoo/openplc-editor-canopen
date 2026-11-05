@@ -9,6 +9,7 @@ import type {
   CanopenDataType,
   CanopenEdsInfo,
   CanopenObject,
+  CanopenSlaveBit,
   CanopenSlaveConfig,
   CanopenSlaveDataType,
   CanopenSlaveDirection,
@@ -120,6 +121,52 @@ export function isSlaveString(object: Pick<CanopenSlaveObject, 'dataType'>): boo
   return object.dataType === 'VISIBLE_STRING'
 }
 
+/** Bits of a packed object: an UNSIGNED8 whose bits the program reads or writes as 8 BOOLs. */
+export const SLAVE_PACKED_BITS = 8
+
+/** Label of the packed type in the type pickers, and what it means. */
+export const SLAVE_PACKED_LABEL = 'UNSIGNED8 (8 × BOOL)'
+export const SLAVE_PACKED_HINT = 'One byte in a PDO, 8 %IX/%QX addresses. Works with any master.'
+
+/** An UNSIGNED8 packed as 8 BOOLs: it has bit rows in place of one address. */
+export function isSlavePacked(object: Pick<CanopenSlaveObject, 'bits'>): boolean {
+  return (object.bits?.length ?? 0) > 0
+}
+
+/** Prefix of a packed object's bit addresses: %IX from the master, %QX to the master. */
+export function slaveBitPrefix(direction: CanopenSlaveDirection): string {
+  return direction === 'from_master' ? '%IX' : '%QX'
+}
+
+/** Channel of bit `bit` of a packed object in the address pool and alias registry. */
+export function slaveBitChannel(objectId: string, bit: number): string {
+  return `${objectId}.${bit}`
+}
+
+/** Bit rows of a newly packed object: "Bit 0" to "Bit 7", addresses still to be given. */
+export function newSlaveBits(): CanopenSlaveBit[] {
+  return Array.from({ length: SLAVE_PACKED_BITS }, (_, i) => ({ name: `Bit ${i}`, iecLocation: '' }))
+}
+
+const BIT_LOCATION = /^%([IQ])X(\d+)\.([0-7])$/
+
+/** The object's address as shown: the address, or "%IX0.0-0.7" for the bits of a packed object. */
+export function slaveAddressText(object: Pick<CanopenSlaveObject, 'iecLocation' | 'bits'>): string {
+  const bits = object.bits ?? []
+  if (bits.length === 0) return object.iecLocation
+  const parsed = bits.map((b) => BIT_LOCATION.exec(b.iecLocation))
+  const first = parsed[0]
+  const oneByte =
+    first !== null && parsed.every((m, i) => m !== null && m[1] === first[1] && m[2] === first[2] && Number(m[3]) === i)
+  if (oneByte) return `%${first[1]}X${first[2]}.0-${first[2]}.${bits.length - 1}`
+  return bits.map((b) => b.iecLocation).join(', ')
+}
+
+/** Names of the bits a packed object's value has on, bit 0 first. */
+export function slaveBitsOn(object: Pick<CanopenSlaveObject, 'bits'>, value: number): string[] {
+  return (object.bits ?? []).filter((_, i) => Math.floor(value / 2 ** i) % 2 === 1).map((b) => b.name)
+}
+
 /** Bytes the object takes in a PDO, or its text length for a string. */
 export function slaveObjectBytes(object: CanopenSlaveObject): number {
   if (object.dataType === 'VISIBLE_STRING') return object.defaultValue.length
@@ -212,9 +259,17 @@ export function slaveLayoutText(config: CanopenSlaveConfig): string {
   const objects = [...config.objects]
     .sort((a, b) => a.index - b.index || a.subIndex - b.subIndex)
     .map((o) =>
-      [objectRef(o.index, o.subIndex), o.name, o.dataType, o.direction, o.exchange, o.defaultValue, o.min, o.max].join(
-        '|',
-      ),
+      [
+        objectRef(o.index, o.subIndex),
+        o.name,
+        o.dataType,
+        o.direction,
+        o.exchange,
+        o.defaultValue,
+        o.min,
+        o.max,
+        ...(o.bits ?? []).map((b) => b.name),
+      ].join('|'),
     )
   const tpdos = slaveTpdoSettings(config).map((t) => `${t.transmissionType}/${t.inhibitTime}/${t.eventTimerMs}`)
   const layout = slavePdoLayout(config)
@@ -325,6 +380,12 @@ export function slaveDevicesOut(servers: readonly PLCServer[] | undefined): obje
         }
         if (o.exchange === 'constant')
           return { ...base, value: isSlaveString(o) ? o.defaultValue : valueOut(o.defaultValue, o.dataType) }
+        if (isSlavePacked(o))
+          return {
+            ...base,
+            bits: (o.bits ?? []).map((b) => b.iecLocation),
+            default: valueOut(o.defaultValue, o.dataType),
+          }
         const ranged = o.direction === 'from_master'
         return {
           ...base,
@@ -448,6 +509,10 @@ export function checkCanopenSlave(
     const what = o.exchange === 'constant' ? 'value' : 'default'
     const problem = slaveValueProblem(o.defaultValue, o.dataType)
     if (problem) add(o.id, `${ref}: the ${what} ${problem}`)
+    if (o.bits !== undefined) {
+      checkPackedBits(o, ref, locations, add)
+      continue
+    }
     if (o.exchange === 'constant') continue
     const prefix = slaveIecPrefix(dataType, o.direction)
     if (o.iecLocation === '') add(o.id, `${ref}: no address`)
@@ -481,6 +546,37 @@ export function checkCanopenSlave(
       add(`tpdo${i + 1}`, `TPDO ${i + 1}: transmission type ${t.transmissionType} is reserved`)
   })
   return problems
+}
+
+/** Problems of a packed object: an UNSIGNED8 by PDO or SDO with 8 named bits at free bit addresses. */
+function checkPackedBits(
+  o: CanopenSlaveObject,
+  ref: string,
+  locations: Map<string, string>,
+  add: (where: string, text: string) => void,
+): void {
+  const bits = o.bits ?? []
+  if (o.dataType !== 'UNSIGNED8') add(o.id, `${ref}: only an UNSIGNED8 has 8 bits`)
+  if (o.exchange === 'constant') add(o.id, `${ref}: an object of 8 bits cannot be a constant`)
+  if ((o.min ?? '').trim() !== '' || (o.max ?? '').trim() !== '') add(o.id, `${ref}: an object of 8 bits has no range`)
+  if (bits.length !== SLAVE_PACKED_BITS) {
+    add(o.id, `${ref}: it has ${bits.length} bits, not ${SLAVE_PACKED_BITS}`)
+    return
+  }
+  const prefix = slaveBitPrefix(o.direction)
+  const names = new Set<string>()
+  bits.forEach((b, i) => {
+    const at = `${ref} bit ${i}`
+    if (b.name.trim() === '') add(o.id, `${at}: no name`)
+    else if (names.has(b.name.toLowerCase())) add(o.id, `${at}: another bit is named "${b.name}"`)
+    names.add(b.name.toLowerCase())
+    const m = BIT_LOCATION.exec(b.iecLocation)
+    if (b.iecLocation === '') add(o.id, `${at}: no address`)
+    else if (!m || `%${m[1]}X` !== prefix) add(o.id, `${at}: address ${b.iecLocation} must be a ${prefix} address`)
+    else if (locations.has(b.iecLocation))
+      add(o.id, `${at}: address ${b.iecLocation} is also used by "${locations.get(b.iecLocation)}"`)
+    else locations.set(b.iecLocation, `${o.name} bit ${i}`)
+  })
 }
 
 /** Errors that stop the build, one per problem, each naming the slave. */
@@ -662,6 +758,9 @@ export function slaveDeviceInfo(name: string, config: CanopenSlaveConfig, fileNa
         pdoMapping: o.exchange === 'pdo',
         defaultValue: value,
         parentName: groupName,
+        ...(isSlavePacked(o)
+          ? { info: { bits: (o.bits ?? []).map((b, i) => ({ value: String(i), label: b.name })) } }
+          : {}),
         ...(ranged && o.min !== undefined && o.min.trim() !== '' ? { lowLimit: o.min.trim() } : {}),
         ...(ranged && o.max !== undefined && o.max.trim() !== '' ? { highLimit: o.max.trim() } : {}),
       })

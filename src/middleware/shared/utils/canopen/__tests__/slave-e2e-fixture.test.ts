@@ -31,7 +31,7 @@ describe('the end-to-end CANopen slave project', () => {
     expect(validateCanopenSlaves([server], [])).toEqual([])
     const conf: unknown = JSON.parse(generateCanopenConfig([], null, [server]) ?? '')
     expect(conf).toMatchObject({
-      version: 8,
+      version: 10,
       networks: [],
       devices: [
         {
@@ -44,8 +44,10 @@ describe('the end-to-end CANopen slave project', () => {
             { index: 0x2000, subindex: 1, location: '%IW0' },
             { index: 0x2000, subindex: 2, location: '%IB0' },
             { index: 0x2000, subindex: 3, exchange: 'sdo', default: 1000, min: 100, max: 30000 },
+            { index: 0x2000, subindex: 4, type: 'UNSIGNED8', bits: Array.from({ length: 8 }, (_, i) => `%IX0.${i}`) },
             { index: 0x2100, subindex: 1, location: '%QW0' },
             { index: 0x2100, subindex: 2, location: '%QW1' },
+            { index: 0x2100, subindex: 3, type: 'UNSIGNED8', bits: Array.from({ length: 8 }, (_, i) => `%QX0.${i}`) },
             { index: 0x2200, subindex: 1, exchange: 'constant', value: 'SN-0001' },
           ],
           rpdos: [
@@ -54,6 +56,7 @@ describe('the end-to-end CANopen slave project', () => {
               entries: [
                 { index: 0x2000, subindex: 1 },
                 { index: 0x2000, subindex: 2 },
+                { index: 0x2000, subindex: 4 },
               ],
             },
           ],
@@ -64,6 +67,7 @@ describe('the end-to-end CANopen slave project', () => {
               entries: [
                 { index: 0x2100, subindex: 1 },
                 { index: 0x2100, subindex: 2 },
+                { index: 0x2100, subindex: 3 },
               ],
             },
           ],
