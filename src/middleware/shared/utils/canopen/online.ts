@@ -81,6 +81,8 @@ const LSS_REASONS: Readonly<Record<string, string>> = {
   refused: 'the device refused the value',
   store_refused: 'the device took the value but refused to store it',
   too_many: 'the search stopped after 64 devices',
+  incomplete:
+    'a device answered out of turn, so more devices may be waiting; give the devices found a node ID and search again',
   needs_service_mode: 'only while the bus is open in service mode',
   node_in_use: 'a running node of the network has this node ID',
   not_running: 'no CANopen network runs on the runtime',
