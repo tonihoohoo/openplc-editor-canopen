@@ -125,6 +125,16 @@ export function useCanopenOnline(
     openedRef.current = opened
   }, [opened])
 
+  // The bit rate this editor opened the bus at, until the service mode it saw running ends.
+  const serviceSeen = useRef(false)
+  useEffect(() => {
+    if (serviceRuns) serviceSeen.current = true
+    else if (serviceSeen.current) {
+      serviceSeen.current = false
+      setOpenedBitrate(null)
+    }
+  }, [serviceRuns])
+
   // Service mode that ended on the runtime (PLC start, idle close) is no longer this editor's.
   useEffect(() => {
     if (opened && live && !serviceRuns && !busy) setOpened(false)
@@ -199,7 +209,7 @@ export function useCanopenOnline(
       open: serviceRuns,
       busy,
       error,
-      bitrate: serviceRuns && opened ? openedBitrate : null,
+      bitrate: serviceRuns ? openedBitrate : null,
       openBus,
       closeBus,
     },
