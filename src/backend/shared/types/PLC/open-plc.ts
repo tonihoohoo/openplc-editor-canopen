@@ -675,6 +675,14 @@ const CanopenSlaveConfigSchema = z.object({
   onMasterLost: z.enum(['pre_operational', 'no_change', 'stopped']),
   onPlcStop: z.enum(['hold', 'zero']),
   startAlone: z.boolean(),
+  lss: z
+    .object({
+      enabled: z.boolean(),
+      waitForMaster: z.boolean(),
+      serial: z.number().int().min(0).max(0xffffffff).nullable(),
+      bitrateChange: z.boolean(),
+    })
+    .optional(),
   objects: z.array(CanopenSlaveObjectSchema),
   tpdos: z.array(
     z.object({

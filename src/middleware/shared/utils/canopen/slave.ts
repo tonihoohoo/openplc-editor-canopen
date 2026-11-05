@@ -12,6 +12,7 @@ import type {
   CanopenSlaveConfig,
   CanopenSlaveDataType,
   CanopenSlaveDirection,
+  CanopenSlaveLss,
   CanopenSlaveObject,
   CanopenSlaveTpdoSettings,
 } from '../../ports/canopen-types'
@@ -95,6 +96,19 @@ export function defaultCanopenSlaveConfig(projectName = ''): CanopenSlaveConfig 
     objects: [],
     tpdos: Array.from({ length: SLAVE_PDO_COUNT }, () => ({ ...DEFAULT_TPDO })),
   }
+}
+
+/** LSS settings of a slave without any: off. */
+export const SLAVE_LSS_OFF: Readonly<CanopenSlaveLss> = {
+  enabled: false,
+  waitForMaster: false,
+  serial: null,
+  bitrateChange: true,
+}
+
+/** The slave's LSS settings, off for projects made before LSS. */
+export function slaveLss(config: CanopenSlaveConfig): CanopenSlaveLss {
+  return { ...SLAVE_LSS_OFF, ...config.lss }
 }
 
 /** The slave's TPDO settings, one per PDO, filling any the project lacks. */
@@ -262,6 +276,17 @@ export function slaveValueProblem(text: string, dataType: CanopenSlaveDataType):
 
 const valueOut = (text: string, dataType: CanopenSlaveDataType): number => parseSlaveValue(text, dataType) ?? 0
 
+function lssOut(config: CanopenSlaveConfig): object | null {
+  const lss = slaveLss(config)
+  if (!lss.enabled) return null
+  return {
+    enabled: true,
+    wait_for_master: lss.waitForMaster,
+    ...(lss.serial !== null ? { serial: lss.serial } : {}),
+    bitrate_change: lss.bitrateChange,
+  }
+}
+
 /** The `devices` items of conf/canopen.json: the slaves that are on. */
 export function slaveDevicesOut(servers: readonly PLCServer[] | undefined): object[] {
   return slavesOn(servers).map(({ name, config }) => {
@@ -288,6 +313,7 @@ export function slaveDevicesOut(servers: readonly PLCServer[] | undefined): obje
       on_master_lost: config.onMasterLost,
       on_plc_stop: config.onPlcStop,
       start_alone: config.startAlone,
+      lss: lssOut(config),
       objects: config.objects.map((o) => {
         const base = {
           index: o.index,
@@ -387,6 +413,13 @@ export function checkCanopenSlave(
     add('nodeId', 'the node ID must be 1 - 127')
   if (!Number.isInteger(config.heartbeatMs) || config.heartbeatMs < 1 || config.heartbeatMs > 65535)
     add('heartbeat', 'the heartbeat time must be 1 - 65535 ms; the slave always sends a heartbeat')
+  const lss = slaveLss(config)
+  if (
+    lss.enabled &&
+    lss.serial !== null &&
+    (!Number.isInteger(lss.serial) || lss.serial < 1 || lss.serial > 0xffffffff)
+  )
+    add('lss', 'the fixed LSS serial number must be 1 - 0xFFFFFFFF; it is part of the LSS address')
   if (config.masterWatch.timeMs > 0 && config.masterWatch.nodeId === config.nodeId)
     add('masterWatch', "the master's node ID is the slave's own")
   if (
@@ -535,6 +568,7 @@ function pdoParameters(config: CanopenSlaveConfig, layout: SlavePdoLayout): Cano
  * The EDS and XDD writers write the file from it.
  */
 export function slaveDeviceInfo(name: string, config: CanopenSlaveConfig, fileName: string): CanopenEdsInfo {
+  const lss = slaveLss(config)
   const objects: CanopenObject[] = [
     commObject(0x1000, 0, 'Device type', 'UNSIGNED32', 'ro', '0x00000000'),
     commObject(0x1001, 0, 'Error register', 'UNSIGNED8', 'ro', '0', undefined, true),
@@ -567,7 +601,15 @@ export function slaveDeviceInfo(name: string, config: CanopenSlaveConfig, fileNa
     commObject(0x1018, 1, 'Vendor-ID', 'UNSIGNED32', 'ro', hex8(config.vendorId), 'Identity object'),
     commObject(0x1018, 2, 'Product code', 'UNSIGNED32', 'ro', hex8(config.productCode), 'Identity object'),
     commObject(0x1018, 3, 'Revision number', 'UNSIGNED32', 'ro', hex8(config.revision), 'Identity object'),
-    commObject(0x1018, 4, 'Serial number', 'UNSIGNED32', 'ro', '0x00000000', 'Identity object'),
+    commObject(
+      0x1018,
+      4,
+      'Serial number',
+      'UNSIGNED32',
+      'ro',
+      hex8(lss.enabled ? (lss.serial ?? 0) : 0),
+      'Identity object',
+    ),
     commObject(0x1029, 0, 'Highest sub-index supported', 'UNSIGNED8', 'const', '1', 'Error behavior object'),
     commObject(
       0x1029,
@@ -636,6 +678,7 @@ export function slaveDeviceInfo(name: string, config: CanopenSlaveConfig, fileNa
     revision: config.revision,
     rxPdoCount: SLAVE_PDO_COUNT,
     txPdoCount: SLAVE_PDO_COUNT,
+    ...(lss.enabled ? { lssSupported: true } : {}),
     objects,
   }
 }

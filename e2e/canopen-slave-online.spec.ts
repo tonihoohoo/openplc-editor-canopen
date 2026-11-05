@@ -1,7 +1,7 @@
 /**
  * The CANopen slave's Online tab against a fake runtime that reports the slave: running, with
- * settings the master changed, with the PLC stopped, with the master lost, and the states with
- * nothing live to show.
+ * settings the master changed, with the PLC stopped, with the master lost, with a node ID an LSS
+ * master stored and Forget, and the states with nothing live to show.
  *
  * Needs a production build plus the preload copy; see "Electron e2e" in CLAUDE.md. Port 8443 must be free.
  */
@@ -27,7 +27,16 @@ const STATION = {
 /** A fixed runtime clock, so the times the tab shows are the same in every run. */
 const NOW = Date.UTC(2026, 10, 5, 7, 31, 10)
 
-type View = 'running' | 'changed' | 'stopped' | 'lost' | 'absent'
+type View = 'running' | 'changed' | 'stopped' | 'lost' | 'lss' | 'lss-forgotten' | 'absent'
+
+const LSS = {
+  state: 'waiting',
+  serial_auto: true,
+  project_node_id: 5,
+  bitrate_from: 'project',
+  bitrate: 500000,
+  project_bitrate: 500000,
+}
 
 function body(view: View, now: number) {
   const slave = (fields: Record<string, unknown> = {}) => slaveStatus(now, { interface: 'vcan0', ...fields })
@@ -101,6 +110,15 @@ function body(view: View, now: number) {
           ],
         }),
       ])
+    case 'lss': {
+      // Node 12 from an LSS store: the PDO COB-IDs that follow the node ID moved with it.
+      const pdos = base.pdos.map((p) => ({ ...p, cob_id: p.cob_id - 5 + 12 }))
+      return status([
+        slave({ node_id: 12, serial: 0x5a17c3e1, pdos, lss: { ...LSS, node_id_from: 'stored', stored_node_id: 12 } }),
+      ])
+    }
+    case 'lss-forgotten':
+      return status([slave({ serial: 0x5a17c3e1, lss: { ...LSS, node_id_from: 'project' } })])
     case 'absent':
       return status([])
   }
@@ -124,7 +142,16 @@ async function slaveKeyView(page: Page, name: string): Promise<void> {
 test('the slave Online tab shows the running slave and what the master changed', async () => {
   test.setTimeout(300000)
   let view: View = 'running'
-  const runtime = fakeRuntime({ features: ['status'], status: () => body(view, NOW) })
+  const requests: unknown[] = []
+  const runtime = fakeRuntime({
+    features: ['status', 'slave_lss'],
+    status: () => body(view, NOW),
+    request: (r) => {
+      requests.push(r)
+      view = 'lss-forgotten'
+      return { ok: true }
+    },
+  })
   const { project, userData } = writeEthercatProject(
     join(tmpdir(), 'openplc-e2e-canopen-slave-online'),
     '127.0.0.1',
@@ -180,6 +207,21 @@ test('the slave Online tab shows the running slave and what the master changed',
     await expect(state).toContainText('Lost 41 s ago')
     await expect(page.getByTestId('canopen-slave-bus-status')).toContainText('link reset once')
     await slaveKeyView(page, 'slave-online-master-lost')
+
+    view = 'lss'
+    const lss = page.getByTestId('canopen-slave-online-lss')
+    await expect(page.getByTestId('canopen-slave-lss-node_id')).toHaveText('12', { timeout: 10000 })
+    await expect(lss).toContainText('Stored by an LSS master (project 5)')
+    await expect(notice).toHaveCount(0)
+    await lss.scrollIntoViewIfNeeded()
+    await slaveKeyView(page, 'slave-online-lss')
+    await lss.getByRole('button', { name: 'Forget stored LSS values...' }).click()
+    await expect(lss.getByRole('alertdialog')).toContainText("restarts with the project's values (node ID 5")
+    await slaveKeyView(page, 'slave-online-lss-forget')
+    await lss.getByRole('button', { name: 'Forget', exact: true }).click()
+    await expect(page.getByTestId('canopen-slave-lss-node_id')).toHaveText('5', { timeout: 10000 })
+    await expect(page.getByTestId('canopen-slave-lss-stored')).toContainText('Nothing is stored on the runtime')
+    expect(requests).toEqual([{ op: 'slave_lss_forget', slave: 'slave' }])
 
     view = 'absent'
     await expect(notice).toContainText('The runtime does not run this slave.', { timeout: 10000 })

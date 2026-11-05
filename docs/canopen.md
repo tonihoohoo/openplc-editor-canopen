@@ -596,13 +596,42 @@ interface or objects differ; values it does not report show "-"); settings chang
 While the runtime reports the slave's link, the header shows its bus line (state, error counters,
 load, link resets) like a network's.
 
+### LSS
+
+The General tab's **LSS** panel (layer setting services, CiA 305), off by default, lets an LSS master
+find the slave and give it its node ID and bit rate:
+
+- **An LSS master may set the node ID** turns LSS on. The exported EDS then has `LSS_Supported=1`
+  and the XDD `layerSettingServiceSlave="true"`.
+- **At first start**: **Use node ID N** starts with the node ID above, which a master may change;
+  **Wait for the master** starts with no node ID (FFh) and stays silent apart from LSS until a master
+  gives it one, finding it by LSS fastscan. The Node ID field then shows "Set by the LSS master" and
+  keeps the typed value for when this is turned back.
+- **Serial number** (0x1018:04, the last part of the LSS address after the vendor ID, product code and
+  revision): **Automatic (per device)** is made once on the runtime device and kept, so copies of the
+  project on other devices differ; **Fixed** takes a number from 0x00000001, which must differ between
+  slaves with the same identity on one bus.
+- **The master may change the bit rate** (on by default): a bit rate the master configures and
+  stores is used from the slave's next start. Off, the slave answers "not supported".
+
+When the master sends Store, the node ID and bit rate it set are kept on the runtime device and win
+over the project's values, also after a restart, a new upload or a runtime update, until they are
+forgotten. Default COB-IDs (EMCY, SDO, PDOs 1-4) follow the node ID in use.
+
+On the Online tab, the **LSS** card of a running LSS slave shows the node ID in use and where it
+comes from (the project, stored by a master, or given and not stored), the bit rate in use, the serial
+number and the LSS state, and what is stored on the runtime. **Forget stored LSS values...** asks first
+and then removes the stored values (request `slave_lss_forget`, runtimes that list the `slave_lss`
+feature); the slave restarts with the project's node ID and bit rate. The tab compares the PDO COB-IDs
+at the node ID in use, so a node ID from the master is not shown as a change.
+
 **Run this slave** turns it off without losing its objects and addresses. **Export EDS or XDD...**
 writes the slave's device file from the same description the runtime builds its object dictionary
 from, checks it (CiA 306 or CiA 311) and suggests the next revision when the objects or PDOs changed
 since the last export, so a master that imported the old file is not fed the wrong layout. A master
 project imports the file like any other node's.
 
-At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 6);
+At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 8);
 the file is written when only a slave is on. The checks that stop the build name the slave and the
 field or object.
 
@@ -674,7 +703,7 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   output, EDS and XDD export read back), `slave-e2e-fixture.test.ts` and the page in
   `.../editor/server/__tests__/canopen-slave-editor.test.tsx`; the Online tab in `slave-online.test.ts`
   (decoding, changed settings, notices, event texts) and `canopen-slave-online.test.tsx`, and its key
-  views (running, changed by the master, PLC stopped, master lost, not running) in
+  views (running, changed by the master, PLC stopped, master lost, LSS and Forget, not running) in
   `e2e/canopen-slave-online.spec.ts`.
 - Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, CiA 306 check with the fixtures in
   `fixtures/cia306/`, DCF import and export, XDD and XDC reading, the CiA 311 check with the fixtures
@@ -715,7 +744,8 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   against a simulated node on a virtual CAN bus, and runs `e2e/fixtures/canopen-plc-blocks/`, a
   program that calls every block, against the same node across PLC stops and starts. It also runs
   `e2e/fixtures/canopen-slave/` as a CANopen slave under a master played by a script on the bus,
-  and `e2e/fixtures/canopen-lss/` against a simulated node that starts without a node ID and gets
+  `e2e/fixtures/canopen-slave-lss/`, the same slave waiting for an LSS master's node ID, and
+  `e2e/fixtures/canopen-lss/` against a simulated node that starts without a node ID and gets
   node 2 over LSS.
 - PLC blocks: the names and constants in
   `src/middleware/shared/utils/canopen/__tests__/plc-names.test.ts`, the library build in

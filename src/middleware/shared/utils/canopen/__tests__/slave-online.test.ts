@@ -8,8 +8,12 @@ import {
   slaveStateLabel,
   noticeHidesLiveData,
   slaveChanges,
+  slaveConfigInUse,
   slaveDefaultText,
   slaveEventText,
+  slaveLssFacts,
+  slaveLssForgetText,
+  slaveLssStoredText,
   slaveNotice,
   slaveNoticeText,
   slaveValueText,
@@ -387,5 +391,91 @@ describe('the remaining texts', () => {
     expect(slaveDefaultText({ ...bad.objects[0], defaultValue: '' }, 'decimal')).toBe('0')
     expect(slaveValueText({ ...bad.objects[5], defaultValue: '' }, null, 'decimal')).toBe('""')
     expect(slaveDefaultText({ ...bad.objects[0], dataType: 'REAL64', defaultValue: '2.5' }, 'decimal')).toBe('2.5')
+  })
+})
+
+const LSS = {
+  state: 'waiting',
+  serial_auto: false,
+  node_id_from: 'stored',
+  project_node_id: 5,
+  bitrate_from: 'stored',
+  bitrate: 250000,
+  project_bitrate: 500000,
+  stored_node_id: 12,
+  stored_bitrate: 250000,
+}
+
+/** The slave after an LSS master stored node 12: COB-IDs that follow the node ID moved with it. */
+function lssSlave(lss: Record<string, unknown> = {}, fields: Record<string, unknown> = {}) {
+  const base = slaveStatus()
+  const pdos = base.pdos.map((p) => ({ ...p, cob_id: p.cob_id - 5 + 12 }))
+  return parse({ node_id: 12, serial: 23, pdos, lss: { ...LSS, ...lss }, ...fields })
+}
+
+describe('the slave LSS state', () => {
+  it('reads the node ID as null while the slave waits, and the LSS object', () => {
+    const waiting = parse({ node_id: null, lss: { ...LSS, node_id_from: 'none' } })
+    expect(waiting.node_id).toBeNull()
+    expect(waiting.lss?.node_id_from).toBe('none')
+    expect(slaveEventText({ time: 0, kind: 'on_bus' }, waiting, slaveConfig())).toBe(
+      'On the bus with no node ID, waiting for an LSS master.',
+    )
+  })
+
+  it('shows the node ID, bit rate, serial number and state with their sources', () => {
+    expect(slaveLssFacts(parse())).toBeNull()
+    expect(slaveLssFacts(lssSlave())?.map((f) => [f.label, f.value, f.detail])).toEqual([
+      ['Node ID in use', '12', 'Stored by an LSS master (project 5)'],
+      ['Bit rate in use', '250 kbit/s', 'Stored by an LSS master (project 500 kbit/s)'],
+      ['Serial number', '0x00000017 (23)', 'From the project'],
+      ['LSS state', 'Waiting', 'Answers an LSS master'],
+    ])
+    const fresh = slaveLssFacts(
+      lssSlave(
+        {
+          node_id_from: 'none',
+          bitrate_from: 'project',
+          bitrate: undefined,
+          serial_auto: true,
+          state: 'configuration',
+        },
+        { node_id: null },
+      ),
+    )
+    expect(fresh?.map((f) => [f.value, f.detail])).toEqual([
+      ['None', 'Waiting for an LSS master to give one'],
+      ['Set on the interface', 'From the project'],
+      ['0x00000017 (23)', 'Picked by the runtime and kept'],
+      ['Configuration', 'An LSS master selected the slave to configure it'],
+    ])
+    expect(slaveLssFacts(lssSlave({ node_id_from: 'lss' }))?.[0].detail).toBe(
+      'Given by an LSS master, not stored (project 5)',
+    )
+  })
+
+  it('says what is stored and what Forget brings back', () => {
+    expect(slaveLssStoredText(lssSlave())).toBe(
+      'Stored on the runtime: node ID 12, 250 kbit/s. Stored values win over the project at every start and upload.',
+    )
+    expect(slaveLssStoredText(lssSlave({ stored_node_id: undefined, stored_bitrate: undefined }))).toBeNull()
+    expect(slaveLssStoredText(parse())).toBeNull()
+    const config = { ...slaveConfig(), nodeId: 5, bitrate: 500000 }
+    expect(slaveLssForgetText(config, false)).toBe(
+      "Forget the node ID and bit rate an LSS master stored? The slave restarts with the project's values (node ID 5, 500 kbit/s).",
+    )
+    expect(slaveLssForgetText({ ...config, bitrate: 0 }, true)).toContain(
+      '(no node ID, waiting for an LSS master, set on the interface)',
+    )
+  })
+
+  it('compares PDO COB-IDs at the node ID in use and the node ID with the project', () => {
+    const config = { ...slaveConfig(), nodeId: 5 }
+    const slave = lssSlave()
+    expect(slaveConfigInUse(config, slave).nodeId).toBe(12)
+    expect(slaveConfigInUse(config, parse()).nodeId).toBe(5)
+    expect(slaveChanges(config, slave).filter((c) => c.label.includes('COB-ID'))).toEqual([])
+    expect(slaveVersionDiff(config, slave)).toBeNull()
+    expect(slaveChanges(config, lssSlave({}, { node_id: null })).filter((c) => c.label.includes('COB-ID'))).toEqual([])
   })
 })

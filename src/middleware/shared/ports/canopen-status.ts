@@ -243,6 +243,20 @@ export const CanopenSlavePdoStatusSchema = z.object({
 
 const hexData = z.string().regex(/^([0-9a-fA-F]{2})*$/)
 
+/** The slave's LSS state, sent while LSS is on in the slave the runtime runs. */
+export const CanopenSlaveLssStatusSchema = z.object({
+  state: z.enum(['waiting', 'configuration']),
+  serial_auto: z.boolean(),
+  /** Where the node ID in use comes from; `none` while the slave has no node ID. */
+  node_id_from: z.enum(['none', 'project', 'stored', 'lss']),
+  project_node_id: count,
+  bitrate_from: z.enum(['project', 'stored']),
+  bitrate: count.optional(),
+  project_bitrate: count.optional(),
+  stored_node_id: count.optional(),
+  stored_bitrate: count.optional(),
+})
+
 /**
  * One CANopen slave of the runtime. The fields after `tx_frames` are absent from runtimes before the
  * slave Online tab; `bus` tells whether a runtime sends them.
@@ -250,7 +264,8 @@ const hexData = z.string().regex(/^([0-9a-fA-F]{2})*$/)
 export const CanopenSlaveStatusSchema = z.object({
   name: z.string(),
   interface: z.string(),
-  node_id: count,
+  /** Null while an LSS slave waits for its node ID. */
+  node_id: count.nullable(),
   bus_open: z.boolean(),
   problem: z.string().optional(),
   state: CanopenSlaveStateSchema,
@@ -260,6 +275,8 @@ export const CanopenSlaveStatusSchema = z.object({
   last_emcy: count.optional(),
   rx_frames: count,
   tx_frames: count,
+  serial: count.optional(),
+  lss: CanopenSlaveLssStatusSchema.optional(),
   bus: CanopenBusStatusSchema.optional(),
   since: z.number().optional(),
   nmt_by: CanopenSlaveNmtBySchema.optional(),
@@ -307,6 +324,7 @@ export type CanopenSlaveNmtBy = z.infer<typeof CanopenSlaveNmtBySchema>
 export type CanopenSlaveEvent = z.infer<typeof CanopenSlaveEventSchema>
 export type CanopenSlavePdoStatus = z.infer<typeof CanopenSlavePdoStatusSchema>
 export type CanopenSlaveStatus = z.infer<typeof CanopenSlaveStatusSchema>
+export type CanopenSlaveLssStatus = z.infer<typeof CanopenSlaveLssStatusSchema>
 
 /** The status in a runtime's answer, or null when the body is not a status of a known version. */
 export function parseCanopenStatus(body: unknown): CanopenStatus | null {

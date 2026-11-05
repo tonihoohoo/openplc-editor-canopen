@@ -166,6 +166,8 @@ export interface CanopenSlaveLiveStatus {
   answered: boolean
   /** The slave by this name in the runtime's status, or null when the runtime does not run it. */
   slave: CanopenSlaveStatus | null
+  /** The runtime's CANopen features, such as `slave_lss`. */
+  features: readonly string[]
   /** The runtime's clock at the last answer, or 0 when an older runtime does not send it. */
   now: number
   stale: boolean
@@ -179,17 +181,18 @@ export interface CanopenSlaveLiveStatus {
  * without the `status` feature. With `enabled` false nothing is read.
  */
 export function useCanopenSlaveStatus(slaveName: string, enabled = true): CanopenSlaveLiveStatus | null {
-  const { supported, connected, refresh, status, stale, failures, error } = useStatusFeed(enabled)
+  const { supported, connected, features, refresh, status, stale, failures, error } = useStatusFeed(enabled)
   return useMemo(() => {
     if (!supported || !connected) return null
     return {
       answered: status !== null,
       slave: status?.slaves.find((s) => s.name === slaveName) ?? null,
+      features,
       now: status?.now ?? 0,
       stale,
       failures,
       error,
       refresh,
     }
-  }, [supported, connected, refresh, status, stale, failures, error, slaveName])
+  }, [supported, connected, features, refresh, status, stale, failures, error, slaveName])
 }

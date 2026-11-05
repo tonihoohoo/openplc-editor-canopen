@@ -39,6 +39,8 @@ const REASONS: Readonly<Record<string, string>> = {
   inactive: 'the runtime has no CANopen',
   error: 'the request failed on the runtime',
   timeout: 'the runtime did not finish the request in time',
+  unknown_slave: 'the runtime runs no slave by this name',
+  lss_off: 'LSS is off in the slave the runtime runs',
 }
 
 /** A refusal or failure reason in words. */
@@ -126,6 +128,8 @@ export interface CanopenOnline {
   nmt(network: number, node: number, command: CanopenNmtCommand): Promise<CanopenOnlineResult>
   openService(name: string, network: CanopenNetworkSettings, nodeIds: number[]): Promise<CanopenOnlineResult>
   closeService(): Promise<CanopenOnlineResult>
+  /** Removes the node ID and bit rate an LSS master stored for the slave; the slave restarts. */
+  forgetSlaveLss(slave: string): Promise<CanopenOnlineResult>
   /** Finds the devices without a node ID; @p onProgress gets the devices that answered so far. */
   lssFind(network: number, onProgress?: (devices: LssDevice[]) => void): Promise<LssFindResult>
   lssSetId(network: number, device: LssDevice, nodeId: number, store: boolean): Promise<LssSetIdResult>
@@ -225,6 +229,7 @@ export function createCanopenOnline(send: CanopenRequestFn, options: CanopenOnli
         nodes: nodeIds,
       }),
     closeService: () => simple({ op: 'service_close' }),
+    forgetSlaveLss: (slave) => simple({ op: 'slave_lss_forget', slave }),
     lssFind: async (network, onProgress) => {
       const r = await lssJob({ op: 'lss', network, action: 'find' }, LSS_FIND_TIMEOUT_MS, (a) => {
         if (onProgress && a.devices) onProgress(toLssDevices(a.devices))

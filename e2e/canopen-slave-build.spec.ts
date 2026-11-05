@@ -4,7 +4,7 @@
  *
  * Needs a production build plus the preload copy; see "Electron e2e" in CLAUDE.md.
  */
-import { readFileSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -155,7 +155,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 7,
+      version: 8,
       networks: [{ interface: 'can0', nodes: [{ node_id: 1 }] }],
       devices: [
         {
@@ -171,6 +171,82 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
           ],
           rpdos: [{ cob_id: 0x205, entries: [{ index: 0x2000, subindex: 1 }] }],
           tpdos: [{ cob_id: 0x185, entries: [{ index: 0x2100, subindex: 1 }] }],
+        },
+      ],
+    })
+  } finally {
+    await quitApp(app, page)
+  }
+})
+
+test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS flag and the build', async () => {
+  test.setTimeout(300000)
+  // No located variables: nothing on this slave produces them, and the build would refuse them.
+  const station = {
+    bus: STATION.bus,
+    program: 'PROGRAM main\n  VAR\n    n : INT;\n  END_VAR\n\nn := n + 1;\n\nEND_PROGRAM\n',
+  }
+  const { project, userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-slave-lss'), '', station)
+  // No master network: an empty one would stop the build.
+  rmSync(join(project, 'devices', 'remote', 'canopen_1.json'))
+  const { app, page } = await launch(userData)
+  await windowSize(app, 1600, 1000)
+  await captureSaves(app)
+  try {
+    await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
+    await page.getByLabel('Create PLC element trigger component').click({ timeout: 30000 })
+    const serverCard = page.locator('#create-server-trigger')
+    const serverName = page.getByPlaceholder('Server name')
+    await serverCard.hover()
+    const opened = await serverName.waitFor({ timeout: 3000 }).then(
+      () => true,
+      () => false,
+    )
+    if (!opened) await serverCard.click()
+    await serverName.fill('slave')
+    await page.getByLabel('server-protocol').click()
+    await page.getByRole('option', { name: 'CANopen slave' }).click()
+    await page.getByRole('button', { name: 'Create', exact: true }).click()
+    await page.getByText('slave', { exact: true }).first().click({ timeout: 30000 })
+    const summary = page.getByTestId('canopen-slave-summary')
+    await expect(summary).toHaveText('can0, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
+    await commitField(page, 'Vendor ID', '0xABCD')
+
+    await expect(page.getByLabel('At first start', { exact: true })).toBeDisabled()
+    await slaveKeyView(page, 'slave-lss-off')
+    await page.getByLabel('An LSS master may set the node ID', { exact: true }).check()
+    await slaveKeyView(page, 'slave-lss-on')
+    await page.getByLabel('At first start', { exact: true }).selectOption('wait')
+    await expect(page.getByLabel('Node ID', { exact: true })).toHaveValue('Set by the LSS master')
+    await expect(page.getByLabel('Node ID', { exact: true })).toBeDisabled()
+    await expect(summary).toHaveText('can0, 500 kbit/s, node ID from the LSS master, 0 objects')
+    await page.getByLabel('Serial number', { exact: true }).selectOption('fixed')
+    await commitField(page, 'Fixed serial number', '0')
+    await expect(page.getByText('The serial number is part of the LSS address and cannot be 0.')).toBeVisible()
+    await commitField(page, 'Fixed serial number', '0x17')
+    await expect(page.getByLabel('Fixed serial number', { exact: true })).toHaveValue('0x00000017')
+    await page.getByLabel('The master may change the bit rate', { exact: true }).uncheck()
+    await slaveKeyView(page, 'slave-lss-wait')
+
+    await page.getByRole('button', { name: 'Export EDS or XDD...' }).click()
+    const dialog = page.getByTestId('canopen-export-dialog')
+    await expect(dialog.getByTestId('canopen-export-check')).toContainText('CiA 306 OK')
+    await dialog.getByTestId('canopen-export-save').click()
+    await expect(dialog).toHaveCount(0)
+    const eds = await savedFile(app)
+    expect(eds.text).toContain('LSS_Supported=1')
+
+    await buildFromMenu(page, 'Build only')
+    const build = join(project, 'build')
+    await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
+    const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
+    expect(conf).toMatchObject({
+      version: 8,
+      devices: [
+        {
+          name: 'slave',
+          node_id: 5,
+          lss: { enabled: true, wait_for_master: true, serial: 0x17, bitrate_change: false },
         },
       ],
     })

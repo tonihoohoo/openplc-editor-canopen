@@ -233,10 +233,25 @@ type CheckboxFieldProps = {
   disabled?: boolean
   /** Shown disabled, with this reason as its tooltip and in place of the hint. */
   disabledReason?: string | null
+  /** In a row of labelled inputs: the box and its label line up with the inputs, not their labels. */
+  besideInputs?: boolean
+  className?: string
 }
 
-const CheckboxField = ({ label, checked, onChange, hint, disabled, disabledReason }: CheckboxFieldProps) => (
-  <label className='flex items-start gap-2' title={disabledReason ?? undefined}>
+const CheckboxField = ({
+  label,
+  checked,
+  onChange,
+  hint,
+  disabled,
+  disabledReason,
+  besideInputs,
+  className,
+}: CheckboxFieldProps) => (
+  <label
+    className={cn('flex items-start gap-2', besideInputs && 'pt-[26px]', className)}
+    title={disabledReason ?? undefined}
+  >
     <input
       type='checkbox'
       aria-label={label}
