@@ -612,7 +612,8 @@ network and a slave at the same time. The page has four tabs:
   **To the master** (`%Q`, 0x2100 and up). Each object has a place, name, type (the numeric types and
   STRING), an exchange (**PDO**, **SDO only** or **Constant**), its address from the registry, an
   alias, a default and, from the master, an optional range; the slave refuses SDO writes outside it
-  (abort 0609 0031h / 0032h). A constant has no address, and a STRING is always a constant.
+  (abort 0609 0031h / 0032h). A constant has no address, and a STRING is always a constant. See
+  [Objects packed as 8 bits](#objects-packed-as-8-bits) for the **UNSIGNED8 (8 × BOOL)** type.
 - **PDOs**: the default layout, four RPDOs and four TPDOs of 8 bytes filled in table order from the
   objects marked PDO, with the pre-defined COB-IDs from the node ID. Each used TPDO is sent on change
   (with inhibit time and event timer) or every N SYNC. The master may remap the PDOs in
@@ -639,6 +640,25 @@ runtime's reason; the master lost; the PLC stopped; the runtime running another 
 interface or objects differ; values it does not report show "-"); settings changed by the master.
 While the runtime reports the slave's link, the header shows its bus line (state, error counters,
 load, link resets) like a network's.
+
+### Objects packed as 8 bits
+
+The type **UNSIGNED8 (8 × BOOL)** is an UNSIGNED8 on the bus (one byte in a PDO, works with any
+master) whose eight bits are separate BOOL addresses in the program, as CiA 401 packs digital I/O:
+
+- The row opens into eight bit rows, bit 0 to 7, each with a name, its own `%IX` (from the master) or
+  `%QX` (to the master) address, an alias and a default checkbox. The eight addresses are bit 0 to 7
+  of one image byte, so the row shows them as `%IX0.0-0.7`; the row itself has no address and no
+  range, and it is exchanged by PDO or SDO only.
+- Changing a row to this type keeps its object, name and default, frees its `%IB` or `%QB` address
+  and takes the first image byte whose eight bits are all free; the bits are named Bit 0 to Bit 7.
+  Changing it back frees the eight addresses and their aliases.
+- The PDOs tab shows the object as one byte ("8 bits"); the Online tab shows its value with one dot
+  per bit and the names of the bits that are on.
+- The EDS describes it as UNSIGNED8. The XDD names the bits through a struct data type, so a master
+  network that adds the XDD shows the bit names in its DBC and HTML exports.
+- `conf/canopen.json` (version 11) lists the eight locations in the object's `bits` in place of
+  `location`.
 
 ### LSS
 
@@ -675,7 +695,7 @@ from, checks it (CiA 306 or CiA 311) and suggests the next revision when the obj
 since the last export, so a master that imported the old file is not fed the wrong layout. A master
 project imports the file like any other node's.
 
-At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 9);
+At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 11);
 the file is written when only a slave is on. The checks that stop the build name the slave and the
 field or object.
 

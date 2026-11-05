@@ -162,7 +162,13 @@ export interface PoolServerInput {
   name?: string
   protocol?: string
   canopenSlaveConfig?: {
-    objects?: Array<{ id: string; iecLocation: string; alias?: string }>
+    objects?: Array<{
+      id: string
+      iecLocation: string
+      alias?: string
+      /** A packed object's bits: each claims as channel "<id>.<bit>". */
+      bits?: Array<{ iecLocation: string; alias?: string }>
+    }>
   }
 }
 
@@ -190,9 +196,15 @@ export function canopenSlavePoolDevices(servers: readonly PoolServerInput[] | un
   const out: PoolRemoteDeviceInput[] = []
   for (const server of servers ?? []) {
     if (server.protocol !== 'canopen-slave' || !server.canopenSlaveConfig) continue
-    const entries = (server.canopenSlaveConfig.objects ?? [])
-      .filter((o) => o.iecLocation !== '')
-      .map((o) => ({ channelId: o.id, iecLocation: o.iecLocation, alias: o.alias }))
+    const entries = (server.canopenSlaveConfig.objects ?? []).flatMap((o) =>
+      o.bits && o.bits.length > 0
+        ? o.bits
+            .map((b, i) => ({ channelId: `${o.id}.${i}`, iecLocation: b.iecLocation, alias: b.alias }))
+            .filter((e) => e.iecLocation !== '')
+        : o.iecLocation !== ''
+          ? [{ channelId: o.id, iecLocation: o.iecLocation, alias: o.alias }]
+          : [],
+    )
     out.push({
       name: canopenSlavePoolName(server.name ?? 'slave'),
       canopenConfig: { nodes: [{ name: CANOPEN_SLAVE_POOL_NODE, tpdos: [{ entries }] }] },

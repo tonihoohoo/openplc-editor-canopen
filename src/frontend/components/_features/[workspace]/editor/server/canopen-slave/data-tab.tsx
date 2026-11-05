@@ -1,6 +1,7 @@
-import { PlusIcon, TrashIcon } from '@radix-ui/react-icons'
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon, TrashIcon } from '@radix-ui/react-icons'
 import { cn } from '@root/frontend/utils/cn'
 import type {
+  CanopenSlaveBit,
   CanopenSlaveConfig,
   CanopenSlaveDataType,
   CanopenSlaveDirection,
@@ -9,14 +10,20 @@ import type {
 } from '@root/middleware/shared/ports/canopen-types'
 import {
   isSlaveDataType,
+  isSlavePacked,
+  newSlaveBits,
   nextSlaveObjectName,
   nextSlaveObjectPlace,
   objectRef,
   SLAVE_DATA_TYPES,
   SLAVE_IEC_TYPE,
+  SLAVE_PACKED_HINT,
+  SLAVE_PACKED_LABEL,
+  slaveAddressText,
   type SlaveProblem,
   slaveValueProblem,
 } from '@root/middleware/shared/utils/canopen'
+import { useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { SelectField, type SelectOption, TextField } from '../../device/canopen/fields'
@@ -33,21 +40,24 @@ type DataTabProps = {
   config: CanopenSlaveConfig
   problems: readonly SlaveProblem[]
   commit: Update
-  /** Why the alias cannot be given to the object, or null. */
-  aliasProblem: (object: CanopenSlaveObject, alias: string) => string | null
+  /** Why the alias cannot be given to the object (or to its bit `bit`), or null. */
+  aliasProblem: (object: CanopenSlaveObject, alias: string, bit?: number) => string | null
 }
 
-const TYPE_OPTIONS: ReadonlyArray<SelectOption<CanopenSlaveDataType>> = SLAVE_DATA_TYPES.map((t) => ({
-  value: t,
-  label: `${t} (${SLAVE_IEC_TYPE[t]})`,
-}))
+/** The type picker's choices: the data types, then an UNSIGNED8 packed as 8 BOOLs. */
+type TypeChoice = CanopenSlaveDataType | 'PACKED'
 
-const exchangeOptions = (dataType: CanopenSlaveDataType): ReadonlyArray<SelectOption<CanopenSlaveExchange>> => {
-  const reason = dataType === 'VISIBLE_STRING' ? 'a STRING is a constant' : null
+const TYPE_OPTIONS: ReadonlyArray<SelectOption<TypeChoice>> = [
+  ...SLAVE_DATA_TYPES.map((t) => ({ value: t, label: `${t} (${SLAVE_IEC_TYPE[t]})` })),
+  { value: 'PACKED', label: SLAVE_PACKED_LABEL, title: SLAVE_PACKED_HINT },
+]
+
+const exchangeOptions = (object: CanopenSlaveObject): ReadonlyArray<SelectOption<CanopenSlaveExchange>> => {
+  const reason = object.dataType === 'VISIBLE_STRING' ? 'a STRING is a constant' : null
   return [
     { value: 'pdo', label: 'PDO', disabledReason: reason },
     { value: 'sdo', label: 'SDO only', disabledReason: reason },
-    { value: 'constant', label: 'Constant' },
+    { value: 'constant', label: 'Constant', disabledReason: isSlavePacked(object) ? 'the bits have addresses' : null },
   ]
 }
 
@@ -62,13 +72,62 @@ const updateObject = (
   objects: config.objects.map((o) => (o.id === id ? { ...o, ...update } : o)),
 })
 
-/** The object with a new type: a STRING becomes a constant, and values that do not suit the type are reset. */
-const withType = (object: CanopenSlaveObject, dataType: CanopenSlaveDataType): Partial<CanopenSlaveObject> => {
-  if (dataType === 'VISIBLE_STRING') return { dataType, exchange: 'constant', defaultValue: '', min: '', max: '' }
+/**
+ * The object with a new type: a STRING becomes a constant, values that do not suit the type are reset,
+ * and the packed type swaps the object's address for 8 bit rows (and back).
+ */
+const withType = (object: CanopenSlaveObject, choice: TypeChoice): Partial<CanopenSlaveObject> => {
+  const dataType = choice === 'PACKED' ? 'UNSIGNED8' : choice
   const keep = (text: string | undefined): string =>
     text !== undefined && text.trim() !== '' && slaveValueProblem(text, dataType) === null ? text : ''
   const value = keep(object.defaultValue)
-  return { dataType, defaultValue: value === '' ? '0' : value, min: keep(object.min), max: keep(object.max) }
+  if (choice === 'PACKED')
+    return {
+      dataType,
+      exchange: object.exchange === 'constant' ? 'pdo' : object.exchange,
+      iecLocation: '',
+      alias: undefined,
+      defaultValue: value === '' ? '0' : value,
+      min: '',
+      max: '',
+      bits: newSlaveBits(),
+    }
+  const unpacked = isSlavePacked(object) ? { bits: undefined, iecLocation: '' } : {}
+  if (dataType === 'VISIBLE_STRING')
+    return { ...unpacked, dataType, exchange: 'constant', defaultValue: '', min: '', max: '' }
+  return {
+    ...unpacked,
+    dataType,
+    defaultValue: value === '' ? '0' : value,
+    min: keep(object.min),
+    max: keep(object.max),
+  }
+}
+
+const typeChoice = (object: CanopenSlaveObject): TypeChoice => (isSlavePacked(object) ? 'PACKED' : object.dataType)
+
+const updateBit = (
+  config: CanopenSlaveConfig,
+  id: string,
+  bit: number,
+  update: Partial<CanopenSlaveBit>,
+): CanopenSlaveConfig => ({
+  ...config,
+  objects: config.objects.map((o) =>
+    o.id === id && o.bits ? { ...o, bits: o.bits.map((b, i) => (i === bit ? { ...b, ...update } : b)) } : o,
+  ),
+})
+
+/** The default with bit `bit` set or cleared. */
+const withBit = (defaultValue: string, bit: number, on: boolean): string => {
+  const value = parseInt(defaultValue, defaultValue.trim().toLowerCase().startsWith('0x') ? 16 : 10)
+  const byte = Number.isFinite(value) ? value & 0xff : 0
+  return String(on ? byte | (1 << bit) : byte & ~(1 << bit))
+}
+
+const bitOn = (defaultValue: string, bit: number): boolean => {
+  const value = parseInt(defaultValue, defaultValue.trim().toLowerCase().startsWith('0x') ? 16 : 10)
+  return Number.isFinite(value) && ((value >> bit) & 1) === 1
 }
 
 const headClassName = 'px-2 py-1.5 text-left text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400'
@@ -86,12 +145,17 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRow
   const fromMaster = object.direction === 'from_master'
   const constant = object.exchange === 'constant'
   const string = object.dataType === 'VISIBLE_STRING'
+  const packed = isSlavePacked(object)
+  const [open, setOpen] = useState(true)
   const change = (update: Partial<CanopenSlaveObject>) => commit((c) => updateObject(c, object.id, update))
   const columns = fromMaster ? 10 : 8
   return (
     <>
       <tr
-        className='border-t border-neutral-100 dark:border-neutral-800'
+        className={cn(
+          'border-t border-neutral-100 dark:border-neutral-800',
+          packed && 'bg-amber-50/60 shadow-[inset_3px_0_0_#f59e0b] dark:bg-amber-500/5',
+        )}
         data-testid={`canopen-slave-object-${object.id}`}
       >
         <td className={cn(cellClassName, 'w-[92px]')}>
@@ -116,30 +180,46 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRow
           />
         </td>
         <td className={cellClassName}>
-          <TextField
-            hideLabel
-            label='Name'
-            value={object.name}
-            onCommit={(typed) => {
-              if (typed === '') return 'Enter a name.'
-              if (typed.length > 255) return 'At most 255 characters.'
-              if (!/^[\x20-\x7e]*$/.test(typed)) return 'Use printable ASCII characters.'
-              const lower = typed.toLowerCase()
-              if (config.objects.some((o) => o.id !== object.id && o.name.toLowerCase() === lower))
-                return 'Another object has this name.'
-              change({ name: typed })
-              return null
-            }}
-          />
+          <div className='flex items-start gap-1'>
+            {packed ? (
+              <button
+                type='button'
+                aria-label={open ? `Hide the bits of ${object.name}` : `Show the bits of ${object.name}`}
+                aria-expanded={open}
+                className={cn(iconButtonClassName, 'mt-[7px]')}
+                onClick={() => setOpen(!open)}
+              >
+                {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+              </button>
+            ) : null}
+            <TextField
+              className='min-w-0 flex-1'
+              hideLabel
+              label='Name'
+              value={object.name}
+              onCommit={(typed) => {
+                if (typed === '') return 'Enter a name.'
+                if (typed.length > 255) return 'At most 255 characters.'
+                if (!/^[\x20-\x7e]*$/.test(typed)) return 'Use printable ASCII characters.'
+                const lower = typed.toLowerCase()
+                if (config.objects.some((o) => o.id !== object.id && o.name.toLowerCase() === lower))
+                  return 'Another object has this name.'
+                change({ name: typed })
+                return null
+              }}
+            />
+          </div>
         </td>
         <td className={cn(cellClassName, 'w-[210px]')}>
           <SelectField
             hideLabel
             label='Type'
-            value={object.dataType}
+            value={typeChoice(object)}
             options={TYPE_OPTIONS}
-            onChange={(dataType) => {
-              if (isSlaveDataType(dataType) && dataType !== object.dataType) change(withType(object, dataType))
+            hint={packed ? SLAVE_PACKED_HINT : undefined}
+            onChange={(choice) => {
+              if ((choice === 'PACKED' || isSlaveDataType(choice)) && choice !== typeChoice(object))
+                change(withType(object, choice))
             }}
           />
         </td>
@@ -148,20 +228,22 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRow
             hideLabel
             label='Exchange'
             value={object.exchange}
-            options={exchangeOptions(object.dataType)}
+            options={exchangeOptions(object)}
             onChange={(exchange) => change({ exchange })}
           />
         </td>
-        <td className={cn(cellClassName, 'w-[80px]')}>
+        <td className={cn(cellClassName, 'w-[104px]')}>
           <div
-            className='flex h-[30px] items-center font-mono text-xs text-neutral-700 dark:text-neutral-300'
+            className='flex h-[30px] items-center whitespace-nowrap font-mono text-xs text-neutral-700 dark:text-neutral-300'
             data-testid='canopen-slave-address'
           >
-            {constant ? <span className={hintClassName}>none</span> : object.iecLocation}
+            {constant ? <span className={hintClassName}>none</span> : slaveAddressText(object)}
           </div>
         </td>
         <td className={cn(cellClassName, 'w-[140px]')}>
-          {constant ? null : (
+          {packed ? (
+            <div className={cn(hintClassName, 'flex h-[30px] items-center')}>per bit</div>
+          ) : constant ? null : (
             <TextField
               hideLabel
               label='Alias'
@@ -195,7 +277,7 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRow
           <>
             {(['min', 'max'] as const).map((field) => (
               <td key={field} className={cn(cellClassName, 'w-[90px]')}>
-                {constant ? null : (
+                {constant || packed ? null : (
                   <TextField
                     hideLabel
                     label={field === 'min' ? 'Minimum' : 'Maximum'}
@@ -226,6 +308,19 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRow
           </div>
         </td>
       </tr>
+      {packed && open
+        ? (object.bits ?? []).map((bit, i) => (
+            <BitRow
+              key={i}
+              object={object}
+              bit={i}
+              value={bit}
+              commit={commit}
+              aliasProblem={aliasProblem}
+              columns={columns}
+            />
+          ))
+        : null}
       {problems.length > 0 ? (
         <tr>
           <td colSpan={columns} className='px-2 pb-1.5'>
@@ -238,6 +333,86 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem }: ObjectRow
         </tr>
       ) : null}
     </>
+  )
+}
+
+type BitRowProps = {
+  object: CanopenSlaveObject
+  bit: number
+  value: CanopenSlaveBit
+  commit: Update
+  aliasProblem: DataTabProps['aliasProblem']
+  columns: number
+}
+
+/** One bit of a packed object: its name, BOOL address, alias and default. */
+const BitRow = ({ object, bit, value, commit, aliasProblem, columns }: BitRowProps) => {
+  const change = (update: Partial<CanopenSlaveBit>) => commit((c) => updateBit(c, object.id, bit, update))
+  return (
+    <tr className='bg-neutral-50/70 dark:bg-neutral-900/40' data-testid={`canopen-slave-bit-${object.id}-${bit}`}>
+      <td className={cn(cellClassName, 'pl-6 font-mono text-xs text-neutral-500 dark:text-neutral-400')}>
+        <div className='flex h-[30px] items-center'>bit {bit}</div>
+      </td>
+      <td className={cellClassName}>
+        <TextField
+          className='ml-6'
+          hideLabel
+          label={`Name of bit ${bit}`}
+          value={value.name}
+          onCommit={(typed) => {
+            if (typed === '') return 'Enter a name.'
+            if (typed.length > 255) return 'At most 255 characters.'
+            if (!/^[\x20-\x7e]*$/.test(typed)) return 'Use printable ASCII characters.'
+            const lower = typed.toLowerCase()
+            if ((object.bits ?? []).some((b, i) => i !== bit && b.name.toLowerCase() === lower))
+              return 'Another bit has this name.'
+            change({ name: typed })
+            return null
+          }}
+        />
+      </td>
+      <td className={cn(cellClassName, 'text-xs text-neutral-500 dark:text-neutral-400')}>
+        <div className='flex h-[30px] items-center px-1'>BOOL</div>
+      </td>
+      <td className={cellClassName} />
+      <td className={cellClassName}>
+        <div
+          className='flex h-[30px] items-center font-mono text-xs text-neutral-700 dark:text-neutral-300'
+          data-testid='canopen-slave-bit-address'
+        >
+          {value.iecLocation}
+        </div>
+      </td>
+      <td className={cellClassName}>
+        <TextField
+          hideLabel
+          label={`Alias of bit ${bit}`}
+          value={value.alias ?? ''}
+          placeholder='alias'
+          onCommit={(typed) => {
+            const refusal = aliasProblem(object, typed, bit)
+            if (refusal) return refusal
+            change({ alias: typed === '' ? undefined : typed })
+            return null
+          }}
+        />
+      </td>
+      <td className={cellClassName} colSpan={columns - 6}>
+        <div className='flex h-[30px] items-center px-1'>
+          <input
+            type='checkbox'
+            aria-label={`Default of bit ${bit}`}
+            checked={bitOn(object.defaultValue, bit)}
+            onChange={(e) =>
+              commit((c) =>
+                updateObject(c, object.id, { defaultValue: withBit(object.defaultValue, bit, e.target.checked) }),
+              )
+            }
+            className='h-3.5 w-3.5 accent-brand'
+          />
+        </div>
+      </td>
+    </tr>
   )
 }
 

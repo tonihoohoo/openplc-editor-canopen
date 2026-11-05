@@ -7,7 +7,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import type { CanopenConfig, CanopenNode } from '../../../ports/canopen-types'
+import type { CanopenConfig, CanopenNode, CanopenSlaveConfig } from '../../../ports/canopen-types'
 import { buildNodeDcf } from '../dcf-export'
 import { buildNodeExport } from '../device-export'
 import { readDcfContent } from '../dcf-import'
@@ -16,6 +16,7 @@ import { prepareDeviceFile, storedFileText, withStoredFile } from '../device-imp
 import { checkEds } from '../eds-check'
 import { readEdsDocument } from '../eds-document'
 import { createCanopenNode, defaultCanopenConfig, updatePdo, withEntryAlias } from '../model'
+import { buildSlaveExport, defaultCanopenSlaveConfig } from '../slave'
 import { GENERIC_IO_EDS, sequentialAllocator } from './fixtures/helpers'
 
 const OUT = process.env.CANOPEN_DCF_CROSSCHECK_OUT
@@ -240,5 +241,55 @@ async function writeXddCorpus(out: string): Promise<void> {
       verdicts[name] = await xddVerdict(name, file.text, { kind: 'export', source, schemaValid: true })
     }
   }
+  const slave = buildSlaveExport('io_node', PACKED_SLAVE, 'xdd', NOW)
+  if (slave.errors.length > 0) throw new Error('xdd export of the CANopen slave fails')
+  writeFileSync(join(out, 'canopen-slave-export.xdd'), slave.text)
+  verdicts['canopen-slave-export.xdd'] = await xddVerdict('canopen-slave-export.xdd', slave.text, {
+    kind: 'export',
+    source: 'canopen-slave',
+    schemaValid: true,
+  })
   writeFileSync(join(out, 'verdicts.json'), `${JSON.stringify(verdicts, null, 2)}\n`)
+}
+
+/** A CANopen slave with a byte and a packed object of 8 named bits each way. */
+const PACKED_SLAVE: CanopenSlaveConfig = {
+  ...defaultCanopenSlaveConfig('io_node'),
+  objects: [
+    {
+      id: 'a',
+      index: 0x2000,
+      subIndex: 1,
+      name: 'Setpoint',
+      dataType: 'INTEGER16',
+      direction: 'from_master',
+      exchange: 'pdo',
+      iecLocation: '%IW0',
+      defaultValue: '0',
+    },
+    {
+      id: 'b',
+      index: 0x2000,
+      subIndex: 2,
+      name: 'Valves',
+      dataType: 'UNSIGNED8',
+      direction: 'from_master',
+      exchange: 'pdo',
+      iecLocation: '',
+      defaultValue: '129',
+      bits: Array.from({ length: 8 }, (_, i) => ({ name: `Valve ${i + 1}`, iecLocation: `%IX0.${i}` })),
+    },
+    {
+      id: 'c',
+      index: 0x2100,
+      subIndex: 1,
+      name: 'Lamps',
+      dataType: 'UNSIGNED8',
+      direction: 'to_master',
+      exchange: 'sdo',
+      iecLocation: '',
+      defaultValue: '0',
+      bits: Array.from({ length: 8 }, (_, i) => ({ name: `Lamp ${i}`, iecLocation: `%QX0.${i}` })),
+    },
+  ],
 }

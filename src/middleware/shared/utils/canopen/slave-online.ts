@@ -15,7 +15,15 @@ import type {
 import { canopenTypeBits, objectRef } from './data-types'
 import { busStateLabel, emcyText, hex, resetText, sdoAbortText } from './diagnostics'
 import { formatCanopenValue, type ValueDisplay } from './online'
-import { isSlaveString, parseSlaveValue, SLAVE_PDO_COUNT, slavePdoLayout, slaveTpdoSettings } from './slave'
+import {
+  isSlavePacked,
+  isSlaveString,
+  parseSlaveValue,
+  SLAVE_PDO_COUNT,
+  slaveBitsOn,
+  slavePdoLayout,
+  slaveTpdoSettings,
+} from './slave'
 
 // ---- values ----
 
@@ -33,6 +41,18 @@ export function slaveValueText(
   if (isSlaveString(object)) return object.defaultValue === '' ? '""' : `"${object.defaultValue}"`
   const data = slaveValueData(slave, object.index, object.subIndex)
   return data === undefined ? '-' : formatCanopenValue(object.dataType, slaveValueBytes(data), display)
+}
+
+/** The bits of a packed object's reported value: each bit's state, bit 0 first, and the names of those on. */
+export function slavePackedValue(
+  object: CanopenSlaveObject,
+  slave: CanopenSlaveStatus | null,
+): { on: boolean[]; names: string[] } | null {
+  if (!isSlavePacked(object)) return null
+  const data = slaveValueData(slave, object.index, object.subIndex)
+  if (data === undefined) return null
+  const byte = slaveValueBytes(data)[0] ?? 0
+  return { on: (object.bits ?? []).map((_, i) => ((byte >> i) & 1) === 1), names: slaveBitsOn(object, byte) }
 }
 
 function slaveValueData(slave: CanopenSlaveStatus | null, index: number, subIndex: number): string | undefined {

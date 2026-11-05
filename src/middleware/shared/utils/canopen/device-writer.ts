@@ -4,7 +4,7 @@
  * DCF. Only what the description holds is written. Pure.
  */
 
-import type { CanopenEdsInfo, CanopenObject } from '../../ports/canopen-types'
+import type { CanopenAccess, CanopenEdsInfo, CanopenObject } from '../../ports/canopen-types'
 import { CANOPEN_BITRATES, CANOPEN_TYPE_CODES } from './data-types'
 import { EDS_TYPES } from './eds-values'
 
@@ -181,6 +181,60 @@ export function xddAccess(o: CanopenObject): string {
   return o.access === 'rwr' || o.access === 'rww' ? 'rw' : o.access
 }
 
+/** uniqueID of the parameter that names the bits of an object, in the XDD's application process. */
+function bitsParameterId(o: CanopenObject): string {
+  return `PAR_${hex4(o.index)}_${o.subIndex.toString(16).toUpperCase().padStart(2, '0')}`
+}
+
+const PARAMETER_ACCESS: Readonly<Record<CanopenAccess, string>> = {
+  const: 'const',
+  ro: 'read',
+  wo: 'write',
+  rw: 'readWrite',
+  rwr: 'readWrite',
+  rww: 'readWrite',
+}
+
+const hasBitNames = (o: CanopenObject): boolean => (o.info?.bits?.length ?? 0) > 0
+
+/**
+ * The device profile's application process for objects with bit names: a struct data type of one BOOL
+ * per named bit, and a parameter of that type the object refers to. Empty when no object names bits.
+ */
+function applicationProcess(eds: CanopenEdsInfo): string {
+  const named = eds.objects.filter(hasBitNames)
+  if (named.length === 0) return ''
+  const label = (t: string): string => `<label lang="en">${xmlText(t)}</label>`
+  const structs = named.map((o) => {
+    const id = bitsParameterId(o)
+    const bits = [...(o.info?.bits ?? [])].sort((a, b) => Number(a.value) - Number(b.value))
+    let at = 0
+    const vars: string[] = []
+    for (const b of bits) {
+      const bit = Number(b.value)
+      if (bit > at)
+        vars.push(
+          `<c:varDeclaration name="Reserved_${at}" uniqueID="${id}_R${at}" size="${bit - at}"><BITSTRING/></c:varDeclaration>`,
+        )
+      vars.push(
+        `<c:varDeclaration name="Bit_${bit}" uniqueID="${id}_B${bit}">${label(b.label)}<BOOL/></c:varDeclaration>`,
+      )
+      at = bit + 1
+    }
+    return `<c:struct name="${xmlAttr(o.name)}_bits" uniqueID="${id}_T">${label(o.name)}${vars.join('')}</c:struct>`
+  })
+  const parameters = named.map((o) => {
+    const access = PARAMETER_ACCESS[o.access]
+    return `<c:parameter uniqueID="${bitsParameterId(o)}" access="${access}">${label(o.name)}<c:dataTypeIDRef uniqueIDRef="${bitsParameterId(o)}_T"/></c:parameter>`
+  })
+  return [
+    '<c:ApplicationProcess>',
+    `<c:dataTypeList>${structs.join('')}</c:dataTypeList>`,
+    `<c:parameterList>${parameters.join('')}</c:parameterList>`,
+    '</c:ApplicationProcess>',
+  ].join('\n')
+}
+
 function xddObjectAttrs(o: CanopenObject, sub: boolean): string {
   const parts = [
     sub ? `subIndex="${o.subIndex.toString(16).toUpperCase().padStart(2, '0')}"` : undefined,
@@ -192,6 +246,7 @@ function xddObjectAttrs(o: CanopenObject, sub: boolean): string {
     `accessType="${xddAccess(o)}"`,
     o.defaultValue !== undefined ? `defaultValue="${xmlAttr(o.defaultValue)}"` : undefined,
     `PDOmapping="${xddPdoMapping(o)}"`,
+    hasBitNames(o) ? `uniqueIDRef="${bitsParameterId(o)}"` : undefined,
   ]
   return parts.filter((p) => p !== undefined).join(' ')
 }
@@ -264,6 +319,7 @@ export function writeXdd(eds: CanopenEdsInfo, options: WriteOptions): string {
     order,
     '</c:DeviceIdentity>',
     deviceFunction(eds),
+    applicationProcess(eds),
     '</ProfileBody>',
     '</c:ISO15745Profile>',
     '<c:ISO15745Profile>',

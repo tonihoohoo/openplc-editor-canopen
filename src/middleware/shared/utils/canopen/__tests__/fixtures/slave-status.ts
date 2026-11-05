@@ -13,7 +13,7 @@ const object = (fields: Partial<CanopenSlaveObject> & Pick<CanopenSlaveObject, '
   ...fields,
 })
 
-/** The slave of the end-to-end project: two PDO objects and a parameter from the master, two back, a text. */
+/** The slave of the end-to-end project: PDO objects and a parameter from the master, PDO objects back, a text. */
 export function slaveConfig(): CanopenSlaveConfig {
   return {
     ...defaultCanopenSlaveConfig('demo'),
@@ -33,6 +33,14 @@ export function slaveConfig(): CanopenSlaveConfig {
         iecLocation: '%IW1',
         defaultValue: '1000',
       }),
+      object({
+        id: 'valves',
+        index: 0x2000,
+        subIndex: 4,
+        name: 'Valves',
+        dataType: 'UNSIGNED8',
+        bits: Array.from({ length: 8 }, (_, i) => ({ name: `Valve ${i + 1}`, iecLocation: `%IX0.${i}` })),
+      }),
       object({ id: 'echo', index: 0x2100, subIndex: 1, name: 'Echo', direction: 'to_master', iecLocation: '%QW0' }),
       object({
         id: 'limit-echo',
@@ -42,6 +50,15 @@ export function slaveConfig(): CanopenSlaveConfig {
         dataType: 'UNSIGNED16',
         direction: 'to_master',
         iecLocation: '%QW1',
+      }),
+      object({
+        id: 'lamps',
+        index: 0x2100,
+        subIndex: 3,
+        name: 'Lamps',
+        dataType: 'UNSIGNED8',
+        direction: 'to_master',
+        bits: Array.from({ length: 8 }, (_, i) => ({ name: `Lamp ${i + 1}`, iecLocation: `%QX0.${i}` })),
       }),
       object({
         id: 'serial',
@@ -104,6 +121,7 @@ export function slaveStatus(now = SLAVE_NOW, fields: Record<string, unknown> = {
         mapping: [
           { index: 0x2000, subindex: 1, bits: 16 },
           { index: 0x2000, subindex: 2, bits: 8 },
+          { index: 0x2000, subindex: 4, bits: 8 },
         ],
         frames: 18204,
         last: now - 9,
@@ -122,6 +140,7 @@ export function slaveStatus(now = SLAVE_NOW, fields: Record<string, unknown> = {
         mapping: [
           { index: 0x2100, subindex: 1, bits: 16 },
           { index: 0x2100, subindex: 2, bits: 16 },
+          { index: 0x2100, subindex: 3, bits: 8 },
         ],
         frames: 9877,
         last: now - 40,
@@ -134,8 +153,10 @@ export function slaveStatus(now = SLAVE_NOW, fields: Record<string, unknown> = {
       { index: 0x2000, subindex: 1, data: 'dc05' },
       { index: 0x2000, subindex: 2, data: '02' },
       { index: 0x2000, subindex: 3, data: 'e803' },
+      { index: 0x2000, subindex: 4, data: '05' },
       { index: 0x2100, subindex: 1, data: 'dc05' },
       { index: 0x2100, subindex: 2, data: 'e803' },
+      { index: 0x2100, subindex: 3, data: '05' },
     ],
     events: [
       { time: now - 8000, kind: 'nmt', state: 'operational', by: 'master' },

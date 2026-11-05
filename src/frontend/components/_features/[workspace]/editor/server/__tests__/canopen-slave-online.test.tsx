@@ -92,11 +92,25 @@ describe('the slave Online tab', () => {
     expect(state.textContent).toContain('Started by the master (node 127)')
     expect(state.textContent).toContain('Seen 100 ms ago')
     expect(screen.getByTestId('canopen-slave-online-pdo-rx1').textContent).toContain(
-      'Setpoint, Mode (3 of 8 bytes)18 204 received, last 9 ms ago',
+      'Setpoint, Mode, Valves (4 of 8 bytes)18 204 received, last 9 ms ago',
     )
     expect(screen.queryByTestId('canopen-slave-online-pdo-rx2')).toBeNull()
     expect(value('0x2000:01')).toBe('1500')
     expect(value('0x2200:01')).toBe('"SN-0001"')
+    expect(value('0x2000:04')).toBe('5Valve 1, Valve 3')
+    const dots = within(screen.getByTestId('canopen-slave-online-value-0x2000:04')).getByTestId(
+      'canopen-slave-online-bits',
+    )
+    expect(Array.from(dots.children).map((d) => d.getAttribute('title'))).toEqual([
+      'bit 0 on',
+      'bit 1',
+      'bit 2 on',
+      'bit 3',
+      'bit 4',
+      'bit 5',
+      'bit 6',
+      'bit 7',
+    ])
     fireEvent.change(screen.getByLabelText('Number display'), { target: { value: 'hex' } })
     expect(value('0x2000:01')).toBe('0x05DC')
     fireEvent.change(screen.getByLabelText('Number display'), { target: { value: 'decimal' } })
