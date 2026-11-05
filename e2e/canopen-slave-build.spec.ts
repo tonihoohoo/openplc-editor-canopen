@@ -54,6 +54,15 @@ async function savedFile(app: ElectronApplication): Promise<{ name: string; text
   return { name: String(file.name), text: Buffer.from(bytes).toString('utf-8') }
 }
 
+/** A key view of the slave page with no field focused, so no caret, focus ring or spelling mark shows. */
+async function slaveKeyView(page: Page, name: string): Promise<void> {
+  await page.evaluate(() => {
+    const active = document.activeElement
+    if (active instanceof HTMLElement) active.blur()
+  })
+  await keyView(page, name, [], SLAVE_EDITOR)
+}
+
 async function commitField(page: Page, label: string, value: string): Promise<void> {
   const field = page.getByLabel(label, { exact: true }).first()
   await field.fill(value)
@@ -90,7 +99,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await expect(summary).toHaveText('can1, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
     await commitField(page, 'Heartbeat (ms)', '100')
     await commitField(page, 'Vendor ID', '0xABCD')
-    await keyView(page, 'slave-general', [], SLAVE_EDITOR)
+    await slaveKeyView(page, 'slave-general')
 
     await page.getByRole('tab', { name: 'Data' }).click()
     const from = page.getByTestId('canopen-slave-from-master')
@@ -114,13 +123,13 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await to.locator('tbody tr').first().getByLabel('Alias').fill('slave_echo')
     await to.locator('tbody tr').first().getByLabel('Alias').press('Enter')
     await expect(summary).toHaveText('can1, 500 kbit/s, node ID 5, 3 objects')
-    await keyView(page, 'slave-data', [], SLAVE_EDITOR)
+    await slaveKeyView(page, 'slave-data')
 
     await page.getByRole('tab', { name: 'PDOs' }).click()
     await expect(page.getByTestId('canopen-slave-rpdo1')).toContainText('0x205')
     await expect(page.getByTestId('canopen-slave-tpdo1')).toContainText('0x185')
     await page.getByTestId('canopen-slave-tpdo1').scrollIntoViewIfNeeded()
-    await keyView(page, 'slave-pdos', [], SLAVE_EDITOR)
+    await slaveKeyView(page, 'slave-pdos')
 
     await page.getByRole('button', { name: 'Export EDS or XDD...' }).click()
     const dialog = page.getByTestId('canopen-export-dialog')
