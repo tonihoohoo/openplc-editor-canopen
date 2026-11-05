@@ -164,11 +164,12 @@ const EtherCATDeviceEditor = ({ busName: propBusName, deviceId: propDeviceId }: 
         pinMapping: { pins: activePins },
         vendorIoMapping: { entries: ioMapping },
         remoteDevices: project.data.remoteDevices,
+        servers: project.data.servers,
       },
       resolveAddressProducerCapabilities(boardInfo),
     )
     return new Set(pool.byAddress.keys())
-  }, [store, project.data.remoteDevices, vendorScreenData])
+  }, [store, project.data.remoteDevices, project.data.servers, vendorScreenData])
 
   // Exclude the current device's own addresses from the "external" set
   const externalAddresses = useMemo(() => {

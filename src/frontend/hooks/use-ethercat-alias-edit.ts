@@ -64,6 +64,7 @@ export function useEthercatAliasEdit(): (
             entries: ioMappingEntries(state.deviceDefinitions.configuration.vendorScreenData?.['io-mapping']),
           },
           remoteDevices: state.project.data.remoteDevices,
+          servers: state.project.data.servers,
         },
         resolveAddressProducerCapabilities(state.deviceAvailableOptions.availableBoards.get(board)),
       )

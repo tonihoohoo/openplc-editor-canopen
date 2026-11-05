@@ -8,7 +8,12 @@
  * two resolvers can never be confused for one another.
  */
 
-import type { ClaimedAddress, PoolRemoteDeviceInput, SourceKind } from '../../../middleware/shared/utils/iec-address'
+import type {
+  ClaimedAddress,
+  PoolRemoteDeviceInput,
+  PoolServerInput,
+  SourceKind,
+} from '../../../middleware/shared/utils/iec-address'
 import { buildAddressPool, listClaims } from '../../../middleware/shared/utils/iec-address'
 import { parseAddress, prefixOf } from '../../../middleware/shared/utils/iec-address/registry'
 import type { AddressProducerCapabilities } from '../../../middleware/shared/utils/target-capabilities'
@@ -27,6 +32,7 @@ export interface ProducerClaimsInput {
   pins: Parameters<typeof buildAddressPool>[0]['pinMapping']
   vendorIoMapping: Parameters<typeof buildAddressPool>[0]['vendorIoMapping']
   remoteDevices: PoolRemoteDeviceInput[] | undefined
+  servers?: PoolServerInput[] | undefined
 }
 
 export function collectProducerClaims(input: ProducerClaimsInput) {
@@ -35,6 +41,7 @@ export function collectProducerClaims(input: ProducerClaimsInput) {
       ...(input.pins ? { pinMapping: input.pins } : {}),
       ...(input.vendorIoMapping ? { vendorIoMapping: input.vendorIoMapping } : {}),
       ...(input.remoteDevices ? { remoteDevices: input.remoteDevices } : {}),
+      ...(input.servers ? { servers: input.servers } : {}),
     },
     input.capabilities,
   )

@@ -425,7 +425,8 @@ function ModuleSlotsLayout({ section, moduleSystem }: ModuleSlotsLayoutProps) {
     // modbus remote, EtherCAT) when active for the target.
     const activePins =
       state.deviceDefinitions.pinMapping.pinsByBoard[state.deviceDefinitions.configuration.deviceBoard] ?? []
-    const pool = buildAddressPool({ pinMapping: { pins: activePins }, remoteDevices }, capabilities, {
+    const servers = state.project.data.servers
+    const pool = buildAddressPool({ pinMapping: { pins: activePins }, remoteDevices, servers }, capabilities, {
       ignoreSource: 'vpp-io',
     })
     const { entries: newEntries } = allocateModuleSlots({
@@ -694,6 +695,7 @@ function ModuleSlotsLayout({ section, moduleSystem }: ModuleSlotsLayoutProps) {
         },
         vendorIoMapping: { entries: currentEntries },
         remoteDevices: state.project.data.remoteDevices,
+        servers: state.project.data.servers,
       },
       resolveAddressProducerCapabilities(boardInfo),
     )

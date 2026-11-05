@@ -191,6 +191,7 @@ export function buildIoDiagnostics(input: IoDiagnosticsInput): IoDiagnostics {
     pins: { pins: input.devicePinMapping },
     vendorIoMapping: vppEntries(input.vendorScreenData),
     remoteDevices: projectData.remoteDevices,
+    servers: projectData.servers,
   })
 
   const active = activeKindsFor(producerCapabilities)

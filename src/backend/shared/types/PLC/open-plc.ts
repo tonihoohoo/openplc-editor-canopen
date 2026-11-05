@@ -288,7 +288,7 @@ const PLCConfigurationSchema = z.object({
 })
 type PLCConfiguration = z.infer<typeof PLCConfigurationSchema>
 
-const PLCServerProtocolSchema = z.enum(['modbus-tcp', 's7comm', 'ethernet-ip', 'opcua'])
+const PLCServerProtocolSchema = z.enum(['modbus-tcp', 's7comm', 'ethernet-ip', 'opcua', 'canopen-slave'])
 type PLCServerProtocol = z.infer<typeof PLCServerProtocolSchema>
 
 /**
@@ -630,12 +630,69 @@ const OpcUaServerConfigSchema = z.object({
 })
 type OpcUaServerConfig = z.infer<typeof OpcUaServerConfigSchema>
 
+// CANopen slave (ports/canopen-types.ts, CanopenSlaveConfig)
+const CanopenSlaveObjectSchema = z.object({
+  id: z.string(),
+  index: z.number().int().min(0x2000).max(0x5fff),
+  subIndex: z.number().int().min(1).max(254),
+  name: z.string(),
+  dataType: z.enum([
+    'INTEGER8',
+    'INTEGER16',
+    'INTEGER32',
+    'INTEGER64',
+    'UNSIGNED8',
+    'UNSIGNED16',
+    'UNSIGNED32',
+    'UNSIGNED64',
+    'REAL32',
+    'REAL64',
+    'VISIBLE_STRING',
+  ]),
+  direction: z.enum(['from_master', 'to_master']),
+  exchange: z.enum(['pdo', 'sdo', 'constant']),
+  iecLocation: z.string(),
+  alias: z.string().optional(),
+  defaultValue: z.string(),
+  min: z.string().optional(),
+  max: z.string().optional(),
+})
+
+const CanopenSlaveConfigSchema = z.object({
+  enabled: z.boolean(),
+  interface: z.string(),
+  bitrate: z.number().int().min(0),
+  nodeId: z.number().int().min(1).max(127),
+  priority: z.number().int().min(1).max(97).default(90),
+  vendorName: z.string().default(''),
+  deviceName: z.string(),
+  softwareVersion: z.string().default(''),
+  vendorId: z.number().int().min(0).max(0xffffffff),
+  productCode: z.number().int().min(0).max(0xffffffff),
+  revision: z.number().int().min(0).max(0xffffffff),
+  heartbeatMs: z.number().int().min(1).max(65535),
+  masterWatch: z.object({ nodeId: z.number().int().min(1).max(127), timeMs: z.number().int().min(0).max(65535) }),
+  onMasterLost: z.enum(['pre_operational', 'no_change', 'stopped']),
+  onPlcStop: z.enum(['hold', 'zero']),
+  startAlone: z.boolean(),
+  objects: z.array(CanopenSlaveObjectSchema),
+  tpdos: z.array(
+    z.object({
+      transmissionType: z.number().int().min(0).max(255),
+      inhibitTime: z.number().int().min(0).max(65535),
+      eventTimerMs: z.number().int().min(0).max(65535),
+    }),
+  ),
+  lastExport: z.object({ revision: z.number().int().min(0), layout: z.string() }).optional(),
+})
+
 const PLCServerSchema = z.object({
   name: z.string(),
   protocol: PLCServerProtocolSchema,
   modbusSlaveConfig: ModbusSlaveConfigSchema.optional(),
   s7commSlaveConfig: S7CommSlaveConfigSchema.optional(),
   opcuaServerConfig: OpcUaServerConfigSchema.optional(),
+  canopenSlaveConfig: CanopenSlaveConfigSchema.optional(),
 })
 type PLCServer = z.infer<typeof PLCServerSchema>
 

@@ -61,6 +61,7 @@ function buildClaimedAddressSet(store: OpenPLCStore): Set<string> {
       pinMapping: { pins: activePins },
       vendorIoMapping: { entries: ioMapping },
       remoteDevices,
+      servers: state.project.data.servers,
     },
     resolveAddressProducerCapabilities(boardInfo),
   )

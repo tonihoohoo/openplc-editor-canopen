@@ -44,7 +44,7 @@ type CreateGlobalVariableListFormProps = {
 
 type CreateServerFormProps = {
   name: string
-  protocol: 'modbus-tcp' | 's7comm' | 'ethernet-ip' | 'opcua'
+  protocol: 'modbus-tcp' | 's7comm' | 'ethernet-ip' | 'opcua' | 'canopen-slave'
 }
 
 type CreateRemoteDeviceFormProps = {
@@ -56,6 +56,7 @@ const ServerProtocolSources = [
   { value: 'modbus-tcp', label: 'Modbus/TCP', disabled: false },
   { value: 's7comm', label: 'Siemens S7comm', disabled: false },
   { value: 'opcua', label: 'OPC-UA', disabled: false },
+  { value: 'canopen-slave', label: 'CANopen slave', disabled: false },
   { value: 'ethernet-ip', label: 'EtherNet/IP', disabled: true },
 ] as const
 
@@ -64,7 +65,7 @@ const RemoteDeviceProtocolSources = [
   { value: 'ethernet-ip', label: 'EtherNet/IP', disabled: true },
   { value: 'ethercat', label: 'EtherCAT', disabled: false },
   { value: 'profinet', label: 'PROFINET', disabled: true },
-  { value: 'canopen', label: 'CANopen', disabled: false },
+  { value: 'canopen', label: 'CANopen master', disabled: false },
 ] as const
 
 {
@@ -168,7 +169,9 @@ const ElementCard = (props: ElementCardProps): ReactNode => {
     const unsupported =
       (protocol.value === 'modbus-tcp' && !targetServesModbus) ||
       (protocol.value === 's7comm' && !targetCaps.s7Server) ||
-      (protocol.value === 'opcua' && !targetCaps.opcuaServer)
+      (protocol.value === 'opcua' && !targetCaps.opcuaServer) ||
+      // The CANopen slave runs where the CANopen master does.
+      (protocol.value === 'canopen-slave' && !targetCaps.ethercat)
     return unsupported ? { ...protocol, disabled: true } : protocol
   })
   // The CANopen master runs where the EtherCAT master does: on a runtime target.

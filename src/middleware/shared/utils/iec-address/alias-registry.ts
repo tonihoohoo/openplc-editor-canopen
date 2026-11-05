@@ -169,6 +169,7 @@ export function describeSource(source: SourceRef): string {
     case 'canopen': {
       // ref shape "<deviceName>:<nodeName>:<channelId>" — see address-pool.ts.
       const parts = source.ref.split(':')
+      if (parts.length === 3 && parts[0].startsWith('CANopen slave ')) return `${parts[0]} object`
       if (parts.length === 3) return `CANopen ${parts[0]} node ${parts[1]} entry ${parts[2]}`
       return `CANopen (${source.ref})`
     }

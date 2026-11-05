@@ -18,7 +18,7 @@
  */
 
 import type { AddressProducerCapabilities } from '../../target-capabilities/types'
-import { canopenPoolEntries, type PoolInputs } from '../address-pool'
+import { canopenPoolDevices, canopenPoolEntries, type PoolInputs } from '../address-pool'
 import { parseAddress } from './address-space'
 import { recalculate } from './registry'
 import type {
@@ -234,8 +234,8 @@ export function migrateToRegistry(inputs: PoolInputs): IecAddressRegistry {
     }
   }
 
-  // 5. CANopen: one consumer per node (its state, then its PDO entries).
-  for (const device of inputs.remoteDevices ?? []) {
+  // 5. CANopen: one consumer per node (its state, then its PDO entries), slaves last.
+  for (const device of canopenPoolDevices(inputs)) {
     const deviceName = device.deviceName || device.name || 'device'
     for (const node of device.canopenConfig?.nodes ?? []) {
       const nodeName = node.name || 'node'

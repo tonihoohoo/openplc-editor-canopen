@@ -4,7 +4,8 @@
 > It is not made or supported by the upstream OpenPLC project.
 >
 > In a project you add a CANopen network and its nodes, import each node's EDS, map its PDO entries
-> to PLC variables, set start-up SDOs and node options, and watch the nodes' status online. The
+> to PLC variables, set start-up SDOs and node options, and watch the nodes' status online. A CANopen
+> slave server makes the runtime a CANopen device for another master. The
 > project runs on the [OpenPLC Runtime (CANopen edition)](https://github.com/tonihoohoo/openplc-runtime-canopen),
 > and the editor refuses to upload a CANopen project to a runtime without CANopen support. The fork
 > also adds a few editor improvements; every difference from upstream is listed below.
@@ -26,6 +27,7 @@ CANopen:
 - Online SDO and NMT tools and service mode: [docs/canopen.md](docs/canopen.md#online-tools)
 - The `canopen` function block library (CiA 405 names) for SDO, NMT and node control from the PLC program: [docs/canopen.md](docs/canopen.md#plc-function-blocks)
 - CANopen addresses from the central registry, up to the runtime's limit of 65536 per table: [docs/canopen.md](docs/canopen.md#addresses)
+- CANopen slave server: the runtime as a CANopen device with objects, PDOs and an EDS or XDD export: [docs/canopen.md](docs/canopen.md#canopen-slave)
 - Upload refused to a runtime without CANopen support: [docs/canopen.md](docs/canopen.md#installing-a-release-and-the-runtime-check)
 
 Editor:

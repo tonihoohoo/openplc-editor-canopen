@@ -40,6 +40,7 @@ export function applyConfiguratorSnapshot(
     {
       pinMapping: { pins: pinMapping.pinsByBoard[configuration.deviceBoard] ?? [] },
       remoteDevices: state.project.data.remoteDevices ?? [],
+      servers: state.project.data.servers ?? [],
     },
     resolveAddressProducerCapabilities(board),
     { ignoreSource: 'vpp-io' },
