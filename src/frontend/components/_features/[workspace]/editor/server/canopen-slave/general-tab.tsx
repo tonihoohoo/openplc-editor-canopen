@@ -74,8 +74,8 @@ const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
   ]
   return (
     <div className={cardClassName}>
-      <div className='mb-3 flex max-w-[640px] items-start justify-between gap-4'>
-        <h3 className={headingClassName}>LSS</h3>
+      <div className='mb-3 grid max-w-[640px] grid-cols-3 items-start gap-4'>
+        <h3 className={`${headingClassName} col-span-2`}>LSS</h3>
         <CheckboxField
           label='An LSS master may set the node ID'
           hint='Layer setting services, CiA 305'

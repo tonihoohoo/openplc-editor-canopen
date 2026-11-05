@@ -23,11 +23,12 @@ CANopen:
 - CANopen network and nodes as a remote device, with PDO entries mapped to PLC variables: [docs/canopen.md](docs/canopen.md#using-it)
 - Nodes from EDS, DCF, XDD and XDC files with a CiA 306 / CiA 311 check, and export to EDS, DCF, XDD, XDC, DBC and HTML: [docs/canopen.md](docs/canopen.md#device-files)
 - Node startup and supervision options, startup SDOs and their refusal policies: [docs/canopen.md](docs/canopen.md#startup-and-supervision-options)
+- Node IDs given by the master over LSS (CiA 305) at every start: [docs/canopen.md](docs/canopen.md#node-id-over-lss)
 - Live status of the bus and the nodes while connected: [docs/canopen.md](docs/canopen.md#live-status)
 - Online SDO and NMT tools and service mode: [docs/canopen.md](docs/canopen.md#online-tools)
 - The `canopen` function block library (CiA 405 names) for SDO, NMT and node control from the PLC program: [docs/canopen.md](docs/canopen.md#plc-function-blocks)
 - CANopen addresses from the central registry, up to the runtime's limit of 65536 per table: [docs/canopen.md](docs/canopen.md#addresses)
-- CANopen slave server: the runtime as a CANopen device with objects, PDOs and an EDS or XDD export: [docs/canopen.md](docs/canopen.md#canopen-slave)
+- CANopen slave server: the runtime as a CANopen device with objects, PDOs, an EDS or XDD export and an Online tab that shows the running slave and what its master changed: [docs/canopen.md](docs/canopen.md#canopen-slave)
 - LSS (CiA 305) in the CANopen slave: an LSS master gives it its node ID and bit rate: [docs/canopen.md](docs/canopen.md#lss)
 - Upload refused to a runtime without CANopen support: [docs/canopen.md](docs/canopen.md#installing-a-release-and-the-runtime-check)
 

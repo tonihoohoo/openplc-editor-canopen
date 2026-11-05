@@ -98,7 +98,7 @@ export interface CanopenEdsInfo {
   dummyUsage?: number[]
   /** Bit rates (bit/s) the EDS marks as not supported (`BaudRate_x=0`). */
   unsupportedBitrates?: number[]
-  /** The device is a CiA 305 LSS slave (`LSS_Supported`). */
+  /** The device answers LSS (CiA 305): `LSS_Supported=1`, or `layerSettingServiceSlave` in an XDD. */
   lssSupported?: boolean
   objects: CanopenObject[]
   /** The stored file the description was read from (see `CanopenConfig.files`). */
@@ -193,6 +193,21 @@ export interface CanopenHeartbeatConsumer {
   consumerMs: number
 }
 
+/**
+ * How the device gets its node ID. With `enabled`, the master finds it by its LSS address (vendor ID
+ * and product code from the device file, `serialNumber`, `revision`; 0 for any) and gives it the node
+ * ID at every start. The other fields are kept while `enabled` is off.
+ */
+export interface CanopenLss {
+  enabled: boolean
+  /** 0x1018:04 of the device; null until entered. */
+  serialNumber: number | null
+  /** 0x1018:03 to look for; 0 for any revision. */
+  revision: number
+  /** LSS store configuration after giving the ID, so the device keeps it at power-off. */
+  store: boolean
+}
+
 /** The node's emergency messages: the COB-ID the master listens on (and the node's 0x1014). */
 export interface CanopenEmcy {
   enabled: boolean
@@ -217,6 +232,8 @@ export interface CanopenNode {
   checkVendorId: boolean
   checkProductCode: boolean
   checkRevision: boolean
+  /** Node ID given by the master over LSS; absent for a node ID set on the device. */
+  lss?: CanopenLss
   supervision: CanopenSupervision
   /** The master's heartbeat consumer time for this node. */
   heartbeatConsumerMs: number

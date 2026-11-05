@@ -562,6 +562,46 @@ function checkOptions(config: CanopenConfig, out: CanopenCheck[]): void {
   }
 }
 
+/** Nodes given their node ID over LSS: a serial number, LSS support in the device file, one device per address. */
+function checkLss(config: CanopenConfig, out: CanopenCheck[]): void {
+  const addresses = new Map<string, CanopenNode>()
+  for (const node of config.nodes) {
+    const lss = node.lss
+    if (!lss?.enabled) continue
+    const turnOff = {
+      label: 'Set the node ID on the device',
+      apply: setNode(node.id, (n) => ({ ...n, lss: n.lss ? { ...n.lss, enabled: false } : n.lss })),
+    }
+    if (!node.eds.lssSupported)
+      out.push({
+        level: 'error',
+        nodeId: node.id,
+        where: label(node),
+        text: 'gets its node ID over LSS, but its device file does not list LSS support',
+        fix: turnOff,
+      })
+    if (lss.serialNumber === null || lss.serialNumber === 0) {
+      out.push({
+        level: 'error',
+        nodeId: node.id,
+        where: label(node),
+        text: 'gets its node ID over LSS but has no serial number',
+      })
+      continue
+    }
+    const key = [node.eds.vendorId, node.eds.productCode, lss.revision, lss.serialNumber].join(':')
+    const other = addresses.get(key)
+    if (other)
+      out.push({
+        level: 'error',
+        nodeId: node.id,
+        where: label(node),
+        text: `has the same LSS address as ${label(other)} (vendor ID, product code, revision and serial number ${hex(lss.serialNumber, 8)})`,
+      })
+    else addresses.set(key, node)
+  }
+}
+
 function checkReceiveTimeouts(config: CanopenConfig, cycleUs: number | null, out: CanopenCheck[]): void {
   for (const node of config.nodes) {
     for (const pdo of node.tpdos) {
@@ -620,6 +660,7 @@ export function checkCanopenNetwork(config: CanopenConfig, cycleUs: number | nul
   checkHeartbeats(config, out)
   checkSync(config, cycleUs, out)
   checkOptions(config, out)
+  checkLss(config, out)
   checkReceiveTimeouts(config, cycleUs, out)
   checkGaps(config, out)
   if (cycleUs !== null) checkCycle(config, cycleUs, out)

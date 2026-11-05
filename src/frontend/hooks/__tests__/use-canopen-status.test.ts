@@ -4,11 +4,12 @@ import {
   portsWithRuntime,
   sampleStatus,
 } from '@root/middleware/shared/utils/canopen/__tests__/fixtures/status'
+import { SLAVE_NOW, slaveStatus } from '@root/middleware/shared/utils/canopen/__tests__/fixtures/slave-status'
 import { act, renderHook } from '@testing-library/react'
 
 import type { OpenPLCStore } from '../../store'
 import { createStoreWrapper, createTestStore } from '../../store/testing'
-import { CANOPEN_STATUS_POLL_MS, useCanopenStatus } from '../use-canopen-status'
+import { CANOPEN_STATUS_POLL_MS, useCanopenSlaveStatus, useCanopenStatus } from '../use-canopen-status'
 
 let store: OpenPLCStore
 
@@ -142,5 +143,44 @@ describe('useCanopenStatus', () => {
     expect(result.current).toBeNull()
     expect(read).toHaveBeenCalledTimes(1)
     unmount()
+  })
+})
+
+describe('useCanopenSlaveStatus', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+    store = createTestStore()
+  })
+  afterEach(() => jest.useRealTimers())
+
+  const renderSlave = (read: jest.Mock<Promise<CanopenRuntimeFetch>>, enabled = true) =>
+    renderHook(() => useCanopenSlaveStatus('slave', enabled), {
+      wrapper: createStoreWrapper(
+        store,
+        portsWithRuntime({ getCanopenCapabilities: () => ok(CAPABILITIES_WITH_STATUS), getCanopenStatus: read }),
+      ),
+    })
+
+  it('finds the slave by name, also while no master network runs', async () => {
+    connect()
+    const read = jest.fn(() => ok({ version: 1, active: false, now: SLAVE_NOW, slaves: [slaveStatus()] }))
+    const { result } = renderSlave(read)
+    await flush()
+    expect(result.current).toMatchObject({ answered: true, now: SLAVE_NOW, stale: false })
+    expect(result.current?.slave?.node_id).toBe(5)
+    read.mockImplementation(() => ok({ ...sampleStatus(), slaves: [] }))
+    await advance(CANOPEN_STATUS_POLL_MS)
+    expect(result.current?.slave).toBeNull()
+    expect(result.current?.answered).toBe(true)
+  })
+
+  it('reads nothing for a slave that is off', async () => {
+    connect()
+    const read = jest.fn(() => ok({ active: false }))
+    const { result } = renderSlave(read, false)
+    await flush()
+    await advance(CANOPEN_STATUS_POLL_MS * 2)
+    expect(read).not.toHaveBeenCalled()
+    expect(result.current).toMatchObject({ answered: false, slave: null })
   })
 })

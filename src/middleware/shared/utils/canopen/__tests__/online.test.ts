@@ -269,6 +269,6 @@ describe('answers and status', () => {
       'NMT reset node sent from the online tools.',
       'Service mode opened.',
     ])
-    expect(parseCanopenStatus({ version: 1, active: false })).toEqual({ active: false })
+    expect(parseCanopenStatus({ version: 1, active: false })).toEqual({ active: false, slaves: [] })
   })
 })
