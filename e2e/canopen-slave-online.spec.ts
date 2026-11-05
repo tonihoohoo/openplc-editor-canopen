@@ -24,6 +24,9 @@ const STATION = {
   program: 'PROGRAM main\n  VAR\n    setpoint AT %IW0 : INT;\n  END_VAR\nEND_PROGRAM\n',
 }
 
+/** A fixed runtime clock, so the times the tab shows are the same in every run. */
+const NOW = Date.UTC(2026, 10, 5, 7, 31, 10)
+
 type View = 'running' | 'changed' | 'stopped' | 'lost' | 'absent'
 
 function body(view: View, now: number) {
@@ -121,7 +124,7 @@ async function slaveKeyView(page: Page, name: string): Promise<void> {
 test('the slave Online tab shows the running slave and what the master changed', async () => {
   test.setTimeout(300000)
   let view: View = 'running'
-  const runtime = fakeRuntime({ features: ['status'], status: () => body(view, Date.now()) })
+  const runtime = fakeRuntime({ features: ['status'], status: () => body(view, NOW) })
   const { project, userData } = writeEthercatProject(
     join(tmpdir(), 'openplc-e2e-canopen-slave-online'),
     '127.0.0.1',
