@@ -65,6 +65,9 @@ type LssPanelProps = {
 }
 
 /** CiA 305 LSS settings: off by default; each setting says what it does. */
+/** Wider than its column, so the label stays on one line; the column's left edge is kept. */
+const LSS_CHECKBOX_CLASS = 'w-[300px]'
+
 const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
   const lss = slaveLss(config)
   const set = (update: Partial<CanopenSlaveLss>) => onChange({ lss: { ...lss, ...update } })
@@ -78,6 +81,7 @@ const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
         <h3 className={`${headingClassName} col-span-2`}>LSS</h3>
         <CheckboxField
           label='An LSS master may set the node ID'
+          className={LSS_CHECKBOX_CLASS}
           hint='Layer setting services, CiA 305'
           checked={lss.enabled}
           onChange={(enabled) => set({ enabled })}
@@ -131,6 +135,7 @@ const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
             <CheckboxField
               label='The master may change the bit rate'
               besideInputs
+              className={LSS_CHECKBOX_CLASS}
               checked={lss.bitrateChange}
               hint={
                 lss.bitrateChange

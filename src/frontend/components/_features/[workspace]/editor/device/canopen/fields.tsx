@@ -235,6 +235,7 @@ type CheckboxFieldProps = {
   disabledReason?: string | null
   /** In a row of labelled inputs: the box and its label line up with the inputs, not their labels. */
   besideInputs?: boolean
+  className?: string
 }
 
 const CheckboxField = ({
@@ -245,8 +246,12 @@ const CheckboxField = ({
   disabled,
   disabledReason,
   besideInputs,
+  className,
 }: CheckboxFieldProps) => (
-  <label className={cn('flex items-start gap-2', besideInputs && 'pt-[26px]')} title={disabledReason ?? undefined}>
+  <label
+    className={cn('flex items-start gap-2', besideInputs && 'pt-[26px]', className)}
+    title={disabledReason ?? undefined}
+  >
     <input
       type='checkbox'
       aria-label={label}
