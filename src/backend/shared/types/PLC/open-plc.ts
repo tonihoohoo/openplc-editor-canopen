@@ -1042,6 +1042,7 @@ const CanopenEdsInfoSchema = z.object({
   txPdoCount: z.number().int().min(0),
   dummyUsage: z.array(z.number().int().min(1).max(7)).optional(),
   unsupportedBitrates: z.array(z.number().int().min(0)).optional(),
+  lssSupported: z.boolean().optional(),
   objects: z.array(CanopenObjectSchema),
   source: z
     .object({
@@ -1113,6 +1114,14 @@ const CanopenNodeSchema = z
     start: z.enum(['master', 'program']).default('master'),
     enabled: z.boolean().default(true),
     restoreDefaults: z.number().int().min(0).max(127).default(0),
+    lss: z
+      .object({
+        enabled: z.boolean(),
+        serialNumber: z.number().int().min(0).max(0xffffffff).nullable(),
+        revision: z.number().int().min(0).max(0xffffffff),
+        store: z.boolean(),
+      })
+      .optional(),
     supervision: z.enum(['none', 'heartbeat', 'guarding']),
     heartbeatConsumerMs: z.number().int().min(0).max(65535),
     heartbeatProducerMs: z.number().int().min(0).max(65535),

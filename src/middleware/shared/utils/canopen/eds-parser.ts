@@ -225,6 +225,7 @@ export function parseEdsDocument(doc: EdsDocument, fileName: string): CanopenEds
     rxPdoCount: intKey(info, 'NrOfRXPDO', 0),
     txPdoCount: intKey(info, 'NrOfTXPDO', 0),
     unsupportedBitrates: CANOPEN_BITRATES.filter((rate) => intKey(info, `BaudRate_${rate / 1000}`, 1) === 0),
+    ...(intKey(info, 'LSS_Supported', 0) === 1 ? { lssSupported: true } : {}),
     ...dummyUsage(sections.get('DUMMYUSAGE')),
     objects,
   }

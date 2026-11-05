@@ -120,7 +120,7 @@ export function writeEds(eds: CanopenEdsInfo, options: WriteOptions): string {
     'GroupMessaging=0',
     `NrOfRXPDO=${eds.rxPdoCount}`,
     `NrOfTXPDO=${eds.txPdoCount}`,
-    'LSS_Supported=0',
+    `LSS_Supported=${eds.lssSupported ? 1 : 0}`,
     '',
   ]
   const mandatory = objects.filter((o) => [0x1000, 0x1001, 0x1018].includes(o.index))
@@ -276,7 +276,7 @@ export function writeXdd(eds: CanopenEdsInfo, options: WriteOptions): string {
     '</ApplicationLayers>',
     `<TransportLayers><PhysicalLayer><baudRate defaultValue="${supported.includes(250000) ? 250 : (supported[0] ?? 250000) / 1000} Kbps">${rates}</baudRate></PhysicalLayer></TransportLayers>`,
     '<NetworkManagement>',
-    `<CANopenGeneralFeatures granularity="8" nrOfRxPDO="${eds.rxPdoCount}" nrOfTxPDO="${eds.txPdoCount}"/>`,
+    `<CANopenGeneralFeatures granularity="8" nrOfRxPDO="${eds.rxPdoCount}" nrOfTxPDO="${eds.txPdoCount}"${eds.lssSupported ? ' layerSettingServiceSlave="true"' : ''}/>`,
     '</NetworkManagement>',
     '</ProfileBody>',
     '</c:ISO15745Profile>',

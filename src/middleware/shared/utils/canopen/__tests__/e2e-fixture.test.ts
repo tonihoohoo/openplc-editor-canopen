@@ -45,3 +45,28 @@ describe('the end-to-end CANopen project', () => {
     })
   })
 })
+
+describe('the end-to-end LSS project', () => {
+  it('loads, validates and gives node 2 its ID over LSS with store, as the simulated module expects', () => {
+    const file = FIXTURE.replace('canopen-generic-io', 'canopen-lss')
+    const device = PLCRemoteDeviceSchema.parse(JSON.parse(readFileSync(file, 'utf8')))
+    expect(validateCanopenProject([device])).toEqual([])
+    const conf: unknown = JSON.parse(generateCanopenConfig([device]) ?? '')
+    expect(conf).toMatchObject({
+      version: 7,
+      networks: [
+        {
+          interface: 'vcan0',
+          nodes: [
+            {
+              node_id: 2,
+              lss: { vendor_id: 1, product_code: 2, revision: 0, serial_number: 0x1001, store: true },
+              tpdos: [{ entries: [{ location: '%IB1' }, { location: '%IW0' }] }],
+              rpdos: [{ entries: [{ location: '%QB0' }] }],
+            },
+          ],
+        },
+      ],
+    })
+  })
+})

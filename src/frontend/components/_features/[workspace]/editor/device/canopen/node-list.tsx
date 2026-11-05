@@ -1,9 +1,10 @@
 import type { CanopenLiveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { cn } from '@root/frontend/utils/cn'
 import type { CanopenNode } from '@root/middleware/shared/ports/canopen-types'
+import { lssProblemShort } from '@root/middleware/shared/utils/canopen'
 import { useRef } from 'react'
 
-import { nodeDotInfo } from './status-info'
+import { liveNode, nodeDotInfo } from './status-info'
 import { StatusDot } from './status-view'
 import { hintClassName, primaryButtonClassName } from './styles'
 
@@ -54,6 +55,7 @@ const NodeList = ({ nodes, selectedId, live, onSelect, onImport, onImportError, 
       <ul className='flex min-h-0 flex-1 flex-col gap-1 overflow-auto' aria-label='CANopen nodes'>
         {sorted.map((node) => {
           const dot = live ? nodeDotInfo(live, node.nodeId) : null
+          const lssProblem = live && node.lss?.enabled ? lssProblemShort(liveNode(live, node.nodeId)?.lss) : null
           return (
             <li key={node.id}>
               <button
@@ -71,8 +73,20 @@ const NodeList = ({ nodes, selectedId, live, onSelect, onImport, onImportError, 
                   <span className='truncate'>
                     {node.nodeId}: {node.name}
                   </span>
+                  {node.lss?.enabled ? (
+                    <span
+                      title='Node ID given by the master over LSS'
+                      className='bg-brand-light/20 rounded px-1 text-[10px] font-medium text-brand-medium dark:text-brand-light'
+                    >
+                      LSS
+                    </span>
+                  ) : null}
                 </span>
-                <span className={cn(hintClassName, 'truncate')}>{node.eds.productName || node.eds.fileName}</span>
+                {lssProblem ? (
+                  <span className='truncate text-[10px] text-amber-700 dark:text-amber-400'>{lssProblem}</span>
+                ) : (
+                  <span className={cn(hintClassName, 'truncate')}>{node.eds.productName || node.eds.fileName}</span>
+                )}
               </button>
             </li>
           )
