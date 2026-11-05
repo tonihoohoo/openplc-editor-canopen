@@ -52,6 +52,13 @@ describe('the lss requests', () => {
     if (!result.ok) expect(result.message).toContain('64 devices')
   })
 
+  it('keeps the devices found when a device answers out of turn', async () => {
+    const route = fakeRoute([{ job: 4 }, { state: 'failed', reason: 'incomplete', devices: [wire] }])
+    const result = await createCanopenOnline(route.send, noSleep).lssFind(0)
+    expect(result.devices).toHaveLength(1)
+    if (!result.ok) expect(result.message).toContain('search again')
+  })
+
   it('gives a node ID with the LSS address and reports the previous one', async () => {
     const route = fakeRoute([{ job: 5 }, { state: 'done', previous_id: 255, stored: true }])
     const device = { vendorId: 1, productCode: 2, revision: 3, serialNumber: 0x5678 }
