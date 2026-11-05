@@ -33,11 +33,16 @@ import {
   exportNeedsDeviceFile,
   fixAllCanopenProblems,
   lowestFreeNodeId,
+  type LssDevice,
+  type LssMatch,
+  lssNodeForDevice,
+  placeholderAddress,
   plcCycleUs,
   plcVariableUses,
   prepareDeviceFile,
   projectNamesForCanopen,
   pruneStoredFiles,
+  serviceBitrateNote,
   storedFileText,
   updateNode,
   validateCanopenProject,
@@ -49,9 +54,11 @@ import {
 } from '@root/middleware/shared/utils/canopen'
 import { describeAliasRejection, validateAliasEdit } from '@root/middleware/shared/utils/iec-address'
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 
 import { DeviceFileDialog, type DeviceFileRequest, ExportDialog } from './device-file-dialogs'
 import { DbcExportOptionsCard, HtmlExportOptionsCard } from './export-options'
+import { LssPanel } from './lss-panel'
 import { NetworkSettings } from './network-settings'
 import { NetworkSwitch } from './network-switch'
 import { NodeList } from './node-list'
@@ -86,9 +93,9 @@ const downloadFile = (fileName: string, content: BlobPart, mimeType: string) => 
   URL.revokeObjectURL(url)
 }
 
-type EditorTab = 'nodes' | 'network'
+type EditorTab = 'nodes' | 'network' | 'online'
 
-const isEditorTab = (v: string): v is EditorTab => v === 'nodes' || v === 'network'
+const isEditorTab = (v: string): v is EditorTab => v === 'nodes' || v === 'network' || v === 'online'
 
 const TabItem = ({ value, label, active }: { value: EditorTab; label: string; active: boolean }) => (
   <Tabs.Trigger
@@ -199,7 +206,10 @@ const CanopenEditor = () => {
   const online = useCanopenOnline(deviceName, config, live)
   const reads = useCanopenOnlineReads(online)
 
-  const [tab, setTab] = useState<EditorTab>('nodes')
+  const [chosenTab, setTab] = useState<EditorTab>('nodes')
+  // The Online tab is there while the runtime offers the LSS tools.
+  const lssTools = online?.lss === true
+  const tab: EditorTab = chosenTab === 'online' && !lssTools ? 'nodes' : chosenTab
   const editorTabsAnchor = useRef<HTMLDivElement>(null)
   useScrollBackOnSwitch(editorTabsAnchor, tab)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -271,6 +281,34 @@ const CanopenEditor = () => {
   const aliasTaken = useCallback(
     (alias: string) => !validateAliasEdit(registry, alias, { kind: 'canopen', ref: `${deviceName}:new` }).ok,
     [registry, deviceName],
+  )
+
+  const otherNetworks = useMemo(
+    () => (remoteDevices ?? []).flatMap((d) => (d.name !== deviceName && d.canopenConfig ? [d.canopenConfig] : [])),
+    [remoteDevices, deviceName],
+  )
+
+  const addLssNode = useCallback(
+    (device: LssDevice, match: Extract<LssMatch, { kind: 'file' }>, nodeId: number | null, keep: boolean) => {
+      const current =
+        store.getState().project.data.remoteDevices?.find((d) => d.name === deviceName)?.canopenConfig ??
+        defaultCanopenConfig()
+      const id = nodeId ?? lowestFreeNodeId(current)
+      if (id === null) return null
+      const node = lssNodeForDevice(current, match.eds, device, id, keep, {
+        id: uuidv4(),
+        newId: uuidv4,
+        allocate: placeholderAddress,
+      })
+      const source = match.eds.source
+      const file = source ? [current, ...otherNetworks].map((c) => c.files?.[source.sha256]).find(Boolean) : undefined
+      commit((c) => {
+        const withNode = { ...c, nodes: [...c.nodes, node] }
+        return source && file ? withStoredFile(withNode, { source, text: file.text }) : withNode
+      })
+      return id
+    },
+    [store, deviceName, otherNetworks, commit],
   )
 
   const [exportTarget, setExportTarget] = useState<ExportTarget | null>(null)
@@ -411,8 +449,13 @@ const CanopenEditor = () => {
         ) : null}
         {online && !(tab === 'nodes' && nodeOnlineShown && !online.service.open) ? (
           <div className='mt-2'>
-            <ServiceBus online={online} />
+            <ServiceBus online={online} networkBitrate={config.network.bitrate} />
           </div>
+        ) : null}
+        {online && serviceBitrateNote(online.service.bitrate, config.network.bitrate) ? (
+          <p className='mt-1 text-xs text-amber-700 dark:text-amber-400' data-testid='canopen-service-bitrate-note'>
+            {serviceBitrateNote(online.service.bitrate, config.network.bitrate)}
+          </p>
         ) : null}
       </div>
 
@@ -460,6 +503,7 @@ const CanopenEditor = () => {
         <Tabs.List className='mb-4 flex shrink-0 border-b border-neutral-200 dark:border-neutral-800'>
           <TabItem value='nodes' label='Nodes' active={tab === 'nodes'} />
           <TabItem value='network' label='Network' active={tab === 'network'} />
+          {lssTools ? <TabItem value='online' label='Online' active={tab === 'online'} /> : null}
         </Tabs.List>
 
         {removing ? (
@@ -539,6 +583,11 @@ const CanopenEditor = () => {
           </div>
           <NetworkSettings network={config.network} nodes={config.nodes} cycleUs={cycleUs} onChange={changeNetwork} />
         </Tabs.Content>
+        {online && lssTools ? (
+          <Tabs.Content value='online' className='flex-1 data-[state=inactive]:hidden'>
+            <LssPanel online={online} config={config} others={otherNetworks} onAdd={addLssNode} />
+          </Tabs.Content>
+        ) : null}
       </Tabs.Root>
 
       {fileRequest ? (

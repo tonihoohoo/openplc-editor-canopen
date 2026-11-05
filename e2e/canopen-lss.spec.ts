@@ -2,7 +2,7 @@
  * Node ID over LSS: the General tab section of a node whose device file supports LSS, the LSS mark
  * in the node list, the check that stops the build without a serial number, and, against a fake
  * runtime (`helpers/canopen-runtime.ts`), the LSS problem under the node's name and the LSS panel of
- * its Status tab.
+ * its Status tab, and the network's Online tab: an LSS search and the Give node ID dialog.
  *
  * Needs a production build plus the preload copy; see "Electron e2e" in CLAUDE.md. Port 8443 must be free.
  */
@@ -111,6 +111,141 @@ test('the live view shows a device not found over LSS', async () => {
     await expect(panel).toContainText('Node ID 2 given (device had none); stored.')
     await panel.scrollIntoViewIfNeeded()
     await keyView(page, 'lss-status-not-found', [page.getByText(/^since /), panel.locator('.font-mono')])
+  } finally {
+    await quitApp(app, page)
+    runtime.close()
+  }
+})
+
+/** Two devices without a node ID: one with node 2's serial number, one of the same product. */
+const FOUND = [
+  { vendor_id: 1, product_code: 2, revision: 3, serial_number: 0x1001 },
+  { vendor_id: 1, product_code: 2, revision: 3, serial_number: 0x5678 },
+]
+
+test('devices without a node ID are found and one is given a node ID', async () => {
+  test.setTimeout(180000)
+  const requests: Record<string, unknown>[] = []
+  const jobs = new Map<number, unknown[]>()
+  let next = 1
+  const job = (...states: unknown[]) => {
+    jobs.set(next, states)
+    return { job: next++ }
+  }
+  const runtime = fakeRuntime({
+    features: ['status', 'sdo', 'nmt', 'service', 'lss'],
+    configVersions: [7],
+    status: () => {
+      const now = Date.now()
+      return networkStatus(now, [nodeStatus(now, 2, 'io2')])
+    },
+    request: (body) => {
+      requests.push(body)
+      if (body.op === 'job') {
+        const states = jobs.get(Number(body.job)) ?? [{ error: 'unknown_job' }]
+        return states.length > 1 ? states.shift() : states[0]
+      }
+      if (body.op === 'lss' && body.action === 'find')
+        return job({ state: 'pending', devices: FOUND.slice(0, 1) }, { state: 'done', devices: FOUND })
+      if (body.op === 'lss' && body.action === 'set_id')
+        return job({ state: 'done', previous_id: 255, stored: body.store === true })
+      return undefined
+    },
+  })
+  const { app, page } = await openDevice('openplc-e2e-canopen-lss-tools', true)
+  try {
+    await page.getByRole('tab', { name: 'Online' }).first().click()
+    const panel = page.getByTestId('canopen-lss-panel')
+    await panel.getByRole('button', { name: 'Find devices without node ID' }).click()
+    await expect(panel.getByTestId('canopen-lss-result')).toHaveText('2 devices without a node ID found.', {
+      timeout: 15000,
+    })
+    const rows = panel.getByTestId('canopen-lss-device')
+    await expect(rows.nth(0)).toContainText('node 2 io2')
+    await expect(rows.nth(1)).toContainText('not in project')
+    await keyView(page, 'lss-online-find')
+
+    await rows.nth(1).getByRole('button', { name: 'Give node ID...' }).click()
+    const dialog = page.getByTestId('canopen-lss-give-dialog')
+    await dialog.getByTestId('canopen-lss-node-id').selectOption('4')
+    await expect(dialog.getByTestId('canopen-lss-add-to-project')).toBeChecked()
+    await shot(page, 'lss-give-node-id')
+    await dialog.getByRole('button', { name: 'Give node ID 4' }).click()
+    await expect(rows.nth(1).getByTestId('canopen-lss-given')).toHaveText(
+      'Node ID 4 given; added to the project as node 4',
+    )
+    expect(requests).toContainEqual({ op: 'lss', network: 0, action: 'set_id', node_id: 4, store: false, ...FOUND[1] })
+    await page.getByRole('tab', { name: 'Nodes' }).click()
+    await expect(page.getByRole('list', { name: 'CANopen nodes' }).getByText(/^4: /)).toBeVisible()
+  } finally {
+    await quitApp(app, page)
+    runtime.close()
+  }
+})
+
+test('service mode opens the bus at another bit rate and sets a device bit rate', async () => {
+  test.setTimeout(180000)
+  const requests: Record<string, unknown>[] = []
+  let open = false
+  const jobs = new Map<number, unknown[]>()
+  let next = 1
+  const job = (...states: unknown[]) => {
+    jobs.set(next, states)
+    return { job: next++ }
+  }
+  const runtime = fakeRuntime({
+    features: ['status', 'sdo', 'nmt', 'service', 'lss'],
+    configVersions: [7],
+    plcState: () => 'STOPPED',
+    status: () => {
+      const now = Date.now()
+      return open
+        ? networkStatus(now, [nodeStatus(now, 2, 'io2', { state: 'manual', nmt: 'pre_operational' })], {
+            mode: 'service',
+          })
+        : { version: 1, active: false }
+    },
+    request: (body) => {
+      requests.push(body)
+      if (body.op === 'service_open') {
+        open = true
+        return { ok: true, network: 0 }
+      }
+      if (body.op === 'job') {
+        const states = jobs.get(Number(body.job)) ?? [{ error: 'unknown_job' }]
+        return states.length > 1 ? states.shift() : states[0]
+      }
+      if (body.op === 'lss' && body.action === 'find') return job({ state: 'done', devices: FOUND.slice(1) })
+      if (body.op === 'lss' && body.action === 'set_id') return job({ state: 'done', previous_id: 255, stored: false })
+      if (body.op === 'lss') return job({ state: 'done', stored: true })
+      return undefined
+    },
+  })
+  const { app, page } = await openDevice('openplc-e2e-canopen-lss-service', true)
+  try {
+    const bitrate = page.getByTestId('canopen-service-bitrate')
+    await expect(bitrate).toBeVisible({ timeout: 15000 })
+    await bitrate.selectOption('125000')
+    await page.getByRole('button', { name: 'Open bus' }).first().click()
+    await expect.poll(() => requests.find((r) => r.op === 'service_open'), { timeout: 15000 }).toBeTruthy()
+    await expect(page.getByTestId('canopen-service-bitrate-note')).toContainText('The bus is open at 125 kbit/s', {
+      timeout: 15000,
+    })
+    expect(requests.find((r) => r.op === 'service_open')).toMatchObject({ bitrate: 125000 })
+    await shot(page, 'lss-service-open')
+    await page.getByRole('tab', { name: 'Online' }).first().click()
+    const panel = page.getByTestId('canopen-lss-panel')
+    await panel.getByRole('button', { name: 'Find devices without node ID' }).click()
+    await expect(panel.getByTestId('canopen-lss-device')).toHaveCount(1, { timeout: 15000 })
+    await panel.getByRole('button', { name: 'Give node ID...' }).click()
+    const dialog = page.getByTestId('canopen-lss-give-dialog')
+    await dialog.getByTestId('canopen-lss-bitrate').selectOption('250000')
+    await expect(dialog.getByTestId('canopen-lss-give-confirm')).toBeDisabled()
+    await dialog.getByTestId('canopen-lss-bitrate-confirm').check()
+    await shot(page, 'lss-service-bitrate')
+    await dialog.getByTestId('canopen-lss-give-confirm').click()
+    await expect(panel.getByTestId('canopen-lss-given')).toContainText('250 kbit/s stored', { timeout: 15000 })
+    expect(requests.filter((r) => r.op === 'lss').map((r) => r.action)).toEqual(['find', 'set_id', 'set_bitrate'])
   } finally {
     await quitApp(app, page)
     runtime.close()

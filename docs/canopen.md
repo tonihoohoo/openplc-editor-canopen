@@ -450,7 +450,32 @@ and no Open bus, and turning it off closes the service mode the editor opened.
   service mode with the network's settings and nodes; the online tools then work as with a running PLC while the master sends nothing of its own.
   The NMT state follows the commands sent and the nodes' heartbeats and boot-ups.
   **Close bus** closes it, and so does closing the device editor; the runtime closes it before the
-  PLC starts and after 5 minutes without a request.
+  PLC starts and after 5 minutes without a request. With the runtime's `"lss"` feature a bit rate
+  choice sits next to Open bus (the network's rate by default), so a device that runs at another
+  rate can be reached; while the bus is open at another rate than the network's, the header says so.
+
+### Devices without node ID (LSS)
+
+With the runtime's `"lss"` feature the network has an **Online** tab (next to Nodes and Network)
+with the panel **Devices without node ID (LSS)**. **Find devices without node ID** runs an LSS
+fastscan on the runtime, about 7 s per device, while the PLC runs or in service mode; devices show
+as they answer, and a device that already has a node ID is left out. Each row has the device's LSS
+address (vendor ID, product code, revision, serial number) and what it matches:
+
+- a project node given its ID over LSS with the same serial number, vendor ID and product code
+  ("serial matches"): **Give node ID 3** gives it that node's ID;
+- else a device file of the project (any CANopen network) with the same vendor ID and product code
+  ("not in project"): **Give node ID...**, and **Add to project** when the file lists LSS support,
+  which adds the node with the lowest free node ID, set to get it over LSS at every start;
+- else nothing: **Give node ID...** only.
+
+The **Give node ID** dialog lists the free node IDs first, then the ones the project uses. *Store it
+in the device* (off by default) stores the ID in the device, needed when the project does not give
+it over LSS at every start. *Add it to the project* (on when a device file matched) adds the node
+with that ID, set to get it over LSS when its file lists LSS support. In service mode the dialog also
+sets the device's bit rate: the change must be confirmed, it is always stored, and the device takes it
+after its next reset or power-off. The runtime refuses a node ID that a running node uses, and a bit
+rate change while the PLC runs.
 
 ## PLC function blocks
 

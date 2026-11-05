@@ -4,7 +4,7 @@
  * value, typing from the EDS, save and restore scopes).
  */
 
-import type { CanopenNmtCommand, CanopenRequest } from '../../ports/canopen-online'
+import type { CanopenAnswer, CanopenNmtCommand, CanopenRequest } from '../../ports/canopen-online'
 import { parseCanopenAnswer } from '../../ports/canopen-online'
 import type { CanopenRuntimeFetch } from '../../ports/canopen-status'
 import type { CanopenEdsInfo, CanopenNetworkSettings, CanopenNode, CanopenObject } from '../../ports/canopen-types'
@@ -48,7 +48,9 @@ export function onlineReasonText(reason: string): string {
   return REASONS[reason] ?? reason
 }
 
-function failed(reason: string, detail?: string): CanopenOnlineResult {
+type ReasonFailure = { ok: false; abortCode?: undefined; reason: string; message: string }
+
+function failed(reason: string, detail?: string): ReasonFailure {
   return { ok: false, reason, message: detail ?? onlineReasonText(reason) }
 }
 
@@ -60,6 +62,57 @@ function fromHex(text: string): number[] {
 
 /** Waits between job polls: short at first, since most SDOs end within a few bus cycles. */
 export const JOB_POLL_STEPS_MS: readonly number[] = [10, 20, 50]
+
+/** A device's LSS address: the four values of its 0x1018. */
+export interface LssDevice {
+  vendorId: number
+  productCode: number
+  revision: number
+  serialNumber: number
+}
+
+type LssFailure = { ok: false; reason: string; message: string }
+export type LssFindResult = { ok: true; devices: LssDevice[] } | (LssFailure & { devices: LssDevice[] })
+export type LssSetIdResult = { ok: true; previousId: number; stored: boolean } | LssFailure
+export type LssSetBitrateResult = { ok: true } | LssFailure
+
+const LSS_REASONS: Readonly<Record<string, string>> = {
+  busy: 'another LSS request, or the start-up node ID assignment, is running; try again',
+  not_found: 'no device with this LSS address answered',
+  no_answer: 'the device stopped answering',
+  refused: 'the device refused the value',
+  store_refused: 'the device took the value but refused to store it',
+  too_many: 'the search stopped after 64 devices',
+  needs_service_mode: 'only while the bus is open in service mode',
+  node_in_use: 'a running node of the network has this node ID',
+  not_running: 'no CANopen network runs on the runtime',
+}
+
+/** An LSS refusal or failure in words. */
+export function lssReasonText(reason: string): string {
+  return LSS_REASONS[reason] ?? onlineReasonText(reason)
+}
+
+/** The LSS bit rates (bit/s) a device can be set to (CiA 305 bit timing table 0). */
+export const LSS_BITRATES: readonly number[] = [1000000, 800000, 500000, 250000, 125000, 50000, 20000, 10000]
+
+/** How long an LSS search may run: about 7 s per device, at most 64 devices. */
+export const LSS_FIND_TIMEOUT_MS = 10 * 60 * 1000
+
+type LssDeviceFields = { vendor_id: number; product_code: number; revision: number; serial_number: number }
+
+function toLssDevices(devices: LssDeviceFields[] | undefined): LssDevice[] {
+  return (devices ?? []).map((d) => ({
+    vendorId: d.vendor_id,
+    productCode: d.product_code,
+    revision: d.revision,
+    serialNumber: d.serial_number,
+  }))
+}
+
+function lssAddress(d: LssDevice): LssDeviceFields {
+  return { vendor_id: d.vendorId, product_code: d.productCode, revision: d.revision, serial_number: d.serialNumber }
+}
 
 export interface CanopenOnlineOptions {
   /** The longest wait between job polls, used after `JOB_POLL_STEPS_MS`. */
@@ -77,7 +130,15 @@ export interface CanopenOnline {
   closeService(): Promise<CanopenOnlineResult>
   /** Removes the node ID and bit rate an LSS master stored for the slave; the slave restarts. */
   forgetSlaveLss(slave: string): Promise<CanopenOnlineResult>
+  /** Finds the devices without a node ID; @p onProgress gets the devices that answered so far. */
+  lssFind(network: number, onProgress?: (devices: LssDevice[]) => void): Promise<LssFindResult>
+  lssSetId(network: number, device: LssDevice, nodeId: number, store: boolean): Promise<LssSetIdResult>
+  /** Sets and stores the device's bit rate; only in service mode. */
+  lssSetBitrate(network: number, device: LssDevice, bitrate: number): Promise<LssSetBitrateResult>
 }
+
+type JobEnd = Extract<CanopenAnswer, { state: 'done' } | { state: 'failed' }>
+type Pending = Extract<CanopenAnswer, { state: 'pending' }>
 
 /** The online tools over one runtime's request route. SDO requests are jobs, polled until they end. */
 export function createCanopenOnline(send: CanopenRequestFn, options: CanopenOnlineOptions = {}): CanopenOnline {
@@ -95,30 +156,54 @@ export function createCanopenOnline(send: CanopenRequestFn, options: CanopenOnli
     return { answer }
   }
 
-  const runJob = async (request: CanopenRequest): Promise<CanopenOnlineResult> => {
+  const pollJob = async (
+    request: CanopenRequest,
+    limitMs: number,
+    onPending?: (answer: Pending) => void,
+  ): Promise<{ end: JobEnd; error?: undefined } | { error: ReasonFailure }> => {
     const first = await ask(request)
-    if (first.error) return first.error
-    if (!('job' in first.answer)) return failed('error', 'the runtime did not start the request')
+    if (first.error) return { error: first.error }
+    if (!('job' in first.answer)) return { error: failed('error', 'the runtime did not start the request') }
     const job = first.answer.job
     let waited = 0
     for (let poll = 0; ; poll++) {
       const next = await ask({ op: 'job', job })
-      if (next.error) return next.error
+      if (next.error) return { error: next.error }
       const a = next.answer
-      if ('state' in a && a.state === 'done') return { ok: true, bytes: fromHex(a.data ?? '') }
-      if ('state' in a && a.state === 'failed') {
-        if ('abort_code' in a)
-          return {
-            ok: false,
-            abortCode: a.abort_code,
-            message: `${sdoAbortText(a.abort_code)} (${hex(a.abort_code, 8)})`,
-          }
-        return failed(a.reason)
-      }
-      if (waited >= timeoutMs) return failed('timeout')
+      if ('state' in a && (a.state === 'done' || a.state === 'failed')) return { end: a }
+      if ('state' in a && a.state === 'pending' && onPending) onPending(a)
+      if (waited >= limitMs) return { error: failed('timeout') }
       const wait = Math.min(JOB_POLL_STEPS_MS[poll] ?? pollMs, pollMs)
       await sleep(wait)
       waited += wait
+    }
+  }
+
+  const runJob = async (request: CanopenRequest): Promise<CanopenOnlineResult> => {
+    const r = await pollJob(request, timeoutMs)
+    if (r.error) return r.error
+    const a = r.end
+    if (a.state === 'done') return { ok: true, bytes: fromHex(a.data ?? '') }
+    if ('abort_code' in a)
+      return {
+        ok: false,
+        abortCode: a.abort_code,
+        message: `${sdoAbortText(a.abort_code)} (${hex(a.abort_code, 8)})`,
+      }
+    return failed(a.reason)
+  }
+
+  const lssJob = async (request: CanopenRequest, limitMs: number, onPending?: (answer: Pending) => void) => {
+    const r = await pollJob(request, limitMs, onPending)
+    if (r.error) {
+      return { failure: { ok: false as const, reason: r.error.reason, message: r.error.message }, end: null }
+    }
+    const a = r.end
+    if (a.state === 'done') return { failure: null, end: a }
+    const reason = 'reason' in a ? a.reason : 'error'
+    return {
+      failure: { ok: false as const, reason, message: lssReasonText(reason) },
+      end: 'reason' in a ? a : null,
     }
   }
 
@@ -145,6 +230,25 @@ export function createCanopenOnline(send: CanopenRequestFn, options: CanopenOnli
       }),
     closeService: () => simple({ op: 'service_close' }),
     forgetSlaveLss: (slave) => simple({ op: 'slave_lss_forget', slave }),
+    lssFind: async (network, onProgress) => {
+      const r = await lssJob({ op: 'lss', network, action: 'find' }, LSS_FIND_TIMEOUT_MS, (a) => {
+        if (onProgress && a.devices) onProgress(toLssDevices(a.devices))
+      })
+      const devices = toLssDevices(r.end?.devices)
+      return r.failure ? { ...r.failure, devices } : { ok: true, devices }
+    },
+    lssSetId: async (network, device, nodeId, store) => {
+      const r = await lssJob(
+        { op: 'lss', network, action: 'set_id', node_id: nodeId, store, ...lssAddress(device) },
+        timeoutMs,
+      )
+      if (r.failure) return r.failure
+      return { ok: true, previousId: r.end.previous_id ?? 255, stored: r.end.stored ?? false }
+    },
+    lssSetBitrate: async (network, device, bitrate) => {
+      const r = await lssJob({ op: 'lss', network, action: 'set_bitrate', bitrate, ...lssAddress(device) }, timeoutMs)
+      return r.failure ?? { ok: true }
+    },
   }
 }
 

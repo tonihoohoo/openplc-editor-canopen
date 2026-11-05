@@ -17,6 +17,7 @@ import {
   isReadable,
   isWritable,
   LOAD_SIGNATURE,
+  LSS_BITRATES,
   matchesObjectQuery,
   NEVER_WRITTEN_INDICES,
   nmtCommandLabel,
@@ -217,9 +218,25 @@ export const NmtButtons = ({
 }
 
 /** Open or close the bus in service mode while the PLC is stopped. */
-export const ServiceBus = ({ online, bare = false }: { online: CanopenOnlineContext; bare?: boolean }) => {
+const kbit = (bitrate: number) => `${bitrate / 1000} kbit/s`
+
+/**
+ * Open bus / Close bus. With the LSS tools the bus can be opened at another bit rate than the
+ * network's, to reach a device that runs at another one.
+ */
+export const ServiceBus = ({
+  online,
+  bare = false,
+  networkBitrate = 0,
+}: {
+  online: CanopenOnlineContext
+  bare?: boolean
+  networkBitrate?: number
+}) => {
   const { service } = online
+  const [bitrate, setBitrate] = useState(networkBitrate)
   if (!service.available) return null
+  const others = LSS_BITRATES.filter((b) => b !== networkBitrate)
   return (
     <div className='flex flex-wrap items-center gap-3' data-testid='canopen-service-bus'>
       {service.open ? (
@@ -233,7 +250,31 @@ export const ServiceBus = ({ online, bare = false }: { online: CanopenOnlineCont
           {bare ? null : (
             <span className={hintClassName}>The PLC is stopped. Open the bus to read and set the nodes.</span>
           )}
-          <button type='button' className={smallButtonClassName} disabled={service.busy} onClick={service.openBus}>
+          {online.lss && !bare ? (
+            <select
+              aria-label='Bit rate to open the bus at'
+              data-testid='canopen-service-bitrate'
+              className={cn(inputClassName, 'w-[190px]')}
+              value={bitrate}
+              disabled={service.busy}
+              onChange={(e) => setBitrate(Number(e.target.value))}
+            >
+              <option value={networkBitrate}>
+                {networkBitrate > 0 ? `${kbit(networkBitrate)} (the network's)` : "The interface's bit rate"}
+              </option>
+              {others.map((b) => (
+                <option key={b} value={b}>
+                  {kbit(b)}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <button
+            type='button'
+            className={smallButtonClassName}
+            disabled={service.busy}
+            onClick={() => service.openBus(online.lss && !bare ? bitrate : undefined)}
+          >
             Open bus
           </button>
         </>
