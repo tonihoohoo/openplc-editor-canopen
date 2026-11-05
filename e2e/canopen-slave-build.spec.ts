@@ -4,7 +4,7 @@
  *
  * Needs a production build plus the preload copy; see "Electron e2e" in CLAUDE.md.
  */
-import { readFileSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -182,6 +182,8 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
 test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS flag and the build', async () => {
   test.setTimeout(300000)
   const { project, userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-slave-lss'), '', STATION)
+  // No master network: an empty one would stop the build.
+  rmSync(join(project, 'devices', 'remote', 'canopen_1.json'))
   const { app, page } = await launch(userData)
   await windowSize(app, 1600, 1000)
   await captureSaves(app)
@@ -202,7 +204,7 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await page.getByRole('button', { name: 'Create', exact: true }).click()
     await page.getByText('slave', { exact: true }).first().click({ timeout: 30000 })
     const summary = page.getByTestId('canopen-slave-summary')
-    await expect(summary).toHaveText('can1, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
+    await expect(summary).toHaveText('can0, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
     await commitField(page, 'Vendor ID', '0xABCD')
 
     await page.getByLabel('An LSS master may set the node ID', { exact: true }).check()
@@ -210,7 +212,7 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await page.getByLabel('At first start', { exact: true }).selectOption('wait')
     await expect(page.getByLabel('Node ID', { exact: true })).toHaveValue('Set by the LSS master')
     await expect(page.getByLabel('Node ID', { exact: true })).toBeDisabled()
-    await expect(summary).toHaveText('can1, 500 kbit/s, node ID from the LSS master, 0 objects')
+    await expect(summary).toHaveText('can0, 500 kbit/s, node ID from the LSS master, 0 objects')
     await page.getByLabel('Serial number', { exact: true }).selectOption('fixed')
     await commitField(page, 'Fixed serial number', '0')
     await expect(page.getByText('The serial number is part of the LSS address and cannot be 0.')).toBeVisible()
