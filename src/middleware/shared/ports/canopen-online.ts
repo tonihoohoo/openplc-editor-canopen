@@ -23,6 +23,7 @@ export type CanopenRequest =
       nodes: number[]
     }
   | { op: 'service_close' }
+  | { op: 'slave_lss_forget'; slave: string }
 
 const count = z.number().int().nonnegative()
 

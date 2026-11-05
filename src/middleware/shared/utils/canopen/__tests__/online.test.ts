@@ -60,6 +60,21 @@ describe('createCanopenOnline', () => {
     }
   })
 
+  it('asks the runtime to forget the LSS values a master stored for a slave', async () => {
+    const route = fakeRoute([{ ok: true }, { error: 'lss_off' }, { error: 'unknown_slave' }])
+    const online = createCanopenOnline(route.send, noSleep)
+    await expect(online.forgetSlaveLss('slave')).resolves.toEqual({ ok: true, bytes: [] })
+    expect(route.sent).toEqual([{ op: 'slave_lss_forget', slave: 'slave' }])
+    expect(await online.forgetSlaveLss('slave')).toMatchObject({
+      ok: false,
+      message: 'LSS is off in the slave the runtime runs',
+    })
+    expect(await online.forgetSlaveLss('x')).toMatchObject({
+      ok: false,
+      message: 'the runtime runs no slave by this name',
+    })
+  })
+
   it('turns refusals, failed jobs and transport errors into messages', async () => {
     const online = createCanopenOnline(
       fakeRoute([

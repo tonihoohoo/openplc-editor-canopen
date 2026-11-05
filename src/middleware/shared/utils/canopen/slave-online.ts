@@ -211,12 +211,23 @@ function pdoChanges(expected: ExpectedSlavePdo, running: CanopenSlavePdoStatus, 
 }
 
 /**
+ * The project's slave with the node ID the running slave uses, which an LSS master may have set;
+ * the PDO COB-IDs that follow the node ID are then compared against it.
+ */
+export function slaveConfigInUse(config: CanopenSlaveConfig, slave: CanopenSlaveStatus): CanopenSlaveConfig {
+  return slave.lss && slave.node_id !== null && slave.node_id !== config.nodeId
+    ? { ...config, nodeId: slave.node_id }
+    : config
+}
+
+/**
  * The settings where the running slave differs from the project's slave after a PLC start: the
  * heartbeat time, the master watch, the behaviour on master loss, each PDO, and the values of the
  * SDO parameters from the master (PDO objects change with every frame and are not compared).
  */
-export function slaveChanges(config: CanopenSlaveConfig, slave: CanopenSlaveStatus): SlaveChange[] {
+export function slaveChanges(project: CanopenSlaveConfig, slave: CanopenSlaveStatus): SlaveChange[] {
   const changes: SlaveChange[] = []
+  const config = slaveConfigInUse(project, slave)
   if (slave.heartbeat_ms !== undefined && slave.heartbeat_ms !== config.heartbeatMs)
     changes.push({
       key: 'heartbeat',
@@ -238,7 +249,7 @@ export function slaveChanges(config: CanopenSlaveConfig, slave: CanopenSlaveStat
       project: onMasterLostText(config.onMasterLost),
       running: onMasterLostText(slave.on_master_lost),
     })
-  if (slave.pdos)
+  if (slave.pdos && slave.node_id !== null)
     for (const expected of expectedSlavePdos(config)) {
       const running = slave.pdos.find((p) => p.dir === expected.dir && p.pdo === expected.pdo)
       if (running) changes.push(...pdoChanges(expected, running, config))
@@ -277,7 +288,7 @@ export function slaveVersionDiff(config: CanopenSlaveConfig, slave: CanopenSlave
   const project = config.objects.filter((o) => !isSlaveString(o)).map((o) => objectRef(o.index, o.subIndex))
   const running = (slave.values ?? []).map((v) => objectRef(v.index, v.subindex))
   const diff: SlaveVersionDiff = {
-    nodeId: slave.node_id !== config.nodeId,
+    nodeId: (slave.lss ? slave.lss.project_node_id : slave.node_id) !== config.nodeId,
     interface: slave.interface !== config.interface.trim(),
     missing: project.filter((r) => !running.includes(r)).length,
     extra: running.filter((r) => !project.includes(r)).length,
@@ -513,7 +524,9 @@ export function slaveEventText(
   const masterNode = slave.master_node_id !== undefined ? ` node ${slave.master_node_id}` : ''
   switch (event.kind) {
     case 'on_bus':
-      return `On the bus as node ${slave.node_id}.`
+      return slave.node_id === null
+        ? 'On the bus with no node ID, waiting for an LSS master.'
+        : `On the bus as node ${slave.node_id}.`
     case 'nmt':
       return nmtEventText(event)
     case 'reset':
@@ -556,4 +569,79 @@ export function slaveEventTone(event: CanopenSlaveEvent): NoticeTone {
   if (event.kind === 'nmt' && event.by === 'self') return 'warning'
   if (event.kind === 'bus_state' && event.bus_state !== 'error_active') return 'warning'
   return 'info'
+}
+
+// ---- LSS ----
+
+/** One fact of the slave's LSS card. */
+export interface SlaveLssFact {
+  key: 'node_id' | 'bitrate' | 'serial' | 'state'
+  label: string
+  value: string
+  detail: string
+}
+
+function bitrateText(bitrate: number | undefined): string {
+  if (!bitrate) return 'Set on the interface'
+  return bitrate >= 1000000 ? `${bitrate / 1000000} Mbit/s` : `${bitrate / 1000} kbit/s`
+}
+
+/** The node ID, bit rate, serial number and LSS state of a running LSS slave, or null without LSS. */
+export function slaveLssFacts(slave: CanopenSlaveStatus): SlaveLssFact[] | null {
+  const lss = slave.lss
+  if (!lss) return null
+  const projectNode = `project ${lss.project_node_id}`
+  const nodeDetail: Record<typeof lss.node_id_from, string> = {
+    none: 'Waiting for an LSS master to give one',
+    project: 'From the project',
+    stored: `Stored by an LSS master (${projectNode})`,
+    lss: `Given by an LSS master, not stored (${projectNode})`,
+  }
+  const serial = slave.serial
+  return [
+    {
+      key: 'node_id',
+      label: 'Node ID in use',
+      value: slave.node_id === null ? 'None' : String(slave.node_id),
+      detail: nodeDetail[lss.node_id_from],
+    },
+    {
+      key: 'bitrate',
+      label: 'Bit rate in use',
+      value: bitrateText(lss.bitrate),
+      detail:
+        lss.bitrate_from === 'stored'
+          ? `Stored by an LSS master (project ${bitrateText(lss.project_bitrate).toLowerCase()})`
+          : 'From the project',
+    },
+    {
+      key: 'serial',
+      label: 'Serial number',
+      value: serial === undefined ? '-' : `${hex(serial, 8)} (${serial})`,
+      detail: lss.serial_auto ? 'Picked by the runtime and kept' : 'From the project',
+    },
+    {
+      key: 'state',
+      label: 'LSS state',
+      value: lss.state === 'configuration' ? 'Configuration' : 'Waiting',
+      detail:
+        lss.state === 'configuration' ? 'An LSS master selected the slave to configure it' : 'Answers an LSS master',
+    },
+  ]
+}
+
+/** What the runtime keeps for the slave from an LSS store, or null when nothing is stored. */
+export function slaveLssStoredText(slave: CanopenSlaveStatus): string | null {
+  const lss = slave.lss
+  if (!lss || (lss.stored_node_id === undefined && lss.stored_bitrate === undefined)) return null
+  const parts: string[] = []
+  if (lss.stored_node_id !== undefined) parts.push(`node ID ${lss.stored_node_id}`)
+  if (lss.stored_bitrate !== undefined) parts.push(bitrateText(lss.stored_bitrate))
+  return `Stored on the runtime: ${parts.join(', ')}. Stored values win over the project at every start and upload.`
+}
+
+/** The question before Forget, naming what the slave starts with afterwards. */
+export function slaveLssForgetText(config: CanopenSlaveConfig, waitForMaster: boolean): string {
+  const node = waitForMaster ? 'no node ID, waiting for an LSS master' : `node ID ${config.nodeId}`
+  return `Forget the node ID and bit rate an LSS master stored? The slave restarts with the project's values (${node}, ${bitrateText(config.bitrate).toLowerCase()}).`
 }

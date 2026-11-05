@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 
 import type { OpenPLCStore } from '@root/frontend/store'
 import { createStoreWrapper, createTestStore } from '@root/frontend/store/testing'
+import type { CanopenRequest } from '@root/middleware/shared/ports/canopen-online'
 import type { CanopenRuntimeFetch } from '@root/middleware/shared/ports/canopen-status'
 import type { CanopenSlaveConfig } from '@root/middleware/shared/ports/canopen-types'
 import {
@@ -45,12 +46,19 @@ async function flush() {
   })
 }
 
-async function show(body: unknown, config = slaveConfig(), connected = true) {
+async function show(
+  body: unknown,
+  config = slaveConfig(),
+  connected = true,
+  request?: (r: CanopenRequest) => Promise<CanopenRuntimeFetch>,
+) {
   seed(config)
   if (connected) connect()
+  const features = request ? ['status', 'slave_lss'] : ['status']
   const ports = portsWithRuntime({
-    getCanopenCapabilities: () => ok(CAPABILITIES_WITH_STATUS),
+    getCanopenCapabilities: () => ok({ canopen: { ...CAPABILITIES_WITH_STATUS.canopen, features } }),
     getCanopenStatus: () => ok(body),
+    ...(request ? { canopenRequest: request } : {}),
   })
   render(<CanopenSlaveEditor />, { wrapper: createStoreWrapper(store, ports) })
   await flush()
@@ -148,5 +156,75 @@ describe('the slave Online tab', () => {
     store = createTestStore()
     await show(inactive([slaveStatus()]), { ...slaveConfig(), enabled: false })
     expect(screen.getByTestId('canopen-slave-online-notice').getAttribute('data-notice')).toBe('off')
+  })
+
+  describe('with LSS', () => {
+    const lss = {
+      state: 'waiting',
+      serial_auto: true,
+      node_id_from: 'stored',
+      project_node_id: 5,
+      bitrate_from: 'project',
+      bitrate: 500000,
+      project_bitrate: 500000,
+      stored_node_id: 12,
+    }
+    // Node 12 from an LSS store: the PDO COB-IDs that follow the node ID moved with it.
+    const lssStatus = (fields: Record<string, unknown> = {}) => {
+      const pdos = slaveStatus().pdos.map((p) => ({ ...p, cob_id: p.cob_id - 5 + 12 }))
+      return slaveStatus(SLAVE_NOW, { node_id: 12, serial: 0x1234abcd, pdos, lss, ...fields })
+    }
+    const lssConfig = (): CanopenSlaveConfig => ({
+      ...slaveConfig(),
+      nodeId: 5,
+      bitrate: 500000,
+      lss: { enabled: true, waitForMaster: false, serial: null, bitrateChange: true },
+    })
+
+    it('shows the node ID in use and its source, and forgets the stored values after a confirm', async () => {
+      const sent: CanopenRequest[] = []
+      await show(inactive([lssStatus()]), lssConfig(), true, (r) => {
+        sent.push(r)
+        return ok({ ok: true })
+      })
+      const card = screen.getByTestId('canopen-slave-online-lss')
+      expect(screen.getByTestId('canopen-slave-lss-node_id').textContent).toBe('12')
+      expect(card.textContent).toContain('Stored by an LSS master (project 5)')
+      expect(card.textContent).toContain('0x1234ABCD')
+      expect(card.textContent).toContain('Picked by the runtime and kept')
+      expect(screen.getByTestId('canopen-slave-lss-stored').textContent).toContain('Stored on the runtime: node ID 12.')
+      expect(screen.queryByTestId('canopen-slave-online-notice')).toBeNull()
+      fireEvent.click(within(card).getByRole('button', { name: 'Forget stored LSS values...' }))
+      expect(sent).toEqual([])
+      const ask = within(card).getByRole('alertdialog')
+      expect(ask.textContent).toContain("restarts with the project's values (node ID 5, 500 kbit/s)")
+      fireEvent.click(within(ask).getByRole('button', { name: 'Forget' }))
+      await flush()
+      expect(sent).toEqual([{ op: 'slave_lss_forget', slave: NAME }])
+      expect(within(card).queryByRole('alert')).toBeNull()
+    })
+
+    it('shows a refusal, and offers no Forget with nothing stored or an older runtime', async () => {
+      await show(inactive([lssStatus()]), lssConfig(), true, () => ok({ error: 'lss_off' }))
+      let card = screen.getByTestId('canopen-slave-online-lss')
+      fireEvent.click(within(card).getByRole('button', { name: 'Forget stored LSS values...' }))
+      fireEvent.click(within(card).getByRole('button', { name: 'Forget' }))
+      await flush()
+      expect(within(card).getByRole('alert').textContent).toBe(
+        'Cannot forget the stored values: LSS is off in the slave the runtime runs.',
+      )
+      cleanup()
+      store = createTestStore()
+      const empty = { ...lss, node_id_from: 'none', stored_node_id: undefined }
+      await show(inactive([lssStatus({ node_id: null, lss: empty })]), lssConfig(), true, () => ok({ ok: true }))
+      card = screen.getByTestId('canopen-slave-online-lss')
+      expect(screen.getByTestId('canopen-slave-lss-node_id').textContent).toBe('None')
+      expect(within(card).getByRole('button', { name: 'Forget stored LSS values...' })).toHaveProperty('disabled', true)
+      cleanup()
+      store = createTestStore()
+      await show(inactive([lssStatus()]), lssConfig())
+      card = screen.getByTestId('canopen-slave-online-lss')
+      expect(within(card).queryByRole('button')).toBeNull()
+    })
   })
 })

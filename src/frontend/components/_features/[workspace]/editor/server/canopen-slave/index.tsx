@@ -5,17 +5,19 @@ import { type CanopenSlaveLiveStatus, useCanopenSlaveStatus } from '@root/fronte
 import { useOpenPLCStore, useOpenPLCStoreApi } from '@root/frontend/store'
 import { cn } from '@root/frontend/utils/cn'
 import type { CanopenSlaveConfig, CanopenSlaveObject } from '@root/middleware/shared/ports/canopen-types'
-import { useProject } from '@root/middleware/shared/providers'
+import { useProject, useRuntime } from '@root/middleware/shared/providers'
 import {
   buildSlaveExport,
   busStateBad,
   busStateLabel,
   checkCanopenSlave,
+  createCanopenOnline,
   defaultCanopenSlaveConfig,
   exportFileType,
   type ExportFormat,
   slaveLayoutText,
   slaveLss,
+  slaveLssForgetText,
   slavesOn,
   suggestedSlaveRevision,
 } from '@root/middleware/shared/utils/canopen'
@@ -36,7 +38,7 @@ import {
 } from '../../device/canopen/styles'
 import { DataTab } from './data-tab'
 import { GeneralTab } from './general-tab'
-import { OnlineTab } from './online-tab'
+import { LssCard, OnlineTab } from './online-tab'
 import { PdosTab } from './pdos-tab'
 
 type SlaveTab = 'general' | 'data' | 'pdos' | 'online'
@@ -137,6 +139,7 @@ const CanopenSlaveEditor = () => {
   const remoteDevices = useOpenPLCStore((s) => s.project.data.remoteDevices)
   const registry = useAliasRegistry()
   const project = useProject()
+  const runtime = useRuntime()
 
   const name = editor.type === 'plc-server' ? editor.meta.name : ''
   const server = useMemo(() => servers?.find((s) => s.name === name), [servers, name])
@@ -209,6 +212,23 @@ const CanopenSlaveEditor = () => {
   const lss = slaveLss(config)
   const nodeText = lss.enabled && lss.waitForMaster ? 'node ID from the LSS master' : `node ID ${config.nodeId}`
 
+  const send = useMemo(() => runtime.canopenRequest?.bind(runtime), [runtime])
+  const canForget = send !== undefined && (live?.features.includes('slave_lss') ?? false)
+  const refresh = live?.refresh
+  const forgetLss = useCallback(async (): Promise<string | null> => {
+    if (!send) return 'the runtime does not offer this request'
+    const result = await createCanopenOnline(send).forgetSlaveLss(name)
+    refresh?.()
+    return result.ok ? null : result.message
+  }, [send, name, refresh])
+  const lssSlot = live?.slave?.lss ? (
+    <LssCard
+      slave={live.slave}
+      forgetQuestion={slaveLssForgetText(config, lss.waitForMaster)}
+      onForget={canForget ? forgetLss : undefined}
+    />
+  ) : null
+
   return (
     <div
       aria-label='CANopen slave editor container'
@@ -279,7 +299,7 @@ const CanopenSlaveEditor = () => {
           <PdosTab config={config} commit={commit} />
         </Tabs.Content>
         <Tabs.Content value='online' className='data-[state=inactive]:hidden'>
-          <OnlineTab config={config} live={live} />
+          <OnlineTab config={config} live={live} lssSlot={lssSlot} />
         </Tabs.Content>
       </Tabs.Root>
 

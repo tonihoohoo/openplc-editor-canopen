@@ -593,6 +593,13 @@ When the master sends Store, the node ID and bit rate it set are kept on the run
 over the project's values, also after a restart, a new upload or a runtime update, until they are
 forgotten. Default COB-IDs (EMCY, SDO, PDOs 1-4) follow the node ID in use.
 
+On the Online tab, the **LSS** card of a running LSS slave shows the node ID in use and where it
+comes from (the project, stored by a master, or given and not stored), the bit rate in use, the serial
+number and the LSS state, and what is stored on the runtime. **Forget stored LSS values...** asks first
+and then removes the stored values (request `slave_lss_forget`, runtimes that list the `slave_lss`
+feature); the slave restarts with the project's node ID and bit rate. The tab compares the PDO COB-IDs
+at the node ID in use, so a node ID from the master is not shown as a change.
+
 **Run this slave** turns it off without losing its objects and addresses. **Export EDS or XDD...**
 writes the slave's device file from the same description the runtime builds its object dictionary
 from, checks it (CiA 306 or CiA 311) and suggests the next revision when the objects or PDOs changed
@@ -671,7 +678,7 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   output, EDS and XDD export read back), `slave-e2e-fixture.test.ts` and the page in
   `.../editor/server/__tests__/canopen-slave-editor.test.tsx`; the Online tab in `slave-online.test.ts`
   (decoding, changed settings, notices, event texts) and `canopen-slave-online.test.tsx`, and its key
-  views (running, changed by the master, PLC stopped, master lost, not running) in
+  views (running, changed by the master, PLC stopped, master lost, LSS and Forget, not running) in
   `e2e/canopen-slave-online.spec.ts`.
 - Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, CiA 306 check with the fixtures in
   `fixtures/cia306/`, DCF import and export, XDD and XDC reading, the CiA 311 check with the fixtures

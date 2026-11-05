@@ -16,9 +16,12 @@ import {
   pdoName,
   type SlaveChange,
   slaveChanges,
+  slaveConfigInUse,
   slaveDefaultText,
   slaveEventText,
   slaveEventTone,
+  slaveLssFacts,
+  slaveLssStoredText,
   slaveNmtByText,
   slaveNotice,
   slaveNoticeText,
@@ -29,8 +32,15 @@ import {
 } from '@root/middleware/shared/utils/canopen'
 import { type ReactNode, useMemo, useState } from 'react'
 
+import { ConfirmBar, type ConfirmRequest } from '../../device/canopen/online-tab'
 import { StatusDot } from '../../device/canopen/status-view'
-import { cardClassName, headingClassName, hintClassName, inputClassName } from '../../device/canopen/styles'
+import {
+  cardClassName,
+  headingClassName,
+  hintClassName,
+  inputClassName,
+  secondaryButtonClassName,
+} from '../../device/canopen/styles'
 
 const NOTICE_CLASSES: Record<NoticeTone, string> = {
   info: 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200',
@@ -169,7 +179,7 @@ const PdosInUse = ({
   now: number
   changes: SlaveChange[]
 }) => {
-  const expected = expectedSlavePdos(config)
+  const expected = expectedSlavePdos(slaveConfigInUse(config, slave))
   const pdos = (slave.pdos ?? []).filter(
     (p) => p.valid || expected.some((e) => e.dir === p.dir && e.pdo === p.pdo && e.valid),
   )
@@ -334,6 +344,69 @@ const Values = ({
           </tbody>
         </table>
       )}
+    </div>
+  )
+}
+
+/**
+ * The running slave's LSS state: the node ID and bit rate it uses and where they come from, its
+ * serial number, and Forget for the values an LSS master stored. Without @p onForget it only shows.
+ */
+export const LssCard = ({
+  slave,
+  forgetQuestion,
+  onForget,
+}: {
+  slave: CanopenSlaveStatus
+  forgetQuestion: string
+  onForget?: () => Promise<string | null>
+}) => {
+  const facts = slaveLssFacts(slave)
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  if (!facts) return null
+  const stored = slaveLssStoredText(slave)
+  const forget = () => {
+    if (!onForget) return
+    setBusy(true)
+    setError(null)
+    onForget()
+      .then(setError)
+      .catch((e: unknown) => setError(String(e)))
+      .finally(() => setBusy(false))
+  }
+  return (
+    <div className={cardClassName} data-testid='canopen-slave-online-lss'>
+      <h4 className={headingClassName}>LSS</h4>
+      <div className='grid grid-cols-2 gap-4 lg:grid-cols-4'>
+        {facts.map((f) => (
+          <Fact key={f.key} label={f.label} value={<span data-testid={`canopen-slave-lss-${f.key}`}>{f.value}</span>}>
+            {f.detail}
+          </Fact>
+        ))}
+      </div>
+      <div className='mt-3 flex flex-wrap items-center justify-between gap-3'>
+        <p className={hintClassName} data-testid='canopen-slave-lss-stored'>
+          {stored ?? "Nothing is stored on the runtime: the slave starts with the project's values."}
+        </p>
+        {onForget ? (
+          <button
+            type='button'
+            className={secondaryButtonClassName}
+            disabled={stored === null || busy}
+            onClick={() => setConfirm({ text: forgetQuestion, label: 'Forget', action: forget })}
+          >
+            Forget stored LSS values...
+          </button>
+        ) : null}
+      </div>
+      <ConfirmBar confirm={confirm} onClose={() => setConfirm(null)} />
+      {error ? (
+        <p role='alert' className='mt-2 text-xs text-red-600 dark:text-red-400'>
+          Cannot forget the stored values: {error}.
+        </p>
+      ) : null}
     </div>
   )
 }
