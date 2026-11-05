@@ -40,7 +40,10 @@ export interface CanopenServiceControl {
   open: boolean
   busy: boolean
   error: string | null
-  openBus: () => void
+  /** The bit rate (bit/s) this editor opened the bus at; null when it did not open it. */
+  bitrate: number | null
+  /** Opens the bus at @p bitrate, else at the network's bit rate. */
+  openBus: (bitrate?: number) => void
   closeBus: () => void
 }
 
@@ -52,6 +55,8 @@ export interface CanopenOnlineContext {
   ready: boolean
   /** The runtime takes NMT commands. */
   nmt: boolean
+  /** The runtime offers the LSS tools. */
+  lss: boolean
   /** The NMT command sent to @p node that the runtime's status does not show yet. */
   requestedNmt: (node: number) => CanopenNmtCommand | undefined
   service: CanopenServiceControl
@@ -71,6 +76,7 @@ export function useCanopenOnline(
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [opened, setOpened] = useState(false)
+  const [openedBitrate, setOpenedBitrate] = useState<number | null>(null)
   const openedRef = useRef(false)
 
   const [requests, setRequests] = useState<ReadonlyMap<number, NmtRequest>>(new Map())
@@ -143,23 +149,29 @@ export function useCanopenOnline(
   const configRef = useRef(config)
   configRef.current = config
 
-  const openBus = useCallback(() => {
-    if (!client) return
-    setBusy(true)
-    setError(null)
-    const { network, nodes } = configRef.current
-    void client
-      .openService(
-        deviceName,
-        network,
-        nodes.map((n) => n.nodeId),
-      )
-      .then((r) => {
-        if (r.ok) setOpened(true)
-        else setError(r.message)
-      })
-      .finally(() => setBusy(false))
-  }, [client, deviceName])
+  const openBus = useCallback(
+    (bitrate?: number) => {
+      if (!client) return
+      setBusy(true)
+      setError(null)
+      const { network, nodes } = configRef.current
+      const rate = bitrate ?? network.bitrate
+      void client
+        .openService(
+          deviceName,
+          { ...network, bitrate: rate },
+          nodes.map((n) => n.nodeId),
+        )
+        .then((r) => {
+          if (r.ok) {
+            setOpened(true)
+            setOpenedBitrate(rate)
+          } else setError(r.message)
+        })
+        .finally(() => setBusy(false))
+    },
+    [client, deviceName],
+  )
 
   const closeBus = useCallback(() => {
     if (!client) return
@@ -180,12 +192,14 @@ export function useCanopenOnline(
     networkIndex: live.networkIndex,
     ready,
     nmt: features.includes('nmt'),
+    lss: features.includes('lss'),
     requestedNmt,
     service: {
       available: hasService && !plcRunning && (!live.active || serviceRuns),
       open: serviceRuns,
       busy,
       error,
+      bitrate: serviceRuns && opened ? openedBitrate : null,
       openBus,
       closeBus,
     },

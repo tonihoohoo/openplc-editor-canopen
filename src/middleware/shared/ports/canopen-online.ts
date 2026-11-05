@@ -23,22 +23,43 @@ export type CanopenRequest =
       nodes: number[]
     }
   | { op: 'service_close' }
+  | { op: 'lss'; network: number; action: 'find' }
+  | ({ op: 'lss'; network: number; action: 'set_id'; node_id: number; store: boolean } & CanopenLssAddressFields)
+  | ({ op: 'lss'; network: number; action: 'set_bitrate'; bitrate: number } & CanopenLssAddressFields)
+
+/** A device's LSS address (its 0x1018 identity) as the runtime names it. */
+export interface CanopenLssAddressFields {
+  vendor_id: number
+  product_code: number
+  revision: number
+  serial_number: number
+}
 
 const count = z.number().int().nonnegative()
+const u32 = count.max(0xffffffff)
+
+const LssDeviceSchema = z.object({ vendor_id: u32, product_code: u32, revision: u32, serial_number: u32 })
+/** Members an LSS job adds to its state: the devices found, the node ID it had, whether it was stored. */
+const lssResult = {
+  devices: z.array(LssDeviceSchema).optional(),
+  previous_id: count.max(255).optional(),
+  stored: z.boolean().optional(),
+}
 
 /** Every answer the route gives: a job id, ok, a job's state, a refusal, or "the plugin is not loaded". */
 export const CanopenAnswerSchema = z.union([
   z.object({ job: count }),
-  z.object({ state: z.literal('pending') }),
+  z.object({ state: z.literal('pending'), ...lssResult }),
   z.object({
     state: z.literal('done'),
     data: z
       .string()
       .regex(/^([0-9a-fA-F]{2})*$/)
       .optional(),
+    ...lssResult,
   }),
   z.object({ state: z.literal('failed'), abort_code: count }),
-  z.object({ state: z.literal('failed'), reason: z.string() }),
+  z.object({ state: z.literal('failed'), reason: z.string(), ...lssResult }),
   z.object({ ok: z.literal(true), network: count.optional() }),
   z.object({ error: z.string() }),
   z.object({ active: z.literal(false) }),
