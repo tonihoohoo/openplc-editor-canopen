@@ -173,13 +173,107 @@ export const CanopenNetworkStatusSchema = z.object({
   events: z.array(CanopenEventSchema),
 })
 
+/** The slave's own NMT state, or `offline` while its CAN interface is not open. */
+export const CanopenSlaveStateSchema = z.enum([
+  'boot_up',
+  'pre_operational',
+  'operational',
+  'stopped',
+  'unknown',
+  'offline',
+])
+
+export const CanopenSlaveNmtBySchema = z.enum(['boot', 'master', 'self', 'start_alone'])
+
+export const CanopenSlaveEventSchema = z.object({
+  time: z.number(),
+  kind: z.enum([
+    'on_bus',
+    'nmt',
+    'reset',
+    'sdo_write',
+    'heartbeat',
+    'emcy',
+    'emcy_reset',
+    'plc',
+    'bus_state',
+    'bus_reset',
+  ]),
+  state: CanopenSlaveStateSchema.optional(),
+  by: CanopenSlaveNmtBySchema.optional(),
+  what: z.enum(['node', 'communication']).optional(),
+  index: count.optional(),
+  subindex: count.optional(),
+  ok: z.boolean().optional(),
+  abort_code: count.optional(),
+  seen: z.boolean().optional(),
+  code: count.optional(),
+  register: count.optional(),
+  running: z.boolean().optional(),
+  bus_state: CanopenBusStateSchema.optional(),
+  outcome: CanopenResetOutcomeSchema.optional(),
+})
+
+export const CanopenSlavePdoStatusSchema = z.object({
+  dir: z.enum(['rx', 'tx']),
+  pdo: count,
+  cob_id: count,
+  valid: z.boolean(),
+  transmission: count,
+  inhibit_100us: count.optional(),
+  event_ms: count,
+  mapping: z.array(z.object({ index: count, subindex: count, bits: count })),
+  frames: count,
+  last: z.number().optional(),
+})
+
+const hexData = z.string().regex(/^([0-9a-fA-F]{2})*$/)
+
+/**
+ * One CANopen slave of the runtime. The fields after `tx_frames` are absent from runtimes before the
+ * slave Online tab; `bus` tells whether a runtime sends them.
+ */
+export const CanopenSlaveStatusSchema = z.object({
+  name: z.string(),
+  interface: z.string(),
+  node_id: count,
+  bus_open: z.boolean(),
+  problem: z.string().optional(),
+  state: CanopenSlaveStateSchema,
+  plc_running: z.boolean(),
+  master_node_id: count.optional(),
+  master_seen: z.boolean().optional(),
+  last_emcy: count.optional(),
+  rx_frames: count,
+  tx_frames: count,
+  bus: CanopenBusStatusSchema.optional(),
+  since: z.number().optional(),
+  nmt_by: CanopenSlaveNmtBySchema.optional(),
+  master_last_seen: z.number().optional(),
+  error_register: count.optional(),
+  emcy_active: z.array(count).optional(),
+  error_history: z.array(count).optional(),
+  heartbeat_ms: count.optional(),
+  master_watch_ms: count.optional(),
+  on_master_lost: z.enum(['pre_operational', 'no_change', 'stopped', 'other']).optional(),
+  pdos: z.array(CanopenSlavePdoStatusSchema).optional(),
+  values: z.array(z.object({ index: count, subindex: count, data: hexData })).optional(),
+  events: z.array(CanopenSlaveEventSchema).optional(),
+})
+
 export const CanopenStatusSchema = z.union([
-  z.object({ active: z.literal(false) }),
+  z.object({
+    active: z.literal(false),
+    /** The runtime's clock; absent from runtimes before the slave Online tab. */
+    now: z.number().optional(),
+    slaves: z.array(CanopenSlaveStatusSchema).default([]),
+  }),
   z.object({
     version: z.literal(1),
     active: z.literal(true),
     now: z.number(),
     networks: z.array(CanopenNetworkStatusSchema),
+    slaves: z.array(CanopenSlaveStatusSchema).default([]),
   }),
 ])
 
@@ -193,6 +287,11 @@ export type CanopenEvent = z.infer<typeof CanopenEventSchema>
 export type CanopenBusStatus = z.infer<typeof CanopenBusStatusSchema>
 export type CanopenNetworkStatus = z.infer<typeof CanopenNetworkStatusSchema>
 export type CanopenStatus = z.infer<typeof CanopenStatusSchema>
+export type CanopenSlaveState = z.infer<typeof CanopenSlaveStateSchema>
+export type CanopenSlaveNmtBy = z.infer<typeof CanopenSlaveNmtBySchema>
+export type CanopenSlaveEvent = z.infer<typeof CanopenSlaveEventSchema>
+export type CanopenSlavePdoStatus = z.infer<typeof CanopenSlavePdoStatusSchema>
+export type CanopenSlaveStatus = z.infer<typeof CanopenSlaveStatusSchema>
 
 /** The status in a runtime's answer, or null when the body is not a status of a known version. */
 export function parseCanopenStatus(body: unknown): CanopenStatus | null {

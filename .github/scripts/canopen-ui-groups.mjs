@@ -14,6 +14,9 @@ const SLAVE_FILES = [
   'src/middleware/shared/utils/canopen/slave.ts',
   'src/middleware/shared/utils/canopen/__tests__/slave.test.ts',
   'src/middleware/shared/utils/canopen/__tests__/slave-e2e-fixture.test.ts',
+  'src/middleware/shared/utils/canopen/slave-online.ts',
+  'src/middleware/shared/utils/canopen/__tests__/slave-online.test.ts',
+  'src/middleware/shared/utils/canopen/__tests__/fixtures/slave-status.ts',
 ]
 const SLAVE_PREFIXES = [
   'src/frontend/components/_features/[workspace]/editor/server/__tests__/canopen-slave',

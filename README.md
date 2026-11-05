@@ -27,7 +27,7 @@ CANopen:
 - Online SDO and NMT tools and service mode: [docs/canopen.md](docs/canopen.md#online-tools)
 - The `canopen` function block library (CiA 405 names) for SDO, NMT and node control from the PLC program: [docs/canopen.md](docs/canopen.md#plc-function-blocks)
 - CANopen addresses from the central registry, up to the runtime's limit of 65536 per table: [docs/canopen.md](docs/canopen.md#addresses)
-- CANopen slave server: the runtime as a CANopen device with objects, PDOs and an EDS or XDD export: [docs/canopen.md](docs/canopen.md#canopen-slave)
+- CANopen slave server: the runtime as a CANopen device with objects, PDOs, an EDS or XDD export and an Online tab that shows the running slave and what its master changed: [docs/canopen.md](docs/canopen.md#canopen-slave)
 - Upload refused to a runtime without CANopen support: [docs/canopen.md](docs/canopen.md#installing-a-release-and-the-runtime-check)
 
 Editor:

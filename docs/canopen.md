@@ -504,7 +504,7 @@ appended to the program at build time.
 A server with protocol `canopen-slave` makes the runtime a CANopen device (a slave) on a CAN
 interface, so another CANopen master can read and write PLC data. It is offered where the CANopen
 master is, and a project may have several, one per interface; an interface cannot carry a CANopen
-network and a slave at the same time. The page has three tabs:
+network and a slave at the same time. The page has four tabs:
 
 - **General**: interface, bit rate (or "Leave as configured"), node ID; identity (vendor name for the
   device file, device name 0x1008, software version 0x100A, vendor ID, product code and revision in
@@ -520,6 +520,26 @@ network and a slave at the same time. The page has three tabs:
   objects marked PDO, with the pre-defined COB-IDs from the node ID. Each used TPDO is sent on change
   (with inhibit time and event timer) or every N SYNC. The master may remap the PDOs in
   pre-operational; values are not stored over a restart.
+- **Online**: the running slave as the runtime reports it, read once a second while the editor is
+  connected, also while the PLC is stopped. It sends nothing to the slave. From the top: one notice
+  when needed, a state strip (NMT state and who set it, the master's heartbeat with its age and
+  allowed time, PLC running or stopped with the heartbeat time in use, active emergencies with the
+  error register and the 0x1003 history count), the PDOs in use (COB-ID, how they are sent, the
+  mapped objects, frame count and age of the last frame), the values of every Data row (Decimal or
+  Hex, with the project default) and the slave's last 50 events (the master's NMT commands, SDO
+  writes and refusals, heartbeat, emergencies, PLC, bus).
+
+The Online tab marks every setting where the running slave differs from what the project's slave has
+after a PLC start: the heartbeat time, the master watch time, the behaviour on master loss, each
+PDO's use, COB-ID, transmission type, timers and mapping, and the values of SDO-only parameters from
+the master (objects in a PDO change with every frame and are not compared). The notice counts them;
+they hold until the slave restarts. The notice shows one of, by priority: not connected; the slave
+off in the project; the runtime does not run the slave (it joins the bus at the first PLC start after
+an upload); the runtime too old to report slaves in detail; the slave not on the bus with the
+runtime's reason; the master lost; the PLC stopped; the runtime running another version (node ID,
+interface or objects differ; values it does not report show "-"); settings changed by the master.
+While the runtime reports the slave's link, the header shows its bus line (state, error counters,
+load, link resets) like a network's.
 
 **Run this slave** turns it off without losing its objects and addresses. **Export EDS or XDD...**
 writes the slave's device file from the same description the runtime builds its object dictionary
@@ -583,6 +603,7 @@ object gets the lowest free address of its class in `projectActions.updateCanope
 | Device editor                                             | `src/frontend/components/_features/[workspace]/editor/device/canopen/` |
 | Slave model, checks, `devices` output and device file     | `src/middleware/shared/utils/canopen/slave.ts`                         |
 | Slave page and store action                               | `.../editor/server/canopen-slave/`, `projectActions.updateCanopenSlaveConfig` |
+| Slave Online tab: values, changed settings, notice, events | `src/middleware/shared/utils/canopen/slave-online.ts`, `useCanopenSlaveStatus` |
 
 The parsed EDS (identity, PDO counts, object dictionary) is stored on the node, so a project opens
 and builds without the original file. For each PDO the generator writes the configuration SDOs in
@@ -596,7 +617,10 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
 
 - Slave: `src/middleware/shared/utils/canopen/__tests__/slave.test.ts` (layout, values, checks,
   output, EDS and XDD export read back), `slave-e2e-fixture.test.ts` and the page in
-  `.../editor/server/__tests__/canopen-slave-editor.test.tsx`.
+  `.../editor/server/__tests__/canopen-slave-editor.test.tsx`; the Online tab in `slave-online.test.ts`
+  (decoding, changed settings, notices, event texts) and `canopen-slave-online.test.tsx`, and its key
+  views (running, changed by the master, PLC stopped, master lost, not running) in
+  `e2e/canopen-slave-online.spec.ts`.
 - Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, CiA 306 check with the fixtures in
   `fixtures/cia306/`, DCF import and export, XDD and XDC reading, the CiA 311 check with the fixtures
   in `fixtures/cia311/`, XDD and XDC export, DBC export, HTML export, object information, model, editing rules, generator, validator,
