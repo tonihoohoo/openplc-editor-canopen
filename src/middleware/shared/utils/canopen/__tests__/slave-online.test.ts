@@ -124,7 +124,7 @@ describe('settings changed by the master', () => {
       ['When the master is lost', 'go pre-operational', 'go stopped'],
       ['TPDO 1 transmission', 'on change', 'every SYNC'],
       ['TPDO 1 inhibit time', '0 ms', '10 ms'],
-      ['TPDO 1 mapping', 'Echo, LimitEcho (4 of 8 bytes)', 'LimitEcho, Echo (4 of 8 bytes)'],
+      ['TPDO 1 mapping', 'Echo, LimitEcho, Lamps (5 of 8 bytes)', 'LimitEcho, Echo (4 of 8 bytes)'],
       ['Limit', '1000', '50'],
     ])
   })
@@ -194,7 +194,7 @@ describe('the notice of the Online tab', () => {
   it('says what another version of the slave means', () => {
     const slave = parse({ values: slaveStatus().values.slice(0, 3) })
     const diff = slaveVersionDiff(slaveConfig(), slave)
-    expect(diff).toMatchObject({ missing: 2, extra: 0, runningObjects: 3 })
+    expect(diff).toMatchObject({ missing: 4, extra: 0, runningObjects: 3 })
     const text = slaveNoticeText(
       {
         kind: 'other_version',
@@ -205,7 +205,7 @@ describe('the notice of the Online tab', () => {
     expect(text).toEqual({
       tone: 'warning',
       text:
-        'The runtime runs another version of this slave (3 objects, the project has 5). Values of the 2 objects it ' +
+        'The runtime runs another version of this slave (3 objects, the project has 7). Values of the 4 objects it ' +
         'does not have are shown as "-". Build and upload to bring it up to date.',
     })
   })
@@ -292,7 +292,7 @@ describe('the remaining texts', () => {
     expect(texts[6].text).toContain('not on the bus: no such device')
     expect(texts[8].text).toContain('0x1029')
     expect(texts[10].text).toContain('3 settings')
-    expect(texts[11].text).toContain('node ID 5, can1 in the project; 6 objects, the project has 5')
+    expect(texts[11].text).toContain('node ID 5, can1 in the project; 6 objects, the project has 7')
     expect(texts[11].text).not.toContain('"-"')
     expect(noticeHidesLiveData({ kind: 'offline' })).toBe(true)
     expect(slaveNotice({ config, connected: true, answered: false, slave: null, changes: 0 })?.kind).toBe('no_status')
@@ -389,7 +389,7 @@ describe('the remaining texts', () => {
     expect(slaveChanges(bad, parse()).filter((c) => c.label === 'Limit')).toEqual([])
     expect(slaveDefaultText(bad.objects[0], 'decimal')).toBe('x')
     expect(slaveDefaultText({ ...bad.objects[0], defaultValue: '' }, 'decimal')).toBe('0')
-    expect(slaveValueText({ ...bad.objects[5], defaultValue: '' }, null, 'decimal')).toBe('""')
+    expect(slaveValueText({ ...bad.objects[7], defaultValue: '' }, null, 'decimal')).toBe('""')
     expect(slaveDefaultText({ ...bad.objects[0], dataType: 'REAL64', defaultValue: '2.5' }, 'decimal')).toBe('2.5')
   })
 })

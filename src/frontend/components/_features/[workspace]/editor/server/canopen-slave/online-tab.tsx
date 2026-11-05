@@ -14,6 +14,7 @@ import {
   objectRef,
   onMasterLostText,
   pdoName,
+  slaveAddressText,
   type SlaveChange,
   slaveChanges,
   slaveConfigInUse,
@@ -25,6 +26,7 @@ import {
   slaveNmtByText,
   slaveNotice,
   slaveNoticeText,
+  slavePackedValue,
   slaveStateLabel,
   slaveValueText,
   transmissionText,
@@ -262,6 +264,27 @@ const PdosInUse = ({
 const DIRECTION: Record<string, string> = { from_master: 'from master', to_master: 'to master' }
 const EXCHANGE: Record<string, string> = { pdo: 'PDO', sdo: 'SDO only', constant: 'Constant' }
 
+/** One dot per bit of a packed object, bit 0 first, then the names of the bits that are on. */
+const BitDots = ({ value }: { value: { on: boolean[]; names: string[] } }) => (
+  <>
+    <span className='ml-2 inline-flex gap-0.5 align-middle' data-testid='canopen-slave-online-bits'>
+      {value.on.map((on, i) => (
+        <span
+          key={i}
+          title={`bit ${i}${on ? ' on' : ''}`}
+          className={cn(
+            'inline-block h-2 w-2 rounded-full',
+            on ? 'bg-green-500' : 'bg-neutral-300 dark:bg-neutral-600',
+          )}
+        />
+      ))}
+    </span>
+    <span className={cn(hintClassName, 'block truncate font-sans')} title={value.names.join(', ')}>
+      {value.names.length > 0 ? value.names.join(', ') : 'no bit on'}
+    </span>
+  </>
+)
+
 const Values = ({
   slave,
   config,
@@ -315,6 +338,7 @@ const Values = ({
             {config.objects.map((o) => {
               const ref = objectRef(o.index, o.subIndex)
               const change = changes.get(ref)
+              const packed = slavePackedValue(o, slave)
               return (
                 <tr
                   key={o.id}
@@ -328,11 +352,12 @@ const Values = ({
                   <td className='py-1 pr-2'>{DIRECTION[o.direction]}</td>
                   <td className='py-1 pr-2'>{EXCHANGE[o.exchange]}</td>
                   <td className='truncate py-1 pr-2 font-mono'>
-                    {o.exchange === 'constant' ? '-' : o.iecLocation}
+                    {o.exchange === 'constant' ? '-' : slaveAddressText(o)}
                     {o.alias ? <span className='ml-1 font-sans text-neutral-500'>{o.alias}</span> : null}
                   </td>
                   <td className='truncate py-1 pr-2 font-mono' data-testid='canopen-slave-online-value'>
                     <span className={mark(change)}>{slaveValueText(o, slave, display)}</span>
+                    {packed ? <BitDots value={packed} /> : null}
                     {change ? (
                       <span className={cn(hintClassName, 'block font-sans')}>written by the master</span>
                     ) : null}

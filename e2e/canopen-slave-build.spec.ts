@@ -155,7 +155,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 8,
+      version: 10,
       networks: [{ interface: 'can0', nodes: [{ node_id: 1 }] }],
       devices: [
         {
@@ -241,12 +241,121 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 8,
+      version: 10,
       devices: [
         {
           name: 'slave',
           node_id: 5,
           lss: { enabled: true, wait_for_master: true, serial: 0x17, bitrate_change: false },
+        },
+      ],
+    })
+  } finally {
+    await quitApp(app, page)
+  }
+})
+
+test('a CANopen slave byte packed as 8 bits: bit rows, aliases, defaults, the PDO and the build', async () => {
+  test.setTimeout(300000)
+  const station = {
+    bus: STATION.bus,
+    program:
+      'PROGRAM main\n  VAR\n    valve AT %IX0.2 : BOOL;\n    lamp AT %QX0.0 : BOOL;\n  END_VAR\n\nlamp := valve;\n\nEND_PROGRAM\n',
+  }
+  const { project, userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-slave-bits'), '', station)
+  rmSync(join(project, 'devices', 'remote', 'canopen_1.json'))
+  const { app, page } = await launch(userData)
+  await windowSize(app, 1600, 1000)
+  try {
+    await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
+    await page.getByLabel('Create PLC element trigger component').click({ timeout: 30000 })
+    const serverCard = page.locator('#create-server-trigger')
+    const serverName = page.getByPlaceholder('Server name')
+    await serverCard.hover()
+    const opened = await serverName.waitFor({ timeout: 3000 }).then(
+      () => true,
+      () => false,
+    )
+    if (!opened) await serverCard.click()
+    await serverName.fill('slave')
+    await page.getByLabel('server-protocol').click()
+    await page.getByRole('option', { name: 'CANopen slave' }).click()
+    await page.getByRole('button', { name: 'Create', exact: true }).click()
+    await page.getByText('slave', { exact: true }).first().click({ timeout: 30000 })
+    await expect(page.getByTestId('canopen-slave-summary')).toContainText('0 objects', { timeout: 30000 })
+
+    await page.getByRole('tab', { name: 'Data' }).click()
+    const from = page.getByTestId('canopen-slave-from-master')
+    const to = page.getByTestId('canopen-slave-to-master')
+    await from.getByRole('button', { name: /Add object/ }).click()
+    await from.getByRole('button', { name: /Add object/ }).click()
+    await to.getByRole('button', { name: /Add object/ }).click()
+    const valves = from.locator('tbody > tr').nth(1)
+    await valves.getByLabel('Name').fill('Valves')
+    await valves.getByLabel('Name').press('Enter')
+    await valves.getByLabel('Type').selectOption('UNSIGNED8')
+    await expect(valves.getByTestId('canopen-slave-address')).toHaveText('%IB0')
+    await valves.getByLabel('Type').selectOption('PACKED')
+    await expect(valves.getByTestId('canopen-slave-address')).toHaveText('%IX0.0-0.7')
+    for (const [bit, name] of ['Valve 1', 'Valve 2', 'Valve 3', 'Valve 4'].entries()) {
+      const field = from.getByLabel(`Name of bit ${bit}`, { exact: true })
+      await field.fill(name)
+      await field.press('Enter')
+    }
+    for (const [bit, alias] of [
+      [0, 'valve_1'],
+      [2, 'valve_3'],
+    ] as const) {
+      const field = from.getByLabel(`Alias of bit ${bit}`, { exact: true })
+      await field.fill(alias)
+      await field.press('Enter')
+    }
+    await from.getByLabel('Default of bit 0', { exact: true }).check()
+    await from.getByLabel('Default of bit 7', { exact: true }).check()
+    const lamps = to.locator('tbody > tr').first()
+    await lamps.getByLabel('Name').fill('Lamps')
+    await lamps.getByLabel('Name').press('Enter')
+    await lamps.getByLabel('Type').selectOption('PACKED')
+    await expect(lamps.getByTestId('canopen-slave-address')).toHaveText('%QX0.0-0.7')
+    await lamps.getByRole('button', { name: 'Hide the bits of Lamps' }).click()
+    await expect(page.getByTestId('canopen-slave-summary')).toContainText('3 objects')
+    await page.getByRole('tab', { name: 'Data' }).scrollIntoViewIfNeeded()
+    await slaveKeyView(page, 'slave-data-bits')
+
+    await page.getByRole('tab', { name: 'PDOs' }).click()
+    await expect(page.getByTestId('canopen-slave-rpdo1')).toContainText('Valves (8 bits)')
+    await expect(page.getByTestId('canopen-slave-tpdo1')).toContainText('Lamps (8 bits)')
+    await slaveKeyView(page, 'slave-pdos-bits')
+
+    await buildFromMenu(page, 'Build only')
+    const build = join(project, 'build')
+    await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
+    const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
+    expect(conf).toMatchObject({
+      version: 10,
+      devices: [
+        {
+          name: 'slave',
+          objects: [
+            { index: 0x2000, subindex: 1, location: '%IW0' },
+            {
+              index: 0x2000,
+              subindex: 2,
+              type: 'UNSIGNED8',
+              default: 129,
+              bits: Array.from({ length: 8 }, (_, i) => `%IX0.${i}`),
+            },
+            { index: 0x2100, subindex: 1, type: 'UNSIGNED8', bits: Array.from({ length: 8 }, (_, i) => `%QX0.${i}`) },
+          ],
+          rpdos: [
+            {
+              entries: [
+                { index: 0x2000, subindex: 1 },
+                { index: 0x2000, subindex: 2 },
+              ],
+            },
+          ],
+          tpdos: [{ entries: [{ index: 0x2100, subindex: 1 }] }],
         },
       ],
     })

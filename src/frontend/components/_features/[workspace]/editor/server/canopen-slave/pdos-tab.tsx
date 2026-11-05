@@ -1,6 +1,7 @@
 import { cn } from '@root/frontend/utils/cn'
 import type { CanopenSlaveConfig, CanopenSlaveTpdoSettings } from '@root/middleware/shared/ports/canopen-types'
 import {
+  isSlavePacked,
   objectRef,
   SLAVE_PDO_BYTES,
   SLAVE_PDO_COUNT,
@@ -35,11 +36,11 @@ const PdoBar = ({ pdo }: { pdo: SlavePdo }) => (
     {pdo.objects.map((o) => (
       <div
         key={o.id}
-        title={`${objectRef(o.index, o.subIndex)} ${o.name}, ${o.dataType}`}
+        title={`${objectRef(o.index, o.subIndex)} ${o.name}, ${o.dataType}${isSlavePacked(o) ? `: ${(o.bits ?? []).map((b) => b.name).join(', ')}` : ''}`}
         style={{ width: `${(slaveObjectBytes(o) / SLAVE_PDO_BYTES) * 100}%` }}
         className='bg-brand/15 dark:bg-brand/30 flex items-center justify-center truncate border-r border-white px-1 text-neutral-800 last:border-r-0 dark:border-neutral-900 dark:text-neutral-200'
       >
-        {o.name}
+        {isSlavePacked(o) ? `${o.name} (8 bits)` : o.name}
       </div>
     ))}
     {pdo.bytes < SLAVE_PDO_BYTES ? (
@@ -66,7 +67,9 @@ const PdoRow = ({ label, cobId, pdo, children }: PdoRowProps) => (
       <div className='flex-1'>
         {pdo ? <PdoBar pdo={pdo} /> : <span className={cn(hintClassName, 'text-xs')}>Not used</span>}
       </div>
-      <span className={cn(hintClassName, 'w-14 text-right')}>{pdo ? `${pdo.bytes} bytes` : ''}</span>
+      <span className={cn(hintClassName, 'w-14 text-right')}>
+        {pdo ? `${pdo.bytes} byte${pdo.bytes === 1 ? '' : 's'}` : ''}
+      </span>
     </div>
     {children}
   </div>

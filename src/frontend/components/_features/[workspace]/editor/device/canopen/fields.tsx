@@ -171,6 +171,8 @@ export type SelectOption<T extends string> = {
   label: string
   /** Shown disabled, with this reason in the option and its tooltip. */
   disabledReason?: string | null
+  /** Tooltip of the option. */
+  title?: string
 }
 
 type SelectFieldProps<T extends string> = FieldHintProps & {
@@ -211,12 +213,7 @@ const SelectField = <T extends string>({
       className={inputClassName}
     >
       {options.map((o) => (
-        <option
-          key={o.value}
-          value={o.value}
-          disabled={Boolean(o.disabledReason)}
-          title={o.disabledReason ?? undefined}
-        >
+        <option key={o.value} value={o.value} disabled={Boolean(o.disabledReason)} title={o.disabledReason ?? o.title}>
           {o.disabledReason ? `${o.label} - ${o.disabledReason}` : o.label}
         </option>
       ))}

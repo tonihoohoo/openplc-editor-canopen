@@ -15,6 +15,7 @@ import {
   defaultCanopenSlaveConfig,
   exportFileType,
   type ExportFormat,
+  slaveBitChannel,
   slaveLayoutText,
   slaveLss,
   slaveLssForgetText,
@@ -173,10 +174,11 @@ const CanopenSlaveEditor = () => {
   )
 
   const aliasProblem = useCallback(
-    (object: CanopenSlaveObject, alias: string): string | null => {
+    (object: CanopenSlaveObject, alias: string, bit?: number): string | null => {
+      const channel = bit === undefined ? object.id : slaveBitChannel(object.id, bit)
       const validation = validateAliasEdit(registry, alias, {
         kind: 'canopen',
-        ref: `${canopenSlavePoolName(name)}:objects:${object.id}`,
+        ref: `${canopenSlavePoolName(name)}:objects:${channel}`,
       })
       return validation.ok ? null : describeAliasRejection(validation, alias).description
     },

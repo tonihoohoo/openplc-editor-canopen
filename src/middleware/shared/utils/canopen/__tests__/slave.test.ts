@@ -172,7 +172,7 @@ describe('CANopen slave model', () => {
     const text = generateCanopenConfig([], null, [server(io())])
     expect(text).not.toBeNull()
     const json = JSON.parse(text ?? '{}') as { version: number; networks: unknown[]; devices: unknown[] }
-    expect(json.version).toBe(8)
+    expect(json.version).toBe(10)
     expect(json.networks).toEqual([])
     expect(json.devices).toEqual(slaveDevicesOut([server(io())]))
     expect(json.devices[0]).toMatchObject({

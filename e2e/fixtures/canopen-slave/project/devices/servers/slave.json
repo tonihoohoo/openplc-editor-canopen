@@ -55,6 +55,27 @@
         "max": "30000"
       },
       {
+        "id": "valves",
+        "index": 8192,
+        "subIndex": 4,
+        "name": "Valves",
+        "dataType": "UNSIGNED8",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "",
+        "defaultValue": "0",
+        "bits": [
+          { "name": "Valve 1", "iecLocation": "%IX0.0" },
+          { "name": "Valve 2", "iecLocation": "%IX0.1" },
+          { "name": "Valve 3", "iecLocation": "%IX0.2" },
+          { "name": "Valve 4", "iecLocation": "%IX0.3" },
+          { "name": "Valve 5", "iecLocation": "%IX0.4" },
+          { "name": "Valve 6", "iecLocation": "%IX0.5" },
+          { "name": "Valve 7", "iecLocation": "%IX0.6" },
+          { "name": "Valve 8", "iecLocation": "%IX0.7" }
+        ]
+      },
+      {
         "id": "echo",
         "index": 8448,
         "subIndex": 1,
@@ -75,6 +96,27 @@
         "exchange": "pdo",
         "iecLocation": "%QW1",
         "defaultValue": "0"
+      },
+      {
+        "id": "lamps",
+        "index": 8448,
+        "subIndex": 3,
+        "name": "Lamps",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "",
+        "defaultValue": "0",
+        "bits": [
+          { "name": "Lamp 1", "iecLocation": "%QX0.0" },
+          { "name": "Lamp 2", "iecLocation": "%QX0.1" },
+          { "name": "Lamp 3", "iecLocation": "%QX0.2" },
+          { "name": "Lamp 4", "iecLocation": "%QX0.3" },
+          { "name": "Lamp 5", "iecLocation": "%QX0.4" },
+          { "name": "Lamp 6", "iecLocation": "%QX0.5" },
+          { "name": "Lamp 7", "iecLocation": "%QX0.6" },
+          { "name": "Lamp 8", "iecLocation": "%QX0.7" }
+        ]
       },
       {
         "id": "serial",

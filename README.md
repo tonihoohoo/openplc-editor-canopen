@@ -31,6 +31,7 @@ CANopen:
 - CANopen addresses from the central registry, up to the runtime's limit of 65536 per table: [docs/canopen.md](docs/canopen.md#addresses)
 - CANopen slave server: the runtime as a CANopen device with objects, PDOs, an EDS or XDD export and an Online tab that shows the running slave and what its master changed: [docs/canopen.md](docs/canopen.md#canopen-slave)
 - LSS (CiA 305) in the CANopen slave: an LSS master gives it its node ID and bit rate: [docs/canopen.md](docs/canopen.md#lss)
+- CANopen slave objects packed as 8 bits: one UNSIGNED8 on the bus, eight named BOOL addresses in the program: [docs/canopen.md](docs/canopen.md#objects-packed-as-8-bits)
 - Upload refused to a runtime without CANopen support: [docs/canopen.md](docs/canopen.md#installing-a-release-and-the-runtime-check)
 
 Editor:

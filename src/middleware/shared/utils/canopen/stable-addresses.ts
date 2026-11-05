@@ -8,7 +8,7 @@ import type { CanopenConfig, CanopenEntry, CanopenSlaveConfig, CanopenSlaveObjec
 import { type AddressPool, nextFreeAddress } from '../iec-address'
 import type { IecAddressRegistry } from '../iec-address/registry/types'
 import { nodeEntries } from './model'
-import { slaveIecPrefix } from './slave'
+import { isSlavePacked, slaveBitPrefix, slaveIecPrefix } from './slave'
 
 const CANOPEN_KIND = 'canopen'
 
@@ -88,9 +88,30 @@ export function addressNewSlaveObjects(
   pool: AddressPool,
 ): CanopenSlaveConfig {
   const had = new Map<string, string>()
-  for (const o of previous?.objects ?? []) if (o.iecLocation) had.set(o.id, o.iecLocation)
+  const hadBits = new Map<string, string>()
+  for (const o of previous?.objects ?? []) {
+    if (o.iecLocation) had.set(o.id, o.iecLocation)
+    if (o.bits) hadBits.set(o.id, o.bits.map((b) => b.iecLocation).join(','))
+  }
   const pending = new Set<string>()
+  const placeBits = (o: CanopenSlaveObject): CanopenSlaveObject => {
+    const bits = o.bits ?? []
+    const prefix = slaveBitPrefix(o.direction)
+    const locations = bits.map((b) => b.iecLocation)
+    if (hadBits.get(o.id) === locations.join(',') && locations.every((l) => l.startsWith(prefix)))
+      return o.iecLocation === '' ? o : { ...o, iecLocation: '' }
+    const given = locations.every((l) => l.startsWith(prefix) && BIT_ADDRESS.test(l) && !pending.has(l))
+    if (!hadBits.has(o.id) && given && new Set(locations).size === locations.length) {
+      for (const l of locations) pending.add(l)
+      return { ...o, iecLocation: '' }
+    }
+    const byte = nextFreeByte(pool, prefix, pending)
+    const placed = bits.map((b, i) => ({ ...b, iecLocation: `${prefix}${byte}.${i}` }))
+    for (const b of placed) pending.add(b.iecLocation)
+    return { ...o, iecLocation: '', bits: placed }
+  }
   const place = (o: CanopenSlaveObject): CanopenSlaveObject => {
+    if (isSlavePacked(o)) return placeBits(o)
     if (o.exchange === 'constant' || o.dataType === 'VISIBLE_STRING')
       return o.iecLocation === '' ? o : { ...o, iecLocation: '' }
     const prefix = slaveIecPrefix(o.dataType, o.direction)
@@ -105,4 +126,21 @@ export function addressNewSlaveObjects(
     return { ...o, iecLocation: address }
   }
   return { ...next, objects: next.objects.map(place) }
+}
+
+const BIT_ADDRESS = /^%[IQ]X\d+\.[0-7]$/
+
+/** The lowest image byte whose 8 bits under `prefix` (%IX or %QX) the pool and `alsoUsed` leave free. */
+export function nextFreeByte(pool: AddressPool, prefix: string, alsoUsed: ReadonlySet<string>): number {
+  const used = new Set<number>()
+  const take = (address: string): void => {
+    if (!address.startsWith(prefix)) return
+    const byte = Number(address.slice(prefix.length).split('.')[0])
+    if (Number.isInteger(byte)) used.add(byte)
+  }
+  for (const claim of pool.byPrefix.get(prefix) ?? []) take(claim.address)
+  for (const address of alsoUsed) take(address)
+  let byte = 0
+  while (used.has(byte)) byte++
+  return byte
 }
