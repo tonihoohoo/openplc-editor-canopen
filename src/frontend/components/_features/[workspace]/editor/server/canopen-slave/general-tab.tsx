@@ -77,80 +77,86 @@ const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
   ]
   return (
     <div className={cardClassName}>
-      <div className='mb-3 grid max-w-[640px] grid-cols-3 items-start gap-4'>
-        <h3 className={`${headingClassName} col-span-2`}>LSS</h3>
-        <CheckboxField
-          label='An LSS master may set the node ID'
-          className={LSS_CHECKBOX_CLASS}
-          hint='Layer setting services, CiA 305'
-          checked={lss.enabled}
-          onChange={(enabled) => set({ enabled })}
-        />
-      </div>
-      {lss.enabled ? (
-        <div className='flex max-w-[640px] flex-col gap-4'>
-          <div className='grid grid-cols-3 gap-4'>
-            <SelectField
-              label='At first start'
-              value={lss.waitForMaster ? 'wait' : 'node'}
-              options={firstStartOptions}
-              hint={
-                lss.waitForMaster
-                  ? 'No boot-up, heartbeat, PDO or SDO until a master gives a node ID; it finds the slave by LSS fastscan'
-                  : 'Starts with the node ID above; a master may change it'
-              }
-              onChange={(value) => set({ waitForMaster: value === 'wait' })}
-            />
-            <div className='flex flex-col gap-1'>
+      <h3 className={headingClassName}>LSS</h3>
+      <div className='flex max-w-[640px] flex-col gap-4'>
+        <div className='grid grid-cols-3 gap-4'>
+          {lss.enabled ? (
+            <>
               <SelectField
-                label='Serial number'
-                value={lss.serial === null ? 'auto' : 'fixed'}
-                options={SERIAL_OPTIONS}
-                objectRef='0x1018:04'
+                label='At first start'
+                value={lss.waitForMaster ? 'wait' : 'node'}
+                options={firstStartOptions}
                 hint={
-                  lss.serial === null
-                    ? 'The last part of the LSS address; made once on the runtime device and kept'
-                    : 'Must differ between slaves with the same identity on one bus'
+                  lss.waitForMaster
+                    ? 'No boot-up, heartbeat, PDO or SDO until a master gives a node ID; it finds the slave by LSS fastscan'
+                    : 'Starts with the node ID above; a master may change it'
                 }
-                warning={problems.find((p) => p.where === 'lss')?.text}
-                onChange={(value) => set({ serial: value === 'auto' ? null : (lss.serial ?? 1) })}
+                onChange={(value) => set({ waitForMaster: value === 'wait' })}
               />
-              {lss.serial !== null ? (
-                <NumberField
-                  label='Fixed serial number'
-                  hideLabel
-                  value={lss.serial}
-                  min={0}
-                  max={0xffffffff}
-                  hex
-                  hexWidth={8}
-                  onCommit={(value) => {
-                    if (value === 0) return 'The serial number is part of the LSS address and cannot be 0.'
-                    set({ serial: value })
-                    return null
-                  }}
+              <div className='flex flex-col gap-1'>
+                <SelectField
+                  label='Serial number'
+                  value={lss.serial === null ? 'auto' : 'fixed'}
+                  options={SERIAL_OPTIONS}
+                  objectRef='0x1018:04'
+                  hint={
+                    lss.serial === null
+                      ? 'The last part of the LSS address; made once on the runtime device and kept'
+                      : 'Must differ between slaves with the same identity on one bus'
+                  }
+                  warning={problems.find((p) => p.where === 'lss')?.text}
+                  onChange={(value) => set({ serial: value === 'auto' ? null : (lss.serial ?? 1) })}
                 />
-              ) : null}
-            </div>
+                {lss.serial !== null ? (
+                  <NumberField
+                    label='Fixed serial number'
+                    hideLabel
+                    value={lss.serial}
+                    min={0}
+                    max={0xffffffff}
+                    hex
+                    hexWidth={8}
+                    onCommit={(value) => {
+                      if (value === 0) return 'The serial number is part of the LSS address and cannot be 0.'
+                      set({ serial: value })
+                      return null
+                    }}
+                  />
+                ) : null}
+              </div>
+            </>
+          ) : null}
+          <div className='col-start-3 flex flex-col gap-3'>
             <CheckboxField
-              label='The master may change the bit rate'
+              label='An LSS master may set the node ID'
               besideInputs
               className={LSS_CHECKBOX_CLASS}
-              checked={lss.bitrateChange}
-              hint={
-                lss.bitrateChange
-                  ? 'A stored bit rate from the CiA 301 table is used from the next start'
-                  : 'Bit rate requests are answered with "not supported"'
-              }
-              onChange={(bitrateChange) => set({ bitrateChange })}
+              hint='Layer setting services, CiA 305'
+              checked={lss.enabled}
+              onChange={(enabled) => set({ enabled })}
             />
+            {lss.enabled ? (
+              <CheckboxField
+                label='The master may change the bit rate'
+                className={LSS_CHECKBOX_CLASS}
+                checked={lss.bitrateChange}
+                hint={
+                  lss.bitrateChange
+                    ? 'A stored bit rate from the CiA 301 table is used from the next start'
+                    : 'Bit rate requests are answered with "not supported"'
+                }
+                onChange={(bitrateChange) => set({ bitrateChange })}
+              />
+            ) : null}
           </div>
+        </div>
+        {lss.enabled ? (
           <p className={hintClassName}>
             When the master sends Store, the node ID and bit rate it set are kept on the runtime device and win over the
             values above, also after a restart, a new upload or a runtime update, until they are forgotten.
           </p>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   )
 }
