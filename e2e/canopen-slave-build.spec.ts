@@ -155,7 +155,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 6,
+      version: 7,
       networks: [{ interface: 'can0', nodes: [{ node_id: 1 }] }],
       devices: [
         {

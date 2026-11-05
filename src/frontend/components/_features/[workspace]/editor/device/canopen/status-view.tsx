@@ -1,16 +1,18 @@
 import type { CanopenLiveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { cn } from '@root/frontend/utils/cn'
-import type { CanopenEvent } from '@root/middleware/shared/ports/canopen-status'
+import type { CanopenEvent, CanopenLssResult } from '@root/middleware/shared/ports/canopen-status'
 import {
   busStateBad,
   busStateLabel,
   type CanopenDot,
+  type CanopenLssAddress,
   emcyDataText,
   emcyText,
   errorRegisterBits,
   eventText,
   hex,
   linkResetParts,
+  lssResultText,
   nmtStateLabel,
   nodeDot,
   nodeStateLabel,
@@ -99,6 +101,45 @@ const EventList = ({ events }: { events: CanopenEvent[] }) =>
     </ul>
   )
 
+const lssGood = (r: CanopenLssResult): boolean => r.result === 'given' || r.result === 'already'
+
+/** The node's LSS results, newest first: its LSS events, or its last result when none is in the list. */
+const LssPanel = ({
+  result,
+  events,
+  nodeId,
+  address,
+}: {
+  result: CanopenLssResult
+  events: CanopenEvent[]
+  nodeId: number
+  address?: CanopenLssAddress
+}) => {
+  const rows = events.flatMap((e) => (e.lss ? [{ time: e.time, lss: e.lss }] : []))
+  if (rows.length === 0 && result.time !== undefined) rows.push({ time: result.time, lss: result })
+  return (
+    <div className={cardClassName} data-testid='canopen-status-lss'>
+      <h4 className={headingClassName}>LSS</h4>
+      {rows.length === 0 ? (
+        <p className={hintClassName}>The master has not given the node ID yet.</p>
+      ) : (
+        <ul className='flex flex-col gap-1 text-xs'>
+          {rows.map((r, i) => (
+            <li key={`${r.time}-${i}`} className='flex gap-3'>
+              <span className='w-[80px] shrink-0 font-mono text-neutral-500'>{localTime(r.time)}</span>
+              <span
+                className={lssGood(r.lss) ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}
+              >
+                {lssResultText(r.lss, nodeId, address)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 /** The Status tab of a node: state and reason in words, counters, emergencies, late PDOs, events. */
 /** Whether the node sends emergency messages: `none` when its device file has no 0x1014, `off` when turned off. */
 export type NodeEmcyState = 'none' | 'off' | 'on'
@@ -113,10 +154,13 @@ export const NodeStatusTab = ({
   live,
   nodeId,
   emcy = 'on',
+  lssAddress,
 }: {
   live: CanopenLiveStatus
   nodeId: number
   emcy?: NodeEmcyState
+  /** The LSS address the master looks for, when the node gets its ID over LSS. */
+  lssAddress?: CanopenLssAddress
 }) => {
   const node = liveNode(live, nodeId)
   const events = (live.network?.events ?? []).filter((e) => e.node === nodeId)
@@ -186,6 +230,15 @@ export const NodeStatusTab = ({
               <Row label='Losses'>{node.losses}</Row>
             </dl>
           </div>
+
+          {node.lss ? (
+            <LssPanel
+              result={node.lss}
+              events={events.filter((e) => e.kind === 'lss')}
+              nodeId={nodeId}
+              address={lssAddress}
+            />
+          ) : null}
 
           <div className={cardClassName}>
             <h4 className={headingClassName}>Emergencies</h4>

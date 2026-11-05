@@ -477,6 +477,7 @@ export function parseXdd(textIn: string, fileName: string, lang = 'en'): XddRead
     objects,
   }
   if (unsupportedBitrates && unsupportedBitrates.length > 0) eds.unsupportedBitrates = unsupportedBitrates
+  if (attr(general, 'layerSettingServiceSlave') === 'true') eds.lssSupported = true
   const dummies = children(child(layers, 'dummyUsage'), 'dummy')
     .map((d) => /^Dummy000([1-7])=1$/i.exec((attr(d, 'entry') ?? '').replace(/\s+/g, '')))
     .filter((m): m is RegExpExecArray => m !== null)

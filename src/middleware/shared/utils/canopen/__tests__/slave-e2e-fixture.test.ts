@@ -28,7 +28,7 @@ describe('the end-to-end CANopen slave project', () => {
     expect(validateCanopenSlaves([server], [])).toEqual([])
     const conf: unknown = JSON.parse(generateCanopenConfig([], null, [server]) ?? '')
     expect(conf).toMatchObject({
-      version: 6,
+      version: 7,
       networks: [],
       devices: [
         {

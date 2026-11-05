@@ -4,6 +4,7 @@ import type { CanopenNmtCommand } from '../../../ports/canopen-online'
 import type {
   CanopenBusState,
   CanopenEvent,
+  CanopenLssResult,
   CanopenNetworkStatus,
   CanopenNodeState,
   CanopenNodeStatus,
@@ -205,6 +206,47 @@ export function linkResetParts(network: Pick<CanopenNetworkStatus, 'bus' | 'even
   return parts
 }
 
+/** The LSS address the master looks for, from the node's configuration. */
+export interface CanopenLssAddress {
+  vendorId: number
+  productCode: number
+  serialNumber: number
+}
+
+/** What an LSS result says; `address` names what the master looked for when no device answered. */
+export function lssResultText(result: CanopenLssResult, nodeId: number, address?: CanopenLssAddress): string {
+  const stored = result.stored ? 'stored' : 'not stored'
+  switch (result.result) {
+    case 'none':
+      return 'Not given yet.'
+    case 'given': {
+      const before = result.previous_id === undefined || result.previous_id === 255 ? 'none' : result.previous_id
+      return `Node ID ${nodeId} given (device had ${before}); ${stored}.`
+    }
+    case 'already':
+      return `The device already had node ID ${nodeId}${result.stored ? '; stored' : ''}.`
+    case 'not_found':
+      return address
+        ? `No device with vendor ${hex(address.vendorId, 8)}, product ${hex(address.productCode, 8)}, serial ${hex(address.serialNumber, 8)} answered. Check the serial number and the cabling.`
+        : "No device with the node's LSS address answered. Check the serial number and the cabling."
+    case 'refused':
+      return `The device refused node ID ${nodeId}.`
+    case 'store_refused':
+      return `Node ID ${nodeId} given, but the device refused to store it; it loses it at power-off.`
+    default: {
+      const unreachable: never = result.result
+      return unreachable
+    }
+  }
+}
+
+/** The LSS problem shown under the node's name in the node list, or null. */
+export function lssProblemShort(result: CanopenLssResult | undefined): string | null {
+  if (result?.result === 'not_found') return 'LSS: no device answered'
+  if (result?.result === 'refused') return 'LSS: node ID refused'
+  return null
+}
+
 /** What an event says, without its time and node. */
 export function eventText(event: CanopenEvent): string {
   const pdo = `TPDO ${event.pdo ?? 0}${event.cob_id !== undefined ? ` (COB-ID ${hex(event.cob_id, 3)})` : ''}`
@@ -265,6 +307,8 @@ export function eventText(event: CanopenEvent): string {
       return 'Turned on by the PLC program.'
     case 'node_off':
       return 'Turned off by the PLC program.'
+    case 'lss':
+      return lssResultText(event.lss ?? { result: 'none' }, event.node ?? 0)
     default: {
       const unreachable: never = event.kind
       return unreachable

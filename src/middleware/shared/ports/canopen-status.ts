@@ -63,6 +63,14 @@ const EmcySchema = z.object({
 
 const LatePdoSchema = z.object({ pdo: count, cob_id: count, since: z.number() })
 
+/** The last outcome of giving the node its node ID over LSS; `previous_id` 255 is none. */
+export const CanopenLssResultSchema = z.object({
+  result: z.enum(['none', 'given', 'already', 'not_found', 'refused', 'store_refused']),
+  previous_id: count.optional(),
+  stored: z.boolean().optional(),
+  time: z.number().optional(),
+})
+
 const SkippedSdoSchema = z.object({ index: count, subindex: count, abort_code: count })
 
 export const CanopenNodeStatusSchema = z.object({
@@ -89,6 +97,8 @@ export const CanopenNodeStatusSchema = z.object({
   late_pdos: z.array(LatePdoSchema),
   /** Startup SDOs refused in the current boot whose policy let the boot go on; absent before format 4. */
   sdo_skipped: z.array(SkippedSdoSchema).default([]),
+  /** Only for a node given its node ID over LSS; absent before format 7. */
+  lss: CanopenLssResultSchema.optional(),
 })
 
 /** What came of the master's reset of a link. */
@@ -120,6 +130,8 @@ export const CanopenEventSchema = z.object({
     /** The PLC program turned the node on or off. */
     'node_on',
     'node_off',
+    /** A node ID given over LSS, or the device not found. */
+    'lss',
   ]),
   problem: CanopenProblemSchema.nullable().optional(),
   code: count.optional(),
@@ -144,6 +156,8 @@ export const CanopenEventSchema = z.object({
   open: z.boolean().optional(),
   /** sdo_abort: what the boot did; absent from runtimes before refusal policies. */
   policy: z.enum(['stop', 'continue', 'jump']).optional(),
+  /** lss: the outcome. */
+  lss: CanopenLssResultSchema.optional(),
 })
 
 export const CanopenBusStatusSchema = z.object({
@@ -281,6 +295,7 @@ export type CanopenNodeState = z.infer<typeof CanopenNodeStateSchema>
 export type CanopenBusState = z.infer<typeof CanopenBusStateSchema>
 export type CanopenProblem = z.infer<typeof CanopenProblemSchema>
 export type CanopenNodeStatus = z.infer<typeof CanopenNodeStatusSchema>
+export type CanopenLssResult = z.infer<typeof CanopenLssResultSchema>
 export type CanopenResetOutcome = z.infer<typeof CanopenResetOutcomeSchema>
 export type CanopenResetCause = z.infer<typeof CanopenResetCauseSchema>
 export type CanopenEvent = z.infer<typeof CanopenEventSchema>

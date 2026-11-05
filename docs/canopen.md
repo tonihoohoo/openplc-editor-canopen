@@ -347,6 +347,36 @@ to `canopen.json` lies in the range the runtime takes; `__tests__/runtime-ranges
 copy of those ranges, taken from the runtime's parser, and must change with it. **Fix all** applies every fix as one change. These options need
 `canopen.json` format version 3 or later.
 
+## Node ID over LSS
+
+A node's **General** tab has a section *How the device gets node ID N*:
+
+- **Set on the device** (the default): DIP switches, the device's own tool, or stored earlier. The
+  node ID on the page must match it.
+- **Given by the master over LSS at every start**: the runtime's master finds the device by its LSS
+  address (CiA 305) and gives it the node ID before it boots it. The vendor ID and product code come
+  from the device file and are read-only; enter the **serial number** from the device's label
+  (0x1018:04, hexadecimal `0x...` or decimal) and, when needed, the **revision** (empty for any: the
+  master then searches for it, a few seconds more at start). **Also store the node ID in the device**
+  (off by default) makes the device keep the ID after a power-off; the master stores it when it
+  changed it, not at every start. To swap a broken device, enter the new serial number.
+
+The choice is offered only when the device file says the device supports LSS (`LSS_Supported=1` in
+an EDS or DCF, `layerSettingServiceSlave="true"` in an XDD or XDC); otherwise it is grey with that
+reason. A node given its ID over LSS has an **LSS** mark in the node list. Switching back to *Set on
+the device* keeps the serial number in the project but writes no `lss` object.
+
+The build is refused, naming the node, when a node set to LSS has no serial number or 0, when its
+device file does not list LSS support (fix: *Set the node ID on the device*), or when two nodes of
+one network have the same LSS address (vendor ID, product code, revision and serial number).
+`canopen.json` gets the node's `lss` object (format version 7): `vendor_id`, `product_code`,
+`revision` (0 for any), `serial_number` and `store`.
+
+While connected, the node list shows *LSS: no device answered* or *LSS: node ID refused* under the
+node's name, and the node's **Status** tab has an **LSS** panel with the latest LSS results in words,
+such as "Node ID 3 given (device had none); not stored" or the full address the master looked for
+when no device answered.
+
 ## Live status
 
 While the editor is connected to a runtime whose `/api/capabilities` lists `"status"` in
@@ -652,12 +682,16 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   differs fails the job, and the comment shows the baseline, the new image and the difference. For an
   intended change, take the new images from the run's `canopen-ui-results` artifact
   (`<view>-actual.png`), save them as `e2e/<spec>-snapshots/<view>-chromium-linux.png` and commit.
+- `e2e/canopen-lss.spec.ts` covers the LSS section, the list mark, the build check and the LSS panel
+  of the Status tab against the fake runtime.
 - `e2e/layout-canopen-online.spec.ts` (local only, outside the CI glob) takes screenshots of the Online
   tab at a wide and a narrow window for a layout review, into `SCREENSHOT_DIR`.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
   against a simulated node on a virtual CAN bus, and runs `e2e/fixtures/canopen-plc-blocks/`, a
   program that calls every block, against the same node across PLC stops and starts. It also runs
-  `e2e/fixtures/canopen-slave/` as a CANopen slave under a master played by a script on the bus.
+  `e2e/fixtures/canopen-slave/` as a CANopen slave under a master played by a script on the bus,
+  and `e2e/fixtures/canopen-lss/` against a simulated node that starts without a node ID and gets
+  node 2 over LSS.
 - PLC blocks: the names and constants in
   `src/middleware/shared/utils/canopen/__tests__/plc-names.test.ts`, the library build in
   `src/backend/shared/canopen/__tests__/build-library.test.ts` (it also fails while the committed
