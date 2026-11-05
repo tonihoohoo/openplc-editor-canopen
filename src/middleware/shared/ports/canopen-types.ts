@@ -400,6 +400,9 @@ export interface CanopenSlaveLss {
   bitrateChange: boolean
 }
 
+/** The slave's own NMT state on a PLC stop (0x1029 sub 2). */
+export type CanopenSlaveOnPlcStopState = 'none' | 'pre_operational' | 'stopped'
+
 export interface CanopenSlaveConfig {
   /** Off: left out of conf/canopen.json; objects and addresses are kept. */
   enabled: boolean
@@ -419,6 +422,7 @@ export interface CanopenSlaveConfig {
   masterWatch: { nodeId: number; timeMs: number }
   onMasterLost: CanopenSlaveOnMasterLost
   onPlcStop: CanopenSlaveOnPlcStop
+  onPlcStopState: CanopenSlaveOnPlcStopState
   /** Goes operational by itself after its boot-up, without the master's NMT start. */
   startAlone: boolean
   /** Absent in projects made before LSS: LSS off. */

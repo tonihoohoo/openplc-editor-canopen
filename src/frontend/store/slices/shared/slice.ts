@@ -609,9 +609,17 @@ const createSharedSlice: StateCreator<SharedRootState, [], [], SharedSlice> = (s
       const nameCheck = validateElementName(name)
       if (!nameCheck.ok) return nameCheck
 
+      // The project's first CANopen slave, in a project without a CANopen network, turns the canopen
+      // block library on.
+      const data = state.project.data
+      const firstCanopen =
+        protocol === 'canopen-slave' &&
+        !(data.servers ?? []).some((s) => s.protocol === 'canopen-slave') &&
+        !(data.remoteDevices ?? []).some((d) => d.protocol === 'canopen')
       // Reachable: the project slice also refuses a second server of a protocol.
       const result = state.projectActions.createServer({ data: { name, protocol } })
       if (!result.ok) return { ok: false, message: result.message }
+      if (firstCanopen) state.libraryActions.enableLibrary(CANOPEN_LIBRARY_NAME)
 
       const editorModel = CreateServerEditor(name, protocol)
       state.editorActions.addModel(editorModel)
@@ -681,9 +689,12 @@ const createSharedSlice: StateCreator<SharedRootState, [], [], SharedSlice> = (s
       const nameCheck = validateElementName(name)
       if (!nameCheck.ok) return nameCheck
 
-      // The project's first CANopen network turns the canopen block library on; nothing else does.
+      // The project's first CANopen network, in a project without a CANopen slave, turns the canopen
+      // block library on.
       const firstCanopen =
-        protocol === 'canopen' && !(state.project.data.remoteDevices ?? []).some((d) => d.protocol === 'canopen')
+        protocol === 'canopen' &&
+        !(state.project.data.remoteDevices ?? []).some((d) => d.protocol === 'canopen') &&
+        !(state.project.data.servers ?? []).some((s) => s.protocol === 'canopen-slave')
       const result = state.projectActions.createRemoteDevice({ data: { name, protocol } })
       /* istanbul ignore next -- defensive: shared slice already validates name uniqueness */
       if (!result.ok) return { ok: false, message: result.message }

@@ -101,7 +101,7 @@ describe('generateCanopenConfig', () => {
     expect(text).not.toBeNull()
     const json: unknown = JSON.parse(text ?? '')
     expect(json).toMatchObject({
-      version: 8,
+      version: 9,
       networks: [
         {
           name: 'CANopen_1',
@@ -151,7 +151,7 @@ describe('generateCanopenConfig', () => {
     const off: CanopenNode = { ...genericNode(3), name: 'io3', enabled: false }
     const json: unknown = JSON.parse(generateCanopenConfig([canopenDevice('CANopen_1', configWith(later, off))]) ?? '')
     expect(json).toMatchObject({
-      version: 8,
+      version: 9,
       networks: [
         {
           nodes: [

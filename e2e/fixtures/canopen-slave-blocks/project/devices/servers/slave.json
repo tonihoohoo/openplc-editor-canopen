@@ -1,0 +1,127 @@
+{
+  "name": "io",
+  "protocol": "canopen-slave",
+  "canopenSlaveConfig": {
+    "enabled": true,
+    "interface": "vcan0",
+    "bitrate": 0,
+    "nodeId": 5,
+    "priority": 90,
+    "vendorName": "OpenPLC",
+    "deviceName": "canopen-slave-blocks",
+    "softwareVersion": "1.0",
+    "vendorId": 43981,
+    "productCode": 2,
+    "revision": 65536,
+    "heartbeatMs": 100,
+    "masterWatch": {
+      "nodeId": 127,
+      "timeMs": 0
+    },
+    "onMasterLost": "pre_operational",
+    "onPlcStop": "hold",
+    "onPlcStopState": "pre_operational",
+    "startAlone": false,
+    "objects": [
+      {
+        "id": "command",
+        "index": 8192,
+        "subIndex": 1,
+        "name": "Command",
+        "dataType": "UNSIGNED8",
+        "direction": "from_master",
+        "exchange": "sdo",
+        "iecLocation": "%IB0",
+        "defaultValue": "0"
+      },
+      {
+        "id": "alarm",
+        "index": 8192,
+        "subIndex": 2,
+        "name": "Alarm",
+        "dataType": "UNSIGNED32",
+        "direction": "from_master",
+        "exchange": "sdo",
+        "iecLocation": "%ID0",
+        "defaultValue": "0"
+      },
+      {
+        "id": "state",
+        "index": 8448,
+        "subIndex": 1,
+        "name": "State",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "sdo",
+        "iecLocation": "%QB0",
+        "defaultValue": "0"
+      },
+      {
+        "id": "alarm-writes",
+        "index": 8448,
+        "subIndex": 2,
+        "name": "AlarmWrites",
+        "dataType": "UNSIGNED32",
+        "direction": "to_master",
+        "exchange": "sdo",
+        "iecLocation": "%QD0",
+        "defaultValue": "0"
+      },
+      {
+        "id": "error-register",
+        "index": 8448,
+        "subIndex": 3,
+        "name": "ErrorRegister",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "sdo",
+        "iecLocation": "%QB1",
+        "defaultValue": "0"
+      },
+      {
+        "id": "alarm-error",
+        "index": 8448,
+        "subIndex": 4,
+        "name": "AlarmError",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "sdo",
+        "iecLocation": "%QB2",
+        "defaultValue": "0"
+      },
+      {
+        "id": "nmt-error",
+        "index": 8448,
+        "subIndex": 5,
+        "name": "NmtError",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "sdo",
+        "iecLocation": "%QB3",
+        "defaultValue": "0"
+      }
+    ],
+    "tpdos": [
+      {
+        "transmissionType": 255,
+        "inhibitTime": 0,
+        "eventTimerMs": 0
+      },
+      {
+        "transmissionType": 255,
+        "inhibitTime": 0,
+        "eventTimerMs": 0
+      },
+      {
+        "transmissionType": 255,
+        "inhibitTime": 0,
+        "eventTimerMs": 0
+      },
+      {
+        "transmissionType": 255,
+        "inhibitTime": 0,
+        "eventTimerMs": 0
+      }
+    ]
+  }
+}

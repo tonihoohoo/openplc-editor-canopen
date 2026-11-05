@@ -27,7 +27,7 @@ END_VAR
 // dlopen, dlsym and dlclose are declared here as glibc declares them.
 //
 // Derived from canworks ec7fd59, library/src/common.inc (Apache-2.0), adapted to the plugin's
-// interface version 2 (core/src/drivers/plugins/native/canopen/plc_api.h in the runtime fork).
+// interface version 3 (core/src/drivers/plugins/native/canopen/plc_api.h in the runtime fork).
 #ifndef CANOPEN_FB_SHARED_INCLUDED
 #define CANOPEN_FB_SHARED_INCLUDED
 #if defined(__linux__)
@@ -38,8 +38,8 @@ extern "C" int dlclose(void *handle) noexcept(true);
 
 namespace canopen_fb {
 
-// A copy of the plugin's C interface, version 2; keep in step with plc_api.h. Version 1 is asked
-// for, since a version 2 plugin answers it with its version 2 table; `size` tells which it is.
+// A copy of the plugin's C interface, version 3; keep in step with plc_api.h. Version 1 is asked
+// for, since a newer plugin answers it with its newest table; `size` tells which it is.
 const uint32_t api_version = 1;
 const uint32_t max_data = 256;
 enum {
@@ -51,7 +51,11 @@ enum {
   r_none = 0, r_booting = 1, r_full = 2, r_not_run = 3, r_restart = 4, r_link = 5,
   r_too_large = 6, r_length = 7, r_command = 8, r_version = 9,
   r_not_in_eds = 100,  // the blocks' own: DATALENGTH 0 for an object the EDS does not list
-  r_needs_v2 = 101     // the blocks' own: the plugin's table has no version 2 functions
+  r_needs_v2 = 101,    // the blocks' own: the plugin's table lacks the functions the block needs
+  r_reset = 102,       // the blocks' own: a slave NMT block asked for a reset
+  r_own_code = 103,    // the blocks' own: an emergency code the slave sends itself
+  r_slots = 104,       // the blocks' own: all program emergency slots are taken
+  r_object = 105       // the blocks' own: the slave has no such object from the master
 };
 enum { k_read = 0, k_write = 1, k_nmt = 2 };
 struct request {
@@ -123,6 +127,29 @@ struct api_v2 {
   int (*network_status)(uint8_t network, network_info *out);
   int (*node_enable)(uint8_t network, uint8_t node, uint8_t on);
 };
+// slave_info::flags
+const uint8_t slave_on_bus = 0x01;
+const uint8_t slave_master_watched = 0x02;
+const uint8_t slave_master_seen = 0x04;
+const uint32_t slave_emcy_slots = 31;
+struct slave_info {
+  uint8_t state;
+  uint8_t node_id;
+  uint8_t flags;
+  uint8_t bus_state;
+  uint8_t error_register;
+  uint8_t emcy_active;
+  uint8_t reserved[2];
+};
+struct api_v3 {
+  api_v2 v2;
+  int (*slave_status)(uint8_t slave, slave_info *out);
+  int (*slave_nmt)(uint8_t slave, uint8_t command);
+  int (*slave_nmt_done)(uint8_t slave, uint8_t command, uint8_t *done);
+  int (*slave_emcy_claim)(uint8_t slave, uint32_t *handle);
+  int (*slave_emcy)(uint8_t slave, uint32_t handle, uint8_t active, uint16_t code, uint32_t info);
+  int (*slave_written)(uint8_t slave, uint16_t index, uint8_t subindex, uint32_t *count);
+};
 // After a lookup that found no plugin, this many lookups are skipped before the next one.
 const uint32_t miss_skip = 1024;
 
@@ -188,6 +215,17 @@ inline const api_v2 *api2(uint8_t &why) {
     return nullptr;
   }
   return static_cast<const api_v2 *>(static_cast<const void *>(t));
+}
+
+// The table with the version 3 functions, or null with `why` set (r_needs_v2 for an older plugin).
+inline const api_v3 *api3(uint8_t &why) {
+  const api_v1 *t = api(why);
+  if (!t) return nullptr;
+  if (t->version < 3 || t->size < sizeof(api_v3)) {
+    why = r_needs_v2;
+    return nullptr;
+  }
+  return static_cast<const api_v3 *>(static_cast<const void *>(t));
 }
 
 // ---- Error text, written into a fixed buffer (no allocation, no libc). ----
@@ -395,6 +433,60 @@ inline uint32_t describe(text &t, const what &w, const result &r) {
     default:
       put(t, "internal error in the CANopen master");
       return 0;
+  }
+}
+
+// The error text of a slave block, for `slave` and the object (index, subindex) or ERRORCODE.
+inline void describe_slave(text &t, uint8_t slave, uint8_t error, uint8_t reason, uint16_t index,
+                           uint8_t subindex) {
+  clear(t);
+  switch (error) {
+    case e_no_error:
+      return;
+    case e_net_id_unknown:
+      put(t, "no CANopen slave ");
+      put_dec(t, slave);
+      return;
+    case e_no_driver:
+      if (reason == r_needs_v2)
+        put(t, "the runtime's CANopen plugin is too old for this block; update the runtime");
+      else if (reason == r_version)
+        put(t, "the CANopen plugin does not offer the blocks' interface version 1");
+      else
+        put(t, "no CANopen slave runs");
+      return;
+    case e_wrong_parameter:
+      if (reason == r_reset) {
+        put(t, "the program cannot reset the slave; STATE must be START_REMOTE_NODE, ");
+        put(t, "STOP_REMOTE_NODE or ENTER_PRE_OPERATIONAL");
+      } else if (reason == r_own_code) {
+        put(t, "ERRORCODE ");
+        put_hex(t, index, 4);
+        put(t, " is sent by the slave itself; use another code");
+      } else if (reason == r_object) {
+        put(t, "slave ");
+        put_dec(t, slave);
+        put(t, " has no object ");
+        put_hex(t, index, 4);
+        put(t, " sub ");
+        put_dec(t, subindex);
+        put(t, " written by the master");
+      } else {
+        put(t, "wrong parameter");
+      }
+      return;
+    case e_request_error:
+      if (reason == r_slots) {
+        put(t, "slave ");
+        put_dec(t, slave);
+        put(t, " already holds 31 program emergencies");
+      } else {
+        put(t, "the request cannot run now");
+      }
+      return;
+    default:
+      put(t, "internal error in the CANopen slave");
+      return;
   }
 }
 

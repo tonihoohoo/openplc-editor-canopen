@@ -168,11 +168,11 @@ describe('CANopen slave model', () => {
     expect(generateCanopenConfig([], null, [server({ ...io(), enabled: false })])).toBeNull()
   })
 
-  it('writes the slave under devices with format version 8', () => {
+  it('writes the slave under devices with format version 9', () => {
     const text = generateCanopenConfig([], null, [server(io())])
     expect(text).not.toBeNull()
     const json = JSON.parse(text ?? '{}') as { version: number; networks: unknown[]; devices: unknown[] }
-    expect(json.version).toBe(8)
+    expect(json.version).toBe(9)
     expect(json.networks).toEqual([])
     expect(json.devices).toEqual(slaveDevicesOut([server(io())]))
     expect(json.devices[0]).toMatchObject({
@@ -182,6 +182,7 @@ describe('CANopen slave model', () => {
       heartbeat_ms: 1000,
       master_watch: null,
       on_plc_stop: 'hold',
+      on_plc_stop_state: 'none',
       objects: expect.arrayContaining([
         {
           index: 0x2000,
@@ -330,6 +331,13 @@ describe('CANopen slave device file', () => {
       dataType: '0x0009',
       defaultValue: '1.4.0',
     })
+    expect(eds.objects.find((o) => o.index === 0x1029 && o.subIndex === 2)).toMatchObject({
+      access: 'rw',
+      defaultValue: '1',
+    })
+    const stopped = parseEds(buildSlaveExport('io', { ...io(), onPlcStopState: 'stopped' }, 'eds', now).text, 'x.eds')
+    expect(stopped.objects.find((o) => o.index === 0x1029 && o.subIndex === 2)?.defaultValue).toBe('2')
+    expect(stopped.objects.find((o) => o.index === 0x1029 && o.subIndex === 0)?.defaultValue).toBe('2')
   })
 
   it('marks LSS support and the fixed serial number in the EDS and XDD when LSS is on', () => {

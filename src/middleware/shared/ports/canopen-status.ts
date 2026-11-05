@@ -197,7 +197,7 @@ export const CanopenSlaveStateSchema = z.enum([
   'offline',
 ])
 
-export const CanopenSlaveNmtBySchema = z.enum(['boot', 'master', 'self', 'start_alone'])
+export const CanopenSlaveNmtBySchema = z.enum(['boot', 'master', 'self', 'start_alone', 'program', 'plc_stop'])
 
 export const CanopenSlaveEventSchema = z.object({
   time: z.number(),
@@ -226,6 +226,8 @@ export const CanopenSlaveEventSchema = z.object({
   running: z.boolean().optional(),
   bus_state: CanopenBusStateSchema.optional(),
   outcome: CanopenResetOutcomeSchema.optional(),
+  /** An emergency of the PLC program. */
+  program: z.boolean().optional(),
 })
 
 export const CanopenSlavePdoStatusSchema = z.object({
@@ -283,10 +285,13 @@ export const CanopenSlaveStatusSchema = z.object({
   master_last_seen: z.number().optional(),
   error_register: count.optional(),
   emcy_active: z.array(count).optional(),
+  /** The active emergency codes the PLC program raised. */
+  emcy_program: z.array(count).optional(),
   error_history: z.array(count).optional(),
   heartbeat_ms: count.optional(),
   master_watch_ms: count.optional(),
   on_master_lost: z.enum(['pre_operational', 'no_change', 'stopped', 'other']).optional(),
+  on_plc_stop_state: z.enum(['none', 'pre_operational', 'stopped', 'other']).optional(),
   pdos: z.array(CanopenSlavePdoStatusSchema).optional(),
   values: z.array(z.object({ index: count, subindex: count, data: hexData })).optional(),
   events: z.array(CanopenSlaveEventSchema).optional(),

@@ -20,6 +20,7 @@ import {
   slaveLssForgetText,
   slavesOn,
   suggestedSlaveRevision,
+  usesCanopenLibrary,
 } from '@root/middleware/shared/utils/canopen'
 import {
   canopenSlavePoolName,
@@ -150,6 +151,13 @@ const CanopenSlaveEditor = () => {
   const live = useCanopenSlaveStatus(name, on)
   const [exporting, setExporting] = useState(false)
   const [format, setFormat] = useState<SlaveFormat>('eds')
+
+  const libraries = useOpenPLCStore((s) => s.project.data.libraries)
+  const libraryOn = usesCanopenLibrary(libraries)
+  const slaveNumber = useMemo(() => {
+    const at = slavesOn(servers).findIndex((s) => s.name === name)
+    return at < 0 ? null : at + 1
+  }, [servers, name])
 
   const problems = useMemo(() => {
     const others = slavesOn(servers).filter((s) => s.name !== name)
@@ -290,7 +298,14 @@ const CanopenSlaveEditor = () => {
           <TabItem value='online' label='Online' active={tab === 'online'} />
         </Tabs.List>
         <Tabs.Content value='general' className='data-[state=inactive]:hidden'>
-          <GeneralTab config={config} problems={problems} onChange={(update) => commit((c) => ({ ...c, ...update }))} />
+          <GeneralTab
+            name={name}
+            config={config}
+            problems={problems}
+            slaveNumber={slaveNumber}
+            libraryOn={libraryOn}
+            onChange={(update) => commit((c) => ({ ...c, ...update }))}
+          />
         </Tabs.Content>
         <Tabs.Content value='data' className='data-[state=inactive]:hidden'>
           <DataTab config={config} problems={problems} commit={commit} aliasProblem={aliasProblem} />

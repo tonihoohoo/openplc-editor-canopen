@@ -480,7 +480,8 @@ rate change while the PLC runs.
 ## PLC function blocks
 
 The editor ships the **canopen** library ("CANopen" in the library tree) with CiA 405 function blocks for the
-project's CANopen networks. The project's first CANopen network turns it on; it can be turned off and
+project's CANopen networks and the runtime's own CANopen slaves. The project's first CANopen network or
+slave turns it on; it can be turned off and
 on in the project's libraries like any other. The blocks are C++ blocks that run inside the program and
 hand each request to the runtime's canopen plugin, so a call never waits for the bus. They find the plugin
 once and keep its function table when the plugin says the table stays valid across PLC stops and
@@ -501,6 +502,10 @@ loader.
 | `CANOPEN_NODE_ENABLE`                 | Turn a node on or off while the PLC runs (`ACTIVE`, a level)       |
 | `CANOPEN_NODE_STATUS`                 | How the master runs a node (`RUNSTATE`) and its settings           |
 | `CANOPEN_NETWORK_STATE`               | `MANDATORY_UP`, `OPTIONAL_UP` and node counts of a network         |
+| `CANOPEN_SLAVE_STATUS`                | This runtime's slave: NMT state, master heartbeat, bus, errors     |
+| `CANOPEN_SLAVE_NMT`                   | Put the slave into operational, stopped or pre-operational itself  |
+| `CANOPEN_SLAVE_EMCY`                  | One emergency of the program on the slave, active while `ENABLE`   |
+| `CANOPEN_SLAVE_WRITTEN`               | How often the master wrote an object of the slave (`COUNT`, `NEW`) |
 
 - **Addressing.** `NETWORK` counts the networks that are on from 1 (default 1) and `DEVICE` is the node
   ID. Each network and node name is also a constant of the program, so `DEVICE := io2` and
@@ -546,6 +551,40 @@ loader.
 - **PLC stop and start.** A request in progress when the PLC stops is cancelled; after a start the
   blocks begin again from idle. `SDO_WRITE4` with `DATALENGTH := 0` takes the object's size from the
   node's EDS.
+- **Slave blocks.** The four `CANOPEN_SLAVE_` blocks work on a [CANopen slave](#canopen-slave) of the
+  project, not on a network. `SLAVE` counts the slaves that are on from 1 (default 1), and each slave's
+  name is a constant too (`SLAVE := Line_IO`); the slave page's **In the PLC program** panel shows both.
+  None of them waits for the bus, and an unknown slave gives `CANOPEN_KERNEL_NET_ID_UNKNOWN`.
+  - `CANOPEN_SLAVE_STATUS` answers in the same call while `ENABLE` is TRUE: `STATE` (a `DEVICE_STATE`
+    constant, `NOT_AVAIL` while the interface is not open), `OPERATIONAL`, `NODEID`, `MASTERWATCHED`,
+    `MASTERSEEN`, `BUSSTATE` (`BUS_ERROR_ACTIVE`, `BUS_ERROR_PASSIVE`, `BUS_OFF`, `BUS_UNKNOWN`),
+    `ERRORREGISTER` (0x1001) and `EMCYACTIVE`. The values are at most 100 ms old.
+  - `CANOPEN_SLAVE_NMT` changes the slave's own NMT state (CiA 301 local control) on a rising edge of
+    `ENABLE`: `STATE` is `START_REMOTE_NODE`, `STOP_REMOTE_NODE` or `ENTER_PRE_OPERATIONAL`; a reset is
+    refused with `CANOPEN_KERNEL_WRONG_PARAMETER`. `BUSY` until the slave is in that state, then
+    `CONFIRM`. A master, ours included, sees a slave that leaves operational this way as having left
+    by itself and acts on its own node error setting; raise an emergency first so it knows why.
+  - `CANOPEN_SLAVE_EMCY` holds one emergency per instance, up to 31 per slave: while `ENABLE` is TRUE
+    it is active with `ERRORCODE` and `INFO` (bytes 4 to 7 of the EMCY), and the slave sends EMCY
+    0000h once the last one clears. A change of `ERRORCODE` or `INFO` while active sends one more
+    EMCY. The error register gets the generic bit and the bit of the code's class (2xxx current, 3xxx
+    voltage, 4xxx temperature, 8xxx communication, FFxx manufacturer). 0000h, 6200h (PLC stop) and
+    8130h (master lost) are the slave's own and refused. A PLC stop clears every program emergency;
+    after the start the instances raise theirs again.
+  - `CANOPEN_SLAVE_WRITTEN` counts the master's writes of one object from the master (`INDEX`,
+    `SUBINDEX`), by SDO or RPDO and also with the same value: `COUNT` since the slave started and
+    `NEW` TRUE in the call after it changed. An object in an RPDO counts every frame.
+
+  These blocks need the runtime's block interface version 3; an older runtime gives
+  `CANOPEN_KERNEL_NO_DRIVER` with a text asking for an update. A slave that raises an alarm and leaves
+  operational while it lasts:
+
+  ```
+  overheat(SLAVE := Line_IO, ENABLE := temp > 80.0, ERRORCODE := 16#4210, INFO := REAL_TO_UDINT(temp * 10.0));
+  leave(SLAVE := Line_IO, ENABLE := overheat.ACTIVE, STATE := ENTER_PRE_OPERATIONAL);
+  ```
+
+  with `overheat : CANOPEN_SLAVE_EMCY` and `leave : CANOPEN_SLAVE_NMT`.
 
 The library's sources are in `resources/libraries/canopen/` (`library.json`, `src/types.st`,
 `src/shared.inc`) and the block templates in `src/backend/shared/canopen/library-blocks.ts`;
@@ -565,7 +604,10 @@ network and a slave at the same time. The page has four tabs:
   device file, device name 0x1008, software version 0x100A, vendor ID, product code and revision in
   0x1018); heartbeat time 0x1017 (always sent), the master's node ID and heartbeat timeout to watch
   (0x1016:01, 0 for none), what happens when the master is lost (0x1029:01, with EMCY 8130h), the
-  values sent while the PLC is stopped (hold or zero, with EMCY 6200h) and **Start without a master**.
+  values sent while the PLC is stopped (hold or zero, with EMCY 6200h), the slave's NMT state on a PLC
+  stop (0x1029:02: no change, pre-operational from operational, or stopped; the master can change it
+  and its NMT start brings the slave back) and **Start without a master**. The **In the PLC program**
+  panel names the slave for the [slave blocks](#plc-function-blocks).
 - **Data**: the application objects, one table **From the master** (`%I`, index 0x2000 and up) and one
   **To the master** (`%Q`, 0x2100 and up). Each object has a place, name, type (the numeric types and
   STRING), an exchange (**PDO**, **SDO only** or **Constant**), its address from the registry, an
@@ -582,10 +624,12 @@ network and a slave at the same time. The page has four tabs:
   error register and the 0x1003 history count), the PDOs in use (COB-ID, how they are sent, the
   mapped objects, frame count and age of the last frame), the values of every Data row (Decimal or
   Hex, with the project default) and the slave's last 50 events (the master's NMT commands, SDO
-  writes and refusals, heartbeat, emergencies, PLC, bus).
+  writes and refusals, heartbeat, emergencies, PLC, bus). NMT changes and emergencies of the PLC
+  program, and the NMT state taken at a PLC stop, are named as such.
 
 The Online tab marks every setting where the running slave differs from what the project's slave has
-after a PLC start: the heartbeat time, the master watch time, the behaviour on master loss, each
+after a PLC start: the heartbeat time, the master watch time, the behaviour on master loss and on a
+PLC stop, each
 PDO's use, COB-ID, transmission type, timers and mapping, and the values of SDO-only parameters from
 the master (objects in a PDO change with every frame and are not compared). The notice counts them;
 they hold until the slave restarts. The notice shows one of, by priority: not connected; the slave
@@ -631,7 +675,7 @@ from, checks it (CiA 306 or CiA 311) and suggests the next revision when the obj
 since the last export, so a master that imported the old file is not fed the wrong layout. A master
 project imports the file like any other node's.
 
-At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 8);
+At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 9);
 the file is written when only a slave is on. The checks that stop the build name the slave and the
 field or object.
 
@@ -746,7 +790,10 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   `e2e/fixtures/canopen-slave/` as a CANopen slave under a master played by a script on the bus,
   `e2e/fixtures/canopen-slave-lss/`, the same slave waiting for an LSS master's node ID, and
   `e2e/fixtures/canopen-lss/` against a simulated node that starts without a node ID and gets
-  node 2 over LSS.
+  node 2 over LSS. `e2e/fixtures/canopen-slave-blocks/` is a slave whose program uses the four slave
+  blocks; the script raises and clears its emergency, has it leave and re-enter operational and
+  stops the PLC with the NMT state on a PLC stop set (`slave-blocks-e2e-fixture.test.ts` checks the
+  project and compiles its program).
 - PLC blocks: the names and constants in
   `src/middleware/shared/utils/canopen/__tests__/plc-names.test.ts`, the library build in
   `src/backend/shared/canopen/__tests__/build-library.test.ts` (it also fails while the committed

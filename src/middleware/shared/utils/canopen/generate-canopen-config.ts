@@ -41,7 +41,7 @@ import {
 import { encodeCanopenValue, toHex } from './sdo-value'
 import { slaveDevicesOut } from './slave'
 
-export const CANOPEN_CONFIG_VERSION = 8
+export const CANOPEN_CONFIG_VERSION = 9
 
 /** The node's `lss` object: only while the node ID is given over LSS. */
 function lssOut(node: CanopenNode): {

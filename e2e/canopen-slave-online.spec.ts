@@ -14,7 +14,7 @@ import { expect, type Page, test } from '@playwright/test'
 import { slaveStatus } from '../src/middleware/shared/utils/canopen/__tests__/fixtures/slave-status'
 import { fakeRuntime } from './helpers/canopen-runtime'
 import { windowSize } from './helpers/canopen-project'
-import { keyView } from './helpers/canopen-shots'
+import { keyView, shot } from './helpers/canopen-shots'
 import { connectRuntime, launch, PROJECT_NAME, quitApp, writeEthercatProject } from './helpers/ethercat-project'
 
 const SLAVE_EDITOR = 'CANopen slave editor container'
@@ -27,7 +27,7 @@ const STATION = {
 /** A fixed runtime clock, so the times the tab shows are the same in every run. */
 const NOW = Date.UTC(2026, 10, 5, 7, 31, 10)
 
-type View = 'running' | 'changed' | 'stopped' | 'lost' | 'lss' | 'lss-forgotten' | 'absent'
+type View = 'running' | 'changed' | 'program' | 'stopped' | 'lost' | 'lss' | 'lss-forgotten' | 'absent'
 
 const LSS = {
   state: 'waiting',
@@ -74,6 +74,24 @@ function body(view: View, now: number) {
         }),
       ])
     }
+    case 'program':
+      return status([
+        slave({
+          state: 'pre_operational',
+          nmt_by: 'program',
+          since: now - 3000,
+          emcy_active: [0x4210],
+          emcy_program: [0x4210],
+          error_register: 0x09,
+          error_history: [0x4210],
+          on_plc_stop_state: 'pre_operational',
+          events: [
+            { time: now - 3000, kind: 'nmt', state: 'pre_operational', by: 'program' },
+            { time: now - 5000, kind: 'emcy', code: 0x4210, register: 0x09, program: true },
+            ...base.events,
+          ],
+        }),
+      ])
     case 'stopped':
       return status([
         slave({
@@ -195,6 +213,16 @@ test('the slave Online tab shows the running slave and what the master changed',
     await slaveKeyView(page, 'slave-online-changed')
     await page.getByTestId('canopen-slave-online-events').scrollIntoViewIfNeeded()
     await slaveKeyView(page, 'slave-online-changed-values')
+
+    view = 'program'
+    await expect(state).toContainText('Set by the PLC program', { timeout: 10000 })
+    await expect(state).toContainText('0x4210 device temperature (class), from the PLC program')
+    await expect(page.getByTestId('canopen-slave-online-events')).toContainText('The PLC program sent EMCY 0x4210')
+    await expect(notice).toContainText('The master changed 1 setting of this slave.')
+    await page.getByRole('tab', { name: 'Online' }).scrollIntoViewIfNeeded()
+    await slaveKeyView(page, 'slave-online-program')
+    await page.getByTestId('canopen-slave-online-events').scrollIntoViewIfNeeded()
+    await shot(page, 'slave-online-program-events')
 
     view = 'stopped'
     await expect(notice).toContainText('The PLC is stopped.', { timeout: 10000 })

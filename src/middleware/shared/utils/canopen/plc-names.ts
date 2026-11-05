@@ -1,12 +1,13 @@
 /**
  * Names a PLC program can use for the CANopen function blocks: one `USINT` constant per node of
- * every network that is on (its node ID) and per such network (its number from 1, in the order of
- * conf/canopen.json), and the table of EDS object sizes `SDO_WRITE4` reads when its DATALENGTH is
+ * every network that is on (its node ID), per such network (its number from 1, in the order of
+ * conf/canopen.json) and per slave that is on (its place in `devices`, from 1), and the table of EDS object sizes `SDO_WRITE4` reads when its DATALENGTH is
  * 0. Shared by the build, which adds them to the program, and the language server.
  */
 
-import type { PLCRemoteDevice } from '../../ports/types'
+import type { PLCRemoteDevice, PLCServer } from '../../ports/types'
 import { canopenTypeBits, toCanopenDataType } from './data-types'
+import { slavesOn } from './slave'
 
 /** The name of the function block library the editor ships for CANopen. */
 export const CANOPEN_LIBRARY_NAME = 'canopen'
@@ -14,8 +15,8 @@ export const CANOPEN_LIBRARY_NAME = 'canopen'
 export interface CanopenPlcName {
   name: string
   value: number
-  kind: 'network' | 'node'
-  /** The network's device name (a network's own name for a network). */
+  kind: 'network' | 'node' | 'slave'
+  /** The network's device name (a network's own name for a network, a slave's own name for a slave). */
   network: string
 }
 
@@ -23,8 +24,11 @@ function networksOn(remoteDevices: readonly PLCRemoteDevice[] | undefined): PLCR
   return (remoteDevices ?? []).filter((d) => d.protocol === 'canopen' && d.canopenConfig?.network.enabled)
 }
 
-/** The constants, networks first, each network's nodes in their order. */
-export function canopenPlcNames(remoteDevices: readonly PLCRemoteDevice[] | undefined): CanopenPlcName[] {
+/** The constants, networks first, each network's nodes in their order, then the slaves. */
+export function canopenPlcNames(
+  remoteDevices: readonly PLCRemoteDevice[] | undefined,
+  servers?: readonly PLCServer[],
+): CanopenPlcName[] {
   const networks = networksOn(remoteDevices)
   const names: CanopenPlcName[] = networks.map((d, i) => ({
     name: d.name,
@@ -37,6 +41,7 @@ export function canopenPlcNames(remoteDevices: readonly PLCRemoteDevice[] | unde
       names.push({ name: node.name, value: node.nodeId, kind: 'node', network: d.name })
     }
   }
+  slavesOn(servers).forEach((s, i) => names.push({ name: s.name, value: i + 1, kind: 'slave', network: s.name }))
   return names
 }
 
@@ -74,8 +79,9 @@ function hexLiteral(value: number): string {
 export function serializeCanopenConstantsToST(
   remoteDevices: readonly PLCRemoteDevice[] | undefined,
   objectSizes: boolean,
+  servers?: readonly PLCServer[],
 ): string {
-  const lines = canopenPlcNames(remoteDevices).map((n) => `  ${n.name} : USINT := ${n.value};`)
+  const lines = canopenPlcNames(remoteDevices, servers).map((n) => `  ${n.name} : USINT := ${n.value};`)
   if (objectSizes) {
     const sizes = canopenObjectSizes(remoteDevices)
     const table = sizes.length > 0 ? sizes : [0]
@@ -97,9 +103,17 @@ export function usesCanopenLibrary(libraries: ReadonlyArray<{ name: string }> | 
 /** `programSt` with the CANopen constants after it, or unchanged when there are none. */
 export function withCanopenConstants(
   programSt: string,
-  project: { remoteDevices?: readonly PLCRemoteDevice[]; libraries?: ReadonlyArray<{ name: string }> },
+  project: {
+    remoteDevices?: readonly PLCRemoteDevice[]
+    servers?: readonly PLCServer[]
+    libraries?: ReadonlyArray<{ name: string }>
+  },
 ): string {
-  const block = serializeCanopenConstantsToST(project.remoteDevices, usesCanopenLibrary(project.libraries))
+  const block = serializeCanopenConstantsToST(
+    project.remoteDevices,
+    usesCanopenLibrary(project.libraries),
+    project.servers,
+  )
   return block ? `${programSt.endsWith('\n') ? programSt : `${programSt}\n`}\n${block}` : programSt
 }
 
@@ -144,6 +158,11 @@ export const CANOPEN_LIBRARY_SYMBOLS: readonly string[] = [
   'RUN_HELD',
   'RUN_DISABLED',
   'RUN_STOPPED',
+  'CANOPEN_BUS_STATE',
+  'BUS_ERROR_ACTIVE',
+  'BUS_ERROR_PASSIVE',
+  'BUS_OFF',
+  'BUS_UNKNOWN',
   'CANOPEN_DWORD_TO_REAL',
   'CANOPEN_REAL_TO_DWORD',
   'SDO_READ4',
@@ -161,6 +180,10 @@ export const CANOPEN_LIBRARY_SYMBOLS: readonly string[] = [
   'CANOPEN_NODE_ENABLE',
   'CANOPEN_NODE_STATUS',
   'CANOPEN_NETWORK_STATE',
+  'CANOPEN_SLAVE_STATUS',
+  'CANOPEN_SLAVE_NMT',
+  'CANOPEN_SLAVE_EMCY',
+  'CANOPEN_SLAVE_WRITTEN',
   'CANOPEN_OBJECT_SIZES',
   'CANOPEN_OBJECT_SIZE_COUNT',
 ]
@@ -192,24 +215,27 @@ export function projectNamesForCanopen(
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 function describeName(n: CanopenPlcName): string {
-  return n.kind === 'network' ? `CANopen network "${n.name}"` : `CANopen "${n.network}" node "${n.name}"`
+  if (n.kind === 'network') return `CANopen network "${n.name}"`
+  if (n.kind === 'slave') return `CANopen slave "${n.name}"`
+  return `CANopen "${n.network}" node "${n.name}"`
 }
 
 /**
  * Why the node and network names cannot all be program constants: not an identifier, the same
  * name twice (letter case ignored, across networks), or a name the project or the canopen library
- * already uses. Only networks that are on are checked, as only they get constants.
+ * already uses. Only networks and slaves that are on are checked, as only they get constants.
  */
 export function canopenNameProblems(
   remoteDevices: readonly PLCRemoteDevice[] | undefined,
   projectNames: readonly ProjectName[],
+  servers?: readonly PLCServer[],
 ): string[] {
   const problems: string[] = []
   const seen = new Map<string, CanopenPlcName>()
   const taken = new Map<string, string>()
   for (const n of projectNames) taken.set(n.name.toUpperCase(), `the ${n.kind} "${n.name}"`)
   for (const s of CANOPEN_LIBRARY_SYMBOLS) taken.set(s, `"${s}" of the canopen library`)
-  for (const n of canopenPlcNames(remoteDevices)) {
+  for (const n of canopenPlcNames(remoteDevices, servers)) {
     const what = describeName(n)
     if (!IDENTIFIER.test(n.name)) {
       problems.push(`${what}: the name must be letters, digits and underscores, not starting with a digit`)
@@ -223,7 +249,7 @@ export function canopenNameProblems(
     }
     seen.set(key, n)
     const clash = taken.get(key)
-    if (clash) problems.push(`${what}: the name is also ${clash}; a program reaches the node or network by name`)
+    if (clash) problems.push(`${what}: the name is also ${clash}; a program reaches it by name`)
   }
   return problems
 }
