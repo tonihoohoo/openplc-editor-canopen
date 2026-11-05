@@ -85,6 +85,7 @@ const PinMappingTable = ({ pins, selectedRowId, handleRowClick }: PinMappingTabl
           pinMapping: { pins: currentPins },
           vendorIoMapping: { entries: ioMapping },
           remoteDevices: state.project.data.remoteDevices,
+          servers: state.project.data.servers,
         },
         resolveAddressProducerCapabilities(boardInfo),
       )

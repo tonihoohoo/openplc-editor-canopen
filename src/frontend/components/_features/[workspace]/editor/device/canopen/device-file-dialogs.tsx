@@ -451,6 +451,8 @@ type ExportDialogProps = {
   saveLabel: string
   /** Options of the picked format, shown below the format row. */
   options?: ReactNode
+  /** The formats offered; all of them when absent. */
+  formats?: readonly ExportFormat[]
   onFormatChange: (format: ExportFormat) => void
   onCancel: () => void
   onSave: () => void
@@ -485,6 +487,7 @@ export const ExportDialog = ({
   losses,
   saveLabel,
   options,
+  formats,
   onFormatChange,
   onCancel,
   onSave,
@@ -509,7 +512,7 @@ export const ExportDialog = ({
             Format
           </h4>
           <div className='inline-flex overflow-hidden rounded-md border border-neutral-300 dark:border-neutral-700'>
-            {EXPORT_FORMATS.map((f) => (
+            {EXPORT_FORMATS.filter((f) => !formats || formats.includes(f.format)).map((f) => (
               <label
                 key={f.format}
                 className={cn(

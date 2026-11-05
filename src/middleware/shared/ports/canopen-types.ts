@@ -325,3 +325,75 @@ export interface CanopenConfig {
   files?: Record<string, CanopenStoredFile>
   export?: CanopenExportOptions
 }
+
+// ---- CANopen slave (a server: the runtime as a node on another master's bus) ----
+
+/** Who writes the object: the master (the slave's PLC reads it from %I) or the slave's PLC (%Q). */
+export type CanopenSlaveDirection = 'from_master' | 'to_master'
+
+/** How the master reaches the object: mapped into a PDO, by SDO only, or a fixed value. */
+export type CanopenSlaveExchange = 'pdo' | 'sdo' | 'constant'
+
+/** Types of a slave object: the numeric basic types, and a text that is always a constant. */
+export type CanopenSlaveDataType = Exclude<CanopenDataType, 'BOOLEAN'> | 'VISIBLE_STRING'
+
+/** One application object of the slave, in 0x2000-0x5FFF. */
+export interface CanopenSlaveObject {
+  /** Stable identity of the row; the address registry keys the row's channel with it. */
+  id: string
+  index: number
+  subIndex: number
+  name: string
+  dataType: CanopenSlaveDataType
+  direction: CanopenSlaveDirection
+  exchange: CanopenSlaveExchange
+  /** %I (from the master) or %Q (to the master) of the object's size; empty for a constant. */
+  iecLocation: string
+  alias?: string
+  /** Value at PLC start, decimal (or 0x hex) for numbers, the text for a VISIBLE_STRING constant. */
+  defaultValue: string
+  /** Range a master's write must keep; numeric objects from the master only. */
+  min?: string
+  max?: string
+}
+
+/** Sending settings of one TPDO; its mapping and COB-ID follow from the objects and the node ID. */
+export interface CanopenSlaveTpdoSettings {
+  /** 254/255 on change, 1-240 every N SYNC. */
+  transmissionType: number
+  /** Inhibit time in 100 µs. */
+  inhibitTime: number
+  eventTimerMs: number
+}
+
+export type CanopenSlaveOnMasterLost = 'pre_operational' | 'no_change' | 'stopped'
+
+export type CanopenSlaveOnPlcStop = 'hold' | 'zero'
+
+export interface CanopenSlaveConfig {
+  /** Off: left out of conf/canopen.json; objects and addresses are kept. */
+  enabled: boolean
+  interface: string
+  bitrate: number
+  nodeId: number
+  priority: number
+  /** 0x1008, 0x100A and 0x1018 sub 1-3; the vendor name only goes in the device file. */
+  vendorName: string
+  deviceName: string
+  softwareVersion: string
+  vendorId: number
+  productCode: number
+  revision: number
+  heartbeatMs: number
+  /** Heartbeat consumer for the master's heartbeat (0x1016); `timeMs` 0 for none. */
+  masterWatch: { nodeId: number; timeMs: number }
+  onMasterLost: CanopenSlaveOnMasterLost
+  onPlcStop: CanopenSlaveOnPlcStop
+  /** Goes operational by itself after its boot-up, without the master's NMT start. */
+  startAlone: boolean
+  objects: CanopenSlaveObject[]
+  /** TPDO 1-4 sending settings, by PDO number - 1. */
+  tpdos: CanopenSlaveTpdoSettings[]
+  /** The revision and data layout of the last device file exported; suggests the next revision. */
+  lastExport?: { revision: number; layout: string }
+}

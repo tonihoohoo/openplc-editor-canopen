@@ -35,6 +35,7 @@ import { MonacoEditor } from '../components/_features/[workspace]/editor/monaco'
 import { PackageManagerEditor } from '../components/_features/[workspace]/editor/package-manager'
 import { PersistentStorageEditor } from '../components/_features/[workspace]/editor/persistent-storage'
 import { ResourcesEditor } from '../components/_features/[workspace]/editor/resource-editor'
+import { CanopenSlaveEditor } from '../components/_features/[workspace]/editor/server/canopen-slave'
 import { ModbusServerEditor } from '../components/_features/[workspace]/editor/server/modbus-server'
 import { OpcUaServerEditor } from '../components/_features/[workspace]/editor/server/opcua-server'
 import { S7CommServerEditor } from '../components/_features/[workspace]/editor/server/s7comm-server'
@@ -626,6 +627,9 @@ const WorkspaceScreen = () => {
                         )}
                         {editor['type'] === 'plc-server' && editor.meta.protocol === 's7comm' && <S7CommServerEditor />}
                         {editor['type'] === 'plc-server' && editor.meta.protocol === 'opcua' && <OpcUaServerEditor />}
+                        {editor['type'] === 'plc-server' && editor.meta.protocol === 'canopen-slave' && (
+                          <CanopenSlaveEditor />
+                        )}
                         {editor['type'] === 'plc-diagnostics' && <DiagnosticsEditor />}
                         {editor['type'] === 'plc-package-manager' && <PackageManagerEditor />}
                         {editor['type'] === 'plc-library-manager' && <LibraryManagerEditor />}

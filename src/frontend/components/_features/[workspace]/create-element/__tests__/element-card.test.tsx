@@ -68,3 +68,37 @@ describe('ElementCard — data type creation', () => {
     expect(dataTypeNames()).toEqual(['Motor'])
   })
 })
+
+describe('ElementCard — CANopen slave server', () => {
+  beforeEach(() => {
+    store = createTestStore()
+    const { deviceActions } = store.getState()
+    const board = { compiler: 'openplc-compiler', capabilities: { ethercat: true, modbusTcpServer: true } }
+    deviceActions.setAvailableOptions({ availableBoards: new Map([['OpenPLC Runtime v4', board]]) })
+    deviceActions.setDeviceBoard('OpenPLC Runtime v4')
+  })
+
+  it('creates a CANopen slave with its default settings', async () => {
+    const user = userEvent.setup()
+    render(<ElementCard target='server' closeContainer={() => undefined} />, { wrapper: createStoreWrapper(store) })
+    fireEvent.click(screen.getByRole('button', { name: /server/i }))
+    await user.type(screen.getByPlaceholderText('Server name'), 'slave')
+    await user.click(screen.getByLabelText('server-protocol'))
+    await user.click(await screen.findByRole('option', { name: 'CANopen slave' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+
+    const server = store.getState().project.data.servers?.find((s) => s.name === 'slave')
+    expect(server?.protocol).toBe('canopen-slave')
+    expect(server?.canopenSlaveConfig).toMatchObject({ enabled: true, nodeId: 5, objects: [] })
+  })
+
+  it('names the remote device type CANopen master', async () => {
+    const user = userEvent.setup()
+    render(<ElementCard target='remote-device' closeContainer={() => undefined} />, {
+      wrapper: createStoreWrapper(store),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /remote device/i }))
+    await user.click(screen.getByLabelText('remote-device-protocol'))
+    expect(await screen.findByRole('option', { name: 'CANopen master' })).toBeTruthy()
+  })
+})

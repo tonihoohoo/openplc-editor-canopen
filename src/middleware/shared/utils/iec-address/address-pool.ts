@@ -157,10 +157,53 @@ export interface PoolRemoteDeviceInput {
   }
 }
 
+/** A project server; only a CANopen slave's objects claim addresses. */
+export interface PoolServerInput {
+  name?: string
+  protocol?: string
+  canopenSlaveConfig?: {
+    objects?: Array<{ id: string; iecLocation: string; alias?: string }>
+  }
+}
+
 export interface PoolInputs {
   pinMapping?: PoolPinMappingInput
   vendorIoMapping?: PoolVppIoInput
   remoteDevices?: PoolRemoteDeviceInput[]
+  /** CANopen slaves claim their objects as CANopen entries (see `canopenSlavePoolDevices`). */
+  servers?: PoolServerInput[]
+}
+
+/** Node name under which a CANopen slave's objects claim, in device `canopenSlavePoolName(server)`. */
+export const CANOPEN_SLAVE_POOL_NODE = 'objects'
+
+/** Device name a CANopen slave's objects claim under; never a remote device's name (it has a space). */
+export function canopenSlavePoolName(serverName: string): string {
+  return `CANopen slave ${serverName}`
+}
+
+/**
+ * The CANopen slaves as CANopen pseudo-devices: one node whose entries are the slave's objects
+ * that have an address. The pool, the registry and the I/O image take them like a master's nodes.
+ */
+export function canopenSlavePoolDevices(servers: readonly PoolServerInput[] | undefined): PoolRemoteDeviceInput[] {
+  const out: PoolRemoteDeviceInput[] = []
+  for (const server of servers ?? []) {
+    if (server.protocol !== 'canopen-slave' || !server.canopenSlaveConfig) continue
+    const entries = (server.canopenSlaveConfig.objects ?? [])
+      .filter((o) => o.iecLocation !== '')
+      .map((o) => ({ channelId: o.id, iecLocation: o.iecLocation, alias: o.alias }))
+    out.push({
+      name: canopenSlavePoolName(server.name ?? 'slave'),
+      canopenConfig: { nodes: [{ name: CANOPEN_SLAVE_POOL_NODE, tpdos: [{ entries }] }] },
+    })
+  }
+  return out
+}
+
+/** Remote devices plus the CANopen slaves' pseudo-devices, for the CANopen producer. */
+export function canopenPoolDevices(inputs: PoolInputs): PoolRemoteDeviceInput[] {
+  return [...(inputs.remoteDevices ?? []), ...canopenSlavePoolDevices(inputs.servers)]
 }
 
 export interface BuildPoolOptions {
@@ -310,8 +353,8 @@ export function buildAddressPool(
   }
 
   // 5. CANopen node states and PDO entries, active where EtherCAT is (runtime v4 fieldbus masters).
-  if (caps.ethercat && inputs.remoteDevices && ignore !== 'canopen') {
-    for (const dev of inputs.remoteDevices) {
+  if (caps.ethercat && ignore !== 'canopen') {
+    for (const dev of canopenPoolDevices(inputs)) {
       const devRef = dev.deviceName || dev.name || 'unknown-device'
       for (const node of dev.canopenConfig?.nodes ?? []) {
         for (const entry of canopenPoolEntries(node)) {

@@ -116,7 +116,7 @@ const CreateEtherCATModuleEditor = (
 
 const CreateServerEditor = (
   name: string,
-  protocol: 'modbus-tcp' | 's7comm' | 'ethernet-ip' | 'opcua',
+  protocol: 'modbus-tcp' | 's7comm' | 'ethernet-ip' | 'opcua' | 'canopen-slave',
 ): EditorModel => ({
   type: 'plc-server',
   meta: { name, protocol },

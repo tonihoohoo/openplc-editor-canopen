@@ -14,7 +14,7 @@ import type {
   CanopenPdo,
   CanopenSdo,
 } from '../../ports/canopen-types'
-import type { PLCRemoteDevice } from '../../ports/types'
+import type { PLCRemoteDevice, PLCServer } from '../../ports/types'
 import { canopenTypeBits } from './data-types'
 import { findObject, masterMayWrite, OBJ_FLAG_REFUSE_WRITE } from './eds-parser'
 import {
@@ -39,8 +39,9 @@ import {
   predefinedCobId,
 } from './model'
 import { encodeCanopenValue, toHex } from './sdo-value'
+import { slaveDevicesOut } from './slave'
 
-export const CANOPEN_CONFIG_VERSION = 5
+export const CANOPEN_CONFIG_VERSION = 6
 
 interface SdoOut {
   index: number
@@ -306,10 +307,14 @@ export function canopenNetworksOff(remoteDevices: readonly PLCRemoteDevice[] | u
   return (remoteDevices ?? []).filter((d) => d.protocol === 'canopen' && d.canopenConfig?.network.enabled === false)
 }
 
-/** The JSON text of conf/canopen.json, or null when the project has no CANopen network that is on. */
+/**
+ * The JSON text of conf/canopen.json, or null when the project has no CANopen network or slave
+ * that is on. Slaves come from the project's `canopen-slave` servers.
+ */
 export function generateCanopenConfig(
   remoteDevices: readonly PLCRemoteDevice[] | undefined,
   cycleUs: number | null = null,
+  servers: readonly PLCServer[] | undefined = undefined,
 ): string | null {
   const networks = (remoteDevices ?? [])
     .filter((d) => d.protocol === 'canopen' && d.canopenConfig?.network.enabled)
@@ -354,6 +359,7 @@ export function generateCanopenConfig(
         })),
       }
     })
-  if (networks.length === 0) return null
-  return JSON.stringify({ version: CANOPEN_CONFIG_VERSION, networks }, null, 2)
+  const devices = slaveDevicesOut(servers)
+  if (networks.length === 0 && devices.length === 0) return null
+  return JSON.stringify({ version: CANOPEN_CONFIG_VERSION, networks, devices }, null, 2)
 }

@@ -8,20 +8,29 @@ const NETWORK_OFF_HINT = 'Not sent to the runtime. Nodes, mappings and addresses
 type NetworkSwitchProps = {
   on: boolean
   onChange: (on: boolean) => void
+  label?: string
+  onHint?: string
+  offHint?: string
 }
 
 /** Turns the whole network on or off; right-aligned in the device editor header, the switch at the edge so it stays put. */
-const NetworkSwitch = ({ on, onChange }: NetworkSwitchProps) => (
+const NetworkSwitch = ({
+  on,
+  onChange,
+  label = 'Run this network',
+  onHint = NETWORK_ON_HINT,
+  offHint = NETWORK_OFF_HINT,
+}: NetworkSwitchProps) => (
   <div className='flex shrink-0 items-center gap-3'>
     <span className='flex flex-col text-right'>
-      <span className={labelClassName}>Run this network</span>
-      <span className={hintClassName}>{on ? NETWORK_ON_HINT : NETWORK_OFF_HINT}</span>
+      <span className={labelClassName}>{label}</span>
+      <span className={hintClassName}>{on ? onHint : offHint}</span>
     </span>
     <button
       type='button'
       role='switch'
       aria-checked={on}
-      aria-label='Run this network'
+      aria-label={label}
       onClick={() => onChange(!on)}
       className={cn(
         'relative h-5 w-9 shrink-0 rounded-full transition-colors',

@@ -331,6 +331,7 @@ function producerClaims(input: ComputeIoImageInput, backed: Map<string, Set<numb
     pinMapping: { pins: input.devicePinMapping ?? [] },
     vendorIoMapping: vppEntries(input.vendorScreenData),
     remoteDevices: input.projectData.remoteDevices,
+    servers: input.projectData.servers,
   })
 
   const { assignments, slotCounts } = allocateAddresses(registry.consumers, {

@@ -99,6 +99,7 @@ function DeviceSetupIoTable() {
         pinMapping: { pins: pinMapping.pinsByBoard[configuration.deviceBoard] ?? [] },
         vendorIoMapping: { entries: currentEntries },
         remoteDevices: state.project.data.remoteDevices,
+        servers: state.project.data.servers,
       },
       resolveAddressProducerCapabilities(state.deviceAvailableOptions.availableBoards.get(configuration.deviceBoard)),
     )

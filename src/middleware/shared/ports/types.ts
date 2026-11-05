@@ -1,5 +1,5 @@
 import type { VppPackagePin } from '../../../backend/shared/types/PLC/devices/configuration'
-import type { CanopenConfig } from './canopen-types'
+import type { CanopenConfig, CanopenSlaveConfig } from './canopen-types'
 import type { ConfiguredEtherCATDevice } from './esi-types'
 
 /** Default `T` is `unknown`, not `void`: TS 5.5+ collapses `{ success: true } & void` to `never`. */
@@ -169,7 +169,7 @@ export interface PLCGlobalVariable extends Omit<PLCVariable, 'class'> {
   class: 'global'
 }
 
-export type ServerProtocol = 'modbus-tcp' | 's7comm' | 'ethernet-ip' | 'opcua'
+export type ServerProtocol = 'modbus-tcp' | 's7comm' | 'ethernet-ip' | 'opcua' | 'canopen-slave'
 export type RemoteDeviceProtocol = 'modbus-tcp' | 'ethernet-ip' | 'ethercat' | 'profinet' | 'canopen'
 
 // Modbus
@@ -427,6 +427,7 @@ export interface PLCServer {
   modbusSlaveConfig?: ModbusSlaveConfig
   s7commSlaveConfig?: S7CommSlaveConfig
   opcuaServerConfig?: OpcUaServerConfig
+  canopenSlaveConfig?: CanopenSlaveConfig
 }
 
 export interface EtherCATMasterConfig {

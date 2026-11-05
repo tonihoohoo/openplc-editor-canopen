@@ -39,6 +39,7 @@ import {
   canopenNetworksOff,
   generateCanopenConfig,
   validateCanopenProject,
+  validateCanopenSlaves,
 } from '@root/middleware/shared/utils/canopen'
 import { validateEthercatProject } from '@root/middleware/shared/utils/ethercat'
 
@@ -194,13 +195,16 @@ export function generateRuntimeConfs(input: GenerateConfsInput): GenerateConfsOu
   }
 
   // CANopen: same gate as EtherCAT, the build stops on any error.
-  const canopenErrors = validateCanopenProject(remoteDevices, input.plcCycleUs ?? null)
+  const canopenErrors = [
+    ...validateCanopenProject(remoteDevices, input.plcCycleUs ?? null),
+    ...validateCanopenSlaves(servers, remoteDevices),
+  ]
   if (canopenErrors.length > 0) {
     throw new Error(`CANopen configuration is invalid: ${canopenErrors.join('; ')}`)
   }
   for (const off of canopenNetworksOff(remoteDevices))
     input.log(`CANopen network "${off.name}" is off and was not sent to the runtime`, 'info')
-  const canopen = generateCanopenConfig(remoteDevices, input.plcCycleUs ?? null)
+  const canopen = generateCanopenConfig(remoteDevices, input.plcCycleUs ?? null, servers)
 
   return { modbusSlave, modbusMaster, s7Comm, opcUa, ethercat, ethercatBusconfig, ethercatIomapping, canopen }
 }

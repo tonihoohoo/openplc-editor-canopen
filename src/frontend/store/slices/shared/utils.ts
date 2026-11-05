@@ -154,7 +154,7 @@ export function guessDatatypeDerivation(content: string): 'enumerated' | 'struct
 
 export function createEditorObjectForServer(
   name: string,
-  protocol: 'modbus-tcp' | 's7comm' | 'ethernet-ip' | 'opcua',
+  protocol: 'modbus-tcp' | 's7comm' | 'ethernet-ip' | 'opcua' | 'canopen-slave',
 ): EditorModel {
   return {
     type: 'plc-server',

@@ -1,6 +1,7 @@
 # CANopen — OpenPLC Editor
 
-A CANopen network is a remote device with protocol `canopen`. The editor builds each node from its
+A CANopen network is a remote device with protocol `canopen`; a CANopen slave is a server (see
+[CANopen slave](#canopen-slave)). The editor builds each node from its
 device file (EDS, DCF, XDD or XDC), maps its PDOs to IEC locations, and writes everything the runtime's `canopen` plugin
 needs into `conf/canopen.json`. The runtime never reads an EDS; its side, and the file format, are
 described in the runtime's `docs/CANOPEN.md`.
@@ -498,6 +499,38 @@ The library's sources are in `resources/libraries/canopen/` (`library.json`, `sr
 constants and the EDS size table come from `src/middleware/shared/utils/canopen/plc-names.ts` and are
 appended to the program at build time.
 
+## CANopen slave
+
+A server with protocol `canopen-slave` makes the runtime a CANopen device (a slave) on a CAN
+interface, so another CANopen master can read and write PLC data. It is offered where the CANopen
+master is, and a project may have several, one per interface; an interface cannot carry a CANopen
+network and a slave at the same time. The page has three tabs:
+
+- **General**: interface, bit rate (or "Leave as configured"), node ID; identity (vendor name for the
+  device file, device name 0x1008, software version 0x100A, vendor ID, product code and revision in
+  0x1018); heartbeat time 0x1017 (always sent), the master's node ID and heartbeat timeout to watch
+  (0x1016:01, 0 for none), what happens when the master is lost (0x1029:01, with EMCY 8130h), the
+  values sent while the PLC is stopped (hold or zero, with EMCY 6200h) and **Start without a master**.
+- **Data**: the application objects, one table **From the master** (`%I`, index 0x2000 and up) and one
+  **To the master** (`%Q`, 0x2100 and up). Each object has a place, name, type (the numeric types and
+  STRING), an exchange (**PDO**, **SDO only** or **Constant**), its address from the registry, an
+  alias, a default and, from the master, an optional range; the slave refuses SDO writes outside it
+  (abort 0609 0031h / 0032h). A constant has no address, and a STRING is always a constant.
+- **PDOs**: the default layout, four RPDOs and four TPDOs of 8 bytes filled in table order from the
+  objects marked PDO, with the pre-defined COB-IDs from the node ID. Each used TPDO is sent on change
+  (with inhibit time and event timer) or every N SYNC. The master may remap the PDOs in
+  pre-operational; values are not stored over a restart.
+
+**Run this slave** turns it off without losing its objects and addresses. **Export EDS or XDD...**
+writes the slave's device file from the same description the runtime builds its object dictionary
+from, checks it (CiA 306 or CiA 311) and suggests the next revision when the objects or PDOs changed
+since the last export, so a master that imported the old file is not fed the wrong layout. A master
+project imports the file like any other node's.
+
+At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 6);
+the file is written when only a slave is on. The checks that stop the build name the slave and the
+field or object.
+
 ## Installing a release and the runtime check
 
 This fork's releases are on its GitHub Releases page (`v<upstream version>-canopen.<N>`); installing one
@@ -512,11 +545,13 @@ accept the upload and ignore the CANopen configuration. Projects without a CANop
 
 ## Addresses
 
-Entries take addresses from the central registry (`docs/iec-address-registry.md`): the consumer
+Entries and the CANopen slaves' objects take addresses from the central registry (`docs/iec-address-registry.md`): the consumer
 kind is `canopen`, one consumer per node, and each entry's channel id is stable across edits. New
 entries are written with a placeholder of the right class (`%IB0`, `%QX0.0`, ...) and
 `projectActions.updateCanopenConfig` reallocates, so the placeholders land on free addresses. An
-entry of a PDO the master does not exchange has no address and no alias.
+entry of a PDO the master does not exchange has no address and no alias. A slave's objects claim
+as consumer `CANopen slave <name>`, node `objects`, with the object's id as the channel id; a new
+object gets the lowest free address of its class in `projectActions.updateCanopenSlaveConfig`.
 
 ## Data model and code
 
@@ -546,6 +581,8 @@ entry of a PDO the master does not exchange has no address and no alias.
 | Online tools and service mode in the editor               | `src/frontend/hooks/use-canopen-online.ts`                             |
 | Values read online and Read all, kept across tabs         | `src/frontend/hooks/use-canopen-online-reads.ts`                       |
 | Device editor                                             | `src/frontend/components/_features/[workspace]/editor/device/canopen/` |
+| Slave model, checks, `devices` output and device file     | `src/middleware/shared/utils/canopen/slave.ts`                         |
+| Slave page and store action                               | `.../editor/server/canopen-slave/`, `projectActions.updateCanopenSlaveConfig` |
 
 The parsed EDS (identity, PDO counts, object dictionary) is stored on the node, so a project opens
 and builds without the original file. For each PDO the generator writes the configuration SDOs in
@@ -557,6 +594,9 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
 
 ## Tests
 
+- Slave: `src/middleware/shared/utils/canopen/__tests__/slave.test.ts` (layout, values, checks,
+  output, EDS and XDD export read back), `slave-e2e-fixture.test.ts` and the page in
+  `.../editor/server/__tests__/canopen-slave-editor.test.tsx`.
 - Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, CiA 306 check with the fixtures in
   `fixtures/cia306/`, DCF import and export, XDD and XDC reading, the CiA 311 check with the fixtures
   in `fixtures/cia311/`, XDD and XDC export, DBC export, HTML export, object information, model, editing rules, generator, validator,
@@ -588,7 +628,8 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   tab at a wide and a narrow window for a layout review, into `SCREENSHOT_DIR`.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
   against a simulated node on a virtual CAN bus, and runs `e2e/fixtures/canopen-plc-blocks/`, a
-  program that calls every block, against the same node across PLC stops and starts.
+  program that calls every block, against the same node across PLC stops and starts. It also runs
+  `e2e/fixtures/canopen-slave/` as a CANopen slave under a master played by a script on the bus.
 - PLC blocks: the names and constants in
   `src/middleware/shared/utils/canopen/__tests__/plc-names.test.ts`, the library build in
   `src/backend/shared/canopen/__tests__/build-library.test.ts` (it also fails while the committed

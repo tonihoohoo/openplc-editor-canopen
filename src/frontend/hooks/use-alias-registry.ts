@@ -11,7 +11,7 @@
  */
 
 import { useOpenPLCStore } from '@root/frontend/store'
-import type { BoardInfo, DevicePin, PLCRemoteDevice } from '@root/middleware/shared/ports/types'
+import type { BoardInfo, DevicePin, PLCRemoteDevice, PLCServer } from '@root/middleware/shared/ports/types'
 import type { AliasRegistry } from '@root/middleware/shared/utils/iec-address'
 import { buildAddressPool, buildAliasRegistry } from '@root/middleware/shared/utils/iec-address'
 import { resolveAddressProducerCapabilities } from '@root/middleware/shared/utils/target-capabilities'
@@ -20,6 +20,7 @@ interface RegistryCache {
   pins: DevicePin[]
   vsd: Record<string, unknown> | undefined
   remoteDevices: PLCRemoteDevice[] | undefined
+  servers: PLCServer[] | undefined
   boardInfo: BoardInfo | undefined
   registry: AliasRegistry
 }
@@ -53,6 +54,7 @@ export function useAliasRegistry(): AliasRegistry {
   const pins = pinsByBoard[deviceBoard] ?? NO_PINS
   const vsd = useOpenPLCStore((s) => s.deviceDefinitions.configuration.vendorScreenData)
   const remoteDevices = useOpenPLCStore((s) => s.project.data.remoteDevices)
+  const servers = useOpenPLCStore((s) => s.project.data.servers)
   // NOT `useTargetCapabilities`, which answers "no producers at all" for a
   // board that does not resolve — the VPP package is not installed, the
   // project came from another machine, or the catalogue has not loaded yet.
@@ -72,6 +74,7 @@ export function useAliasRegistry(): AliasRegistry {
     cache.pins === pins &&
     cache.vsd === vsd &&
     cache.remoteDevices === remoteDevices &&
+    cache.servers === servers &&
     cache.boardInfo === boardInfo
   ) {
     return cache.registry
@@ -88,11 +91,12 @@ export function useAliasRegistry(): AliasRegistry {
       pinMapping: { pins },
       vendorIoMapping: { entries: ioMapping },
       remoteDevices,
+      servers,
     },
     resolveAddressProducerCapabilities(boardInfo),
   )
   const registry = buildAliasRegistry(pool)
 
-  cache = { pins, vsd, remoteDevices, boardInfo, registry }
+  cache = { pins, vsd, remoteDevices, servers, boardInfo, registry }
   return registry
 }

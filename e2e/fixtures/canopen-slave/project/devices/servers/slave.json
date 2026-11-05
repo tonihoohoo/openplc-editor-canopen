@@ -1,0 +1,98 @@
+{
+  "name": "slave",
+  "protocol": "canopen-slave",
+  "canopenSlaveConfig": {
+    "enabled": true,
+    "interface": "vcan0",
+    "bitrate": 0,
+    "nodeId": 5,
+    "priority": 90,
+    "vendorName": "OpenPLC",
+    "deviceName": "canopen-slave",
+    "softwareVersion": "1.0",
+    "vendorId": 43981,
+    "productCode": 1,
+    "revision": 65536,
+    "heartbeatMs": 100,
+    "masterWatch": { "nodeId": 127, "timeMs": 500 },
+    "onMasterLost": "pre_operational",
+    "onPlcStop": "hold",
+    "startAlone": false,
+    "objects": [
+      {
+        "id": "setpoint",
+        "index": 8192,
+        "subIndex": 1,
+        "name": "Setpoint",
+        "dataType": "INTEGER16",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IW0",
+        "defaultValue": "0"
+      },
+      {
+        "id": "mode",
+        "index": 8192,
+        "subIndex": 2,
+        "name": "Mode",
+        "dataType": "UNSIGNED8",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IB0",
+        "defaultValue": "0"
+      },
+      {
+        "id": "limit",
+        "index": 8192,
+        "subIndex": 3,
+        "name": "Limit",
+        "dataType": "UNSIGNED16",
+        "direction": "from_master",
+        "exchange": "sdo",
+        "iecLocation": "%IW1",
+        "defaultValue": "1000",
+        "min": "100",
+        "max": "30000"
+      },
+      {
+        "id": "echo",
+        "index": 8448,
+        "subIndex": 1,
+        "name": "Echo",
+        "dataType": "INTEGER16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW0",
+        "defaultValue": "0"
+      },
+      {
+        "id": "limit-echo",
+        "index": 8448,
+        "subIndex": 2,
+        "name": "LimitEcho",
+        "dataType": "UNSIGNED16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW1",
+        "defaultValue": "0"
+      },
+      {
+        "id": "serial",
+        "index": 8704,
+        "subIndex": 1,
+        "name": "Serial",
+        "dataType": "VISIBLE_STRING",
+        "direction": "to_master",
+        "exchange": "constant",
+        "iecLocation": "",
+        "defaultValue": "SN-0001"
+      }
+    ],
+    "tpdos": [
+      { "transmissionType": 255, "inhibitTime": 0, "eventTimerMs": 0 },
+      { "transmissionType": 255, "inhibitTime": 0, "eventTimerMs": 0 },
+      { "transmissionType": 255, "inhibitTime": 0, "eventTimerMs": 0 },
+      { "transmissionType": 255, "inhibitTime": 0, "eventTimerMs": 0 }
+    ]
+  }
+}

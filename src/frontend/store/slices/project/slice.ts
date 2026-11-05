@@ -14,7 +14,10 @@ import type {
 } from '../../../../middleware/shared/ports/types'
 import {
   addressNewCanopenEntries,
+  addressNewSlaveObjects,
+  canopenSlaves,
   defaultCanopenConfig,
+  defaultCanopenSlaveConfig,
   keepCanopenAddresses,
   nodeEntries as canopenNodeEntries,
 } from '../../../../middleware/shared/utils/canopen'
@@ -22,6 +25,8 @@ import {
   type AddressPool,
   buildAddressPool,
   buildAliasRegistry,
+  CANOPEN_SLAVE_POOL_NODE,
+  canopenSlavePoolName,
   describeAliasRejection,
   nextFreeAddress,
   resolveProjectAliases,
@@ -151,7 +156,20 @@ function seedTransports(live: ProjectSliceRoot): ('rtu' | 'tcp')[] {
   return resolveBoardInfo(live)?.compiler === 'arduino-cli' ? ['rtu'] : ['tcp']
 }
 
-function initializeServerProtocolConfig(serverData: PLCServer, transports: ('rtu' | 'tcp')[]): PLCServer {
+function initializeServerProtocolConfig(
+  serverData: PLCServer,
+  transports: ('rtu' | 'tcp')[],
+  live?: ProjectSliceRoot,
+): PLCServer {
+  if (serverData.protocol === 'canopen-slave' && !serverData.canopenSlaveConfig) {
+    const config = defaultCanopenSlaveConfig(live?.project.meta.name ?? '')
+    const used = new Set<string>()
+    for (const d of live?.project.data.remoteDevices ?? [])
+      if (d.canopenConfig) used.add(d.canopenConfig.network.interface.trim())
+    for (const { config: other } of canopenSlaves(live?.project.data.servers)) used.add(other.interface.trim())
+    for (let n = 0; used.has(config.interface); n++) config.interface = `can${n}`
+    return { ...serverData, canopenSlaveConfig: config }
+  }
   if (serverData.protocol === 'modbus-tcp' && !serverData.modbusSlaveConfig) {
     return {
       ...serverData,
@@ -456,6 +474,7 @@ function buildModbusProducerPool(
       pinMapping: { pins: live.deviceDefinitions.pinMapping.pinsByBoard[board] ?? [] },
       vendorIoMapping: { entries: readVppEntries(live) },
       remoteDevices,
+      servers: live.project.data.servers,
     },
     allocationCapabilities(live),
   )
@@ -474,6 +493,7 @@ function buildIecRegistry(live: ProjectSliceRoot): IecAddressRegistry {
     pinMapping: { pins: live.deviceDefinitions.pinMapping.pinsByBoard[board] ?? [] },
     vendorIoMapping: { entries: readVppEntries(live) },
     remoteDevices: live.project.data.remoteDevices,
+    servers: live.project.data.servers,
   })
   const restored = restoreAliasesFromMemory(seeded, live.iecAliasMemory ?? {})
   const activeKinds = activeKindsForAllocation(live)
@@ -501,6 +521,7 @@ interface AliasIndexCache {
   pins: ProjectSliceRoot['deviceDefinitions']['pinMapping']['pinsByBoard'][string] | undefined
   vendorScreenData: ProjectSliceRoot['deviceDefinitions']['configuration']['vendorScreenData']
   remoteDevices: ProjectSliceRoot['project']['data']['remoteDevices']
+  servers: ProjectSliceRoot['project']['data']['servers']
   board: ProjectSliceRoot['deviceDefinitions']['configuration']['deviceBoard']
   aliasMemory: ProjectSliceRoot['iecAliasMemory']
   index: ReadonlyMap<string, string>
@@ -512,6 +533,7 @@ function getMemoizedAliasIndex(live: ProjectSliceRoot): ReadonlyMap<string, stri
   const pins = live.deviceDefinitions.pinMapping.pinsByBoard[board]
   const vendorScreenData = live.deviceDefinitions.configuration.vendorScreenData
   const remoteDevices = live.project.data.remoteDevices
+  const servers = live.project.data.servers
   const aliasMemory = live.iecAliasMemory
 
   if (
@@ -519,6 +541,7 @@ function getMemoizedAliasIndex(live: ProjectSliceRoot): ReadonlyMap<string, stri
     aliasIndexCache.pins === pins &&
     aliasIndexCache.vendorScreenData === vendorScreenData &&
     aliasIndexCache.remoteDevices === remoteDevices &&
+    aliasIndexCache.servers === servers &&
     aliasIndexCache.board === board &&
     aliasIndexCache.aliasMemory === aliasMemory
   ) {
@@ -526,7 +549,7 @@ function getMemoizedAliasIndex(live: ProjectSliceRoot): ReadonlyMap<string, stri
   }
 
   const index = buildAliasIndex(buildIecRegistry(live))
-  aliasIndexCache = { pins, vendorScreenData, remoteDevices, board, aliasMemory, index }
+  aliasIndexCache = { pins, vendorScreenData, remoteDevices, servers, board, aliasMemory, index }
   return index
 }
 
@@ -618,6 +641,24 @@ function applyCanopenAddresses(
         if (info.address) entry.iecLocation = info.address
         entry.alias = info.alias
       }
+    }
+  }
+}
+
+/** Write the registry's addresses + aliases back onto the CANopen slaves' objects. Runs inside `produce`. */
+function applyCanopenSlaveAddresses(
+  servers: ProjectSlice['project']['data']['servers'],
+  index: ReadonlyMap<string, { address?: string; alias: string }>,
+): void {
+  for (const server of servers ?? []) {
+    if (server.protocol !== 'canopen-slave' || !server.canopenSlaveConfig) continue
+    const consumerId = canopenConsumerId(canopenSlavePoolName(server.name), CANOPEN_SLAVE_POOL_NODE)
+    for (const object of server.canopenSlaveConfig.objects) {
+      if (object.iecLocation === '') continue
+      const info = index.get(channelKey(consumerId, object.id))
+      if (!info) continue
+      if (info.address) object.iecLocation = info.address
+      object.alias = info.alias
     }
   }
 }
@@ -1989,7 +2030,9 @@ const createProjectSlice: StateCreator<ProjectSliceRoot, [], [], ProjectSlice> =
       // configured it. A project that already holds two is left alone: the
       // rule governs creation, and rewriting someone's project on load is not
       // this editor's call.
-      const sameProtocol = servers.find((s) => s.protocol === dto.data.protocol)
+      // A CANopen slave is per CAN interface, so a project may hold several.
+      const sameProtocol =
+        dto.data.protocol === 'canopen-slave' ? undefined : servers.find((s) => s.protocol === dto.data.protocol)
       if (sameProtocol) {
         return fail(
           `A ${dto.data.protocol} server already exists: "${sameProtocol.name}". Only one reaches the device.`,
@@ -1999,7 +2042,9 @@ const createProjectSlice: StateCreator<ProjectSliceRoot, [], [], ProjectSlice> =
       setState(
         produce((slice: ProjectSlice) => {
           if (!slice.project.data.servers) slice.project.data.servers = []
-          slice.project.data.servers.push(initializeServerProtocolConfig(dto.data, seedTransports(getState())))
+          slice.project.data.servers.push(
+            initializeServerProtocolConfig(dto.data, seedTransports(getState()), getState()),
+          )
         }),
       )
       return ok()
@@ -2578,6 +2623,7 @@ const createProjectSlice: StateCreator<ProjectSliceRoot, [], [], ProjectSlice> =
           applyModbusAddresses(slice.project.data.remoteDevices, index)
           applyEthercatAddresses(slice.project.data.remoteDevices, index)
           applyCanopenAddresses(slice.project.data.remoteDevices, index)
+          applyCanopenSlaveAddresses(slice.project.data.servers, index)
         }),
       )
       return ok()
@@ -2840,6 +2886,31 @@ const createProjectSlice: StateCreator<ProjectSliceRoot, [], [], ProjectSlice> =
             const old = prevAlias.get(`${node.id}:${entry.channelId}`)
             if (old && old !== (entry.alias ?? '')) getState().projectActions.renameAlias(old, entry.alias ?? '')
           }
+        }
+        getState().projectActions.recalculateIecAddresses()
+      }
+      return response
+    },
+    updateCanopenSlaveConfig: (serverName, config) => {
+      const prev = getState().project.data.servers?.find((s) => s.name === serverName)?.canopenSlaveConfig
+      const prevAlias = new Map<string, string>()
+      for (const object of prev?.objects ?? []) if (object.alias) prevAlias.set(object.id, object.alias)
+      const pool = buildModbusProducerPool(getState())
+      let response = ok()
+      setState(
+        produce((slice: ProjectSlice) => {
+          const server = slice.project.data.servers?.find((s) => s.name === serverName)
+          if (!server || server.protocol !== 'canopen-slave') {
+            response = { ok: false, message: 'CANopen slave not found' }
+            return
+          }
+          server.canopenSlaveConfig = addressNewSlaveObjects(prev, config, pool)
+        }),
+      )
+      if (response.ok) {
+        for (const object of config.objects) {
+          const old = prevAlias.get(object.id)
+          if (old && old !== (object.alias ?? '')) getState().projectActions.renameAlias(old, object.alias ?? '')
         }
         getState().projectActions.recalculateIecAddresses()
       }

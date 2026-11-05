@@ -72,6 +72,7 @@ function ManifestIoTable({ section, moduleSystem }: IoTableLayoutProps) {
       slotsConfig: moduleConfig?.slotsConfig ?? {},
       storedMapping,
       remoteDevices: state.project.data.remoteDevices ?? [],
+      servers: state.project.data.servers ?? [],
       pinMappingPins:
         state.deviceDefinitions.pinMapping.pinsByBoard[state.deviceDefinitions.configuration.deviceBoard] ?? [],
       capabilities: resolveAddressProducerCapabilities(boardInfo),
@@ -118,7 +119,14 @@ function ManifestIoTable({ section, moduleSystem }: IoTableLayoutProps) {
     if (allocKey === lastAllocKey.current) return
     lastAllocKey.current = allocKey
 
-    const { remoteDevices, slotsConfig: liveSlotsConfig, storedMapping, pinMappingPins, capabilities } = getStoreState()
+    const {
+      remoteDevices,
+      servers,
+      slotsConfig: liveSlotsConfig,
+      storedMapping,
+      pinMappingPins,
+      capabilities,
+    } = getStoreState()
 
     const existingAliases = new Map<string, string>()
     const existingEntries = storedMapping?.entries ?? entries
@@ -136,6 +144,7 @@ function ManifestIoTable({ section, moduleSystem }: IoTableLayoutProps) {
       {
         pinMapping: { pins: pinMappingPins },
         remoteDevices,
+        servers,
       },
       capabilities,
       { ignoreSource: 'vpp-io' },
@@ -202,6 +211,7 @@ function ManifestIoTable({ section, moduleSystem }: IoTableLayoutProps) {
         },
         vendorIoMapping: { entries },
         remoteDevices: state.project.data.remoteDevices,
+        servers: state.project.data.servers,
       },
       resolveAddressProducerCapabilities(boardInfo),
     )

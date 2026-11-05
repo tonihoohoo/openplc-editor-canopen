@@ -1,4 +1,4 @@
-import type { CanopenConfig } from '../../../../middleware/shared/ports/canopen-types'
+import type { CanopenConfig, CanopenSlaveConfig } from '../../../../middleware/shared/ports/canopen-types'
 import type { RawProjectFile } from '../../../../middleware/shared/ports/project-port'
 import type {
   EthercatConfig,
@@ -419,6 +419,8 @@ export type ProjectActions = {
    * the central recalculation places it, and an alias renamed here follows into bound variables.
    */
   updateCanopenConfig: (deviceName: string, canopenConfig: CanopenConfig) => ProjectResponse
+  /** Replaces a CANopen slave's configuration; new objects get the lowest free address. */
+  updateCanopenSlaveConfig: (serverName: string, config: CanopenSlaveConfig) => ProjectResponse
 }
 
 // ---------------------------------------------------------------------------

@@ -4,10 +4,11 @@
  * whose address is taken by a fixed address moves.
  */
 
-import type { CanopenConfig, CanopenEntry } from '../../ports/canopen-types'
+import type { CanopenConfig, CanopenEntry, CanopenSlaveConfig, CanopenSlaveObject } from '../../ports/canopen-types'
 import { type AddressPool, nextFreeAddress } from '../iec-address'
 import type { IecAddressRegistry } from '../iec-address/registry/types'
 import { nodeEntries } from './model'
+import { slaveIecPrefix } from './slave'
 
 const CANOPEN_KIND = 'canopen'
 
@@ -74,4 +75,34 @@ export function addressNewCanopenEntries(
       rpdos: node.rpdos.map((p) => ({ ...p, entries: p.entries.map((e) => place(node.id, e)) })),
     })),
   }
+}
+
+/**
+ * `next` with an address from `pool` for every slave object that had none in `previous` (a new row,
+ * a constant made a PDO or SDO object, or a row whose type or direction changed the prefix), lowest
+ * free first. Constants have no address. Objects that kept their prefix keep their address.
+ */
+export function addressNewSlaveObjects(
+  previous: CanopenSlaveConfig | undefined,
+  next: CanopenSlaveConfig,
+  pool: AddressPool,
+): CanopenSlaveConfig {
+  const had = new Map<string, string>()
+  for (const o of previous?.objects ?? []) if (o.iecLocation) had.set(o.id, o.iecLocation)
+  const pending = new Set<string>()
+  const place = (o: CanopenSlaveObject): CanopenSlaveObject => {
+    if (o.exchange === 'constant' || o.dataType === 'VISIBLE_STRING')
+      return o.iecLocation === '' ? o : { ...o, iecLocation: '' }
+    const prefix = slaveIecPrefix(o.dataType, o.direction)
+    const old = had.get(o.id)
+    if (old && old.startsWith(prefix) && o.iecLocation === old) return o
+    if (!old && o.iecLocation.startsWith(prefix) && /^%[IQ][BWDL]\d+$/.test(o.iecLocation)) {
+      pending.add(o.iecLocation)
+      return o
+    }
+    const address = nextFreeAddress(pool, prefix, false, undefined, pending)
+    pending.add(address)
+    return { ...o, iecLocation: address }
+  }
+  return { ...next, objects: next.objects.map(place) }
 }
