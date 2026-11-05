@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { OpenPLCStore } from '@root/frontend/store'
 import { createStoreWrapper, createTestStore } from '@root/frontend/store/testing'
 import { getMemoryState } from '@root/frontend/utils/toast'
+import type { BoardInfo } from '@root/middleware/shared/ports/types'
 
 import { ElementCard } from '../element-card'
 
@@ -73,7 +74,13 @@ describe('ElementCard — CANopen slave server', () => {
   beforeEach(() => {
     store = createTestStore()
     const { deviceActions } = store.getState()
-    const board = { compiler: 'openplc-compiler', capabilities: { ethercat: true, modbusTcpServer: true } }
+    const board: BoardInfo = {
+      compiler: 'openplc-compiler',
+      core: 'openplc',
+      preview: 'generic.png',
+      specs: {},
+      capabilities: { ethercat: true, modbusTcpServer: true },
+    }
     deviceActions.setAvailableOptions({ availableBoards: new Map([['OpenPLC Runtime v4', board]]) })
     deviceActions.setDeviceBoard('OpenPLC Runtime v4')
   })
