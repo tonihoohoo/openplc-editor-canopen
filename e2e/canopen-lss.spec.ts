@@ -123,6 +123,39 @@ const FOUND = [
   { vendor_id: 1, product_code: 2, revision: 3, serial_number: 0x5678 },
 ]
 
+test('a search a device ends out of turn keeps the devices found and says why', async () => {
+  test.setTimeout(120000)
+  let polled = 0
+  const runtime = fakeRuntime({
+    features: ['status', 'sdo', 'nmt', 'service', 'lss'],
+    configVersions: [7],
+    status: () => {
+      const now = Date.now()
+      return networkStatus(now, [nodeStatus(now, 2, 'io2')])
+    },
+    request: (body) => {
+      if (body.op === 'lss' && body.action === 'find') return { job: 1 }
+      if (body.op === 'job')
+        return polled++ === 0
+          ? { state: 'pending', devices: FOUND.slice(1) }
+          : { state: 'failed', reason: 'incomplete', devices: FOUND.slice(1) }
+      return undefined
+    },
+  })
+  const { app, page } = await openDevice('openplc-e2e-canopen-lss-incomplete', true)
+  try {
+    await page.getByRole('tab', { name: 'Online' }).first().click()
+    const panel = page.getByTestId('canopen-lss-panel')
+    await panel.getByRole('button', { name: 'Find devices without node ID' }).click()
+    await expect(panel).toContainText('a device answered out of turn', { timeout: 15000 })
+    await expect(panel.getByTestId('canopen-lss-device')).toHaveCount(1)
+    await shot(page, 'lss-online-incomplete')
+  } finally {
+    app.process().kill('SIGKILL')
+    await runtime.close()
+  }
+})
+
 test('devices without a node ID are found and one is given a node ID', async () => {
   test.setTimeout(180000)
   const requests: Record<string, unknown>[] = []

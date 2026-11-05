@@ -469,6 +469,10 @@ address (vendor ID, product code, revision, serial number) and what it matches:
   which adds the node with the lowest free node ID, set to get it over LSS at every start;
 - else nothing: **Give node ID...** only.
 
+If the search stops early (after 64 devices, or because a device answered out of turn, which some
+devices do once found), the devices found so far stay in the list under the reason. Give them a node
+ID and search again to find the rest.
+
 The **Give node ID** dialog lists the free node IDs first, then the ones the project uses. *Store it
 in the device* (off by default) stores the ID in the device, needed when the project does not give
 it over LSS at every start. *Add it to the project* (on when a device file matched) adds the node
