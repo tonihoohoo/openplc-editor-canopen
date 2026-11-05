@@ -39,9 +39,12 @@ const LSS = {
 }
 
 function body(view: View, now: number) {
-  const slave = (fields: Record<string, unknown> = {}) => slaveStatus(now, { interface: 'vcan0', ...fields })
+  const shared = slaveStatus(now)
+  // The project's slave also sends Copy (0x2100:04) in TPDO 5, whose COB-ID the master gives.
+  const base = { ...shared, values: [...shared.values, { index: 0x2100, subindex: 4, data: 'dc05' }] }
+  const slave = (fields: Record<string, unknown> = {}) =>
+    slaveStatus(now, { interface: 'vcan0', values: base.values, ...fields })
   const status = (slaves: unknown[]) => ({ version: 1, active: false, now, slaves })
-  const base = slaveStatus(now)
   switch (view) {
     case 'running':
       return status([slave()])

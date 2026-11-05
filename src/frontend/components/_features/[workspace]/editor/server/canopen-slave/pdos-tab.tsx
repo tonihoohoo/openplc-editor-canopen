@@ -93,7 +93,9 @@ const ObjectMenu = ({ config, pdo, siblings, object, at, commit }: ObjectMenuPro
           data-testid={`canopen-slave-pdo-object-${object.id}`}
         >
           <span className='truncate'>{label}</span>
-          <span className='shrink-0 text-[9px] text-neutral-500 dark:text-neutral-400'>{object.dataType}</span>
+          {slaveObjectBytes(object) > 1 ? (
+            <span className='shrink-0 text-[9px] text-neutral-500 dark:text-neutral-400'>{object.dataType}</span>
+          ) : null}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
