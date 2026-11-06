@@ -211,6 +211,66 @@ export interface CanopenLssAddress {
   vendorId: number
   productCode: number
   serialNumber: number
+  /** The product name from the node's device file. */
+  productName?: string
+}
+
+/** One fact of the LSS card's top line: a label, a short value and a line under it. */
+export interface LssNodeFact {
+  key: 'node_id' | 'looks_for' | 'last'
+  label: string
+  value: string
+  detail: string
+  /** The value reads as good (green), a problem (amber) or plain. */
+  tone: 'good' | 'bad' | 'plain'
+}
+
+const LSS_SHORT: Record<CanopenLssResult['result'], string> = {
+  none: 'Not given yet',
+  given: 'Given',
+  already: 'Already set',
+  not_found: 'No answer',
+  refused: 'Refused',
+  store_refused: 'Store refused',
+}
+
+/**
+ * The top line of a node's LSS card: the node ID and how it got it, the serial number the master
+ * looks for, and the last result; @p time formats the result's time.
+ */
+export function lssNodeFacts(
+  result: CanopenLssResult,
+  nodeId: number,
+  address: CanopenLssAddress | undefined,
+  time: (t: number) => string,
+): LssNodeFact[] {
+  const has = result.result === 'given' || result.result === 'already' || result.result === 'store_refused'
+  const how: Record<CanopenLssResult['result'], string> = {
+    none: 'Not given yet',
+    given: `Given by the master, ${result.stored ? 'stored in the device' : 'not stored'}`,
+    already: `The device already had it${result.stored ? '; stored' : ''}`,
+    not_found: 'Not given: no device answered',
+    refused: 'Not given: the device refused it',
+    store_refused: 'Given, but the device refused to store it',
+  }
+  const good = result.result === 'given' || result.result === 'already'
+  return [
+    { key: 'node_id', label: 'Node ID', value: has ? String(nodeId) : '-', detail: how[result.result], tone: 'plain' },
+    {
+      key: 'looks_for',
+      label: 'Looks for',
+      value: address ? hex(address.serialNumber, 8) : '-',
+      detail: address?.productName ? `Serial number, ${address.productName}` : 'Serial number',
+      tone: 'plain',
+    },
+    {
+      key: 'last',
+      label: 'Last result',
+      value: LSS_SHORT[result.result],
+      detail: result.time !== undefined ? time(result.time) : '',
+      tone: result.result === 'none' ? 'plain' : good ? 'good' : 'bad',
+    },
+  ]
 }
 
 /** What an LSS result says; `address` names what the master looked for when no device answered. */

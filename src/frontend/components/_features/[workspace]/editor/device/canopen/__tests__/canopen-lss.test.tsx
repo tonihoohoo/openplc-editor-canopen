@@ -36,6 +36,7 @@ const ok = (body: unknown): Promise<CanopenRuntimeFetch> => Promise.resolve({ su
 const config = () => store.getState().project.data.remoteDevices?.find((d) => d.name === NET)?.canopenConfig
 
 async function renderEditor(nodes: CanopenNode[], status?: unknown) {
+  localStorage.setItem('openplc:canopen-expert-view', 'off')
   store = createTestStore()
   const state = store.getState()
   store.setState({
@@ -77,7 +78,7 @@ describe('CANopen node ID over LSS', () => {
     await renderEditor([genericNode(2)])
     const section = screen.getByTestId('canopen-lss-section')
     expect(section.textContent).toContain('How the device gets node ID 2')
-    const radio = within(section).getByRole('radio', { name: 'Given by the master over LSS at every start' })
+    const radio = within(section).getByRole('radio', { name: 'Given by the master over LSS (CiA 305)' })
     expect((radio as HTMLInputElement).disabled).toBe(true)
     expect(section.textContent).toContain('The device file does not list LSS support')
     expect((within(section).getByRole('radio', { name: 'Set on the device' }) as HTMLInputElement).checked).toBe(true)
@@ -88,19 +89,27 @@ describe('CANopen node ID over LSS', () => {
     select(/3: io3/)
     const list = screen.getByRole('list', { name: 'CANopen nodes' })
     expect(within(list).queryByText('LSS')).toBeNull()
-    fireEvent.click(screen.getByRole('radio', { name: 'Given by the master over LSS at every start' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Given by the master over LSS (CiA 305)' }))
     expect(config()?.nodes[1].lss?.enabled).toBe(true)
     expect(within(list).getByText('LSS')).toBeTruthy()
-    expect((screen.getByRole('textbox', { name: 'Vendor ID' }) as HTMLInputElement).value).toBe('0x00000001')
-    expect((screen.getByRole('textbox', { name: 'Product code' }) as HTMLInputElement).value).toBe('0x00000002')
+    expect(screen.getByTestId('canopen-lss-address').textContent).toBe(
+      'LSS address: vendor 0x00000001, product 0x00000002 (from the device file)',
+    )
+    // The revision is an expert setting.
+    expect(screen.queryByRole('textbox', { name: 'Revision' })).toBeNull()
     // An empty serial number stops the build, with its node named.
     expect(screen.getByRole('status', { name: 'Network checks' }).textContent).toContain(
       'node 3 (io3): gets its node ID over LSS but has no serial number',
     )
     commit('Serial number', '0x00001234')
     expect(config()?.nodes[1].lss?.serialNumber).toBe(0x1234)
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
     commit('Revision', '5')
     expect(config()?.nodes[1].lss?.revision).toBe(5)
+    // A revision that is not "any" stays visible in the basic view, marked as expert.
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
+    expect(screen.getByRole('textbox', { name: 'Revision' })).toBeTruthy()
+    expect(screen.getByTestId('canopen-lss-section').textContent).toContain('Revisionexpert')
     commit('Revision', '')
     expect(config()?.nodes[1].lss?.revision).toBe(0)
     fireEvent.click(screen.getByRole('checkbox', { name: 'Also store the node ID in the device' }))
@@ -144,6 +153,10 @@ describe('CANopen node ID over LSS', () => {
     select(/3: io3/)
     openTab('Status')
     const panel = screen.getByTestId('canopen-status-lss')
+    expect(screen.getByTestId('canopen-status-lss-node_id').textContent).toBe('-')
+    expect(screen.getByTestId('canopen-status-lss-looks_for').textContent).toBe('0x00001234')
+    expect(screen.getByTestId('canopen-status-lss-last').textContent).toBe('No answer')
+    expect(panel.textContent).toContain('Not given: no device answered')
     expect(panel.textContent).toContain(
       'No device with vendor 0x00000001, product 0x00000002, serial 0x00001234 answered. Check the serial number and the cabling.',
     )

@@ -67,11 +67,19 @@ test('a node gets its node ID over LSS, with a serial number the build needs', a
     await expect(nodes.getByText('LSS', { exact: true })).toBeVisible()
     const section = page.getByTestId('canopen-lss-section')
     await expect(section).toContainText('How the device gets node ID 2')
-    await expect(section.getByRole('radio', { name: 'Given by the master over LSS at every start' })).toBeChecked()
+    await expect(section.getByRole('radio', { name: 'Given by the master over LSS (CiA 305)' })).toBeChecked()
     await expect(section.getByRole('textbox', { name: 'Serial number' })).toHaveValue('0x00001001')
-    await expect(section.getByRole('textbox', { name: 'Vendor ID' })).toHaveValue('0x00000001')
+    await expect(section.getByTestId('canopen-lss-address')).toHaveText(
+      'LSS address: vendor 0x00000001, product 0x00000002 (from the device file)',
+    )
+    await expect(section.getByRole('textbox', { name: 'Revision' })).toHaveCount(0)
     await section.scrollIntoViewIfNeeded()
     await keyView(page, 'lss-general')
+    await page.getByRole('switch', { name: 'Expert view' }).check()
+    await expect(section.getByRole('textbox', { name: 'Revision' })).toBeVisible()
+    await section.scrollIntoViewIfNeeded()
+    await shot(page, 'lss-general-expert')
+    await page.getByRole('switch', { name: 'Expert view' }).uncheck()
 
     // Without a serial number the build stops, naming the node.
     const serial = section.getByRole('textbox', { name: 'Serial number' })
@@ -89,7 +97,7 @@ test('a node gets its node ID over LSS, with a serial number the build needs', a
     // Back to set on the device: no mark, the serial number is kept.
     await section.getByRole('radio', { name: 'Set on the device' }).check()
     await expect(nodes.getByText('LSS', { exact: true })).toHaveCount(0)
-    await section.getByRole('radio', { name: 'Given by the master over LSS at every start' }).check()
+    await section.getByRole('radio', { name: 'Given by the master over LSS (CiA 305)' }).check()
     await expect(section.getByRole('textbox', { name: 'Serial number' })).toHaveValue('0x00001001')
   } finally {
     await quitApp(app, page)
@@ -109,8 +117,13 @@ test('the live view shows a device not found over LSS', async () => {
       'No device with vendor 0x00000001, product 0x00000002, serial 0x00001001 answered. Check the serial number and the cabling.',
     )
     await expect(panel).toContainText('Node ID 2 given (device had none); stored.')
+    await expect(panel.getByTestId('canopen-status-lss-last')).toHaveText('No answer')
     await panel.scrollIntoViewIfNeeded()
-    await keyView(page, 'lss-status-not-found', [page.getByText(/^since /), panel.locator('.font-mono')])
+    await keyView(page, 'lss-status-not-found', [
+      page.getByText(/^since /),
+      panel.locator('.font-mono'),
+      panel.getByTestId('canopen-status-lss-last-detail'),
+    ])
   } finally {
     await quitApp(app, page)
     runtime.close()
@@ -197,13 +210,19 @@ test('devices without a node ID are found and one is given a node ID', async () 
     await expect(rows.nth(0)).toContainText('node 2 io2')
     await expect(rows.nth(1)).toContainText('not in project')
     await keyView(page, 'lss-online-find')
+    await panel.getByRole('switch', { name: 'Expert view' }).check()
+    await expect(panel.locator('thead').getByText('Vendor ID', { exact: true })).toBeVisible()
+    await shot(page, 'lss-online-find-expert')
+    await panel.getByRole('switch', { name: 'Expert view' }).uncheck()
 
-    await rows.nth(1).getByRole('button', { name: 'Give node ID...' }).click()
+    await expect(rows.nth(1).getByRole('button')).toHaveText(['Add as node...'])
+    await rows.nth(1).getByRole('button', { name: 'Add as node...' }).click()
     const dialog = page.getByTestId('canopen-lss-give-dialog')
     await dialog.getByTestId('canopen-lss-node-id').selectOption('4')
-    await expect(dialog.getByTestId('canopen-lss-add-to-project')).toBeChecked()
+    await expect(dialog.getByTestId('canopen-lss-give-now')).toBeChecked()
+    await expect(dialog.getByTestId('canopen-lss-bitrate')).toHaveCount(0)
     await shot(page, 'lss-give-node-id')
-    await dialog.getByRole('button', { name: 'Give node ID 4' }).click()
+    await dialog.getByRole('button', { name: 'Add node 4' }).click()
     await expect(rows.nth(1).getByTestId('canopen-lss-given')).toHaveText(
       'Node ID 4 given; added to the project as node 4',
     )
@@ -256,6 +275,10 @@ test('service mode opens the bus at another bit rate and sets a device bit rate'
   })
   const { app, page } = await openDevice('openplc-e2e-canopen-lss-service', true)
   try {
+    // The bit rate tools are in the expert view only.
+    await expect(page.getByRole('button', { name: 'Open bus' }).first()).toBeVisible({ timeout: 15000 })
+    await expect(page.getByTestId('canopen-service-bitrate')).toHaveCount(0)
+    await page.getByRole('switch', { name: 'Expert view' }).first().check()
     const bitrate = page.getByTestId('canopen-service-bitrate')
     await expect(bitrate).toBeVisible({ timeout: 15000 })
     await bitrate.selectOption('125000')
@@ -270,7 +293,7 @@ test('service mode opens the bus at another bit rate and sets a device bit rate'
     const panel = page.getByTestId('canopen-lss-panel')
     await panel.getByRole('button', { name: 'Find devices without node ID' }).click()
     await expect(panel.getByTestId('canopen-lss-device')).toHaveCount(1, { timeout: 15000 })
-    await panel.getByRole('button', { name: 'Give node ID...' }).click()
+    await panel.getByRole('button', { name: 'Add as node...' }).click()
     const dialog = page.getByTestId('canopen-lss-give-dialog')
     await dialog.getByTestId('canopen-lss-bitrate').selectOption('250000')
     await expect(dialog.getByTestId('canopen-lss-give-confirm')).toBeDisabled()
@@ -278,6 +301,7 @@ test('service mode opens the bus at another bit rate and sets a device bit rate'
     await shot(page, 'lss-service-bitrate')
     await dialog.getByTestId('canopen-lss-give-confirm').click()
     await expect(panel.getByTestId('canopen-lss-given')).toContainText('250 kbit/s stored', { timeout: 15000 })
+    await panel.getByRole('switch', { name: 'Expert view' }).uncheck()
     expect(requests.filter((r) => r.op === 'lss').map((r) => r.action)).toEqual(['find', 'set_id', 'set_bitrate'])
   } finally {
     await quitApp(app, page)

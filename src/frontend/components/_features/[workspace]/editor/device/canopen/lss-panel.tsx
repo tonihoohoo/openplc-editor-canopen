@@ -5,7 +5,9 @@ import type { CanopenConfig, CanopenNode } from '@root/middleware/shared/ports/c
 import {
   hex,
   LSS_BITRATES,
+  lssAddressText,
   type LssDevice,
+  lssDeviceName,
   type LssMatch,
   lssMatch,
   lssNodeIdChoices,
@@ -29,8 +31,10 @@ const kbit = (bitrate: number) => `${bitrate / 1000} kbit/s`
 export interface LssGiveRequest {
   device: LssDevice
   nodeId: number
+  /** Give the node ID now; false only when adding, which leaves it to the master's next start. */
+  give: boolean
   store: boolean
-  /** Add the device to the project as an LSS node with this device file's description. */
+  /** Add the device to the project as a node with the matched device file's description. */
   add: boolean
   /** Also set and store this bit rate (service mode only); null leaves it. */
   bitrate: number | null
@@ -45,6 +49,9 @@ type LssPanelProps = {
   config: CanopenConfig
   /** The other CANopen networks of the project, whose device files may match. */
   others: readonly CanopenConfig[]
+  /** The expert view: LSS address columns and the bit rate choice. */
+  expert: boolean
+  onExpertChange: (on: boolean) => void
   /**
    * Adds a node made from a matching device file, with @p nodeId or else the lowest free one; returns
    * its node ID, or null when it was not added.
@@ -61,7 +68,7 @@ type LssPanelProps = {
  * "Devices without node ID (LSS)" on the network's Online tab: an LSS search, what each device found
  * matches in the project, and giving it a node ID.
  */
-export const LssPanel = ({ online, config, others, onAdd }: LssPanelProps) => {
+export const LssPanel = ({ online, config, others, expert, onExpertChange, onAdd }: LssPanelProps) => {
   const [search, setSearch] = useState<Search>({ state: 'idle' })
   const [devices, setDevices] = useState<LssDevice[]>([])
   const [given, setGiven] = useState<ReadonlyMap<string, string>>(new Map())
@@ -100,17 +107,22 @@ export const LssPanel = ({ online, config, others, onAdd }: LssPanelProps) => {
 
   const give = async (request: LssGiveRequest, match: LssMatch): Promise<string | null> => {
     const { device } = request
-    const r = await online.client.lssSetId(online.networkIndex, device, request.nodeId, request.store)
-    if (!r.ok) return r.message
-    let text = `Node ID ${request.nodeId} given${r.stored ? ' and stored' : ''}`
-    if (request.bitrate !== null) {
-      const b = await online.client.lssSetBitrate(online.networkIndex, device, request.bitrate)
-      if (!b.ok) return `${text}, but the bit rate was not set: ${b.message}`
-      text += `; ${kbit(request.bitrate)} stored, taken at its next reset or power-off`
+    let text = ''
+    if (request.give) {
+      const r = await online.client.lssSetId(online.networkIndex, device, request.nodeId, request.store)
+      if (!r.ok) return r.message
+      text = `Node ID ${request.nodeId} given${r.stored ? ' and stored' : ''}`
+      if (request.bitrate !== null) {
+        const b = await online.client.lssSetBitrate(online.networkIndex, device, request.bitrate)
+        if (!b.ok) return `${text}, but the bit rate was not set: ${b.message}`
+        text += `; ${kbit(request.bitrate)} stored, taken at its next reset or power-off`
+      }
     }
     if (request.add && match.kind === 'file') {
       const added = onAdd(device, match, request.nodeId, request.store)
-      text += added !== null ? `; added to the project as node ${added}` : '; not added to the project'
+      if (added === null) text += text ? '; not added to the project' : 'Not added to the project'
+      else if (request.give) text += `; added to the project as node ${added}`
+      else text = `Added to the project as node ${added}; it gets its ID at the next PLC start`
     }
     setGiven((prev) => new Map(prev).set(deviceKey(device), text))
     return null
@@ -123,15 +135,28 @@ export const LssPanel = ({ online, config, others, onAdd }: LssPanelProps) => {
     <div className={cardClassName} data-testid='canopen-lss-panel'>
       <div className='mb-3 flex items-center justify-between gap-4'>
         <h3 className={cn(headingClassName, 'mb-0')}>Devices without node ID (LSS)</h3>
-        <button
-          type='button'
-          className={primaryButtonClassName}
-          disabled={disabled}
-          onClick={find}
-          data-testid='canopen-lss-find'
-        >
-          Find devices without node ID
-        </button>
+        <div className='flex items-center gap-4'>
+          <label className='flex items-center gap-2 text-xs text-neutral-700 dark:text-neutral-300'>
+            <input
+              type='checkbox'
+              role='switch'
+              aria-label='Expert view'
+              checked={expert}
+              onChange={(e) => onExpertChange(e.target.checked)}
+              className='h-3.5 w-3.5 accent-brand'
+            />
+            Expert view
+          </label>
+          <button
+            type='button'
+            className={primaryButtonClassName}
+            disabled={disabled}
+            onClick={find}
+            data-testid='canopen-lss-find'
+          >
+            Find devices without node ID
+          </button>
+        </div>
       </div>
       {!online.ready ? (
         <p className={cn(hintClassName, 'mb-2 text-xs')}>
@@ -169,11 +194,16 @@ export const LssPanel = ({ online, config, others, onAdd }: LssPanelProps) => {
         <table className='mb-3 w-full text-left text-xs' data-testid='canopen-lss-devices'>
           <thead className='text-neutral-500 dark:text-neutral-400'>
             <tr>
-              <th className='py-1 font-medium'>Vendor ID</th>
-              <th className='py-1 font-medium'>Product code</th>
-              <th className='py-1 font-medium'>Revision</th>
+              <th className='py-1 font-medium'>Device</th>
+              {expert ? (
+                <>
+                  <th className='py-1 font-medium'>Vendor ID</th>
+                  <th className='py-1 font-medium'>Product code</th>
+                  <th className='py-1 font-medium'>Revision</th>
+                </>
+              ) : null}
               <th className='py-1 font-medium'>Serial number</th>
-              <th className='py-1 font-medium'>Matches</th>
+              <th className='py-1 font-medium'>In the project</th>
               <th />
             </tr>
           </thead>
@@ -184,12 +214,18 @@ export const LssPanel = ({ online, config, others, onAdd }: LssPanelProps) => {
               return (
                 <tr
                   key={deviceKey(d)}
+                  title={lssAddressText(d)}
                   className='border-t border-neutral-200 dark:border-neutral-800'
                   data-testid='canopen-lss-device'
                 >
-                  <td className='py-1.5 font-mono'>{hex(d.vendorId, 8)}</td>
-                  <td className='py-1.5 font-mono'>{hex(d.productCode, 8)}</td>
-                  <td className='py-1.5 font-mono'>{hex(d.revision, 8)}</td>
+                  <td className='py-1.5'>{lssDeviceName(match)}</td>
+                  {expert ? (
+                    <>
+                      <td className='py-1.5 font-mono'>{hex(d.vendorId, 8)}</td>
+                      <td className='py-1.5 font-mono'>{hex(d.productCode, 8)}</td>
+                      <td className='py-1.5 font-mono'>{hex(d.revision, 8)}</td>
+                    </>
+                  ) : null}
                   <td className='py-1.5 font-mono'>{hex(d.serialNumber, 8)}</td>
                   <td className='py-1.5'>
                     <MatchCell match={match} />
@@ -200,36 +236,19 @@ export const LssPanel = ({ online, config, others, onAdd }: LssPanelProps) => {
                         {done}
                       </span>
                     ) : (
-                      <span className='inline-flex gap-2'>
-                        <button
-                          type='button'
-                          className={smallButtonClassName}
-                          disabled={!online.ready}
-                          onClick={() => setGiving({ device: d, match })}
-                          data-testid='canopen-lss-give'
-                        >
-                          {match.kind === 'node' ? `Give node ID ${match.node.nodeId}` : 'Give node ID...'}
-                        </button>
-                        {match.kind === 'file' && match.eds.lssSupported ? (
-                          <button
-                            type='button'
-                            className={smallButtonClassName}
-                            onClick={() => {
-                              const added = onAdd(d, match, null, false)
-                              if (added !== null)
-                                setGiven((prev) =>
-                                  new Map(prev).set(
-                                    deviceKey(d),
-                                    `Added to the project as node ${added}; it gets its ID at the next PLC start`,
-                                  ),
-                                )
-                            }}
-                            data-testid='canopen-lss-add'
-                          >
-                            Add to project
-                          </button>
-                        ) : null}
-                      </span>
+                      <button
+                        type='button'
+                        className={smallButtonClassName}
+                        disabled={match.kind !== 'file' && !online.ready}
+                        onClick={() => setGiving({ device: d, match })}
+                        data-testid='canopen-lss-give'
+                      >
+                        {match.kind === 'node'
+                          ? `Give node ID ${match.node.nodeId}`
+                          : match.kind === 'file'
+                            ? 'Add as node...'
+                            : 'Give node ID...'}
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -247,7 +266,9 @@ export const LssPanel = ({ online, config, others, onAdd }: LssPanelProps) => {
           device={giving.device}
           match={giving.match}
           config={config}
-          serviceOpen={online.service.open}
+          serviceOpen={online.service.open && expert}
+          expert={expert}
+          canGive={online.ready}
           busBitrate={online.service.bitrate ?? config.network.bitrate}
           onCancel={() => setGiving(null)}
           onGive={async (request) => {
@@ -264,22 +285,19 @@ export const LssPanel = ({ online, config, others, onAdd }: LssPanelProps) => {
 const MatchCell = ({ match }: { match: LssMatch }) => {
   if (match.kind === 'node')
     return (
-      <span className='flex flex-col'>
+      <span className='inline-flex items-center gap-1.5'>
         <span>
           node {match.node.nodeId} {match.node.name}
         </span>
-        <span className='w-fit rounded bg-blue-50 px-1 text-[10px] text-blue-700 dark:bg-blue-950 dark:text-blue-300'>
+        <span className='rounded bg-blue-50 px-1 text-[10px] text-blue-700 dark:bg-blue-950 dark:text-blue-300'>
           serial matches
         </span>
       </span>
     )
   if (match.kind === 'file')
     return (
-      <span className='flex flex-col'>
-        <span>{match.fileName}</span>
-        <span className='w-fit rounded bg-amber-50 px-1 text-[10px] text-amber-700 dark:bg-amber-950 dark:text-amber-300'>
-          not in project
-        </span>
+      <span className='rounded bg-amber-50 px-1 text-[10px] text-amber-700 dark:bg-amber-950 dark:text-amber-300'>
+        not in project
       </span>
     )
   return <span className={hintClassName}>No device file in the project</span>
@@ -289,7 +307,12 @@ type GiveNodeIdDialogProps = {
   device: LssDevice
   match: LssMatch
   config: CanopenConfig
+  /** Service mode is open and the expert view is on: the bit rate can be set. */
   serviceOpen: boolean
+  /** Requests reach the devices now; when false, adding can only leave the ID to the next start. */
+  canGive: boolean
+  /** The expert view: the full LSS address under the title. */
+  expert: boolean
   /** The bit rate the bus runs at now (bit/s; 0 for the interface's own). */
   busBitrate: number
   onCancel: () => void
@@ -297,12 +320,17 @@ type GiveNodeIdDialogProps = {
   onGive: (request: LssGiveRequest) => Promise<string | null>
 }
 
-/** Give node ID: the ID (free ones first), store, add to the project and, in service mode, the bit rate. */
+/**
+ * Give node ID, or Add as node for a device whose device file the project has: the ID (free ones
+ * first), give it now, store and, in service mode with the expert view, the bit rate.
+ */
 export const GiveNodeIdDialog = ({
   device,
   match,
   config,
   serviceOpen,
+  canGive,
+  expert,
   busBitrate,
   onCancel,
   onGive,
@@ -311,7 +339,11 @@ export const GiveNodeIdDialog = ({
   const fixed: CanopenNode | null = match.kind === 'node' ? match.node : null
   const [nodeId, setNodeId] = useState<number>(fixed?.nodeId ?? choices.free[0] ?? choices.taken[0] ?? 1)
   const [store, setStore] = useState(fixed?.lss?.store ?? false)
-  const [add, setAdd] = useState(match.kind === 'file')
+  const adding = match.kind === 'file'
+  /** A device file without LSS support makes a node with a fixed ID, which it must be given and keep. */
+  const mustGive = adding && !match.eds.lssSupported
+  const [giveNow, setGiveNow] = useState(canGive)
+  const give = !adding || giveNow || mustGive
   const [bitrate, setBitrate] = useState<number | null>(null)
   const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -321,8 +353,11 @@ export const GiveNodeIdDialog = ({
       ? `${listText(choices.taken)} ${choices.taken.length === 1 ? 'is' : 'are'} taken by the project.`
       : ''
   const takenByProject = choices.taken.includes(nodeId) && fixed?.nodeId !== nodeId
-  const bitrateChange = bitrate !== null && bitrate !== busBitrate
-  const label = `Give node ID ${nodeId}${bitrateChange ? ` and set ${kbit(bitrate)}` : ''}`
+  const bitrateChange = give && bitrate !== null && bitrate !== busBitrate
+  const label = adding
+    ? `Add node ${nodeId}`
+    : `Give node ID ${nodeId}${bitrateChange ? ` and set ${kbit(bitrate)}` : ''}`
+  const blocked = busy || (bitrateChange && !confirmed) || (give && !canGive)
 
   return (
     <Modal open onOpenChange={(open) => (open || busy ? undefined : onCancel())}>
@@ -332,11 +367,15 @@ export const GiveNodeIdDialog = ({
         data-testid='canopen-lss-give-dialog'
         aria-describedby={undefined}
       >
-        <ModalTitle className='text-base font-semibold'>Give node ID</ModalTitle>
-        <p className='font-mono text-xs text-neutral-500 dark:text-neutral-400'>
-          Vendor {hex(device.vendorId, 8)}, product {hex(device.productCode, 8)}, revision {hex(device.revision, 8)},
-          serial {hex(device.serialNumber, 8)}
+        <ModalTitle className='text-base font-semibold'>{adding ? 'Add as node' : 'Give node ID'}</ModalTitle>
+        <p className='text-xs text-neutral-500 dark:text-neutral-400'>
+          {lssDeviceName(match)}, serial <span className='font-mono'>{hex(device.serialNumber, 8)}</span>
         </p>
+        {expert ? (
+          <p className='font-mono text-[10px] text-neutral-500 dark:text-neutral-400' data-testid='canopen-lss-address'>
+            {lssAddressText(device)}
+          </p>
+        ) : null}
         <label className='flex flex-col gap-1'>
           <span className={labelClassName}>Node ID</span>
           <select
@@ -376,29 +415,31 @@ export const GiveNodeIdDialog = ({
             </span>
           ) : null}
         </label>
-        <Check
-          checked={store}
-          disabled={busy}
-          onChange={setStore}
-          label='Store it in the device'
-          hint='Needed when the project does not give it over LSS at every start.'
-          testId='canopen-lss-store'
-        />
-        {match.kind === 'file' ? (
+        {adding ? (
           <Check
-            checked={add}
-            disabled={busy}
-            onChange={setAdd}
-            label={`Add it to the project as node ${nodeId} (${match.fileName})`}
+            checked={give}
+            disabled={busy || mustGive || !canGive}
+            onChange={setGiveNow}
+            label={`Give it node ID ${nodeId} now`}
             hint={
-              match.eds.lssSupported
-                ? 'With "Given by the master over LSS" and this serial number.'
-                : 'Its device file does not list LSS support, so the node gets a fixed node ID: store it in the device.'
+              mustGive
+                ? 'Its device file does not list LSS support, so the node has a fixed node ID: give it now and store it.'
+                : canGive
+                  ? 'Otherwise the master gives it at the next PLC start.'
+                  : 'The bus is not running, so the master gives it at the next PLC start.'
             }
-            testId='canopen-lss-add-to-project'
+            testId='canopen-lss-give-now'
           />
         ) : null}
-        {serviceOpen ? (
+        <Check
+          checked={give && (store || mustGive)}
+          disabled={busy || !give || mustGive}
+          onChange={setStore}
+          label='Also store the node ID in the device'
+          hint='Off: given again at every start. On: the device keeps it, also with another master.'
+          testId='canopen-lss-store'
+        />
+        {serviceOpen && give ? (
           <div className='flex flex-col gap-1 rounded-md border border-neutral-200 p-3 dark:border-neutral-800'>
             <span className={labelClassName}>Bit rate (service mode)</span>
             <select
@@ -444,7 +485,7 @@ export const GiveNodeIdDialog = ({
           <button
             type='button'
             className={primaryButtonClassName}
-            disabled={busy || (bitrateChange && !confirmed)}
+            disabled={blocked}
             data-testid='canopen-lss-give-confirm'
             onClick={() => {
               setBusy(true)
@@ -452,8 +493,9 @@ export const GiveNodeIdDialog = ({
               void onGive({
                 device,
                 nodeId,
-                store,
-                add: match.kind === 'file' && add,
+                give,
+                store: give && (store || mustGive),
+                add: adding,
                 bitrate: bitrateChange ? bitrate : null,
               }).then((e) => {
                 setBusy(false)
