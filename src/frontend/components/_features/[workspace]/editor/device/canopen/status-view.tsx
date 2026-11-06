@@ -138,7 +138,12 @@ const LssPanel = ({
             >
               {f.value}
             </p>
-            <p className='mt-0.5 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400'>{f.detail}</p>
+            <p
+              className='mt-0.5 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400'
+              data-testid={`canopen-status-lss-${f.key}-detail`}
+            >
+              {f.detail}
+            </p>
           </div>
         ))}
       </div>

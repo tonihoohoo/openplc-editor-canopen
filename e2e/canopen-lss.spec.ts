@@ -119,7 +119,11 @@ test('the live view shows a device not found over LSS', async () => {
     await expect(panel).toContainText('Node ID 2 given (device had none); stored.')
     await expect(panel.getByTestId('canopen-status-lss-last')).toHaveText('No answer')
     await panel.scrollIntoViewIfNeeded()
-    await keyView(page, 'lss-status-not-found', [page.getByText(/^since /), panel.locator('.font-mono')])
+    await keyView(page, 'lss-status-not-found', [
+      page.getByText(/^since /),
+      panel.locator('.font-mono'),
+      panel.getByTestId('canopen-status-lss-last-detail'),
+    ])
   } finally {
     await quitApp(app, page)
     runtime.close()
