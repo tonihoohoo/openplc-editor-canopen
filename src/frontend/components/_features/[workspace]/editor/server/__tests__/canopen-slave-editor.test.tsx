@@ -245,6 +245,7 @@ describe('CanopenSlaveEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Export EDS or XDD...' }))
     const dialog = screen.getByTestId('canopen-export-dialog')
     expect(within(dialog).getByTestId('canopen-export-check').textContent).toContain('CiA 306 OK')
+    expect(within(dialog).getByTestId('canopen-export-check').className).not.toContain('truncate')
     await act(async () => {
       fireEvent.click(within(dialog).getByTestId('canopen-export-save'))
       await new Promise((resolve) => setTimeout(resolve, 20))
