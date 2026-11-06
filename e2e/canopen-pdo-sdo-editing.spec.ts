@@ -1,6 +1,7 @@
 // ci-covers:
 //   src/frontend/components/_features/[workspace]/editor/device/canopen/pdo-section.tsx
 //   src/frontend/components/_features/[workspace]/editor/device/canopen/sdo-section.tsx
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/object-picker.tsx
 //   src/frontend/components/_features/[workspace]/editor/device/canopen/sortable-rows.tsx
 //   src/middleware/shared/utils/canopen/sdo-value.ts
 /**
