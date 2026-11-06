@@ -197,7 +197,7 @@ const bitOn = (defaultValue: string, bit: number): boolean => {
   return Number.isFinite(value) && ((value >> bit) & 1) === 1
 }
 
-const headClassName = 'px-2 py-1.5 text-left text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400'
+const headClassName = 'px-2 py-1.5 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400'
 const cellClassName = 'px-1 py-1 align-top'
 
 type ObjectRowProps = {

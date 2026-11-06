@@ -21,6 +21,8 @@ import {
   slaveLayoutText,
   slaveLss,
   slaveLssForgetText,
+  slavePdoLayout,
+  type SlaveProblem,
   slavesOn,
   suggestedSlaveRevision,
   usesCanopenLibrary,
@@ -31,24 +33,20 @@ import {
   describeAliasRejection,
   validateAliasEdit,
 } from '@root/middleware/shared/utils/iec-address'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ExportDialog } from '../../device/canopen/device-file-dialogs'
 import { NetworkSwitch } from '../../device/canopen/network-switch'
-import {
-  compactCardClassName,
-  hintClassName,
-  primaryButtonClassName,
-  secondaryButtonClassName,
-} from '../../device/canopen/styles'
+import { compactCardClassName, hintClassName, secondaryButtonClassName } from '../../device/canopen/styles'
 import { DataTab } from './data-tab'
 import { GeneralTab } from './general-tab'
 import { LssCard, OnlineTab } from './online-tab'
 import { PdosTab } from './pdos-tab'
+import { SlaveProblemList, slaveProblemTarget } from './problem-list'
 
-type SlaveTab = 'general' | 'data' | 'pdos' | 'online'
+type SlaveTab = 'general' | 'data' | 'pdos' | 'status'
 
-const isSlaveTab = (v: string): v is SlaveTab => v === 'general' || v === 'data' || v === 'pdos' || v === 'online'
+const isSlaveTab = (v: string): v is SlaveTab => v === 'general' || v === 'data' || v === 'pdos' || v === 'status'
 
 type SlaveFormat = 'eds' | 'xdd'
 
@@ -174,6 +172,33 @@ const CanopenSlaveEditor = () => {
     return checkCanopenSlave(name, config, remoteDevices, others)
   }, [servers, remoteDevices, name, config])
 
+  const pdosInUse = useMemo(() => {
+    const layout = slavePdoLayout(config)
+    return [...layout.rpdos, ...layout.tpdos].filter((p) => p.objects.length > 0).length
+  }, [config])
+
+  const [shownProblem, setShownProblem] = useState<{ selector: string; at: number } | null>(null)
+  const showProblem = useCallback(
+    (problem: SlaveProblem) => {
+      const target = slaveProblemTarget(problem.where, config)
+      if (target.tab === 'pdos') {
+        showPdo(problem.where)
+        return
+      }
+      if (problem.expert) setExpert(true)
+      setTab(target.tab)
+      setShownProblem({ selector: target.selector, at: Date.now() })
+    },
+    [config, showPdo, setExpert],
+  )
+  useEffect(() => {
+    if (!shownProblem) return
+    const frame = requestAnimationFrame(() => {
+      document.querySelector(shownProblem.selector)?.scrollIntoView?.({ block: 'center' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [shownProblem])
+
   // Read at write time, so two edits in one event never overwrite each other.
   const commit = useCallback(
     (update: (config: CanopenSlaveConfig) => CanopenSlaveConfig) => {
@@ -277,8 +302,8 @@ const CanopenSlaveEditor = () => {
             />
             Expert view
           </label>
-          <button type='button' className={primaryButtonClassName} onClick={() => setExporting(true)}>
-            Export EDS or XDD...
+          <button type='button' className={secondaryButtonClassName} onClick={() => setExporting(true)}>
+            Export...
           </button>
           <NetworkSwitch
             on={on}
@@ -291,28 +316,13 @@ const CanopenSlaveEditor = () => {
       </div>
 
       {problems.length > 0 ? (
-        <div
-          role='status'
-          className='mb-4 shrink-0 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300'
-        >
-          <p className='font-medium'>
-            {on ? 'The build stops until these are fixed:' : 'Fix these before turning the slave on:'}
-          </p>
-          <ul className='ml-4 list-disc'>
-            {problems.map((p) => (
-              <li key={`${p.where}-${p.text}`}>{p.text}</li>
-            ))}
-          </ul>
-          {!expert && problems.some((p) => p.expert) ? (
-            <button
-              type='button'
-              className='mt-1 font-medium text-red-800 underline dark:text-red-300'
-              onClick={() => setExpert(true)}
-            >
-              Turn on the expert view to fix the details
-            </button>
-          ) : null}
-        </div>
+        <SlaveProblemList
+          problems={problems}
+          on={on}
+          expertOffer={!expert && problems.some((p) => p.expert)}
+          onExpert={() => setExpert(true)}
+          onShow={showProblem}
+        />
       ) : null}
 
       <Tabs.Root
@@ -324,9 +334,9 @@ const CanopenSlaveEditor = () => {
       >
         <Tabs.List className='mb-4 flex shrink-0 border-b border-neutral-200 dark:border-neutral-800'>
           <TabItem value='general' label='General' active={tab === 'general'} />
-          <TabItem value='data' label='Data' active={tab === 'data'} />
-          <TabItem value='pdos' label='PDOs' active={tab === 'pdos'} />
-          <TabItem value='online' label='Online' active={tab === 'online'} />
+          <TabItem value='data' label={`Data (${objects})`} active={tab === 'data'} />
+          <TabItem value='pdos' label={`PDOs (${pdosInUse})`} active={tab === 'pdos'} />
+          <TabItem value='status' label='Status' active={tab === 'status'} />
         </Tabs.List>
         <Tabs.Content value='general' className='data-[state=inactive]:hidden'>
           <GeneralTab
@@ -352,7 +362,7 @@ const CanopenSlaveEditor = () => {
         <Tabs.Content value='pdos' className='data-[state=inactive]:hidden'>
           <PdosTab config={config} problems={problems} commit={commit} shown={shownPdo} />
         </Tabs.Content>
-        <Tabs.Content value='online' className='data-[state=inactive]:hidden'>
+        <Tabs.Content value='status' className='data-[state=inactive]:hidden'>
           <OnlineTab config={config} live={live} lssSlot={lssSlot} />
         </Tabs.Content>
       </Tabs.Root>

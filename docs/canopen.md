@@ -602,16 +602,23 @@ appended to the program at build time.
 A server with protocol `canopen-slave` makes the runtime a CANopen device (a slave) on a CAN
 interface, so another CANopen master can read and write PLC data. It is offered where the CANopen
 master is, and a project may have several, one per interface; an interface cannot carry a CANopen
-network and a slave at the same time. The page has four tabs:
+network and a slave at the same time. The page follows the layout of a master node page: the
+header has **Expert view**, **Export...** and **Run this slave**, a problem list counts what stops the
+build with a **Show** link that opens the field or row, and the tabs are General, Data (number of
+objects), PDOs (number of PDOs in use) and Status:
 
-- **General**: interface, bit rate (or "Leave as configured"), node ID; identity (vendor name for the
-  device file, device name 0x1008, software version 0x100A, vendor ID, product code and revision in
-  0x1018); the [device file details](#xdd-details-of-the-slave); heartbeat time 0x1017 (always sent), the master's node ID and heartbeat timeout to watch
-  (0x1016:01, 0 for none), what happens when the master is lost (0x1029:01, with EMCY 8130h), the
-  values sent while the PLC is stopped (hold or zero, with EMCY 6200h), the slave's NMT state on a PLC
-  stop (0x1029:02: no change, pre-operational from operational, or stopped; the master can change it
-  and its NMT start brings the slave back) and **Start without a master**. The **In the PLC program**
-  panel names the slave for the [slave blocks](#plc-function-blocks).
+- **General**: the same cards and two-column fields as a node page. **CAN interface**: interface and bit
+  rate (or "Leave as configured"). **Node**: node ID and **Started by** (the master's NMT start, or
+  the slave itself after its boot-up). **How this slave gets node ID N**: fixed in the project, or set
+  by an LSS master (see [LSS](#lss)). **Supervision**: heartbeat producer time 0x1017 (always sent) and
+  **Watch the master**, which shows the master's node ID, the master timeout (0x1016:01; off is 0)
+  and what happens when the master is gone (0x1029:01, with EMCY 8130h). **When the PLC stops**: the
+  values to the master (hold or zero, with EMCY 6200h) and the slave's NMT state (0x1029:02: no change,
+  pre-operational from operational, or stopped; the master can change it and its NMT start brings the
+  slave back). **Identity**: device name 0x1008, vendor name for the device file, vendor ID, product
+  code and revision in 0x1018, software version 0x100A. Then the
+  [device file details](#xdd-details-of-the-slave) and the **In the PLC program** card, which names
+  the slave for the [slave blocks](#plc-function-blocks).
 - **Data**: the application objects, one table **From the master** (`%I`, index 0x2000 and up) and one
   **To the master** (`%Q`, 0x2100 and up). Each object has a place, name, type (the numeric types and
   STRING), an exchange (**PDO**, **By master** (a PDO object in no default PDO), **SDO only** or **Constant**), its address from the registry, an
@@ -635,11 +642,11 @@ network and a slave at the same time. The page has four tabs:
   none in CiA 301: their **COB-ID** is **Given by the master** (checked; the slave starts them off, 0x80000000,
   until a master writes a COB-ID, and a master project that adds the slave's device file gives them
   the lowest free COB-ID) or, unchecked, fixed (a value that does not follow an LSS node ID, for a master that
-  does not set it or with **Start without a master**, which warns about a PDO given by the master). A
+  does not set it or with **Started by** the slave itself, which warns about a PDO given by the master). A
   fixed COB-ID that is reserved or used by another PDO of the slave stops the build. The master may
   remap all PDOs in pre-operational; values are not stored over a restart. The **In** column of the
   Data tab names each object's PDO and opens this tab at it ("master" for an object in no default PDO).
-- **Online**: the running slave as the runtime reports it, read once a second while the editor is
+- **Status**: the running slave as the runtime reports it, read once a second while the editor is
   connected, also while the PLC is stopped. It sends nothing to the slave. From the top: one notice
   when needed, a state strip (NMT state and who set it, the master's heartbeat with its age and
   allowed time, PLC running or stopped with the heartbeat time in use, active emergencies with the
@@ -649,7 +656,7 @@ network and a slave at the same time. The page has four tabs:
   writes and refusals, heartbeat, emergencies, PLC, bus). NMT changes and emergencies of the PLC
   program, and the NMT state taken at a PLC stop, are named as such.
 
-The Online tab marks every setting where the running slave differs from what the project's slave has
+The Status tab marks every setting where the running slave differs from what the project's slave has
 after a PLC start: the heartbeat time, the master watch time, the behaviour on master loss and on a
 PLC stop, each
 PDO's use, COB-ID, transmission type, timers and mapping, and the values of SDO-only parameters from
@@ -674,7 +681,7 @@ master) whose eight bits are separate BOOL addresses in the program, as CiA 401 
 - Changing a row to this type keeps its object, name and default, frees its `%IB` or `%QB` address
   and takes the first image byte whose eight bits are all free; the bits are named Bit 0 to Bit 7.
   Changing it back frees the eight addresses and their aliases.
-- The PDOs tab shows the object as one byte ("8 bits"); the Online tab shows its value with one dot
+- The PDOs tab shows the object as one byte ("8 bits"); the Status tab shows its value with one dot
   per bit and the names of the bits that are on.
 - The EDS describes it as UNSIGNED8. The XDD names the bits through a struct data type, so a master
   network that adds the XDD shows the bit names in its DBC and HTML exports.
@@ -694,7 +701,7 @@ suggested revision.
   and offset; the engineering value is (raw + offset) × multiplier), and a **Group** picked from the
   slave's groups or typed new. A packed object keeps its bit names and takes a description and group.
   With a unit, scale or meanings, the Default column shows the engineering value or the meaning
-  ("0 · Off", "215 · 21.5 °C") and the Online tab's values do the same, in decimal also in Hex mode
+  ("0 · Off", "215 · 21.5 °C") and the Status tab's values do the same, in decimal also in Hex mode
   ("7 · no meaning" when no meaning fits).
 - **General**: a **Device file details** panel below Identity with the **Product text** (up to 1000
   characters), **Order number** (up to 245, the device name when empty), **Hardware version** (up to
@@ -713,10 +720,11 @@ suggested revision.
 
 ### LSS
 
-The General tab's **LSS** panel (layer setting services, CiA 305), off by default, lets an LSS master
-find the slave and give it its node ID and bit rate:
+The General tab's **How this slave gets node ID N** card (layer setting services, CiA 305) lets an LSS
+master find the slave and give it its node ID and bit rate. **Fixed in the project** is the default;
+the settings below show only with LSS on, and are kept while it is off:
 
-- **An LSS master may set the node ID** turns LSS on. The exported EDS then has `LSS_Supported=1`
+- **An LSS master may set it (CiA 305)** turns LSS on. The exported EDS then has `LSS_Supported=1`
   and the XDD `layerSettingServiceSlave="true"`.
 - **At first start**: **Use node ID N** starts with the node ID above, which a master may change;
   **Wait for the master** starts with no node ID (FFh) and stays silent apart from LSS until a master
@@ -733,14 +741,14 @@ When the master sends Store, the node ID and bit rate it set are kept on the run
 over the project's values, also after a restart, a new upload or a runtime update, until they are
 forgotten. Default COB-IDs (EMCY, SDO, PDOs 1-4) follow the node ID in use.
 
-On the Online tab, the **LSS** card of a running LSS slave shows the node ID in use and where it
+On the Status tab, the **LSS** card of a running LSS slave shows the node ID in use and where it
 comes from (the project, stored by a master, or given and not stored), the bit rate in use, the serial
 number and the LSS state, and what is stored on the runtime. **Forget stored LSS values...** asks first
 and then removes the stored values (request `slave_lss_forget`, runtimes that list the `slave_lss`
 feature); the slave restarts with the project's node ID and bit rate. The tab compares the PDO COB-IDs
 at the node ID in use, so a node ID from the master is not shown as a change.
 
-**Run this slave** turns it off without losing its objects and addresses. **Export EDS or XDD...**
+**Run this slave** turns it off without losing its objects and addresses. **Export...** (EDS or XDD)
 writes the slave's device file from the same description the runtime builds its object dictionary
 from, checks it (CiA 306 or CiA 311) and suggests the next revision when the objects or PDOs changed
 since the last export, so a master that imported the old file is not fed the wrong layout. A master
@@ -802,7 +810,7 @@ object gets the lowest free address of its class in `projectActions.updateCanope
 | Device editor                                             | `src/frontend/components/_features/[workspace]/editor/device/canopen/` |
 | Slave model, checks, `devices` output and device file     | `src/middleware/shared/utils/canopen/slave.ts`                         |
 | Slave page and store action                               | `.../editor/server/canopen-slave/`, `projectActions.updateCanopenSlaveConfig` |
-| Slave Online tab: values, changed settings, notice, events | `src/middleware/shared/utils/canopen/slave-online.ts`, `useCanopenSlaveStatus` |
+| Slave Status tab: values, changed settings, notice, events | `src/middleware/shared/utils/canopen/slave-online.ts`, `useCanopenSlaveStatus` |
 
 The parsed EDS (identity, PDO counts, object dictionary) is stored on the node, so a project opens
 and builds without the original file. For each PDO the generator writes the configuration SDOs in
@@ -816,7 +824,7 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
 
 - Slave: `src/middleware/shared/utils/canopen/__tests__/slave.test.ts` (layout, values, checks,
   output, EDS and XDD export read back), `slave-e2e-fixture.test.ts` and the page in
-  `.../editor/server/__tests__/canopen-slave-editor.test.tsx`; the Online tab in `slave-online.test.ts`
+  `.../editor/server/__tests__/canopen-slave-editor.test.tsx`; the Status tab in `slave-online.test.ts`
   (decoding, changed settings, notices, event texts) and `canopen-slave-online.test.tsx`, and its key
   views (running, changed by the master, PLC stopped, master lost, LSS and Forget, not running) in
   `e2e/canopen-slave-online.spec.ts`.
