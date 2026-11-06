@@ -2,11 +2,13 @@
 //   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/data-tab.tsx
 //   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/detail-fields.tsx
 //   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/general-tab.tsx
+//   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/import-dialog.tsx
 //   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/object-number-field.tsx
 //   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/pdos-tab.tsx
 //   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/problem-list.tsx
 //   src/middleware/shared/utils/canopen/slave.ts
 //   src/middleware/shared/utils/canopen/slave-details.ts
+//   src/middleware/shared/utils/canopen/slave-import.ts
 /**
  * A CANopen slave created from the "+" menu: its General, Data and PDOs tabs, its EDS exported and
  * added to a network as a node, and the build of both into conf/canopen.json.
@@ -574,6 +576,81 @@ test('XDD details of a CANopen slave: the expert view, the basic view mark, the 
     await expect(fileDialog.getByTestId('canopen-file-details')).toContainText('with a unit')
     await expect(fileDialog.getByTestId('canopen-file-details')).toContainText('with value meanings')
     await shot(page, 'slave-xdd-in-master')
+  } finally {
+    await quitApp(app, page)
+  }
+})
+
+const GENERIC_EDS = join(
+  __dirname,
+  '..',
+  'src',
+  'middleware',
+  'shared',
+  'utils',
+  'canopen',
+  '__tests__',
+  'fixtures',
+  'generic-io-module.eds',
+)
+
+test('a device file imported into a CANopen slave: replace with the list of what is not imported, add objects, undo', async () => {
+  test.setTimeout(300000)
+  const { userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-slave-import'), '', STATION)
+  const { app, page } = await launch(userData)
+  await windowSize(app, 1600, 1000)
+  try {
+    await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
+    await page.getByLabel('Create PLC element trigger component').click({ timeout: 30000 })
+    const serverCard = page.locator('#create-server-trigger')
+    const serverName = page.getByPlaceholder('Server name')
+    await serverCard.hover()
+    const opened = await serverName.waitFor({ timeout: 3000 }).then(
+      () => true,
+      () => false,
+    )
+    if (!opened) await serverCard.click()
+    await serverName.fill('slave')
+    await page.getByLabel('server-protocol').click()
+    await page.getByRole('option', { name: 'CANopen slave' }).click()
+    await page.getByRole('button', { name: 'Create', exact: true }).click()
+    await page.getByText('slave', { exact: true }).first().click({ timeout: 30000 })
+    await expect(page.getByTestId('canopen-slave-summary')).toContainText('0 objects', { timeout: 30000 })
+
+    const eds = readFileSync(GENERIC_EDS, 'utf-8')
+    const path = writeEds(join(userData, 'generic-io-module.eds'), eds)
+    await page.getByTestId('canopen-slave-import-input').setInputFiles(path)
+    const dialog = page.getByTestId('canopen-slave-import-dialog')
+    await expect(dialog.getByTestId('canopen-slave-import-lost')).toContainText('Outside 0x2000:01 - 0x5FFF:FE')
+    await expect(dialog.getByTestId('canopen-slave-import-lost')).toContainText('device profile object')
+    await expect(dialog.getByTestId('canopen-slave-import-replaces')).toHaveCount(0)
+    await shot(page, 'slave-import-replace')
+    await dialog.getByTestId('canopen-slave-import-confirm').click()
+    await expect(dialog).toHaveCount(0)
+    await expect(page.getByTestId('canopen-slave-imported')).toContainText('generic-io-module.eds')
+    await expect(page.getByTestId('canopen-slave-summary')).toContainText('2 objects')
+    await expect(page.getByTestId('canopen-slave-summary')).toContainText('can1')
+    await slaveKeyView(page, 'slave-imported')
+
+    await page.getByRole('tab', { name: 'Data' }).click()
+    await expect(page.getByTestId('canopen-slave-to-master').getByLabel('Name').first()).toHaveValue('First counter')
+    await shot(page, 'slave-imported-data')
+
+    await page.getByTestId('canopen-slave-import-input').setInputFiles(path)
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByTestId('canopen-slave-import-replaces')).toContainText('current 2 objects')
+    await dialog.getByRole('radio', { name: /Add objects/ }).check()
+    const list = dialog.getByTestId('canopen-slave-import-objects')
+    await expect(list.getByRole('checkbox')).toHaveCount(2)
+    await expect(list.getByRole('checkbox').first()).toBeDisabled()
+    await expect(dialog.getByTestId('canopen-slave-import-confirm')).toBeDisabled()
+    await shot(page, 'slave-import-add')
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Undo import', exact: true }).click()
+    await expect(page.getByTestId('canopen-slave-summary')).toContainText('0 objects')
+    await expect(page.getByTestId('canopen-slave-imported')).toHaveCount(0)
   } finally {
     await quitApp(app, page)
   }
