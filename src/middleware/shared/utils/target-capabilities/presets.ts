@@ -34,6 +34,7 @@ export const ALL_ADDRESS_PRODUCERS_ACTIVE: AddressProducerCapabilities = {
   vppIo: true,
   modbusTcpRemote: true,
   ethercat: true,
+  canopenSlave: true,
 }
 
 /**

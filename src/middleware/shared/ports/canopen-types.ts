@@ -463,6 +463,8 @@ export interface CanopenSlaveConfig {
   startAlone: boolean
   /** Absent in projects made before LSS: LSS off. */
   lss?: CanopenSlaveLss
+  /** CAN TX and RX GPIO numbers on a board target; absent for the board's defaults. */
+  boardPins?: { tx: number; rx: number }
   objects: CanopenSlaveObject[]
   /** The PDO layout; absent in projects made before it, which get the objects in table order. */
   pdos?: { rpdos: CanopenSlavePdo[]; tpdos: CanopenSlavePdo[] }

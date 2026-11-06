@@ -364,9 +364,11 @@ export function buildAddressPool(
     }
   }
 
-  // 5. CANopen node states and PDO entries, active where EtherCAT is (runtime v4 fieldbus masters).
-  if (caps.ethercat && ignore !== 'canopen') {
-    for (const dev of canopenPoolDevices(inputs)) {
+  // 5. CANopen node states and PDO entries, active where EtherCAT is (runtime v4 fieldbus masters);
+  //    on a board with a CAN controller, the slave's objects only.
+  if ((caps.ethercat || caps.canopenSlave) && ignore !== 'canopen') {
+    const devices = caps.ethercat ? canopenPoolDevices(inputs) : canopenSlavePoolDevices(inputs.servers)
+    for (const dev of devices) {
       const devRef = dev.deviceName || dev.name || 'unknown-device'
       for (const node of dev.canopenConfig?.nodes ?? []) {
         for (const entry of canopenPoolEntries(node)) {

@@ -45,6 +45,7 @@
 #include "opcua_server.h"
 #include "opcua_log.h"
 #include "s7comm_server.h"   // brings in s7comm_config.h -> S7COMM_ENABLED
+#include "canopen_slave.h"   // no-ops unless CANOPEN_SLAVE_ENABLED
 
 // Network device-discovery responder ("Search" in the editor). Feature-gated so
 // only targets declaring SUPPORTS_UDP_SCAN pull it in; unrelated to Modbus.
@@ -332,6 +333,8 @@ void setup()
     (*(volatile uint32_t *)0xE000E010u) = 0x00000007U;           /* SYST_CSR: CLK|TICKINT|EN */
 #endif
 
+    canopen_slave_init();
+
     setupCycleDelay(base_tick_ns);
 
     #ifdef USE_ARDUINO_SKETCH
@@ -445,7 +448,9 @@ static inline uint32_t cycle_slack_us()
 
 void scheduler()
 {
+    canopen_slave_scan_start();
     runtime_plc_cycle();
+    canopen_slave_scan_end();
 
     #ifdef USE_ARDUINO_SKETCH
         sketch_loop();
@@ -496,6 +501,8 @@ void loop()
     // cycle, so Search stays responsive even with a long task interval.
     udp_scan_poll();
 #endif
+
+    canopen_slave_task();
 
     if ((micros() - last_run) >= scan_cycle)
     {

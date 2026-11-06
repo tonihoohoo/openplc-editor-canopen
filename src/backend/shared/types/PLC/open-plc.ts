@@ -701,6 +701,7 @@ const CanopenSlaveConfigSchema = z.object({
       bitrateChange: z.boolean(),
     })
     .optional(),
+  boardPins: z.object({ tx: z.number().int().min(0).max(63), rx: z.number().int().min(0).max(63) }).optional(),
   objects: z.array(CanopenSlaveObjectSchema),
   pdos: z.object({ rpdos: z.array(CanopenSlavePdoSchema), tpdos: z.array(CanopenSlavePdoSchema) }).optional(),
   tpdos: z

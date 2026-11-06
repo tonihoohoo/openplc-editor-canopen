@@ -39,6 +39,9 @@ END_VAR
 extern "C" void *dlopen(const char *file, int mode) noexcept(true);
 extern "C" void *dlsym(void *handle, const char *name) noexcept(true);
 extern "C" int dlclose(void *handle) noexcept(true);
+#else
+// A board's firmware: the slave module's table, when the project has a slave on the board.
+extern "C" const void *canopen_plc_api(uint32_t version) __attribute__((weak));
 #endif
 
 namespace canopen_fb {
@@ -175,6 +178,11 @@ inline const api_v1 *lookup_api(uint8_t &why) {
     if (!table) why = r_version;
   }
   dlclose(lib);
+#else
+  if (canopen_plc_api) {
+    table = canopen_plc_api(api_version);
+    if (!table) why = r_version;
+  }
 #endif
   const api_v1 *t = static_cast<const api_v1 *>(table);
   if (t && t->size < __builtin_offsetof(api_v1, flags)) {

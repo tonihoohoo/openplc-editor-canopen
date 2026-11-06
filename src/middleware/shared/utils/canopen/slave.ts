@@ -726,15 +726,18 @@ export function checkCanopenSlave(
   config: CanopenSlaveConfig,
   remoteDevices: readonly PLCRemoteDevice[] | undefined,
   others: readonly { name: string; config: CanopenSlaveConfig }[] = [],
+  options: { board?: boolean } = {},
 ): SlaveProblem[] {
   const problems: SlaveProblem[] = []
   const add = (where: string, text: string, expert?: boolean): void => {
     problems.push(expert ? { where, text, expert } : { where, text })
   }
   const iface = config.interface.trim()
-  if (iface === '') add('interface', 'no CAN interface')
-  else if (iface.length > 15) add('interface', `interface name "${iface}" is longer than 15 characters`)
-  else {
+  // A board has its own CAN controller: no interface name.
+  if (!options.board && iface === '') add('interface', 'no CAN interface')
+  else if (!options.board && iface.length > 15)
+    add('interface', `interface name "${iface}" is longer than 15 characters`)
+  else if (!options.board) {
     for (const d of remoteDevices ?? [])
       if (
         d.protocol === 'canopen' &&

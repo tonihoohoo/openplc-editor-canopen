@@ -38,6 +38,8 @@ export interface BuildArduinoCliCompileArgsOptions {
    * main libraryPath as usual.
    */
   prebuiltLibraryPath?: string
+  /** More source libraries, each its own `--library` (the CANopenNode stack of a board slave). */
+  extraLibraryPaths?: readonly string[]
   /**
    * Filesystem path to the avr-libstdcpp include directory.  Appended
    * as `-I<path>` onto `compiler.cpp.extra_flags` when the board's
@@ -105,6 +107,7 @@ export function buildArduinoCliCompileArgs(
   if (options.prebuiltLibraryPath) {
     args.push('--library', options.prebuiltLibraryPath)
   }
+  for (const path of options.extraLibraryPaths ?? []) args.push('--library', path)
   args.push('--export-binaries', '-b', entry.platform, options.sketchPath)
 
   if (options.trailingArgs && options.trailingArgs.length > 0) {

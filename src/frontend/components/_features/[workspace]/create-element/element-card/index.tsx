@@ -170,8 +170,8 @@ const ElementCard = (props: ElementCardProps): ReactNode => {
       (protocol.value === 'modbus-tcp' && !targetServesModbus) ||
       (protocol.value === 's7comm' && !targetCaps.s7Server) ||
       (protocol.value === 'opcua' && !targetCaps.opcuaServer) ||
-      // The CANopen slave runs where the CANopen master does.
-      (protocol.value === 'canopen-slave' && !targetCaps.ethercat)
+      // The CANopen slave runs where the CANopen master does, or in a board's firmware.
+      (protocol.value === 'canopen-slave' && !targetCaps.ethercat && !targetCaps.canopenSlave)
     return unsupported ? { ...protocol, disabled: true } : protocol
   })
   // The CANopen master runs where the EtherCAT master does: on a runtime target.
@@ -515,7 +515,7 @@ const ElementCard = (props: ElementCardProps): ReactNode => {
                   </div>
                   <div className='h-[1px] w-full bg-neutral-200 dark:!bg-neutral-850' />
                 </div>
-                {!(isRuntimeV4 || isSimulator || targetServesModbus) ? (
+                {!(isRuntimeV4 || isSimulator || targetServesModbus || targetCaps.canopenSlave) ? (
                   <div className='flex flex-col gap-2 py-2'>
                     <p className='text-sm text-neutral-700 dark:text-neutral-300'>
                       Server configuration is only available for OpenPLC Runtime v4 targets.

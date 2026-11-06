@@ -35,7 +35,12 @@ import type { StructuredCompileError } from '../../../middleware/shared/ports/ty
 import {
   CANOPEN_CONFIG_VERSION,
   canopenNameProblems,
+  canopenSlaveBoard,
+  canopenSlaves,
+  checkCanopenSlave,
+  checkSlaveBoardBuild,
   describeCanopenRuntimeMismatch,
+  generateSlaveBoardHeaders,
   plcCycleUs,
   projectNamesForCanopen,
   withCanopenConstants,
@@ -66,7 +71,7 @@ import type { DevicePin } from '../types/PLC/devices'
 // in the architectural plan.
 import type { PLCProjectData } from '../types/PLC/open-plc'
 import { materialiseOpcUaCredentials } from './opcua-credentials'
-import { buildCBlocksFromPous, composeFirmwareBundle } from './steps/compose-firmware-bundle'
+import { buildCBlocksFromPous, CANOPENNODE_LIBRARY_DIR, composeFirmwareBundle } from './steps/compose-firmware-bundle'
 import {
   computeIoImage,
   describeDuplicateOutput,
@@ -1281,6 +1286,33 @@ async function runCompilePipelineInner(
     }
   }
 
+  // CANopen slave on the board's own CAN controller: its settings header always on such a board,
+  // its object dictionary and the CANopenNode library only with a slave that is on.
+  let canopenSlaveConfigH: string | undefined
+  let canopenSlaveOdH: string | undefined
+  const slaveBoard = targetCapabilities.canopenSlave ? canopenSlaveBoard(boardEntry) : null
+  if (slaveBoard) {
+    const slaves = canopenSlaves(processedData.servers as never)
+    const on = slaves.filter((s) => s.config.enabled)
+    const check = checkSlaveBoardBuild({
+      slaves,
+      board: slaveBoard,
+      pins: devicePinMapping,
+      cycleUs: plcCycleUs(processedData.configuration.resource.tasks),
+    })
+    const errors = [
+      ...check.errors,
+      ...on.flatMap(({ name, config }) =>
+        checkCanopenSlave(name, config, [], on, { board: true }).map((p) => `CANopen slave "${name}": ${p.text}`),
+      ),
+    ]
+    if (errors.length > 0) return bailError(emit, 'validate', `Compilation aborted: ${errors.join('; ')}`)
+    for (const message of check.warnings) emit({ stage: 'firmware-bundle', message, level: 'warning' })
+    const headers = generateSlaveBoardHeaders(on[0] ?? null, slaveBoard)
+    canopenSlaveConfigH = headers.configH
+    canopenSlaveOdH = headers.odH
+  }
+
   // Compose firmware bundle (firmware skeleton + strucpp output +
   // c_blocks header/code + defines.h + optional vpp_config.h).
   // Pure function.
@@ -1294,6 +1326,8 @@ async function runCompilePipelineInner(
     vppConfigH,
     opcuaConfigH,
     s7commConfigH,
+    canopenSlaveConfigH,
+    canopenSlaveOdH,
     firmwareSkeleton,
   })
 
@@ -1308,6 +1342,7 @@ async function runCompilePipelineInner(
     // Prebuilt arduino-hal: link the precompiled vendor library alongside the
     // source integration layer. arduino-cli accepts a 2nd --library.
     ...(boardEntry.precompiledLibraryDir ? { prebuiltLibraryPath: boardEntry.precompiledLibraryDir } : {}),
+    ...(canopenSlaveOdH !== undefined ? { extraLibraryPaths: [CANOPENNODE_LIBRARY_DIR] } : {}),
   })
 
   // Run arduino-cli compile.  Editor: spawns the binary.  Web: HTTP

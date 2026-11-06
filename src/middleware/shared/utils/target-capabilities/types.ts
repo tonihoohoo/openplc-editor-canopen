@@ -290,6 +290,10 @@ export interface TargetCapabilities {
    *  therefore a FIRMWARE fault (built without the backend), never a
    *  hardware limitation — and the flow says exactly that. */
   isLicensable: boolean
+
+  /** The firmware runs a CANopen slave on the board's own CAN controller. Absent on Linux
+   *  runtimes, whose slave is gated with `ethercat`; filled from the CANopen board table. */
+  canopenSlave?: boolean
 }
 
 /**
@@ -302,7 +306,7 @@ export interface TargetCapabilities {
  */
 export type AddressProducerCapabilities = Pick<
   TargetCapabilities,
-  'pinMapping' | 'vppIo' | 'modbusTcpRemote' | 'ethercat'
+  'pinMapping' | 'vppIo' | 'modbusTcpRemote' | 'ethercat' | 'canopenSlave'
 >
 
 /**

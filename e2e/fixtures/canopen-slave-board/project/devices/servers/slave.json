@@ -1,0 +1,264 @@
+{
+  "name": "slave",
+  "protocol": "canopen-slave",
+  "canopenSlaveConfig": {
+    "enabled": true,
+    "interface": "",
+    "bitrate": 500000,
+    "nodeId": 5,
+    "priority": 90,
+    "vendorName": "OpenPLC",
+    "deviceName": "canopen-slave-board",
+    "softwareVersion": "1.0",
+    "hardwareVersion": "HW 2",
+    "productText": "Generic I/O slave for the end-to-end test.",
+    "orderNumber": "IO-5",
+    "characteristics": [
+      {
+        "value": "Supply",
+        "label": "24 V DC"
+      }
+    ],
+    "vendorId": 43981,
+    "productCode": 1,
+    "revision": 65536,
+    "heartbeatMs": 100,
+    "masterWatch": {
+      "nodeId": 127,
+      "timeMs": 500
+    },
+    "onMasterLost": "pre_operational",
+    "onPlcStop": "hold",
+    "startAlone": false,
+    "objects": [
+      {
+        "id": "setpoint",
+        "index": 8192,
+        "subIndex": 1,
+        "name": "Setpoint",
+        "dataType": "INTEGER16",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IW0",
+        "defaultValue": "0",
+        "description": "Setpoint the master sends; the program copies it back.",
+        "unit": "°C",
+        "multiplier": 0.1,
+        "group": "Operation"
+      },
+      {
+        "id": "mode",
+        "index": 8192,
+        "subIndex": 2,
+        "name": "Mode",
+        "dataType": "UNSIGNED8",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IB0",
+        "defaultValue": "0",
+        "values": [
+          {
+            "value": "0",
+            "label": "Off"
+          },
+          {
+            "value": "1",
+            "label": "Manual"
+          },
+          {
+            "value": "2",
+            "label": "Auto"
+          }
+        ],
+        "group": "Operation"
+      },
+      {
+        "id": "limit",
+        "index": 8192,
+        "subIndex": 3,
+        "name": "Limit",
+        "dataType": "UNSIGNED16",
+        "direction": "from_master",
+        "exchange": "sdo",
+        "iecLocation": "%IW1",
+        "defaultValue": "1000",
+        "min": "100",
+        "max": "30000"
+      },
+      {
+        "id": "valves",
+        "index": 8192,
+        "subIndex": 4,
+        "name": "Valves",
+        "dataType": "UNSIGNED8",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "",
+        "defaultValue": "0",
+        "bits": [
+          {
+            "name": "Valve 1",
+            "iecLocation": "%IX0.0"
+          },
+          {
+            "name": "Valve 2",
+            "iecLocation": "%IX0.1"
+          },
+          {
+            "name": "Valve 3",
+            "iecLocation": "%IX0.2"
+          },
+          {
+            "name": "Valve 4",
+            "iecLocation": "%IX0.3"
+          },
+          {
+            "name": "Valve 5",
+            "iecLocation": "%IX0.4"
+          },
+          {
+            "name": "Valve 6",
+            "iecLocation": "%IX0.5"
+          },
+          {
+            "name": "Valve 7",
+            "iecLocation": "%IX0.6"
+          },
+          {
+            "name": "Valve 8",
+            "iecLocation": "%IX0.7"
+          }
+        ]
+      },
+      {
+        "id": "echo",
+        "index": 8448,
+        "subIndex": 1,
+        "name": "Echo",
+        "dataType": "INTEGER16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW0",
+        "defaultValue": "0"
+      },
+      {
+        "id": "limit-echo",
+        "index": 8448,
+        "subIndex": 2,
+        "name": "LimitEcho",
+        "dataType": "UNSIGNED16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW1",
+        "defaultValue": "0"
+      },
+      {
+        "id": "lamps",
+        "index": 8448,
+        "subIndex": 3,
+        "name": "Lamps",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "",
+        "defaultValue": "0",
+        "bits": [
+          {
+            "name": "Lamp 1",
+            "iecLocation": "%QX0.0"
+          },
+          {
+            "name": "Lamp 2",
+            "iecLocation": "%QX0.1"
+          },
+          {
+            "name": "Lamp 3",
+            "iecLocation": "%QX0.2"
+          },
+          {
+            "name": "Lamp 4",
+            "iecLocation": "%QX0.3"
+          },
+          {
+            "name": "Lamp 5",
+            "iecLocation": "%QX0.4"
+          },
+          {
+            "name": "Lamp 6",
+            "iecLocation": "%QX0.5"
+          },
+          {
+            "name": "Lamp 7",
+            "iecLocation": "%QX0.6"
+          },
+          {
+            "name": "Lamp 8",
+            "iecLocation": "%QX0.7"
+          }
+        ]
+      },
+      {
+        "id": "copy",
+        "index": 8448,
+        "subIndex": 4,
+        "name": "Copy",
+        "dataType": "INTEGER16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW2",
+        "defaultValue": "0"
+      },
+      {
+        "id": "serial",
+        "index": 8704,
+        "subIndex": 1,
+        "name": "Serial",
+        "dataType": "VISIBLE_STRING",
+        "direction": "to_master",
+        "exchange": "constant",
+        "iecLocation": "",
+        "defaultValue": "SN-0001"
+      }
+    ],
+    "pdos": {
+      "rpdos": [
+        {
+          "number": 1,
+          "objects": [
+            "setpoint",
+            "mode",
+            "valves"
+          ],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 0,
+          "eventTimerMs": 0
+        }
+      ],
+      "tpdos": [
+        {
+          "number": 1,
+          "objects": [
+            "echo",
+            "limit-echo",
+            "lamps"
+          ],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 0,
+          "eventTimerMs": 0
+        },
+        {
+          "number": 5,
+          "objects": [
+            "copy"
+          ],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 0,
+          "eventTimerMs": 0
+        }
+      ]
+    }
+  }
+}

@@ -86,6 +86,12 @@ export interface ComposeFirmwareBundleInput {
    *  `#include "s7comm_config.h"` unconditionally and compile to nothing on
    *  every target that has no server. */
   s7commConfigH?: string
+  /** Generated `canopen_slave_config.h` (same stub contract, `CANOPEN_SLAVE_ENABLED 0`), on a
+   *  board with a CAN controller the firmware drives. */
+  canopenSlaveConfigH?: string
+  /** Generated `canopen_slave_od.h`, only with a slave that is on. Without it the skeleton's
+   *  CANopenNode library (`canopennode/`) is left out of the bundle. */
+  canopenSlaveOdH?: string
   /** Firmware skeleton: the bundled set of base files arduino-cli
    *  needs but the user doesn't see (`Baremetal.ino`, the Arduino
    *  HAL, strucpp runtime headers, simulator HAL adapter).  Each
@@ -131,6 +137,9 @@ export function buildCBlocksFromPous(
   }
 }
 
+/** Bundle folder of the CANopenNode library, compiled as a second arduino-cli `--library`. */
+export const CANOPENNODE_LIBRARY_DIR = 'canopennode'
+
 // Included from src/ units (runtime glue, HALs); arduino-cli hides the sketch dir from library builds.
 const VENDOR_FACING_CONTRACT_HEADERS = ['openplc_retain.h'] as const
 
@@ -156,7 +165,17 @@ const VENDOR_FACING_CONTRACT_HEADERS = ['openplc_retain.h'] as const
  * has C/C++ POUs — otherwise the static baseline stays.
  */
 export function composeFirmwareBundle(input: ComposeFirmwareBundleInput): Record<string, string> {
-  const { strucppFiles, cBlocks, definesH, vppConfigH, opcuaConfigH, s7commConfigH, firmwareSkeleton } = input
+  const {
+    strucppFiles,
+    cBlocks,
+    definesH,
+    vppConfigH,
+    opcuaConfigH,
+    s7commConfigH,
+    canopenSlaveConfigH,
+    canopenSlaveOdH,
+    firmwareSkeleton,
+  } = input
 
   // Skeleton first (every Baremetal.ino, arduino HAL, strucpp
   // runtime header, etc.).  Subsequent overwrites replace specific
@@ -224,6 +243,16 @@ export function composeFirmwareBundle(input: ComposeFirmwareBundleInput): Record
   // s7comm_config.h — identical contract.
   if (s7commConfigH !== undefined) {
     files['src/s7comm_config.h'] = s7commConfigH
+  }
+
+  // canopen_slave_config.h — identical contract; the dictionary and its library only with a slave.
+  if (canopenSlaveConfigH !== undefined) {
+    files['src/canopen_slave_config.h'] = canopenSlaveConfigH
+  }
+  if (canopenSlaveOdH !== undefined) {
+    files['src/canopen_slave_od.h'] = canopenSlaveOdH
+  } else {
+    for (const path of Object.keys(files)) if (path.startsWith(`${CANOPENNODE_LIBRARY_DIR}/`)) delete files[path]
   }
 
   // OpenPLCUserLib.h stub — Baremetal.ino unconditionally

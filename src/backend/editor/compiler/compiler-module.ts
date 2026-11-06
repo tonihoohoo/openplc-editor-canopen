@@ -795,6 +795,7 @@ class CompilerModule {
    * Path mapping (matches `copyStaticFiles`'s on-disk layout):
    *   - `resources/sources/arduino/<file>` → `src/<file>`
    *   - `resources/sources/Baremetal/<file>` → `examples/Baremetal/<file>`
+   *   - `resources/sources/canopennode/**` → `canopennode/**`
    *
    * Strucpp runtime headers (`src/<filename>.hpp`) come from
    * `loadStrucppRuntimeHeaders` separately — they have a different
@@ -847,6 +848,23 @@ class CompilerModule {
       )
     } catch {
       // Same defensive posture as the arduino/ block above.
+    }
+
+    // canopennode/** → canopennode/** (the CANopen slave's stack, a library with subfolders)
+    const canopennodeDir = join(this.sourceDirectoryPath, 'canopennode')
+    const walk = async (dir: string, prefix: string): Promise<void> => {
+      const entries = await readdir(dir, { withFileTypes: true })
+      await Promise.all(
+        entries.map(async (e) => {
+          if (e.isDirectory()) return walk(join(dir, e.name), `${prefix}${e.name}/`)
+          if (e.isFile()) files[`${prefix}${e.name}`] = await readFile(join(dir, e.name), 'utf-8')
+        }),
+      )
+    }
+    try {
+      await walk(canopennodeDir, 'canopennode/')
+    } catch {
+      // Absent in odd setups; a board slave build then fails at the compiler with a clear error.
     }
 
     return files

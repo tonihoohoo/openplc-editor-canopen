@@ -17,6 +17,7 @@
  * defensive purposes against user-supplied JSON).
  */
 
+import { isCanopenSlaveBoard } from '../canopen/slave-board'
 import {
   ALL_ADDRESS_PRODUCERS_ACTIVE,
   ARDUINO_CLI_CAPABILITIES,
@@ -43,6 +44,9 @@ export type DeclaredCapabilities = Omit<Partial<TargetCapabilities>, 'opcua' | '
 
 export type BoardInfoLike = {
   compiler?: string
+  /** Arduino core and FQBN, read by the CANopen board table. */
+  core?: string
+  platform?: string
   capabilities?: DeclaredCapabilities
   /** How the board is flashed. Declared here so readers (e.g.
    *  `isEthernetUploadTarget`) test it without casting BoardInfo to an
@@ -180,6 +184,8 @@ export function resolveTargetCapabilities(boardInfo: BoardInfoLike | undefined):
   if (merged.s7Server) {
     merged.s7 = resolveS7Profile(declared?.s7, base.s7)
   }
+
+  if (merged.canopenSlave === undefined && isCanopenSlaveBoard(boardInfo)) merged.canopenSlave = true
 
   return merged
 }
