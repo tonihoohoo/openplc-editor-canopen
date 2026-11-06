@@ -30,7 +30,7 @@ CANopen:
 - The `canopen` function block library (CiA 405 names) for SDO, NMT and node control from the PLC program: [docs/canopen.md](docs/canopen.md#plc-function-blocks)
 - Slave blocks for the PLC program: the slave's state, its own NMT state, the program's emergencies and the master's writes, and the slave's NMT state on a PLC stop: [docs/canopen.md](docs/canopen.md#plc-function-blocks)
 - CANopen addresses from the central registry, up to the runtime's limit of 65536 per table: [docs/canopen.md](docs/canopen.md#addresses)
-- CANopen slave server: the runtime as a CANopen device with objects, PDOs, an EDS or XDD export and an Online tab that shows the running slave and what its master changed: [docs/canopen.md](docs/canopen.md#canopen-slave)
+- CANopen slave server: the runtime as a CANopen device with objects, PDOs, an EDS or XDD export and a Status tab that shows the running slave and what its master changed: [docs/canopen.md](docs/canopen.md#canopen-slave)
 - LSS (CiA 305) in the CANopen slave: an LSS master gives it its node ID and bit rate: [docs/canopen.md](docs/canopen.md#lss)
 - Up to 16 RPDOs and 16 TPDOs in the CANopen slave, each object placed in the PDO you choose, COB-IDs of PDO 5-16 given by the master or fixed, and an RPDO receive timeout: [docs/canopen.md](docs/canopen.md#canopen-slave)
 - CANopen slave objects packed as 8 bits: one UNSIGNED8 on the bus, eight named BOOL addresses in the program: [docs/canopen.md](docs/canopen.md#objects-packed-as-8-bits)

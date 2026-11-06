@@ -97,14 +97,33 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     const summary = page.getByTestId('canopen-slave-summary')
     // The network has can0, so the new slave takes the next interface.
     await expect(summary).toHaveText('can1, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
-    await commitField(page, 'Heartbeat (ms)', '100')
+    await commitField(page, 'Heartbeat producer (ms)', '100')
     await commitField(page, 'Vendor ID', '0xABCD')
-    await page.getByLabel('When the PLC stops: NMT state').selectOption('pre_operational')
+    await page.getByLabel('NMT state', { exact: true }).selectOption('pre_operational')
     // The network's library is on, so the program reaches the slave by name or number.
     await expect(page.getByTestId('canopen-slave-program')).toContainText('address this slave as slave (or 1)')
+    await summary.evaluate((el) => el.closest('.overflow-auto')?.scrollTo(0, 0))
     await slaveKeyView(page, 'slave-general')
     await page.getByTestId('canopen-slave-program').scrollIntoViewIfNeeded()
     await shot(page, 'slave-general-program')
+
+    // Supervision: the master watch is a checkbox that shows its fields, as on a master node.
+    await expect(page.getByLabel('Master timeout (ms)', { exact: true })).toHaveCount(0)
+    await page.getByLabel('Watch the master', { exact: true }).check()
+    await expect(page.getByLabel('Master timeout (ms)', { exact: true })).toHaveValue('500')
+    await page.getByLabel('Watch the master', { exact: true }).uncheck()
+
+    // A problem lists with a count and Show opens its field from another tab.
+    await commitField(page, 'Interface', 'can0')
+    const checks = page.getByRole('status', { name: 'Slave checks' })
+    await expect(checks).toContainText('1 problem stops the build')
+    await page.getByRole('tab', { name: 'Data' }).click()
+    await checks.getByRole('button', { name: /^Show:/ }).click()
+    await expect(page.getByRole('tab', { name: 'General' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByLabel('Interface', { exact: true })).toBeInViewport()
+    await slaveKeyView(page, 'slave-problem-list')
+    await commitField(page, 'Interface', 'can1')
+    await expect(checks).toHaveCount(0)
 
     await page.getByRole('tab', { name: 'Data' }).click()
     const from = page.getByTestId('canopen-slave-from-master')
@@ -136,7 +155,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await page.getByTestId('canopen-slave-tpdo1').scrollIntoViewIfNeeded()
     await slaveKeyView(page, 'slave-pdos')
 
-    await page.getByRole('button', { name: 'Export EDS or XDD...' }).click()
+    await page.getByRole('button', { name: 'Export...', exact: true }).click()
     const dialog = page.getByTestId('canopen-export-dialog')
     await expect(dialog.getByTestId('canopen-export-check')).toContainText('CiA 306 OK')
     // The check line wraps instead of cutting the file summary off.
@@ -264,9 +283,11 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await expect(summary).toHaveText('can0, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
     await commitField(page, 'Vendor ID', '0xABCD')
 
-    await expect(page.getByLabel('At first start', { exact: true })).toBeDisabled()
+    await expect(page.getByLabel('At first start', { exact: true })).toHaveCount(0)
+    await expect(page.getByLabel('Fixed in the project', { exact: true })).toBeChecked()
+    await summary.evaluate((el) => el.closest('.overflow-auto')?.scrollTo(0, 0))
     await slaveKeyView(page, 'slave-lss-off')
-    await page.getByLabel('An LSS master may set the node ID', { exact: true }).check()
+    await page.getByLabel('An LSS master may set it (CiA 305)', { exact: true }).check()
     await slaveKeyView(page, 'slave-lss-on')
     await page.getByLabel('At first start', { exact: true }).selectOption('wait')
     await expect(page.getByLabel('Node ID', { exact: true })).toHaveValue('Set by the LSS master')
@@ -280,7 +301,7 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await page.getByLabel('The master may change the bit rate', { exact: true }).uncheck()
     await slaveKeyView(page, 'slave-lss-wait')
 
-    await page.getByRole('button', { name: 'Export EDS or XDD...' }).click()
+    await page.getByRole('button', { name: 'Export...', exact: true }).click()
     const dialog = page.getByTestId('canopen-export-dialog')
     await expect(dialog.getByTestId('canopen-export-check')).toContainText('CiA 306 OK')
     await dialog.getByTestId('canopen-export-save').click()
@@ -496,7 +517,7 @@ test('XDD details of a CANopen slave: the expert view, the basic view mark, the 
     await expect(page.getByTestId('canopen-slave-details-mark')).toHaveCount(2)
     await slaveKeyView(page, 'slave-data-basic-mark')
 
-    await page.getByRole('button', { name: 'Export EDS or XDD...' }).click()
+    await page.getByRole('button', { name: 'Export...', exact: true }).click()
     const dialog = page.getByTestId('canopen-export-dialog')
     await expect(dialog.getByTestId('canopen-export-losses')).toContainText('Descriptions of 2 objects')
     await dialog.getByTestId('canopen-export-losses-toggle').click()

@@ -1,5 +1,5 @@
 /**
- * The CANopen slave's Online tab: what the runtime reports about a running slave, read against the
+ * The CANopen slave's Status tab: what the runtime reports about a running slave, read against the
  * project. Values decoded by the project's types, the settings the master changed since the slave's
  * start, the one notice the tab shows, and the events as text.
  */
