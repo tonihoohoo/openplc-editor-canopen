@@ -98,7 +98,7 @@ describe('CANopen slave model', () => {
       startAlone: false,
       objects: [],
     })
-    expect(c.tpdos).toHaveLength(4)
+    expect(c.pdos).toEqual({ rpdos: [], tpdos: [] })
     expect(checkCanopenSlave('io', c, [])).toEqual([])
   })
 
@@ -113,16 +113,16 @@ describe('CANopen slave model', () => {
 
   it('packs the PDO rows in table order with pre-defined COB-IDs', () => {
     const layout = slavePdoLayout(io())
-    expect(layout.rpdos.map((p) => [p.number, p.cobId, p.bytes, p.objects.map((o) => o.id)])).toEqual([
+    expect(layout.rpdos.map((p) => [p.number, p.effectiveCobId, p.bytes, p.objects.map((o) => o.id)])).toEqual([
       [1, 0x205, 4, ['set', 'mode', 'flags']],
     ])
-    expect(layout.tpdos.map((p) => [p.number, p.cobId, p.bytes])).toEqual([[1, 0x185, 6]])
-    expect(slavePdoLayout({ ...io(), nodeId: 7 }).rpdos[0].cobId).toBe(0x207)
+    expect(layout.tpdos.map((p) => [p.number, p.effectiveCobId, p.bytes])).toEqual([[1, 0x185, 6]])
+    expect(slavePdoLayout({ ...io(), nodeId: 7 }).rpdos[0].effectiveCobId).toBe(0x207)
   })
 
-  it('names the rows that do not fit in four PDOs', () => {
+  it('names the rows that do not fit in sixteen PDOs', () => {
     const c = defaultCanopenSlaveConfig()
-    c.objects = Array.from({ length: 5 }, (_, i) =>
+    c.objects = Array.from({ length: 17 }, (_, i) =>
       obj({
         id: `o${i}`,
         index: 0x2100,
@@ -132,9 +132,9 @@ describe('CANopen slave model', () => {
         iecLocation: `%QL${i}`,
       }),
     )
-    expect(slavePdoLayout(c).overflow.map((o) => o.id)).toEqual(['o4'])
+    expect(slavePdoLayout(c).overflow.map((o) => o.id)).toEqual(['o16'])
     expect(validateCanopenSlaves([server(c)], [])).toEqual([
-      'CANopen slave "io": 0x2100:05 "o4": does not fit in four PDOs of 8 bytes',
+      'CANopen slave "io": 0x2100:11 "o16": does not fit in 16 TPDOs of 8 bytes',
     ])
   })
 

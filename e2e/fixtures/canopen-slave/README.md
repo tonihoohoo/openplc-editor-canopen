@@ -5,7 +5,8 @@ UNSIGNED16, default 1000, range 100 - 30000) by SDO. The program copies `Setpoin
 heartbeat every 100 ms and watches the heartbeat of master node 127 (500 ms). `Serial` (0x2200:01)
 is a STRING constant. `Valves` (0x2000:04, in RPDO 1) and `Lamps` (0x2100:03, in TPDO 1) are UNSIGNED8
 objects packed as 8 bits (`%IX0.0`-`%IX0.7` and `%QX0.0`-`%QX0.7`); the program copies each valve bit
-to its lamp bit.
+to its lamp bit. `Copy` (0x2100:04, `%QW2`) is a second copy of `Setpoint` in TPDO 5, which has no
+COB-ID until the master writes one to 0x1804:01.
 
 The runtime fork's CANopen workflow uploads it with the editor CLI and plays the master with
 `.github/scripts/canopen_slave_e2e.py` on `vcan0`.

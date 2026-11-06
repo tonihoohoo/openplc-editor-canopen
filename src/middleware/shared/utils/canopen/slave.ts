@@ -1,6 +1,6 @@
 /**
  * CANopen slave: the runtime as a CiA 301 node on another master's bus, a `canopen-slave` server.
- * The model's defaults, the PDO layout that follows from the objects, the `devices` items of
+ * The model's defaults, the stored PDO layout and its edits, the `devices` items of
  * conf/canopen.json, the checks before a build, and the description its EDS or XDD is written from.
  * The runtime builds the same object dictionary from the `devices` item (its docs/CANOPEN.md).
  */
@@ -16,10 +16,10 @@ import type {
   CanopenSlaveDirection,
   CanopenSlaveLss,
   CanopenSlaveObject,
-  CanopenSlaveTpdoSettings,
+  CanopenSlavePdo,
 } from '../../ports/canopen-types'
 import type { PLCRemoteDevice, PLCServer } from '../../ports/types'
-import { CANOPEN_BITRATES, canopenTypeBits, iecSizeLetter, objectRef } from './data-types'
+import { CANOPEN_BITRATES, canopenTypeBits, iecSizeLetter, objectRef, reservedCobId } from './data-types'
 import type { DeviceFileExport } from './dcf-export'
 import { writeEds, writeXdd } from './device-writer'
 import { checkEds } from './eds-check'
@@ -28,7 +28,10 @@ import { slaveDeviceDetailProblems, slaveObjectDetailProblems, slaveObjectInfo }
 import { checkXdd, type DeviceFileFinding } from './xdd-check'
 
 /** PDOs of each direction the slave has. */
-export const SLAVE_PDO_COUNT = 4
+export const SLAVE_PDO_COUNT = 16
+
+/** PDOs with a pre-defined COB-ID that follows the node ID. */
+export const SLAVE_PREDEFINED_PDOS = 4
 
 /** Bytes a PDO carries. */
 export const SLAVE_PDO_BYTES = 8
@@ -75,8 +78,6 @@ export function isSlaveDataType(value: string): value is CanopenSlaveDataType {
   return SLAVE_DATA_TYPES.some((t) => t === value)
 }
 
-const DEFAULT_TPDO: CanopenSlaveTpdoSettings = { transmissionType: 255, inhibitTime: 0, eventTimerMs: 0 }
-
 /** A new slave: works without changes once the master knows it. */
 export function defaultCanopenSlaveConfig(projectName = ''): CanopenSlaveConfig {
   return {
@@ -98,7 +99,7 @@ export function defaultCanopenSlaveConfig(projectName = ''): CanopenSlaveConfig 
     onPlcStopState: 'none',
     startAlone: false,
     objects: [],
-    tpdos: Array.from({ length: SLAVE_PDO_COUNT }, () => ({ ...DEFAULT_TPDO })),
+    pdos: { rpdos: [], tpdos: [] },
   }
 }
 
@@ -113,11 +114,6 @@ export const SLAVE_LSS_OFF: Readonly<CanopenSlaveLss> = {
 /** The slave's LSS settings, off for projects made before LSS. */
 export function slaveLss(config: CanopenSlaveConfig): CanopenSlaveLss {
   return { ...SLAVE_LSS_OFF, ...config.lss }
-}
-
-/** The slave's TPDO settings, one per PDO, filling any the project lacks. */
-export function slaveTpdoSettings(config: CanopenSlaveConfig): CanopenSlaveTpdoSettings[] {
-  return Array.from({ length: SLAVE_PDO_COUNT }, (_, i) => config.tpdos[i] ?? { ...DEFAULT_TPDO })
 }
 
 export function isSlaveString(object: Pick<CanopenSlaveObject, 'dataType'>): boolean {
@@ -186,9 +182,16 @@ export function slavePdoCobId(direction: CanopenSlaveDirection, number: number, 
   return (direction === 'from_master' ? 0x200 : 0x180) + 0x100 * (number - 1) + nodeId
 }
 
-export interface SlavePdo {
-  number: number
-  cobId: number
+/** "RPDO 3" or "TPDO 3". */
+export function slavePdoName(direction: CanopenSlaveDirection, number: number): string {
+  return `${direction === 'from_master' ? 'RPDO' : 'TPDO'} ${number}`
+}
+
+/** A PDO of the layout with its objects resolved. */
+export interface SlavePdo extends Omit<CanopenSlavePdo, 'objects'> {
+  direction: CanopenSlaveDirection
+  /** The COB-ID in use: pre-defined for PDO 1-4, the fixed one, or 0 when the master gives it. */
+  effectiveCobId: number
   objects: CanopenSlaveObject[]
   bytes: number
 }
@@ -198,56 +201,511 @@ export interface SlavePdoLayout {
   rpdos: SlavePdo[]
   /** TPDOs: objects to the master. */
   tpdos: SlavePdo[]
-  /** PDO objects that do not fit in four PDOs of their direction. */
+  /** PDO objects that do not fit in any PDO of their direction. */
   overflow: CanopenSlaveObject[]
 }
 
 const pdoObjects = (config: CanopenSlaveConfig, direction: CanopenSlaveDirection): CanopenSlaveObject[] =>
-  config.objects.filter((o) => o.direction === direction && o.exchange === 'pdo' && !isSlaveString(o))
+  config.objects.filter(
+    (o) => o.direction === direction && o.exchange === 'pdo' && !o.mappedByMaster && !isSlaveString(o),
+  )
 
-function fill(
+/** PDO objects in no default PDO, which the master maps itself. */
+export function slaveMasterMappedObjects(
+  config: CanopenSlaveConfig,
+  direction: CanopenSlaveDirection,
+): CanopenSlaveObject[] {
+  return config.objects.filter(
+    (o) => o.direction === direction && o.exchange === 'pdo' && o.mappedByMaster === true && !isSlaveString(o),
+  )
+}
+
+const withMappedByMaster = (config: CanopenSlaveConfig, ids: ReadonlySet<string>, on: boolean): CanopenSlaveConfig => ({
+  ...config,
+  objects: config.objects.map((o) => {
+    if (!ids.has(o.id)) return o
+    const { mappedByMaster: _was, ...rest } = o
+    return on ? { ...rest, mappedByMaster: true } : rest
+  }),
+})
+
+const pdoKey = (direction: CanopenSlaveDirection): 'rpdos' | 'tpdos' =>
+  direction === 'from_master' ? 'rpdos' : 'tpdos'
+
+/** A new, empty PDO with the default settings, or a project's old TPDO settings. */
+function newPdo(config: CanopenSlaveConfig, direction: CanopenSlaveDirection, number: number): CanopenSlavePdo {
+  const old = direction === 'to_master' && !config.pdos ? config.tpdos?.[number - 1] : undefined
+  return {
+    number,
+    objects: [],
+    cobId: null,
+    transmissionType: old?.transmissionType ?? 255,
+    inhibitTime: old?.inhibitTime ?? 0,
+    eventTimerMs: old?.eventTimerMs ?? 0,
+  }
+}
+
+function resolvePdo(
+  stored: CanopenSlavePdo,
+  direction: CanopenSlaveDirection,
+  nodeId: number,
+  objects: CanopenSlaveObject[],
+): SlavePdo {
+  const predefined = stored.number <= SLAVE_PREDEFINED_PDOS
+  return {
+    ...stored,
+    cobId: predefined ? null : stored.cobId,
+    direction,
+    effectiveCobId: predefined ? slavePdoCobId(direction, stored.number, nodeId) : (stored.cobId ?? 0),
+    objects,
+    bytes: objects.reduce((n, o) => n + slaveObjectBytes(o), 0),
+  }
+}
+
+function resolveDirection(
   config: CanopenSlaveConfig,
   direction: CanopenSlaveDirection,
   overflow: CanopenSlaveObject[],
 ): SlavePdo[] {
-  const pdos: SlavePdo[] = []
+  const objects = pdoObjects(config, direction)
+  const byId = new Map(objects.map((o) => [o.id, o]))
+  const placed = new Set<string>()
+  const stored: CanopenSlavePdo[] = []
+  for (const p of [...(config.pdos?.[pdoKey(direction)] ?? [])].sort((a, b) => a.number - b.number))
+    if (p.number >= 1 && p.number <= SLAVE_PDO_COUNT && !stored.some((q) => q.number === p.number)) stored.push(p)
+  const pdos = stored.map((p) => {
+    const mapped: CanopenSlaveObject[] = []
+    for (const id of p.objects) {
+      const o = byId.get(id)
+      if (o && !placed.has(id)) {
+        placed.add(id)
+        mapped.push(o)
+      }
+    }
+    return resolvePdo(p, direction, config.nodeId, mapped)
+  })
+  const add = (number: number): SlavePdo => {
+    const pdo = resolvePdo(newPdo(config, direction, number), direction, config.nodeId, [])
+    pdos.push(pdo)
+    pdos.sort((a, b) => a.number - b.number)
+    return pdo
+  }
+  const lowestFree = (): number | null => {
+    for (let n = 1; n <= SLAVE_PDO_COUNT; n++) if (!pdos.some((p) => p.number === n)) return n
+    return null
+  }
+  // Without a stored layout the objects fill the PDOs in table order; with one, the first PDO with room.
   let current: SlavePdo | null = null
-  for (const object of pdoObjects(config, direction)) {
-    const size = slaveObjectBytes(object)
-    if (!current || current.bytes + size > SLAVE_PDO_BYTES) {
-      if (pdos.length === SLAVE_PDO_COUNT) {
-        overflow.push(object)
+  for (const o of objects) {
+    if (placed.has(o.id)) continue
+    const size = slaveObjectBytes(o)
+    let target: SlavePdo | null = null
+    if (config.pdos) target = pdos.find((p) => p.bytes + size <= SLAVE_PDO_BYTES) ?? null
+    else if (current && current.bytes + size <= SLAVE_PDO_BYTES) target = current
+    if (!target) {
+      const free = lowestFree()
+      if (free === null) {
+        overflow.push(o)
         continue
       }
-      current = { number: pdos.length + 1, cobId: 0, objects: [], bytes: 0 }
-      current.cobId = slavePdoCobId(direction, current.number, config.nodeId)
-      pdos.push(current)
+      target = add(free)
     }
-    current.objects.push(object)
-    current.bytes += size
+    target.objects.push(o)
+    target.bytes += size
+    current = target
   }
   return pdos
 }
 
-/** The default PDO layout: the PDO objects of each direction, in table order, packed into PDO 1-4. */
+/** The slave's PDO layout: the stored PDOs, with PDO objects not in one placed in the first PDO with room. */
 export function slavePdoLayout(config: CanopenSlaveConfig): SlavePdoLayout {
   const overflow: CanopenSlaveObject[] = []
-  const rpdos = fill(config, 'from_master', overflow)
-  const tpdos = fill(config, 'to_master', overflow)
+  const rpdos = resolveDirection(config, 'from_master', overflow)
+  const tpdos = resolveDirection(config, 'to_master', overflow)
   return { rpdos, tpdos, overflow }
 }
 
-/** The next free sub-index for a new object of this direction: in 0x2000 (from) or 0x2100 (to), then on. */
+const storedPdo = (p: SlavePdo): CanopenSlavePdo => ({
+  number: p.number,
+  objects: p.objects.map((o) => o.id),
+  cobId: p.number <= SLAVE_PREDEFINED_PDOS ? null : p.cobId,
+  transmissionType: p.direction === 'to_master' ? p.transmissionType : 255,
+  inhibitTime: p.direction === 'to_master' ? p.inhibitTime : 0,
+  eventTimerMs: p.eventTimerMs,
+})
+
+/** The config with its PDO layout stored as it now resolves, so later edits keep each object where it is. */
+export function withSlavePdoLayout(config: CanopenSlaveConfig): CanopenSlaveConfig {
+  const layout = slavePdoLayout(config)
+  const { tpdos: _old, ...rest } = config
+  return { ...rest, pdos: { rpdos: layout.rpdos.map(storedPdo), tpdos: layout.tpdos.map(storedPdo) } }
+}
+
+function editPdos(
+  config: CanopenSlaveConfig,
+  direction: CanopenSlaveDirection,
+  edit: (pdos: CanopenSlavePdo[]) => CanopenSlavePdo[],
+): CanopenSlaveConfig {
+  const stored = withSlavePdoLayout(config)
+  const pdos = stored.pdos ?? { rpdos: [], tpdos: [] }
+  const key = pdoKey(direction)
+  const next = edit(pdos[key].map((p) => ({ ...p, objects: [...p.objects] }))).sort((a, b) => a.number - b.number)
+  return { ...stored, pdos: { ...pdos, [key]: next } }
+}
+
+/** The lowest PDO number of the direction the layout does not use, or null when all 16 are used. */
+export function freeSlavePdoNumber(config: CanopenSlaveConfig, direction: CanopenSlaveDirection): number | null {
+  const used = new Set(slavePdoLayout(config)[pdoKey(direction)].map((p) => p.number))
+  for (let n = 1; n <= SLAVE_PDO_COUNT; n++) if (!used.has(n)) return n
+  return null
+}
+
+/** The config with an empty PDO of the lowest free number added; unchanged when all 16 are used. */
+export function addSlavePdo(
+  config: CanopenSlaveConfig,
+  direction: CanopenSlaveDirection,
+): { config: CanopenSlaveConfig; number: number | null } {
+  const number = freeSlavePdoNumber(config, direction)
+  if (number === null) return { config, number: null }
+  return { config: editPdos(config, direction, (pdos) => [...pdos, newPdo(config, direction, number)]), number }
+}
+
+/** The config without the PDO; its objects stay mappable, in no default PDO, so they are not placed again. */
+export function removeSlavePdo(
+  config: CanopenSlaveConfig,
+  direction: CanopenSlaveDirection,
+  number: number,
+): CanopenSlaveConfig {
+  const stored = withSlavePdoLayout(config)
+  const ids = new Set(stored.pdos?.[pdoKey(direction)].find((p) => p.number === number)?.objects ?? [])
+  const edited = editPdos(stored, direction, (pdos) => pdos.filter((p) => p.number !== number))
+  return withMappedByMaster(edited, ids, true)
+}
+
+/** The config with the object taken out of its default PDO: still mappable, the master maps it. */
+export function leaveSlaveObjectToMaster(config: CanopenSlaveConfig, objectId: string): CanopenSlaveConfig {
+  const object = config.objects.find((o) => o.id === objectId)
+  if (!object || object.exchange !== 'pdo' || isSlaveString(object)) return config
+  return withSlavePdoLayout(withMappedByMaster(config, new Set([objectId]), true))
+}
+
+/** The config with one PDO's settings changed. */
+export function updateSlavePdo(
+  config: CanopenSlaveConfig,
+  direction: CanopenSlaveDirection,
+  number: number,
+  update: Partial<Pick<CanopenSlavePdo, 'cobId' | 'transmissionType' | 'inhibitTime' | 'eventTimerMs'>>,
+): CanopenSlaveConfig {
+  return editPdos(config, direction, (pdos) => pdos.map((p) => (p.number === number ? { ...p, ...update } : p)))
+}
+
+/** The PDO the object is in, or null. */
+export function slavePdoOf(layout: SlavePdoLayout, objectId: string): SlavePdo | null {
+  return [...layout.rpdos, ...layout.tpdos].find((p) => p.objects.some((o) => o.id === objectId)) ?? null
+}
+
+/** Why the object cannot move to PDO `number`, or null when it can. */
+export function cannotMoveSlaveObject(config: CanopenSlaveConfig, objectId: string, number: number): string | null {
+  const layout = slavePdoLayout(config)
+  const from = slavePdoOf(layout, objectId)
+  const object =
+    from?.objects.find((o) => o.id === objectId) ??
+    config.objects.find((o) => o.id === objectId && o.exchange === 'pdo' && o.mappedByMaster && !isSlaveString(o))
+  if (!object) return 'The object is not a PDO object.'
+  if (from?.number === number) return 'It is already there.'
+  const to = layout[pdoKey(object.direction)].find((p) => p.number === number)
+  if (!to) return null
+  const size = slaveObjectBytes(object)
+  const free = SLAVE_PDO_BYTES - to.bytes
+  if (free >= size) return null
+  if (free <= 0) return 'full'
+  return `${free} byte${free === 1 ? '' : 's'} free, needs ${size}`
+}
+
+/** The config with the object moved to the end of PDO `number`, which is added when the layout has none. */
+export function moveSlaveObject(config: CanopenSlaveConfig, objectId: string, number: number): CanopenSlaveConfig {
+  if (cannotMoveSlaveObject(config, objectId, number) !== null) return config
+  const object = config.objects.find((o) => o.id === objectId)
+  if (!object) return config
+  const direction = object.direction
+  const placed = withSlavePdoLayout(config)
+  return editPdos(withMappedByMaster(placed, new Set([objectId]), false), direction, (pdos) => {
+    const list = pdos.map((p) => ({ ...p, objects: p.objects.filter((id) => id !== objectId) }))
+    const to = list.find((p) => p.number === number)
+    if (to) to.objects.push(objectId)
+    else list.push({ ...newPdo(config, direction, number), objects: [objectId] })
+    return list
+  })
+}
+
+/** The config with the object one place earlier (-1) or later (+1) in its PDO. */
+export function shiftSlaveObject(config: CanopenSlaveConfig, objectId: string, step: -1 | 1): CanopenSlaveConfig {
+  const from = slavePdoOf(slavePdoLayout(config), objectId)
+  if (!from) return config
+  return editPdos(config, from.direction, (pdos) =>
+    pdos.map((p) => {
+      const at = p.objects.indexOf(objectId)
+      const to = at + step
+      if (at < 0 || to < 0 || to >= p.objects.length) return p
+      const objects = [...p.objects]
+      objects[at] = objects[to]
+      objects[to] = objectId
+      return { ...p, objects }
+    }),
+  )
+}
+
+/** The config with the object at place `to` of its PDO, the others shifted to make room. */
+export function placeSlaveObject(config: CanopenSlaveConfig, objectId: string, to: number): CanopenSlaveConfig {
+  const from = slavePdoOf(slavePdoLayout(config), objectId)
+  if (!from) return config
+  return editPdos(config, from.direction, (pdos) =>
+    pdos.map((p) => {
+      const at = p.objects.indexOf(objectId)
+      if (at < 0 || to < 0 || to >= p.objects.length || to === at) return p
+      const objects = p.objects.filter((id) => id !== objectId)
+      objects.splice(to, 0, objectId)
+      return { ...p, objects }
+    }),
+  )
+}
+
+/** Problems of the PDO layout: rows that fit nowhere, PDOs too long, fixed COB-IDs reserved or used twice. */
+function pdoLayoutProblems(config: CanopenSlaveConfig, add: (where: string, text: string) => void): void {
+  const layout = slavePdoLayout(config)
+  for (const o of layout.overflow)
+    add(
+      o.id,
+      `${objectRef(o.index, o.subIndex)} "${o.name}": does not fit in ${SLAVE_PDO_COUNT} ${o.direction === 'from_master' ? 'RPDOs' : 'TPDOs'} of 8 bytes`,
+    )
+  const used = new Map<number, string>()
+  for (const pdo of [...layout.rpdos, ...layout.tpdos]) {
+    const name = slavePdoName(pdo.direction, pdo.number)
+    const where = `${pdoKey(pdo.direction)}${pdo.number}`
+    if (pdo.bytes > SLAVE_PDO_BYTES) add(where, `${name}: maps ${pdo.bytes} bytes; a PDO holds at most 8`)
+    if (pdo.direction === 'to_master' && pdo.transmissionType > 240 && pdo.transmissionType < 254)
+      add(where, `${name}: transmission type ${pdo.transmissionType} is reserved`)
+    if (pdo.objects.length === 0 || pdo.effectiveCobId === 0) continue
+    const hex = `0x${pdo.effectiveCobId.toString(16).toUpperCase().padStart(3, '0')}`
+    const reserved = pdo.number > SLAVE_PREDEFINED_PDOS ? reservedCobId(pdo.effectiveCobId) : null
+    if (reserved) add(where, `${name}: COB-ID ${hex} is reserved for ${reserved}`)
+    const other = used.get(pdo.effectiveCobId)
+    if (other) add(where, `${name}: COB-ID ${hex} is already ${other}'s`)
+    else used.set(pdo.effectiveCobId, name)
+  }
+}
+
+/** Notes on the PDO layout that do not stop a build: PDOs that a master must enable while Start alone is on. */
+export function slavePdoWarnings(config: CanopenSlaveConfig): { where: string; text: string }[] {
+  if (!config.startAlone) return []
+  const layout = slavePdoLayout(config)
+  return [...layout.rpdos, ...layout.tpdos]
+    .filter((p) => p.objects.length > 0 && p.effectiveCobId === 0)
+    .map((p) => ({
+      where: `${pdoKey(p.direction)}${p.number}`,
+      text: `${slavePdoName(p.direction, p.number)} is not exchanged until a master gives it a COB-ID; Start alone does not wait for one.`,
+    }))
+}
+
+/** A COB-ID for a PDO made fixed: the lowest of 0x681 - 0x6DF, which the pre-defined set leaves free, that no PDO of the slave uses. */
+export function suggestedSlavePdoCobId(config: CanopenSlaveConfig): number {
+  const layout = slavePdoLayout(config)
+  const used = new Set([...layout.rpdos, ...layout.tpdos].map((p) => p.effectiveCobId))
+  for (let id = 0x681; id <= 0x6df; id++) if (!used.has(id)) return id
+  return 0x681
+}
+
+/** First and last index of the slave's own objects (CiA 301 manufacturer-specific area). */
+export const SLAVE_FIRST_INDEX = 0x2000
+export const SLAVE_LAST_INDEX = 0x5fff
+
+/** First index of a new group. */
+const SLAVE_NEW_GROUP_INDEX = 0x2200
+
+/** The direction an index belongs to: that of all its objects, else its default group's; `both` when mixed. */
+export function slaveIndexDirection(
+  config: CanopenSlaveConfig,
+  index: number,
+  ignoreId?: string,
+): CanopenSlaveDirection | 'both' | null {
+  const directions = new Set(
+    config.objects.filter((o) => o.index === index && o.id !== ignoreId).map((o) => o.direction),
+  )
+  if (directions.size > 1) return 'both'
+  const [only] = [...directions]
+  if (only) return only
+  if (index === SLAVE_FROM_MASTER_INDEX) return 'from_master'
+  if (index === SLAVE_TO_MASTER_INDEX) return 'to_master'
+  return null
+}
+
+const freeSubIndex = (config: CanopenSlaveConfig, index: number, ignoreId?: string): number | null => {
+  const used = new Set(config.objects.filter((o) => o.index === index && o.id !== ignoreId).map((o) => o.subIndex))
+  for (let sub = 1; sub <= 254; sub++) if (!used.has(sub)) return sub
+  return null
+}
+
+/** The lowest index from 0x2200 up, in steps of 0x100, that holds no object. */
+export function newSlaveGroupIndex(config: CanopenSlaveConfig, ignoreId?: string): number | null {
+  const used = new Set(config.objects.filter((o) => o.id !== ignoreId).map((o) => o.index))
+  for (let index = SLAVE_NEW_GROUP_INDEX; index <= SLAVE_LAST_INDEX; index += 0x100) if (!used.has(index)) return index
+  return null
+}
+
+/** The indexes of a direction, ascending: its default group and every index all of whose objects go that way. */
+function directionIndexes(config: CanopenSlaveConfig, direction: CanopenSlaveDirection, ignoreId?: string): number[] {
+  const candidates = new Set([
+    direction === 'from_master' ? SLAVE_FROM_MASTER_INDEX : SLAVE_TO_MASTER_INDEX,
+    ...config.objects.filter((o) => o.id !== ignoreId).map((o) => o.index),
+  ])
+  return [...candidates]
+    .filter((i) => i >= SLAVE_FIRST_INDEX && i <= SLAVE_LAST_INDEX)
+    .filter((i) => slaveIndexDirection(config, i, ignoreId) === direction)
+    .sort((a, b) => a - b)
+}
+
+/**
+ * The next free place for an object of this direction: the first free sub-index of the direction's
+ * indexes (0x2000 from the master, 0x2100 to the master, then the others), else a new empty group.
+ * Never an index that holds the other direction.
+ */
 export function nextSlaveObjectPlace(
   config: CanopenSlaveConfig,
   direction: CanopenSlaveDirection,
+  ignoreId?: string,
 ): { index: number; subIndex: number } | null {
-  const used = new Set(config.objects.map((o) => o.index * 256 + o.subIndex))
-  const start = direction === 'from_master' ? SLAVE_FROM_MASTER_INDEX : SLAVE_TO_MASTER_INDEX
-  for (let index = start; index <= 0x5fff; index += 0x100) {
-    for (let sub = 1; sub <= 254; sub++) if (!used.has(index * 256 + sub)) return { index, subIndex: sub }
+  for (const index of directionIndexes(config, direction, ignoreId)) {
+    const sub = freeSubIndex(config, index, ignoreId)
+    if (sub !== null) return { index, subIndex: sub }
   }
+  const index = newSlaveGroupIndex(config, ignoreId)
+  return index === null ? null : { index, subIndex: 1 }
+}
+
+/** One entry of an object's group menu. */
+export interface SlaveGroupChoice {
+  index: number
+  direction: CanopenSlaveDirection | 'both' | null
+  /** Where the object would go; null when the group is full or holds the other direction. */
+  place: { index: number; subIndex: number } | null
+  /** The object is in this group now. */
+  current: boolean
+  /** The group is new (no objects yet). */
+  isNew: boolean
+}
+
+/** The group menu of an object: the groups of both directions, its own first, then a new group. */
+export function slaveGroupChoices(config: CanopenSlaveConfig, objectId: string): SlaveGroupChoice[] {
+  const object = config.objects.find((o) => o.id === objectId)
+  if (!object) return []
+  const indexes = new Set([
+    SLAVE_FROM_MASTER_INDEX,
+    SLAVE_TO_MASTER_INDEX,
+    ...config.objects.map((o) => o.index).filter((i) => i >= SLAVE_FIRST_INDEX && i <= SLAVE_LAST_INDEX),
+  ])
+  const choices: SlaveGroupChoice[] = [...indexes]
+    .sort((a, b) => a - b)
+    .map((index) => {
+      const direction = slaveIndexDirection(config, index, objectId)
+      const current = index === object.index
+      const sub = freeSubIndex(config, index, objectId)
+      const own = direction === object.direction || (direction === null && current)
+      const place = current
+        ? { index, subIndex: object.subIndex }
+        : own && sub !== null
+          ? { index, subIndex: sub }
+          : null
+      return { index, direction, place, current, isNew: false }
+    })
+  const fresh = newSlaveGroupIndex(config, objectId)
+  if (fresh !== null && !indexes.has(fresh))
+    choices.push({
+      index: fresh,
+      direction: null,
+      place: { index: fresh, subIndex: 1 },
+      current: false,
+      isNew: true,
+    })
+  return choices.sort((a, b) => Number(b.current) - Number(a.current))
+}
+
+/** Why an object number cannot be used, by the CiA 301 area it falls in, or null when it can. */
+export function slaveObjectNumberProblem(index: number, subIndex: number): string | null {
+  const allowed = 'Use 0x2000:01 - 0x5FFF:FE.'
+  const hex = `0x${index.toString(16).toUpperCase().padStart(4, '0')}`
+  if (!Number.isInteger(index) || index < 0 || index > 0xffff) return `${hex} is not an object index. ${allowed}`
+  if (index < 0x1000) return `${hex} is in 0x0000 - 0x0FFF, the area of data types. ${allowed}`
+  if (index < SLAVE_FIRST_INDEX)
+    return `${hex} is a communication object (0x1000 - 0x1FFF); the slave fills these in itself. ${allowed}`
+  if (index > 0xafff) return `${hex} is in a standardized or reserved area (0xB000 - 0xFFFF). ${allowed}`
+  if (index > 0x9fff) return `${hex} is in 0xA000 - 0xAFFF, the area of standardized network variables. ${allowed}`
+  if (index > SLAVE_LAST_INDEX)
+    return `${hex} belongs to device profiles (0x6000 - 0x9FFF), so a master may treat it as a standard object. ${allowed}`
+  if (!Number.isInteger(subIndex) || subIndex < 1 || subIndex > 254)
+    return `Sub-index 00 holds the highest sub-index and FF is reserved; use 01 - FE.`
   return null
+}
+
+const OBJECT_NUMBER = /^(?:0x)?([0-9a-f]{1,4}):(?:0x)?([0-9a-f]{1,2})$/i
+
+/** The place a typed object number names for the object, or why it is refused. */
+export function parseSlaveObjectNumber(
+  config: CanopenSlaveConfig,
+  objectId: string,
+  typed: string,
+): { place: { index: number; subIndex: number } } | { refusal: string } {
+  const m = OBJECT_NUMBER.exec(typed.trim())
+  if (!m) return { refusal: 'Write the object as 0x2000:01.' }
+  const index = parseInt(m[1] ?? '', 16)
+  const subIndex = parseInt(m[2] ?? '', 16)
+  const problem = slaveObjectNumberProblem(index, subIndex)
+  if (problem) return { refusal: problem }
+  const other = config.objects.find((o) => o.id !== objectId && o.index === index && o.subIndex === subIndex)
+  if (other) return { refusal: `"${other.name}" uses it.` }
+  return { place: { index, subIndex } }
+}
+
+/** The direction an index is named after: its default group's, else that of its lowest sub-index. */
+function indexOwner(config: CanopenSlaveConfig, index: number): CanopenSlaveDirection | null {
+  if (index === SLAVE_FROM_MASTER_INDEX) return 'from_master'
+  if (index === SLAVE_TO_MASTER_INDEX) return 'to_master'
+  const first = config.objects.filter((o) => o.index === index).sort((a, b) => a.subIndex - b.subIndex)[0]
+  return first?.direction ?? null
+}
+
+/** Notes on object numbers that do not stop a build: objects in a group of the other direction. */
+export function slaveObjectNumberWarnings(
+  config: CanopenSlaveConfig,
+): { where: string; text: string; moveTo: { index: number; subIndex: number } | null }[] {
+  const out: { where: string; text: string; moveTo: { index: number; subIndex: number } | null }[] = []
+  for (const o of config.objects) {
+    const direction = indexOwner(config, o.index)
+    if (direction === null || direction === o.direction) continue
+    const hex = `0x${o.index.toString(16).toUpperCase()}`
+    const group = direction === 'from_master' ? 'from the master' : 'to the master'
+    out.push({
+      where: o.id,
+      text: `${hex} is the group of objects ${group}. The slave works, but the device file names the group "Objects" and the master's user may read it the wrong way.`,
+      moveTo: nextSlaveObjectPlace(config, o.direction, o.id),
+    })
+  }
+  return out
+}
+
+/** Free sub-indexes below the highest one of an index, as "03, 05-07"; '' when none. */
+export function slaveFreeSubIndexText(config: CanopenSlaveConfig, index: number): string {
+  const used = new Set(config.objects.filter((o) => o.index === index).map((o) => o.subIndex))
+  const highest = Math.max(0, ...used)
+  const parts: string[] = []
+  const hex2 = (n: number): string => n.toString(16).toUpperCase().padStart(2, '0')
+  for (let sub = 1; sub < highest; sub++) {
+    if (used.has(sub)) continue
+    let end = sub
+    while (end + 1 < highest && !used.has(end + 1)) end++
+    parts.push(end === sub ? hex2(sub) : `${hex2(sub)}-${hex2(end)}`)
+    sub = end
+  }
+  return parts.join(', ')
 }
 
 /** "Setpoint", "Setpoint_2", ...: a name no object of the slave uses yet. */
@@ -274,10 +732,14 @@ export function slaveLayoutText(config: CanopenSlaveConfig): string {
         ...(o.bits ?? []).map((b) => b.name),
       ].join('|'),
     )
-  const tpdos = slaveTpdoSettings(config).map((t) => `${t.transmissionType}/${t.inhibitTime}/${t.eventTimerMs}`)
   const layout = slavePdoLayout(config)
-  const pdos = [...layout.rpdos, ...layout.tpdos].map((p) => p.objects.map((o) => o.id).join(','))
-  return JSON.stringify({ objects, tpdos, pdos })
+  const pdos = [...layout.rpdos, ...layout.tpdos]
+    .filter((p) => p.objects.length > 0)
+    .map(
+      (p) =>
+        `${slavePdoName(p.direction, p.number)}/${p.effectiveCobId}/${p.transmissionType}/${p.inhibitTime}/${p.eventTimerMs}:${p.objects.map((o) => o.id).join(',')}`,
+    )
+  return JSON.stringify({ objects, pdos })
 }
 
 /** The revision the export dialog suggests: one higher when the objects or PDOs changed since the last export. */
@@ -318,6 +780,12 @@ export function parseSlaveValue(text: string, dataType: CanopenSlaveDataType): n
   return Number(big)
 }
 
+/** The values a whole-number type takes, as text, or null for REAL and STRING types. */
+export function slaveTypeLimits(dataType: CanopenSlaveDataType): [string, string] | null {
+  const range = INTEGER_RANGES[dataType]
+  return range ? [String(range[0]), String(range[1])] : null
+}
+
 /** Why a value text does not suit the type, or null. */
 export function slaveValueProblem(text: string, dataType: CanopenSlaveDataType): string | null {
   if (dataType === 'VISIBLE_STRING') {
@@ -349,7 +817,14 @@ function lssOut(config: CanopenSlaveConfig): object | null {
 export function slaveDevicesOut(servers: readonly PLCServer[] | undefined): object[] {
   return slavesOn(servers).map(({ name, config }) => {
     const layout = slavePdoLayout(config)
-    const tpdoSettings = slaveTpdoSettings(config)
+    const pdoOut = (p: SlavePdo) => ({
+      number: p.number,
+      ...(p.effectiveCobId !== 0 ? { cob_id: p.effectiveCobId } : {}),
+      transmission: p.transmissionType,
+      ...(p.direction === 'to_master' ? { inhibit_100us: p.inhibitTime } : {}),
+      event_timer_ms: p.eventTimerMs,
+      entries: p.objects.map((o) => ({ index: o.index, subindex: o.subIndex })),
+    })
     return {
       name,
       interface: config.interface.trim(),
@@ -400,23 +875,8 @@ export function slaveDevicesOut(servers: readonly PLCServer[] | undefined): obje
           ...(ranged && o.max !== undefined && o.max.trim() !== '' ? { max: valueOut(o.max, o.dataType) } : {}),
         }
       }),
-      rpdos: layout.rpdos.map((p) => ({
-        number: p.number,
-        cob_id: p.cobId,
-        transmission: 255,
-        entries: p.objects.map((o) => ({ index: o.index, subindex: o.subIndex })),
-      })),
-      tpdos: layout.tpdos.map((p) => {
-        const s = tpdoSettings[p.number - 1]
-        return {
-          number: p.number,
-          cob_id: p.cobId,
-          transmission: s.transmissionType,
-          inhibit_100us: s.inhibitTime,
-          event_timer_ms: s.eventTimerMs,
-          entries: p.objects.map((o) => ({ index: o.index, subindex: o.subIndex })),
-        }
-      }),
+      rpdos: layout.rpdos.filter((p) => p.objects.length > 0).map(pdoOut),
+      tpdos: layout.tpdos.filter((p) => p.objects.length > 0).map(pdoOut),
     }
   })
 }
@@ -503,8 +963,8 @@ export function checkCanopenSlave(
   for (const o of config.objects) {
     const ref = `${objectRef(o.index, o.subIndex)} "${o.name}"`
     for (const text of slaveObjectDetailProblems(o)) add(o.id, `${ref}: ${text}`, true)
-    if (o.index < 0x2000 || o.index > 0x5fff || o.subIndex < 1 || o.subIndex > 254)
-      add(o.id, `${ref}: the object must be in 0x2000:01 - 0x5FFF:FE`)
+    const numberProblem = slaveObjectNumberProblem(o.index, o.subIndex)
+    if (numberProblem) add(o.id, `${ref}: ${numberProblem}`)
     const key = o.index * 256 + o.subIndex
     if (places.has(key)) add(o.id, `${ref}: the object is also used by "${places.get(key)}"`)
     else places.set(key, o.name)
@@ -547,13 +1007,7 @@ export function checkCanopenSlave(
         add(o.id, `${ref}: the default ${o.defaultValue} is outside the range ${o.min ?? ''} - ${o.max ?? ''}`)
     }
   }
-  for (const o of slavePdoLayout(config).overflow)
-    add(o.id, `${objectRef(o.index, o.subIndex)} "${o.name}": does not fit in four PDOs of 8 bytes`)
-  const tpdos = slaveTpdoSettings(config)
-  tpdos.forEach((t, i) => {
-    if (t.transmissionType > 240 && t.transmissionType < 254)
-      add(`tpdo${i + 1}`, `TPDO ${i + 1}: transmission type ${t.transmissionType} is reserved`)
-  })
+  pdoLayoutProblems(config, add)
   return problems
 }
 
@@ -625,33 +1079,43 @@ function commObject(
   }
 }
 
-function pdoParameters(config: CanopenSlaveConfig, layout: SlavePdoLayout): CanopenObject[] {
+function pdoParameters(layout: SlavePdoLayout): CanopenObject[] {
   const out: CanopenObject[] = []
-  const tpdoSettings = slaveTpdoSettings(config)
   for (const direction of ['from_master', 'to_master'] as const) {
     const tpdo = direction === 'to_master'
     const pdos = tpdo ? layout.tpdos : layout.rpdos
     const kind = tpdo ? 'TPDO' : 'RPDO'
     for (let n = 1; n <= SLAVE_PDO_COUNT; n++) {
-      const pdo = pdos.find((p) => p.number === n)
+      const found = pdos.find((p) => p.number === n)
+      const pdo = found && found.objects.length > 0 ? found : undefined
       const comm = (tpdo ? 0x1800 : 0x1400) + n - 1
       const parent = `${kind} ${n} communication parameter`
-      const base = slavePdoCobId(direction, n, 0) + (pdo ? 0 : 0x80000000)
+      let cob: string
+      if (n <= SLAVE_PREDEFINED_PDOS) cob = `$NODEID+${hex8(slavePdoCobId(direction, n, 0) + (pdo ? 0 : 0x80000000))}`
+      else cob = hex8(pdo && pdo.effectiveCobId !== 0 ? pdo.effectiveCobId : 0x80000000)
       out.push(commObject(comm, 0, 'Highest sub-index supported', 'UNSIGNED8', 'const', tpdo ? '6' : '5', parent))
-      out.push(commObject(comm, 1, `COB-ID used by ${kind}`, 'UNSIGNED32', 'rw', `$NODEID+${hex8(base)}`, parent))
-      const s = tpdoSettings[n - 1]
+      out.push(commObject(comm, 1, `COB-ID used by ${kind}`, 'UNSIGNED32', 'rw', cob, parent))
       out.push(
-        commObject(comm, 2, 'Transmission type', 'UNSIGNED8', 'rw', String(tpdo ? s.transmissionType : 255), parent),
+        commObject(
+          comm,
+          2,
+          'Transmission type',
+          'UNSIGNED8',
+          'rw',
+          String(tpdo ? (pdo?.transmissionType ?? 255) : 255),
+          parent,
+        ),
       )
       if (tpdo) {
-        out.push(commObject(comm, 3, 'Inhibit time', 'UNSIGNED16', 'rw', String(s.inhibitTime), parent))
+        out.push(commObject(comm, 3, 'Inhibit time', 'UNSIGNED16', 'rw', String(pdo?.inhibitTime ?? 0), parent))
         out.push(commObject(comm, 4, 'Reserved', 'UNSIGNED8', 'rw', '0', parent))
       }
-      out.push(commObject(comm, 5, 'Event timer', 'UNSIGNED16', 'rw', String(tpdo ? s.eventTimerMs : 0), parent))
+      out.push(commObject(comm, 5, 'Event timer', 'UNSIGNED16', 'rw', String(pdo?.eventTimerMs ?? 0), parent))
       if (tpdo) out.push(commObject(comm, 6, 'SYNC start value', 'UNSIGNED8', 'rw', '0', parent))
     }
     for (let n = 1; n <= SLAVE_PDO_COUNT; n++) {
-      const pdo = pdos.find((p) => p.number === n)
+      const found = pdos.find((p) => p.number === n)
+      const pdo = found && found.objects.length > 0 ? found : undefined
       const map = (tpdo ? 0x1a00 : 0x1600) + n - 1
       const parent = `${kind} ${n} mapping parameter`
       out.push(
@@ -751,7 +1215,7 @@ export function slaveDeviceInfo(name: string, config: CanopenSlaveConfig, fileNa
     commObject(0x1200, 2, 'COB-ID server to client', 'UNSIGNED32', 'ro', '$NODEID+0x580', 'SDO server parameter'),
   ]
   const layout = slavePdoLayout(config)
-  objects.push(...pdoParameters(config, layout))
+  objects.push(...pdoParameters(layout))
 
   const byIndex = new Map<number, CanopenSlaveObject[]>()
   for (const o of config.objects) byIndex.set(o.index, [...(byIndex.get(o.index) ?? []), o])
@@ -845,11 +1309,14 @@ export function buildSlaveExport(
   const findings: DeviceFileFinding[] =
     format === 'eds' ? checkEds(readEdsDocument(text)).findings : checkXdd(text, info).findings
   const layout = slavePdoLayout(config)
+  const used = (pdos: SlavePdo[]) => pdos.filter((p) => p.objects.length > 0).length
+  const rpdos = used(layout.rpdos)
+  const tpdos = used(layout.tpdos)
   const objects = config.objects.length
   return {
     fileName,
     text,
-    summary: `${objects} object${objects === 1 ? '' : 's'}, ${layout.rpdos.length} RPDO${layout.rpdos.length === 1 ? '' : 's'} and ${layout.tpdos.length} TPDO${layout.tpdos.length === 1 ? '' : 's'} in the default layout`,
+    summary: `${objects} object${objects === 1 ? '' : 's'}, ${rpdos} RPDO${rpdos === 1 ? '' : 's'} and ${tpdos} TPDO${tpdos === 1 ? '' : 's'} in the default layout`,
     errors: findings.filter((f) => f.severity === 'error'),
     warnings: findings.filter((f) => f.severity !== 'error'),
     problems: [],

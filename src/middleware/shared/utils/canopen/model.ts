@@ -432,6 +432,11 @@ function edsPdoValid(eds: CanopenEdsInfo, direction: PdoDirection, number: numbe
   return (raw & 0x80000000) === 0 && (raw & 0x7ff) !== 0
 }
 
+/** Whether the EDS default of this PDO's COB-ID is 0x80000000: off with no CAN ID, left for the master to give. */
+function edsPdoWaitsForMaster(eds: CanopenEdsInfo, direction: PdoDirection, number: number, nodeId: number): boolean {
+  return defaultInt(eds, pdoObjectIndices(direction, number).comm, 1, nodeId) === 0x80000000
+}
+
 /**
  * PDO `number` with the EDS defaults: COB-ID (0 when the file gives none outside the predefined
  * set), transmission settings and default mapping; entries get addresses when `allocate` is given.
@@ -500,7 +505,10 @@ export function edsPdo(
   return pdo
 }
 
-/** The PDOs a new node uses in one direction: those the EDS makes valid by default and that map an entry. */
+/**
+ * The PDOs a new node uses in one direction: those the EDS makes valid by default, or leaves for the
+ * master to give a COB-ID (left 0 here), that map an entry.
+ */
 export function defaultPdos(
   eds: CanopenEdsInfo,
   direction: PdoDirection,
@@ -509,7 +517,9 @@ export function defaultPdos(
   allocate: AllocateAddress,
 ): CanopenPdo[] {
   return edsPdoNumbers(eds, direction)
-    .filter((number) => edsPdoValid(eds, direction, number, nodeId))
+    .filter(
+      (number) => edsPdoValid(eds, direction, number, nodeId) || edsPdoWaitsForMaster(eds, direction, number, nodeId),
+    )
     .map((number) => edsPdo(eds, direction, number, nodeId, newId, allocate))
     .filter((pdo) => pdo.entries.length > 0)
 }

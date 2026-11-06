@@ -97,14 +97,33 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     const summary = page.getByTestId('canopen-slave-summary')
     // The network has can0, so the new slave takes the next interface.
     await expect(summary).toHaveText('can1, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
-    await commitField(page, 'Heartbeat (ms)', '100')
+    await commitField(page, 'Heartbeat producer (ms)', '100')
     await commitField(page, 'Vendor ID', '0xABCD')
-    await page.getByLabel('When the PLC stops: NMT state').selectOption('pre_operational')
+    await page.getByLabel('NMT state', { exact: true }).selectOption('pre_operational')
     // The network's library is on, so the program reaches the slave by name or number.
     await expect(page.getByTestId('canopen-slave-program')).toContainText('address this slave as slave (or 1)')
+    await summary.evaluate((el) => el.closest('.overflow-auto')?.scrollTo(0, 0))
     await slaveKeyView(page, 'slave-general')
     await page.getByTestId('canopen-slave-program').scrollIntoViewIfNeeded()
     await shot(page, 'slave-general-program')
+
+    // Supervision: the master watch is a checkbox that shows its fields, as on a master node.
+    await expect(page.getByLabel('Master timeout (ms)', { exact: true })).toHaveCount(0)
+    await page.getByLabel('Watch the master', { exact: true }).check()
+    await expect(page.getByLabel('Master timeout (ms)', { exact: true })).toHaveValue('500')
+    await page.getByLabel('Watch the master', { exact: true }).uncheck()
+
+    // A problem lists with a count and Show opens its field from another tab.
+    await commitField(page, 'Interface', 'can0')
+    const checks = page.getByRole('status', { name: 'Slave checks' })
+    await expect(checks).toContainText('1 problem stops the build')
+    await page.getByRole('tab', { name: 'Data' }).click()
+    await checks.getByRole('button', { name: /^Show:/ }).click()
+    await expect(page.getByRole('tab', { name: 'General' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByLabel('Interface', { exact: true })).toBeInViewport()
+    await slaveKeyView(page, 'slave-problem-list')
+    await commitField(page, 'Interface', 'can1')
+    await expect(checks).toHaveCount(0)
 
     await page.getByRole('tab', { name: 'Data' }).click()
     const from = page.getByTestId('canopen-slave-from-master')
@@ -130,13 +149,32 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await expect(summary).toHaveText('can1, 500 kbit/s, node ID 5, 3 objects')
     await slaveKeyView(page, 'slave-data')
 
+    // Object numbers: the group menu, a refused profile number and a row in the other direction's group.
+    await second.getByRole('button', { name: 'Groups for Limit' }).click()
+    const groups = page.getByRole('listbox', { name: 'Groups for Limit' })
+    await expect(groups.getByRole('option', { name: /0x2100 · To the master/ })).toBeDisabled()
+    await expect(groups.getByRole('option', { name: /0x2200 · New group/ })).toBeVisible()
+    await shot(page, 'slave-object-groups')
+    await page.keyboard.press('Escape')
+    await second.getByLabel('Object').fill('0x6200:01')
+    await second.getByLabel('Object').press('Enter')
+    await expect(second.getByRole('alert')).toContainText('belongs to device profiles')
+    await second.getByLabel('Object').fill('0x2100:02')
+    await second.getByLabel('Object').press('Enter')
+    const warning = from.getByTestId('canopen-slave-number-warning')
+    await expect(warning).toContainText('0x2100 is the group of objects to the master')
+    await shot(page, 'slave-object-wrong-group')
+    await warning.getByRole('button', { name: 'Move to 0x2000:02' }).click()
+    await expect(second.getByLabel('Object')).toHaveValue('0x2000:02')
+    await expect(warning).toHaveCount(0)
+
     await page.getByRole('tab', { name: 'PDOs' }).click()
     await expect(page.getByTestId('canopen-slave-rpdo1')).toContainText('0x205')
     await expect(page.getByTestId('canopen-slave-tpdo1')).toContainText('0x185')
     await page.getByTestId('canopen-slave-tpdo1').scrollIntoViewIfNeeded()
     await slaveKeyView(page, 'slave-pdos')
 
-    await page.getByRole('button', { name: 'Export EDS or XDD...' }).click()
+    await page.getByRole('button', { name: 'Export...', exact: true }).click()
     const dialog = page.getByTestId('canopen-export-dialog')
     await expect(dialog.getByTestId('canopen-export-check')).toContainText('CiA 306 OK')
     // The check line wraps instead of cutting the file summary off.
@@ -185,6 +223,47 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
         },
       ],
     })
+
+    // PDO 5-16: an object moved to TPDO 5, whose COB-ID the master gives or is fixed.
+    await page
+      .getByText(/^(\* )?slave$/)
+      .filter({ visible: true })
+      .first()
+      .click()
+    await page.getByRole('tab', { name: 'PDOs' }).click()
+    const tpdos = page.getByTestId('canopen-slave-tpdos')
+    for (let i = 0; i < 4; i++) await tpdos.getByRole('button', { name: /Add TPDO/ }).click()
+    for (const n of [2, 3, 4]) await page.getByRole('button', { name: `Remove TPDO ${n}` }).click()
+    await page.getByRole('button', { name: 'Move ToMaster to another PDO' }).click()
+    await expect(page.getByRole('menuitem', { name: 'A new TPDO (TPDO 2)' })).toBeVisible()
+    await slaveKeyView(page, 'slave-pdos-menu')
+    await page.getByRole('menuitem', { name: 'TPDO 5' }).click()
+    const tpdo5 = page.getByTestId('canopen-slave-tpdo5')
+    await expect(tpdo5.getByLabel('COB-ID', { exact: true })).toHaveValue('not set')
+    await expect(page.getByTestId('canopen-slave-tpdo1')).toContainText('No objects mapped')
+    await tpdo5.scrollIntoViewIfNeeded()
+    await slaveKeyView(page, 'slave-pdos-master-cob')
+    await tpdo5.getByLabel('Given by the master').uncheck()
+    const cob = tpdo5.getByLabel('COB-ID', { exact: true })
+    await cob.fill('0x205')
+    await cob.press('Enter')
+    await expect(tpdo5).toContainText("TPDO 5: COB-ID 0x205 is already RPDO 1's")
+    await slaveKeyView(page, 'slave-pdos-fixed-cob')
+    await tpdo5.getByLabel('Given by the master').check()
+
+    // An object in no default PDO stays mappable; the master maps it.
+    await page.getByRole('button', { name: 'Take ToMaster out of TPDO 5' }).click()
+    const byMaster = page.getByTestId('canopen-slave-tpdo-by-master')
+    await expect(byMaster).toContainText('ToMaster')
+    await byMaster.scrollIntoViewIfNeeded()
+    await slaveKeyView(page, 'slave-pdos-by-master')
+    await byMaster.getByRole('button', { name: 'Move ToMaster to another PDO' }).click()
+    await page.getByRole('menuitem', { name: 'TPDO 5' }).click()
+    await expect(tpdo5).toContainText('ToMaster')
+
+    await page.getByRole('tab', { name: 'Data' }).click()
+    await page.getByTestId('canopen-slave-to-master').getByRole('button', { name: 'TPDO 5' }).click()
+    await expect(page.getByRole('tab', { name: 'PDOs' })).toHaveAttribute('aria-selected', 'true')
   } finally {
     await quitApp(app, page)
   }
@@ -223,9 +302,12 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await expect(summary).toHaveText('can0, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
     await commitField(page, 'Vendor ID', '0xABCD')
 
-    await expect(page.getByLabel('At first start', { exact: true })).toBeDisabled()
+    await expect(page.getByLabel('At first start', { exact: true })).toHaveCount(0)
+    await expect(page.getByLabel('Fixed in the project', { exact: true })).toBeChecked()
+    await summary.evaluate((el) => el.closest('.overflow-auto')?.scrollTo(0, 0))
     await slaveKeyView(page, 'slave-lss-off')
-    await page.getByLabel('An LSS master may set the node ID', { exact: true }).check()
+    await page.getByLabel('An LSS master may set it (CiA 305)', { exact: true }).check()
+    await page.getByTestId('canopen-slave-lss').evaluate((el) => el.scrollIntoView({ block: 'start' }))
     await slaveKeyView(page, 'slave-lss-on')
     await page.getByLabel('At first start', { exact: true }).selectOption('wait')
     await expect(page.getByLabel('Node ID', { exact: true })).toHaveValue('Set by the LSS master')
@@ -239,7 +321,7 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await page.getByLabel('The master may change the bit rate', { exact: true }).uncheck()
     await slaveKeyView(page, 'slave-lss-wait')
 
-    await page.getByRole('button', { name: 'Export EDS or XDD...' }).click()
+    await page.getByRole('button', { name: 'Export...', exact: true }).click()
     const dialog = page.getByTestId('canopen-export-dialog')
     await expect(dialog.getByTestId('canopen-export-check')).toContainText('CiA 306 OK')
     await dialog.getByTestId('canopen-export-save').click()
@@ -334,8 +416,8 @@ test('a CANopen slave byte packed as 8 bits: bit rows, aliases, defaults, the PD
     await slaveKeyView(page, 'slave-data-bits')
 
     await page.getByRole('tab', { name: 'PDOs' }).click()
-    await expect(page.getByTestId('canopen-slave-rpdo1')).toContainText('Valves (8 bits)')
-    await expect(page.getByTestId('canopen-slave-tpdo1')).toContainText('Lamps (8 bits)')
+    await expect(page.getByTestId('canopen-slave-rpdo1')).toContainText('Valves')
+    await expect(page.getByTestId('canopen-slave-tpdo1')).toContainText('Lamps')
     await slaveKeyView(page, 'slave-pdos-bits')
 
     await buildFromMenu(page, 'Build only')
@@ -416,7 +498,7 @@ test('XDD details of a CANopen slave: the expert view, the basic view mark, the 
     const to = page.getByTestId('canopen-slave-to-master')
     await from.getByRole('button', { name: /Add object/ }).click()
     await to.getByRole('button', { name: /Add object/ }).click()
-    const mode = from.locator('tbody > tr').first()
+    const mode = from.locator('tbody > tr[data-testid^="canopen-slave-object-"]').first()
     await mode.getByLabel('Name').fill('Mode')
     await mode.getByLabel('Name').press('Enter')
     await mode.getByLabel('Type').selectOption('UNSIGNED8')
@@ -435,7 +517,7 @@ test('XDD details of a CANopen slave: the expert view, the basic view mark, the 
     await mode.scrollIntoViewIfNeeded()
     await shot(page, 'slave-data-meanings')
 
-    const temp = to.locator('tbody > tr').first()
+    const temp = to.locator('tbody > tr[data-testid^="canopen-slave-object-"]').first()
     await temp.getByLabel('Name').fill('Temperature')
     await temp.getByLabel('Name').press('Enter')
     await temp.getByRole('button', { name: 'Show the details of Temperature' }).click()
@@ -455,7 +537,7 @@ test('XDD details of a CANopen slave: the expert view, the basic view mark, the 
     await expect(page.getByTestId('canopen-slave-details-mark')).toHaveCount(2)
     await slaveKeyView(page, 'slave-data-basic-mark')
 
-    await page.getByRole('button', { name: 'Export EDS or XDD...' }).click()
+    await page.getByRole('button', { name: 'Export...', exact: true }).click()
     const dialog = page.getByTestId('canopen-export-dialog')
     await expect(dialog.getByTestId('canopen-export-losses')).toContainText('Descriptions of 2 objects')
     await dialog.getByTestId('canopen-export-losses-toggle').click()

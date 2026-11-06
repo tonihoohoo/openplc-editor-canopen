@@ -107,3 +107,15 @@ export const CANOPEN_BITRATES = [10000, 20000, 50000, 125000, 250000, 500000, 80
 export function objectRef(index: number, subIndex: number): string {
   return `0x${index.toString(16).toUpperCase().padStart(4, '0')}:${subIndex.toString(16).toUpperCase().padStart(2, '0')}`
 }
+
+/** What a COB-ID is reserved for, or null. */
+export function reservedCobId(id: number): string | null {
+  if (id === 0x000) return 'NMT'
+  if (id === 0x080) return 'SYNC'
+  if (id >= 0x081 && id <= 0x0ff) return 'EMCY'
+  if (id === 0x100) return 'TIME'
+  if ((id >= 0x581 && id <= 0x5ff) || (id >= 0x601 && id <= 0x67f)) return 'SDO'
+  if (id >= 0x701 && id <= 0x77f) return 'heartbeat'
+  if (id === 0x7e4 || id === 0x7e5) return 'LSS'
+  return null
+}

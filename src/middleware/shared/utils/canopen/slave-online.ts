@@ -1,5 +1,5 @@
 /**
- * The CANopen slave's Online tab: what the runtime reports about a running slave, read against the
+ * The CANopen slave's Status tab: what the runtime reports about a running slave, read against the
  * project. Values decoded by the project's types, the settings the master changed since the slave's
  * start, the one notice the tab shows, and the events as text.
  */
@@ -15,15 +15,7 @@ import type {
 import { canopenTypeBits, objectRef } from './data-types'
 import { busStateLabel, emcyText, hex, resetText, sdoAbortText } from './diagnostics'
 import { formatCanopenValue, type ValueDisplay } from './online'
-import {
-  isSlavePacked,
-  isSlaveString,
-  parseSlaveValue,
-  SLAVE_PDO_COUNT,
-  slaveBitsOn,
-  slavePdoLayout,
-  slaveTpdoSettings,
-} from './slave'
+import { isSlavePacked, isSlaveString, parseSlaveValue, SLAVE_PDO_COUNT, slaveBitsOn, slavePdoLayout } from './slave'
 import { slaveEngineeringText, slaveHasNumber } from './slave-details'
 
 // ---- values ----
@@ -143,24 +135,23 @@ export interface ExpectedSlavePdo {
   objects: CanopenSlaveObject[]
 }
 
-/** Every RPDO and TPDO 1-4 of the project's slave, the unused ones invalid. */
+/** Every RPDO and TPDO 1-16 of the project's slave; unused ones and ones the master gives a COB-ID invalid. */
 export function expectedSlavePdos(config: CanopenSlaveConfig): ExpectedSlavePdo[] {
   const layout = slavePdoLayout(config)
-  const tpdoSettings = slaveTpdoSettings(config)
   const out: ExpectedSlavePdo[] = []
   for (const dir of ['rx', 'tx'] as const) {
-    const used = dir === 'rx' ? layout.rpdos : layout.tpdos
+    const pdos = dir === 'rx' ? layout.rpdos : layout.tpdos
     for (let n = 1; n <= SLAVE_PDO_COUNT; n++) {
-      const p = used.find((u) => u.number === n)
-      const s = dir === 'tx' ? tpdoSettings[n - 1] : { transmissionType: 255, inhibitTime: 0, eventTimerMs: 0 }
+      const found = pdos.find((u) => u.number === n)
+      const p = found && found.objects.length > 0 ? found : undefined
       out.push({
         dir,
         pdo: n,
-        valid: p !== undefined,
-        cob_id: p?.cobId ?? 0,
-        transmission: s.transmissionType,
-        inhibit_100us: s.inhibitTime,
-        event_ms: s.eventTimerMs,
+        valid: p !== undefined && p.effectiveCobId !== 0,
+        cob_id: p?.effectiveCobId ?? 0,
+        transmission: dir === 'tx' ? (p?.transmissionType ?? 255) : 255,
+        inhibit_100us: dir === 'tx' ? (p?.inhibitTime ?? 0) : 0,
+        event_ms: p?.eventTimerMs ?? 0,
         mapping: (p?.objects ?? []).map((o) => ({
           index: o.index,
           subindex: o.subIndex,
@@ -213,7 +204,10 @@ function pdoChanges(expected: ExpectedSlavePdo, running: CanopenSlavePdoStatus, 
   const name = pdoName(expected.dir, expected.pdo)
   const key = `${expected.dir}${expected.pdo}`
   if (!expected.valid && !running.valid) return changes
-  if (expected.valid !== running.valid) {
+  const givenByMaster = !expected.valid && expected.objects.length > 0
+  if (givenByMaster)
+    changes.push({ key, label: `${name} COB-ID`, project: 'from the master', running: hex(running.cob_id, 3) })
+  else if (expected.valid !== running.valid) {
     changes.push({
       key,
       label: name,
@@ -222,7 +216,7 @@ function pdoChanges(expected: ExpectedSlavePdo, running: CanopenSlavePdoStatus, 
     })
     return changes
   }
-  if (expected.cob_id !== running.cob_id)
+  if (!givenByMaster && expected.cob_id !== running.cob_id)
     changes.push({ key, label: `${name} COB-ID`, project: hex(expected.cob_id, 3), running: hex(running.cob_id, 3) })
   if (expected.transmission !== running.transmission)
     changes.push({

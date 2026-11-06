@@ -48,6 +48,7 @@ import {
   validateCanopenProject,
   withDbcExportOptions,
   withEntryAlias,
+  withFreePdoCobIds,
   withHtmlExportOptions,
   withNodeId,
   withStoredFile,
@@ -303,7 +304,7 @@ const CanopenEditor = () => {
       const source = match.eds.source
       const file = source ? [current, ...otherNetworks].map((c) => c.files?.[source.sha256]).find(Boolean) : undefined
       commit((c) => {
-        const withNode = { ...c, nodes: [...c.nodes, node] }
+        const withNode = { ...c, nodes: [...c.nodes, withFreePdoCobIds(c, node)] }
         return source && file ? withStoredFile(withNode, { source, text: file.text }) : withNode
       })
       return id
@@ -597,14 +598,14 @@ const CanopenEditor = () => {
           aliasTaken={aliasTaken}
           onCancel={() => setFileRequest(null)}
           onAdd={(node, prepared) => {
-            commit((c) => withStoredFile({ ...c, nodes: [...c.nodes, node] }, prepared))
+            commit((c) => withStoredFile({ ...c, nodes: [...c.nodes, withFreePdoCobIds(c, node)] }, prepared))
             setSelectedId(node.id)
             setFileRequest(null)
           }}
           onReplace={(node, prepared) => {
             commit((c) =>
               withStoredFile(
-                updateNode(c, node.id, () => node),
+                updateNode(c, node.id, () => withFreePdoCobIds(c, node)),
                 prepared,
               ),
             )

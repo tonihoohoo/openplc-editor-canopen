@@ -7,7 +7,7 @@
  */
 
 import type { CanopenConfig, CanopenNode, CanopenPdo } from '../../ports/canopen-types'
-import { canopenTypeBits, objectRef } from './data-types'
+import { canopenTypeBits, objectRef, reservedCobId } from './data-types'
 import { changeOnlyTimeoutText, timeoutOnChangeOnlyPdo } from './editing'
 import { findObject } from './eds-parser'
 import { pdoConfigured, pdoExchanged, watchesMaster } from './generate-canopen-config'
@@ -63,18 +63,6 @@ export interface CanopenCheck {
 }
 
 const hex = (v: number, width: number): string => `0x${v.toString(16).toUpperCase().padStart(width, '0')}`
-
-/** What a COB-ID is reserved for, or null. */
-export function reservedCobId(id: number): string | null {
-  if (id === 0x000) return 'NMT'
-  if (id === 0x080) return 'SYNC'
-  if (id >= 0x081 && id <= 0x0ff) return 'EMCY'
-  if (id === 0x100) return 'TIME'
-  if ((id >= 0x581 && id <= 0x5ff) || (id >= 0x601 && id <= 0x67f)) return 'SDO'
-  if (id >= 0x701 && id <= 0x77f) return 'heartbeat'
-  if (id === 0x7e4 || id === 0x7e5) return 'LSS'
-  return null
-}
 
 /** Microseconds of an IEC duration such as T#20ms, T#1s500ms or 250us, or null. */
 export function durationUs(text: string): number | null {
@@ -212,6 +200,18 @@ export function freePdoCobId(config: CanopenConfig): number | null {
     if (free !== null) return free
   }
   return null
+}
+
+/** The node with each mapped PDO that has no COB-ID yet (one the device file leaves to the master) given the lowest free one. */
+export function withFreePdoCobIds(config: CanopenConfig, node: CanopenNode): CanopenNode {
+  let out = node
+  for (const direction of ['input', 'output'] as const)
+    for (const pdo of direction === 'input' ? node.tpdos : node.rpdos) {
+      if (pdo.cobId !== 0 || !pdoConfigured(pdo)) continue
+      const cobId = freePdoCobId({ ...config, nodes: [...config.nodes.filter((n) => n.id !== node.id), out] })
+      if (cobId !== null) out = updatePdo(out, direction, pdo.number, (p) => ({ ...p, cobId }))
+    }
+  return out
 }
 
 /**
