@@ -476,7 +476,7 @@ const Events = ({ slave, config }: { slave: CanopenSlaveStatus; config: CanopenS
 }
 
 /**
- * The slave's Online tab: the running slave as the runtime reports it, read once a second. It sends
+ * The slave's Status tab: the running slave as the runtime reports it, read once a second. It sends
  * nothing to the slave. Settings the master changed since the slave's start are marked.
  */
 export const OnlineTab = ({

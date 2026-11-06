@@ -30,9 +30,12 @@ function seed(slave: CanopenSlaveConfig) {
   })
 }
 
+/** A tab by its name without the count, e.g. "Data" for "Data (3)". */
+const tabNamed = (name: string) => screen.getByRole('tab', { name: new RegExp(`^${name}( \\(\\d+\\))?$`) })
+
 function openTab(name: string) {
-  fireEvent.mouseDown(screen.getByRole('tab', { name }))
-  fireEvent.click(screen.getByRole('tab', { name }))
+  fireEvent.mouseDown(tabNamed(name))
+  fireEvent.click(tabNamed(name))
 }
 
 function type(input: HTMLElement, value: string) {
@@ -64,9 +67,10 @@ describe('CanopenSlaveEditor', () => {
   })
 
   it('turns LSS on, waits for the master and keeps the typed node ID', () => {
-    expect(screen.getByLabelText('At first start')).toHaveProperty('disabled', true)
-    expect(screen.getByLabelText('The master may change the bit rate')).toHaveProperty('disabled', true)
-    fireEvent.click(screen.getByLabelText('An LSS master may set the node ID'))
+    expect(screen.getByLabelText('Fixed in the project')).toHaveProperty('checked', true)
+    expect(screen.queryByLabelText('At first start')).toBeNull()
+    expect(screen.queryByLabelText('The master may change the bit rate')).toBeNull()
+    fireEvent.click(screen.getByLabelText('An LSS master may set it (CiA 305)'))
     expect(config()?.lss).toEqual({ enabled: true, waitForMaster: false, serial: null, bitrateChange: true })
     expect(screen.getByLabelText('At first start')).toHaveProperty('disabled', false)
     fireEvent.change(screen.getByLabelText('At first start'), { target: { value: 'wait' } })
@@ -80,10 +84,15 @@ describe('CanopenSlaveEditor', () => {
     )
     fireEvent.click(screen.getByLabelText('The master may change the bit rate'))
     expect(config()?.lss?.bitrateChange).toBe(false)
+    fireEvent.click(screen.getByLabelText('Fixed in the project'))
+    expect(config()?.lss).toEqual({ enabled: false, waitForMaster: true, serial: null, bitrateChange: false })
+    expect(screen.queryByLabelText('At first start')).toBeNull()
+    fireEvent.click(screen.getByLabelText('An LSS master may set it (CiA 305)'))
+    expect(screen.getByLabelText('At first start')).toHaveProperty('value', 'wait')
   })
 
   it('takes a fixed LSS serial number and refuses 0', () => {
-    fireEvent.click(screen.getByLabelText('An LSS master may set the node ID'))
+    fireEvent.click(screen.getByLabelText('An LSS master may set it (CiA 305)'))
     fireEvent.change(screen.getByLabelText('Serial number'), { target: { value: 'fixed' } })
     expect(config()?.lss?.serial).toBe(1)
     type(screen.getByLabelText('Fixed serial number'), '0')
@@ -96,7 +105,7 @@ describe('CanopenSlaveEditor', () => {
   })
 
   it('sets the NMT state on a PLC stop and names the slave for the program', () => {
-    fireEvent.change(screen.getByLabelText('When the PLC stops: NMT state'), { target: { value: 'pre_operational' } })
+    fireEvent.change(screen.getByLabelText('NMT state'), { target: { value: 'pre_operational' } })
     expect(config()?.onPlcStopState).toBe('pre_operational')
     const panel = screen.getByTestId('canopen-slave-program')
     expect(panel.textContent).toContain('address this slave as slave (or 1)')
@@ -106,11 +115,64 @@ describe('CanopenSlaveEditor', () => {
     expect(screen.getByTestId('canopen-slave-program').textContent).toContain('This slave is off')
   })
 
+  it('watches the master with a checkbox and keeps the node ID while off', () => {
+    const watch = screen.getByLabelText('Watch the master')
+    expect(watch).toHaveProperty('checked', false)
+    expect(screen.queryByLabelText('Master timeout (ms)')).toBeNull()
+    fireEvent.click(watch)
+    expect(config()?.masterWatch).toEqual({ nodeId: 127, timeMs: 500 })
+    type(screen.getByLabelText('Master node ID'), '1')
+    type(screen.getByLabelText('Master timeout (ms)'), '300')
+    expect(config()?.masterWatch).toEqual({ nodeId: 1, timeMs: 300 })
+    fireEvent.change(screen.getByLabelText('When the master is gone'), { target: { value: 'stopped' } })
+    expect(config()?.onMasterLost).toBe('stopped')
+    fireEvent.click(screen.getByLabelText('Watch the master'))
+    expect(config()?.masterWatch).toEqual({ nodeId: 1, timeMs: 0 })
+    expect(screen.queryByLabelText('Master node ID')).toBeNull()
+  })
+
+  it('sets who starts the slave', () => {
+    const started = screen.getByLabelText('Started by')
+    expect(started).toHaveProperty('value', 'master')
+    fireEvent.change(started, { target: { value: 'self' } })
+    expect(config()?.startAlone).toBe(true)
+    expect(
+      screen.getByText('Goes operational by itself after its boot-up, without waiting for the NMT start'),
+    ).toBeTruthy()
+  })
+
+  it('counts the objects and PDOs in use in the tab names', () => {
+    expect(tabNamed('Data').textContent).toBe('Data (0)')
+    expect(tabNamed('PDOs').textContent).toBe('PDOs (0)')
+    openTab('Data')
+    addObject('from')
+    addObject('to')
+    expect(tabNamed('Data').textContent).toBe('Data (2)')
+    expect(tabNamed('PDOs').textContent).toBe('PDOs (2)')
+    expect(screen.getByRole('tab', { name: 'Status' })).toBeTruthy()
+  })
+
+  it('lists the problems with a count and opens the field from Show', () => {
+    fireEvent.change(screen.getByLabelText('Started by'), { target: { value: 'master' } })
+    fireEvent.click(screen.getByLabelText('Watch the master'))
+    type(screen.getByLabelText('Master node ID'), '5')
+    openTab('Data')
+    const list = screen.getByRole('status', { name: 'Slave checks' })
+    expect(list.textContent).toContain('1 problem stops the build')
+    expect(list.textContent).toContain("Error: the master's node ID is the slave's own")
+    fireEvent.click(screen.getByRole('button', { name: "Show: the master's node ID is the slave's own" }))
+    expect(tabNamed('General').getAttribute('aria-selected')).toBe('true')
+    fireEvent.click(screen.getByRole('switch', { name: 'Run this slave' }))
+    expect(screen.getByRole('status', { name: 'Slave checks' }).textContent).toContain(
+      '1 problem to fix before turning the slave on',
+    )
+  })
+
   it('refuses an empty interface and a heartbeat of 0', () => {
     type(screen.getByLabelText('Interface'), '')
     expect(screen.getByText('Enter the interface name.')).toBeTruthy()
     expect(config()?.interface).toBe('can1')
-    type(screen.getByLabelText('Heartbeat (ms)'), '0')
+    type(screen.getByLabelText('Heartbeat producer (ms)'), '0')
     expect(config()?.heartbeatMs).toBe(1000)
   })
 
@@ -323,7 +385,7 @@ describe('CanopenSlaveEditor', () => {
     const row = screen.getByTestId(`canopen-slave-object-${second?.id ?? ''}`)
     const link = within(row).getByRole('button', { name: 'TPDO 2' })
     fireEvent.click(link)
-    expect(screen.getByRole('tab', { name: 'PDOs' }).getAttribute('aria-selected')).toBe('true')
+    expect(tabNamed('PDOs').getAttribute('aria-selected')).toBe('true')
   })
 
   it('takes an object out of its default PDO and leaves it for the master to map', async () => {
@@ -367,7 +429,7 @@ describe('CanopenSlaveEditor', () => {
         ),
       ),
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Export EDS or XDD...' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export...' }))
     const dialog = screen.getByTestId('canopen-export-dialog')
     expect(within(dialog).getByTestId('canopen-export-check').textContent).toContain('CiA 306 OK')
     expect(within(dialog).getByTestId('canopen-export-check').className).not.toContain('truncate')
@@ -381,7 +443,7 @@ describe('CanopenSlaveEditor', () => {
 
     openTab('Data')
     addObject('to')
-    fireEvent.click(screen.getByRole('button', { name: 'Export EDS or XDD...' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export...' }))
     const revision = screen.getByTestId('canopen-slave-export-revision')
     fireEvent.click(within(revision).getByRole('button', { name: 'Use 0x00010001' }))
     expect(config()?.revision).toBe(0x00010001)
@@ -460,7 +522,7 @@ describe('CanopenSlaveEditor', () => {
         },
       ],
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Export EDS or XDD...' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export...' }))
     const dialog = screen.getByTestId('canopen-export-dialog')
     expect(within(dialog).getByTestId('canopen-export-losses').textContent).toContain('Descriptions of 1 object')
     expect(within(dialog).getByTestId('canopen-export-losses-note').textContent).toContain('Pick XDD')
