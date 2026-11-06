@@ -46,6 +46,7 @@ const addObject = (table: 'from' | 'to') =>
 
 describe('CanopenSlaveEditor', () => {
   beforeEach(() => {
+    localStorage.clear()
     store = createTestStore()
     seed({ ...defaultCanopenSlaveConfig('demo'), interface: 'can1' })
     render(<CanopenSlaveEditor />, { wrapper: createStoreWrapper(store, portsWithRuntime()) })
@@ -258,5 +259,86 @@ describe('CanopenSlaveEditor', () => {
     const revision = screen.getByTestId('canopen-slave-export-revision')
     fireEvent.click(within(revision).getByRole('button', { name: 'Use 0x00010001' }))
     expect(config()?.revision).toBe(0x00010001)
+  })
+
+  it('shares the expert view with the master node pages and shows the device file details', () => {
+    expect(screen.queryByTestId('canopen-slave-device-details')).toBeNull()
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
+    expect(localStorage.getItem('openplc:canopen-expert-view')).toBe('on')
+    const panel = screen.getByTestId('canopen-slave-device-details')
+    type(within(panel).getByLabelText('Hardware version'), 'rév')
+    expect(within(panel).getByText('Use printable ASCII characters.')).toBeTruthy()
+    type(within(panel).getByLabelText('Hardware version'), 'rev B')
+    type(within(panel).getByLabelText('Product text'), 'Tank node')
+    fireEvent.click(within(panel).getByRole('button', { name: /Characteristic/ }))
+    type(within(panel).getByLabelText('Name of characteristic 1'), 'Supply')
+    type(within(panel).getByLabelText('Value of characteristic 1'), '24 V DC')
+    expect(config()).toMatchObject({
+      hardwareVersion: 'rev B',
+      productText: 'Tank node',
+      characteristics: [{ value: 'Supply', label: '24 V DC' }],
+    })
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
+    expect(within(screen.getByTestId('canopen-slave-device-details')).getByText('expert')).toBeTruthy()
+  })
+
+  it('edits the details of an object in the expert view and marks them in the basic view', () => {
+    openTab('Data')
+    addObject('from')
+    const id = config()?.objects[0]?.id ?? ''
+    const row = () => screen.getByTestId(`canopen-slave-object-${id}`)
+    expect(within(row()).queryByRole('button', { name: /Show the details/ })).toBeNull()
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
+    fireEvent.click(within(row()).getByRole('button', { name: /Show the details/ }))
+    const strip = screen.getByTestId(`canopen-slave-details-${id}`)
+    type(within(strip).getByLabelText('Description'), 'The setpoint')
+    fireEvent.click(within(strip).getByRole('button', { name: /Value/ }))
+    type(within(strip).getByLabelText('Raw value of meaning 1'), '40000')
+    expect(within(strip).getByText(/does not fit the type INTEGER16/)).toBeTruthy()
+    type(within(strip).getByLabelText('Meaning of 0'), 'Off')
+    type(within(strip).getByLabelText('Unit'), '°C')
+    type(within(strip).getByLabelText('Multiplier'), '0')
+    expect(within(strip).getByText('Enter a number other than 0.')).toBeTruthy()
+    type(within(strip).getByLabelText('Multiplier'), '0.1')
+    type(within(strip).getByLabelText('Group'), 'Operation')
+    expect(config()?.objects[0]).toMatchObject({
+      description: 'The setpoint',
+      values: [{ value: '0', label: 'Off' }],
+      unit: '°C',
+      multiplier: 0.1,
+      group: 'Operation',
+    })
+    expect(within(row()).getByText('0 · 0 °C · Off')).toBeTruthy()
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
+    expect(screen.queryByTestId(`canopen-slave-details-${id}`)).toBeNull()
+    expect(within(row()).getByTestId('canopen-slave-details-mark').getAttribute('title')).toContain('The setpoint')
+  })
+
+  it('lists what an EDS leaves out, and nothing for an XDD', () => {
+    seed({
+      ...defaultCanopenSlaveConfig('demo'),
+      interface: 'can1',
+      productText: 'Tank node',
+      objects: [
+        {
+          id: 'a',
+          index: 0x2000,
+          subIndex: 1,
+          name: 'A',
+          dataType: 'INTEGER16',
+          direction: 'from_master',
+          exchange: 'pdo',
+          iecLocation: '%IW0',
+          defaultValue: '0',
+          description: 'x',
+        },
+      ],
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Export EDS or XDD...' }))
+    const dialog = screen.getByTestId('canopen-export-dialog')
+    expect(within(dialog).getByTestId('canopen-export-losses').textContent).toContain('Descriptions of 1 object')
+    expect(within(dialog).getByTestId('canopen-export-losses-note').textContent).toContain('Pick XDD')
+    fireEvent.click(within(dialog).getByLabelText(/XDD/))
+    expect(within(dialog).queryByTestId('canopen-export-losses')).toBeNull()
   })
 })

@@ -28,6 +28,7 @@ import {
   slaveNoticeText,
   slavePackedValue,
   slaveStateLabel,
+  slaveValueEngineering,
   slaveValueText,
   transmissionText,
   type ValueDisplay,
@@ -344,6 +345,7 @@ const Values = ({
               const ref = objectRef(o.index, o.subIndex)
               const change = changes.get(ref)
               const packed = slavePackedValue(o, slave)
+              const engineering = slaveValueEngineering(o, slave)
               return (
                 <tr
                   key={o.id}
@@ -362,6 +364,15 @@ const Values = ({
                   </td>
                   <td className='truncate py-1 pr-2 font-mono' data-testid='canopen-slave-online-value'>
                     <span className={mark(change)}>{slaveValueText(o, slave, display)}</span>
+                    {engineering ? (
+                      <span
+                        className='font-sans text-neutral-600 dark:text-neutral-300'
+                        data-testid='canopen-slave-online-engineering'
+                      >
+                        {' '}
+                        · {engineering}
+                      </span>
+                    ) : null}
                     {packed ? <BitDots value={packed} /> : null}
                     {change ? (
                       <span className={cn(hintClassName, 'block font-sans')}>written by the master</span>

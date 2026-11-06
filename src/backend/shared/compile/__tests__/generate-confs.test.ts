@@ -387,7 +387,7 @@ describe('generateRuntimeConfs — CANopen', () => {
     const result = generateRuntimeConfs(
       makeInput({ remoteDevices: [canopenDevice('CANopen_1', configWith(genericNode(2)))] }),
     )
-    expect(JSON.parse(result.canopen ?? '')).toMatchObject({ version: 11, networks: [{ name: 'CANopen_1' }] })
+    expect(JSON.parse(result.canopen ?? '')).toMatchObject({ version: 12, networks: [{ name: 'CANopen_1' }] })
   })
 
   it('refuses an invalid CANopen network with every problem', () => {

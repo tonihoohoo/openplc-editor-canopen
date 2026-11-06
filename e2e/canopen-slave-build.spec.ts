@@ -160,7 +160,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 11,
+      version: 12,
       networks: [{ interface: 'can0', nodes: [{ node_id: 1 }] }],
       devices: [
         {
@@ -247,7 +247,7 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 11,
+      version: 12,
       devices: [
         {
           name: 'slave',
@@ -338,7 +338,7 @@ test('a CANopen slave byte packed as 8 bits: bit rows, aliases, defaults, the PD
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 11,
+      version: 12,
       devices: [
         {
           name: 'slave',
@@ -365,6 +365,113 @@ test('a CANopen slave byte packed as 8 bits: bit rows, aliases, defaults, the PD
         },
       ],
     })
+  } finally {
+    await quitApp(app, page)
+  }
+})
+
+test('XDD details of a CANopen slave: the expert view, the basic view mark, the EDS loss list and the XDD in a master', async () => {
+  test.setTimeout(300000)
+  const { userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-slave-details'), '', STATION)
+  const { app, page } = await launch(userData)
+  await windowSize(app, 1600, 1000)
+  await captureSaves(app)
+  try {
+    await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
+    await page.getByLabel('Create PLC element trigger component').click({ timeout: 30000 })
+    const serverCard = page.locator('#create-server-trigger')
+    const serverName = page.getByPlaceholder('Server name')
+    await serverCard.hover()
+    const opened = await serverName.waitFor({ timeout: 3000 }).then(
+      () => true,
+      () => false,
+    )
+    if (!opened) await serverCard.click()
+    await serverName.fill('slave')
+    await page.getByLabel('server-protocol').click()
+    await page.getByRole('option', { name: 'CANopen slave' }).click()
+    await page.getByRole('button', { name: 'Create', exact: true }).click()
+    await page.getByText('slave', { exact: true }).first().click({ timeout: 30000 })
+    await expect(page.getByTestId('canopen-slave-summary')).toContainText('0 objects', { timeout: 30000 })
+
+    await page.getByRole('switch', { name: 'Expert view' }).check()
+    const details = page.getByTestId('canopen-slave-device-details')
+    await details.getByLabel('Product text').fill('Generic I/O node: a setpoint in, a temperature out.')
+    await details.getByLabel('Product text').blur()
+    await commitField(page, 'Order number', 'IO-100')
+    await commitField(page, 'Hardware version', 'rev B')
+    await details.getByRole('button', { name: /Characteristic/ }).click()
+    await commitField(page, 'Name of characteristic 1', 'Supply')
+    await commitField(page, 'Value of characteristic 1', '24 V DC')
+    await details.scrollIntoViewIfNeeded()
+    await slaveKeyView(page, 'slave-general-device-details')
+
+    await page.getByRole('tab', { name: 'Data' }).click()
+    const from = page.getByTestId('canopen-slave-from-master')
+    const to = page.getByTestId('canopen-slave-to-master')
+    await from.getByRole('button', { name: /Add object/ }).click()
+    await to.getByRole('button', { name: /Add object/ }).click()
+    const mode = from.locator('tbody > tr').first()
+    await mode.getByLabel('Name').fill('Mode')
+    await mode.getByLabel('Name').press('Enter')
+    await mode.getByLabel('Type').selectOption('UNSIGNED8')
+    await mode.getByRole('button', { name: 'Show the details of Mode' }).click()
+    const modeStrip = from.locator('[data-testid^="canopen-slave-details-"]')
+    await modeStrip.getByLabel('Description').fill('Operating mode the master selects.')
+    await modeStrip.getByLabel('Description').blur()
+    for (const [i, text] of ['Off', 'Manual', 'Auto'].entries()) {
+      await modeStrip.getByRole('button', { name: 'Value', exact: true }).click()
+      await modeStrip.getByLabel(`Meaning of ${i}`, { exact: true }).fill(text)
+      await modeStrip.getByLabel(`Meaning of ${i}`, { exact: true }).press('Enter')
+    }
+    await modeStrip.getByLabel('Group').fill('Operation')
+    await modeStrip.getByLabel('Group').press('Enter')
+    await expect(mode).toContainText('0 · Off')
+    await mode.scrollIntoViewIfNeeded()
+    await shot(page, 'slave-data-meanings')
+
+    const temp = to.locator('tbody > tr').first()
+    await temp.getByLabel('Name').fill('Temperature')
+    await temp.getByLabel('Name').press('Enter')
+    await temp.getByRole('button', { name: 'Show the details of Temperature' }).click()
+    const tempStrip = to.locator('[data-testid^="canopen-slave-details-"]')
+    await tempStrip.getByLabel('Description').fill('Process temperature from the sensor on the tank outlet.')
+    await tempStrip.getByLabel('Description').blur()
+    await tempStrip.getByLabel('Unit').fill('°C')
+    await tempStrip.getByLabel('Unit').press('Enter')
+    await tempStrip.getByLabel('Multiplier').fill('0.1')
+    await tempStrip.getByLabel('Multiplier').press('Enter')
+    await tempStrip.getByLabel('Group').fill('Process values')
+    await tempStrip.getByLabel('Group').press('Enter')
+    await expect(tempStrip.getByTestId('canopen-slave-scale-example')).toContainText('Raw 100 = 10 °C')
+    await slaveKeyView(page, 'slave-data-details')
+
+    await page.getByRole('switch', { name: 'Expert view' }).uncheck()
+    await expect(page.getByTestId('canopen-slave-details-mark')).toHaveCount(2)
+    await slaveKeyView(page, 'slave-data-basic-mark')
+
+    await page.getByRole('button', { name: 'Export EDS or XDD...' }).click()
+    const dialog = page.getByTestId('canopen-export-dialog')
+    await expect(dialog.getByTestId('canopen-export-losses')).toContainText('Descriptions of 2 objects')
+    await dialog.getByTestId('canopen-export-losses-toggle').click()
+    await expect(dialog.getByTestId('canopen-export-losses')).toContainText('Product text and 1 characteristic')
+    await shot(page, 'slave-export-eds-losses')
+    await dialog.getByRole('radio', { name: 'XDD' }).check()
+    await expect(dialog.getByTestId('canopen-export-losses')).toHaveCount(0)
+    await expect(dialog.getByTestId('canopen-export-check')).toContainText('OK')
+    await dialog.getByTestId('canopen-export-save').click()
+    await expect(dialog).toHaveCount(0)
+    const xdd = await savedFile(app)
+    expect(xdd.name).toBe(`${PROJECT_NAME}.xdd`)
+    expect(xdd.text).toContain('<c:productText>')
+
+    await page.getByText('canopen_1', { exact: true }).first().click()
+    await page.getByTestId('canopen-eds-input').setInputFiles(writeEds(join(userData, xdd.name), xdd.text))
+    const fileDialog = page.getByTestId('canopen-file-dialog')
+    await expect(fileDialog.getByTestId('canopen-file-details')).toContainText('24 V DC')
+    await expect(fileDialog.getByTestId('canopen-file-details')).toContainText('with a unit')
+    await expect(fileDialog.getByTestId('canopen-file-details')).toContainText('with value meanings')
+    await shot(page, 'slave-xdd-in-master')
   } finally {
     await quitApp(app, page)
   }
