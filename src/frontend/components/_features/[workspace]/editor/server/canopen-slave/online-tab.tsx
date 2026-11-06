@@ -396,13 +396,16 @@ const Values = ({
 export const LssCard = ({
   slave,
   forgetQuestion,
+  expert = false,
   onForget,
 }: {
   slave: CanopenSlaveStatus
   forgetQuestion: string
+  /** The expert view: the LSS state shows too. */
+  expert?: boolean
   onForget?: () => Promise<string | null>
 }) => {
-  const facts = slaveLssFacts(slave)
+  const facts = slaveLssFacts(slave)?.filter((f) => expert || f.key !== 'state')
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -420,7 +423,7 @@ export const LssCard = ({
   return (
     <div className={cardClassName} data-testid='canopen-slave-online-lss'>
       <h4 className={headingClassName}>LSS</h4>
-      <div className='grid grid-cols-2 gap-4 lg:grid-cols-4'>
+      <div className={cn('grid grid-cols-2 gap-4', expert ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
         {facts.map((f) => (
           <Fact key={f.key} label={f.label} value={<span data-testid={`canopen-slave-lss-${f.key}`}>{f.value}</span>}>
             {f.detail}

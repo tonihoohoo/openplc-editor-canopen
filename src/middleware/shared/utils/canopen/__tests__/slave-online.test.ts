@@ -485,10 +485,10 @@ describe('the slave LSS state', () => {
   it('shows the node ID, bit rate, serial number and state with their sources', () => {
     expect(slaveLssFacts(parse())).toBeNull()
     expect(slaveLssFacts(lssSlave())?.map((f) => [f.label, f.value, f.detail])).toEqual([
-      ['Node ID in use', '12', 'Stored by an LSS master (project 5)'],
-      ['Bit rate in use', '250 kbit/s', 'Stored by an LSS master (project 500 kbit/s)'],
-      ['Serial number', '0x00000017 (23)', 'From the project'],
-      ['LSS state', 'Waiting', 'Answers an LSS master'],
+      ['Node ID in use', '12', 'Stored by an LSS master (project: 5)'],
+      ['Bit rate in use', '250 kbit/s', 'Stored by an LSS master (project: 500 kbit/s)'],
+      ['Serial number', '0x00000017', 'From the project'],
+      ['LSS state', 'Normal', 'LSS waiting state: answers an LSS master'],
     ])
     const fresh = slaveLssFacts(
       lssSlave(
@@ -505,11 +505,11 @@ describe('the slave LSS state', () => {
     expect(fresh?.map((f) => [f.value, f.detail])).toEqual([
       ['None', 'Waiting for an LSS master to give one'],
       ['Set on the interface', 'From the project'],
-      ['0x00000017 (23)', 'Picked by the runtime and kept'],
-      ['Configuration', 'An LSS master selected the slave to configure it'],
+      ['0x00000017', 'Automatic, kept on the runtime device'],
+      ['Selected by a master', 'LSS configuration state: a master is setting it up'],
     ])
     expect(slaveLssFacts(lssSlave({ node_id_from: 'lss' }))?.[0].detail).toBe(
-      'Given by an LSS master, not stored (project 5)',
+      'Given by an LSS master, not stored (project: 5)',
     )
   })
 

@@ -41,11 +41,15 @@ function isArchive(value: unknown): value is StlibArchive {
 }
 
 export function buildCanopenLibrary(inputs: CanopenLibraryInputs): CanopenLibraryBuild {
+  return buildBlockLibrary(inputs, generateCanopenBlocks(inputs.sharedCode))
+}
+
+/** Builds a shipped library of ST types and constants plus generated C++ blocks (canopen, linux_io). */
+export function buildBlockLibrary(inputs: CanopenLibraryInputs, blocks: CanopenBlockSource[]): CanopenLibraryBuild {
   const options = { name: inputs.manifest.name, version: inputs.manifest.version, namespace: 'strucpp' }
   const st = compileStlib([{ fileName: 'types.st', source: inputs.typesSt }], options)
   if (!st.success || !isArchive(st.archive)) return { ok: false, errors: st.errors ?? [] }
 
-  const blocks = generateCanopenBlocks(inputs.sharedCode)
   const native = compileStlib(blocks, { ...options, dependencies: [st.archive] })
   if (!native.success || !isArchive(native.archive)) return { ok: false, errors: native.errors ?? [] }
 

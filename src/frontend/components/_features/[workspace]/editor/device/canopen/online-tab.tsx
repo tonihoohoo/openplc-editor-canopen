@@ -221,22 +221,25 @@ export const NmtButtons = ({
 const kbit = (bitrate: number) => `${bitrate / 1000} kbit/s`
 
 /**
- * Open bus / Close bus. With the LSS tools the bus can be opened at another bit rate than the
- * network's, to reach a device that runs at another one.
+ * Open bus / Close bus. With the LSS tools and the expert view the bus can be opened at another bit
+ * rate than the network's, to reach a device that runs at another one.
  */
 export const ServiceBus = ({
   online,
   bare = false,
   networkBitrate = 0,
+  expert = false,
 }: {
   online: CanopenOnlineContext
   bare?: boolean
   networkBitrate?: number
+  expert?: boolean
 }) => {
   const { service } = online
   const [bitrate, setBitrate] = useState(networkBitrate)
   if (!service.available) return null
   const others = LSS_BITRATES.filter((b) => b !== networkBitrate)
+  const pickRate = online.lss && !bare && expert
   return (
     <div className='flex flex-wrap items-center gap-3' data-testid='canopen-service-bus'>
       {service.open ? (
@@ -250,7 +253,7 @@ export const ServiceBus = ({
           {bare ? null : (
             <span className={hintClassName}>The PLC is stopped. Open the bus to read and set the nodes.</span>
           )}
-          {online.lss && !bare ? (
+          {pickRate ? (
             <select
               aria-label='Bit rate to open the bus at'
               data-testid='canopen-service-bitrate'
@@ -273,7 +276,7 @@ export const ServiceBus = ({
             type='button'
             className={smallButtonClassName}
             disabled={service.busy}
-            onClick={() => service.openBus(online.lss && !bare ? bitrate : undefined)}
+            onClick={() => service.openBus(pickRate ? bitrate : undefined)}
           >
             Open bus
           </button>

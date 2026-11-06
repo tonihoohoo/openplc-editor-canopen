@@ -4,6 +4,16 @@ import { useEffect, useRef, useState } from 'react'
 
 import { hintClassName, inputClassName, labelClassName } from './styles'
 
+/** Marks an expert setting shown in the basic view because it is not at its default. */
+const ExpertMark = () => (
+  <span
+    className='ml-2 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium normal-case text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+    title='An expert setting, shown because it is not at its default'
+  >
+    expert
+  </span>
+)
+
 type FieldHintProps = {
   /** Object the field writes, e.g. "0x1800:05". */
   objectRef?: string
@@ -115,10 +125,12 @@ type TextFieldProps = {
   placeholder?: string
   className?: string
   hideLabel?: boolean
+  /** Marks the field as an expert setting shown in the basic view. */
+  expertTag?: boolean
 }
 
 /** A text input that commits on blur or Enter; a refused value reverts and shows why. */
-const TextField = ({ label, value, onCommit, hint, placeholder, className, hideLabel }: TextFieldProps) => {
+const TextField = ({ label, value, onCommit, hint, placeholder, className, hideLabel, expertTag }: TextFieldProps) => {
   const [text, setText] = useState(value)
   const [error, setError] = useState<string | null>(null)
   const errorRef = useRef<HTMLSpanElement>(null)
@@ -143,7 +155,12 @@ const TextField = ({ label, value, onCommit, hint, placeholder, className, hideL
 
   return (
     <label className={cn('flex flex-col gap-1', className)}>
-      {hideLabel ? null : <span className={labelClassName}>{label}</span>}
+      {hideLabel ? null : (
+        <span className={labelClassName}>
+          {label}
+          {expertTag ? <ExpertMark /> : null}
+        </span>
+      )}
       <input
         type='text'
         aria-label={label}
@@ -185,6 +202,8 @@ type SelectFieldProps<T extends string> = FieldHintProps & {
   disabledReason?: string | null
   hideLabel?: boolean
   className?: string
+  /** Marks the field as an expert setting shown in the basic view. */
+  expertTag?: boolean
 }
 
 const SelectField = <T extends string>({
@@ -199,9 +218,15 @@ const SelectField = <T extends string>({
   disabledReason,
   hideLabel,
   className,
+  expertTag,
 }: SelectFieldProps<T>) => (
   <label className={cn('flex flex-col gap-1', className)} title={disabledReason ?? undefined}>
-    {hideLabel ? null : <span className={labelClassName}>{label}</span>}
+    {hideLabel ? null : (
+      <span className={labelClassName}>
+        {label}
+        {expertTag ? <ExpertMark /> : null}
+      </span>
+    )}
     <select
       aria-label={label}
       value={value}
@@ -233,6 +258,8 @@ type CheckboxFieldProps = {
   /** In a row of labelled inputs: the box and its label line up with the inputs, not their labels. */
   besideInputs?: boolean
   className?: string
+  /** Marks the field as an expert setting shown in the basic view. */
+  expertTag?: boolean
 }
 
 const CheckboxField = ({
@@ -244,6 +271,7 @@ const CheckboxField = ({
   disabledReason,
   besideInputs,
   className,
+  expertTag,
 }: CheckboxFieldProps) => (
   <label
     className={cn('flex items-start gap-2', besideInputs && 'pt-[26px]', className)}
@@ -258,10 +286,13 @@ const CheckboxField = ({
       className='mt-0.5 h-3.5 w-3.5 accent-brand'
     />
     <span className='flex flex-col'>
-      <span className={labelClassName}>{label}</span>
+      <span className={labelClassName}>
+        {label}
+        {expertTag ? <ExpertMark /> : null}
+      </span>
       {(disabledReason ?? hint) ? <span className={hintClassName}>{disabledReason ?? hint}</span> : null}
     </span>
   </label>
 )
 
-export { CheckboxField, FieldHint, NumberField, SelectField, TextField }
+export { CheckboxField, ExpertMark, FieldHint, NumberField, SelectField, TextField }

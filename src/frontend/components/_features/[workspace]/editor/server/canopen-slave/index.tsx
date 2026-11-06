@@ -268,6 +268,7 @@ const CanopenSlaveEditor = () => {
   const lssSlot = live?.slave?.lss ? (
     <LssCard
       slave={live.slave}
+      expert={expert}
       forgetQuestion={slaveLssForgetText(config, lss.waitForMaster)}
       onForget={canForget ? forgetLss : undefined}
     />

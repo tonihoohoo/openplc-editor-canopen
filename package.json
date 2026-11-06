@@ -18,6 +18,7 @@
     "build:renderer": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true webpack --config ./configs/webpack/webpack.config.renderer.prod.ts",
     "build:relay": "cross-env TS_NODE_TRANSPILE_ONLY=true ts-node scripts/relay/build-relay.ts",
     "build:canopen-lib": "cross-env TS_NODE_TRANSPILE_ONLY=true ts-node scripts/build-canopen-lib.ts",
+    "build:linux-io-lib": "cross-env TS_NODE_TRANSPILE_ONLY=true ts-node scripts/build-linux-io-lib.ts",
     "lint": "cross-env NODE_ENV=development eslint ./src/**/*.{ts,tsx}",
     "lint:fix": "cross-env NODE_ENV=development eslint ./src/**/*.{ts,tsx} --fix",
     "format": "cross-env NODE_ENV=development prettier --write \"./src/**/*.{ts,tsx}\"",

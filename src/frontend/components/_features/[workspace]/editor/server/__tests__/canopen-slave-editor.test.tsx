@@ -68,12 +68,12 @@ describe('CanopenSlaveEditor', () => {
 
   it('turns LSS on, waits for the master and keeps the typed node ID', () => {
     expect(screen.getByLabelText('Fixed in the project')).toHaveProperty('checked', true)
-    expect(screen.queryByLabelText('At first start')).toBeNull()
+    expect(screen.queryByLabelText('Until a master gives one')).toBeNull()
     expect(screen.queryByLabelText('The master may change the bit rate')).toBeNull()
-    fireEvent.click(screen.getByLabelText('An LSS master may set it (CiA 305)'))
+    fireEvent.click(screen.getByLabelText('Given by an LSS master (CiA 305)'))
     expect(config()?.lss).toEqual({ enabled: true, waitForMaster: false, serial: null, bitrateChange: true })
-    expect(screen.getByLabelText('At first start')).toHaveProperty('disabled', false)
-    fireEvent.change(screen.getByLabelText('At first start'), { target: { value: 'wait' } })
+    expect(screen.getByLabelText('Until a master gives one')).toHaveProperty('disabled', false)
+    fireEvent.change(screen.getByLabelText('Until a master gives one'), { target: { value: 'wait' } })
     expect(config()?.lss?.waitForMaster).toBe(true)
     expect(config()?.nodeId).toBe(5)
     const nodeId = screen.getByLabelText('Node ID')
@@ -82,17 +82,27 @@ describe('CanopenSlaveEditor', () => {
     expect(screen.getByTestId('canopen-slave-summary').textContent).toBe(
       'can1, 500 kbit/s, node ID from the LSS master, 0 objects',
     )
+    // The serial number and bit rate settings are in the expert view.
+    expect(screen.queryByLabelText('Serial number')).toBeNull()
+    expect(screen.queryByLabelText('The master may change the bit rate')).toBeNull()
+    expect(screen.getByTestId('canopen-slave-lss-note').textContent).toContain('Serial number: automatic')
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
     fireEvent.click(screen.getByLabelText('The master may change the bit rate'))
     expect(config()?.lss?.bitrateChange).toBe(false)
+    // Off its default, it stays in the basic view with the expert mark.
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
+    expect(screen.getByLabelText('The master may change the bit rate')).toBeTruthy()
+    expect(screen.getByTestId('canopen-slave-lss').textContent).toContain('The master may change the bit rateexpert')
     fireEvent.click(screen.getByLabelText('Fixed in the project'))
     expect(config()?.lss).toEqual({ enabled: false, waitForMaster: true, serial: null, bitrateChange: false })
-    expect(screen.queryByLabelText('At first start')).toBeNull()
-    fireEvent.click(screen.getByLabelText('An LSS master may set it (CiA 305)'))
-    expect(screen.getByLabelText('At first start')).toHaveProperty('value', 'wait')
+    expect(screen.queryByLabelText('Until a master gives one')).toBeNull()
+    fireEvent.click(screen.getByLabelText('Given by an LSS master (CiA 305)'))
+    expect(screen.getByLabelText('Until a master gives one')).toHaveProperty('value', 'wait')
   })
 
   it('takes a fixed LSS serial number and refuses 0', () => {
-    fireEvent.click(screen.getByLabelText('An LSS master may set it (CiA 305)'))
+    fireEvent.click(screen.getByLabelText('Given by an LSS master (CiA 305)'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
     fireEvent.change(screen.getByLabelText('Serial number'), { target: { value: 'fixed' } })
     expect(config()?.lss?.serial).toBe(1)
     type(screen.getByLabelText('Fixed serial number'), '0')
@@ -100,8 +110,12 @@ describe('CanopenSlaveEditor', () => {
     expect(config()?.lss?.serial).toBe(1)
     type(screen.getByLabelText('Fixed serial number'), '0x17')
     expect(config()?.lss?.serial).toBe(0x17)
+    // A fixed serial stays in the basic view with the expert mark.
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
+    expect(screen.getByLabelText('Fixed serial number')).toBeTruthy()
     fireEvent.change(screen.getByLabelText('Serial number'), { target: { value: 'auto' } })
     expect(config()?.lss?.serial).toBeNull()
+    expect(screen.queryByLabelText('Serial number')).toBeNull()
   })
 
   it('sets the NMT state on a PLC stop and names the slave for the program', () => {

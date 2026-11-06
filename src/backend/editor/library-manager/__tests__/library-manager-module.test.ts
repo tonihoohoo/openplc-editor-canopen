@@ -393,6 +393,22 @@ describe('LibraryManagerModule', () => {
       expect(JSON.parse(mod.readArchiveText('canopen') ?? '{}').manifest.name).toBe('canopen')
     })
 
+    it('ships the canopen and linux_io libraries from resources/libraries, both off until enabled', () => {
+      const mod = new LibraryManagerModule({
+        librariesDir,
+        bundledDir,
+        shippedDir: join(__dirname, '../../../../../resources/libraries'),
+      })
+      expect(
+        mod
+          .listInstalled()
+          .map((r) => r.name)
+          .sort(),
+      ).toEqual(['canopen', 'linux_io'])
+      expect(mod.loadEnabledArchives([]).archives).toEqual([])
+      expect(mod.loadEnabledArchives(['linux_io']).archives.map((a) => a.manifest.name)).toEqual(['linux_io'])
+    })
+
     it('refuses to uninstall a shipped library', () => {
       writeShipped(makeArchive('canopen'))
       expect(makeModule().uninstall('canopen')).toEqual({
