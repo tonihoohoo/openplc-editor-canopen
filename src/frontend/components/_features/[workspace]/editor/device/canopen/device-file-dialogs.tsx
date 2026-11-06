@@ -118,7 +118,7 @@ const FindingList = ({ findings }: { findings: readonly DeviceFileFinding[] }) =
   )
 }
 
-const FileCheck = ({ prepared }: { prepared: PreparedDeviceFile }) => {
+export const FileCheck = ({ prepared }: { prepared: PreparedDeviceFile }) => {
   const errors = prepared.check.findings.filter((f) => f.severity === 'error').length
   return (
     <div className={cardClassName}>

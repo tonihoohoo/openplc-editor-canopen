@@ -611,7 +611,7 @@ A server with protocol `canopen-slave` makes the runtime a CANopen device (a sla
 interface, so another CANopen master can read and write PLC data. It is offered where the CANopen
 master is, and a project may have several, one per interface; an interface cannot carry a CANopen
 network and a slave at the same time. The page follows the layout of a master node page: the
-header has **Expert view**, **Export...** and **Run this slave**, a problem list counts what stops the
+header has **Expert view**, **Import...** (see [Importing a device file](#importing-a-device-file-into-the-slave)), **Export...** and **Run this slave**, a problem list counts what stops the
 build with a **Show** link that opens the field or row, and the tabs are General, Data (number of
 objects), PDOs (number of PDOs in use) and Status:
 
@@ -736,6 +736,33 @@ suggested revision.
   go in the device identity and capabilities. A master network that adds the XDD shows the units,
   scaled values, value names and groups. The EDS keeps only the order number (`OrderCode`) and 0x1009;
   with EDS picked, the export dialog lists what the file leaves out, by kind and count.
+
+### Importing a device file into the slave
+
+**Import...** in the slave header reads an EDS, DCF, XDD or XDC and runs the same device file check
+as adding a master node; an error stops the import with the findings. The dialog then offers:
+
+- **Replace the slave** (default): the identity (0x1018 sub 1-3, 0x1008, 0x1009, 0x100A, vendor
+  name), heartbeat 0x1017, master watch 0x1016:01, error behaviour 0x1029:01-02, LSS support, the XDD
+  device details and, from a DCF or XDC, the node ID and bit rate come from the file, and so do the
+  application objects and the default PDO layout. The direction follows the access type (rw, wo,
+  rww from the master; ro, rwr to the master; const a constant), the exchange the PDO mapping flag,
+  and the defaults are the DCF or XDC values where it has them. PDO 5-16 take the file's COB-ID when
+  it is enabled, otherwise the master gives it; a mappable object in no default PDO is left "By
+  master". The CAN interface, priority, on PLC stop and start alone stay as they were. The dialog
+  says how many objects (and their aliases) it replaces.
+- **Add objects**: a list of the file's objects, all ticked; an object whose number the slave already
+  uses cannot be ticked. The ticked objects join the slave, PDO objects in the first PDO of their
+  direction with room (else "By master"); nothing else changes.
+
+A **Not imported** list names, by group, what the slave cannot take: objects outside
+0x2000:01 - 0x5FFF:FE (device profile objects 0x6000 - 0x9FFF among them), types the slave does not
+hold (BOOLEAN, OCTET_STRING, DOMAIN, UNICODE_STRING, 24/40/48/56-bit types, a text the master
+writes), PDOs over 16, PDO entries over 8 bytes or of objects not imported, COB-IDs of PDO 1-4 other
+than the pre-defined ones, and values outside the slave's range. Imported objects get free IEC
+addresses. After an import the page shows **Undo import**, which brings the slave back as it was
+until the next edit. The file itself is never changed or kept; a slave exported as XDD and imported
+again comes back with the same objects, details and layout.
 
 ### LSS
 

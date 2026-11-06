@@ -16,8 +16,11 @@ import {
   defaultCanopenSlaveConfig,
   exportFileType,
   type ExportFormat,
+  type PreparedDeviceFile,
+  prepareDeviceFile,
   slaveBitChannel,
   slaveEdsLosses,
+  slaveImportSummary,
   slaveLayoutText,
   slaveLss,
   slaveLssForgetText,
@@ -33,16 +36,19 @@ import {
   describeAliasRejection,
   validateAliasEdit,
 } from '@root/middleware/shared/utils/iec-address'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ExportDialog } from '../../device/canopen/device-file-dialogs'
 import { NetworkSwitch } from '../../device/canopen/network-switch'
 import { compactCardClassName, hintClassName, secondaryButtonClassName } from '../../device/canopen/styles'
 import { DataTab } from './data-tab'
 import { GeneralTab } from './general-tab'
+import { SlaveImportDialog } from './import-dialog'
 import { LssCard, OnlineTab } from './online-tab'
 import { PdosTab } from './pdos-tab'
 import { SlaveProblemList, slaveProblemTarget } from './problem-list'
+
+const addedText = (n: number): string => `${n} object${n === 1 ? '' : 's'} added`
 
 type SlaveTab = 'general' | 'data' | 'pdos' | 'status'
 
@@ -200,7 +206,7 @@ const CanopenSlaveEditor = () => {
   }, [shownProblem])
 
   // Read at write time, so two edits in one event never overwrite each other.
-  const commit = useCallback(
+  const apply = useCallback(
     (update: (config: CanopenSlaveConfig) => CanopenSlaveConfig) => {
       const state = store.getState()
       const current =
@@ -213,6 +219,38 @@ const CanopenSlaveEditor = () => {
       state.sharedWorkspaceActions.handleFileAndWorkspaceSavedState(name)
     },
     [store, name],
+  )
+
+  const [imported, setImported] = useState<{ fileName: string; before: CanopenSlaveConfig; text: string } | null>(null)
+  const commit = useCallback(
+    (update: (config: CanopenSlaveConfig) => CanopenSlaveConfig) => {
+      setImported(null)
+      apply(update)
+    },
+    [apply],
+  )
+
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [importing, setImporting] = useState<PreparedDeviceFile | null>(null)
+  const chooseFile = useCallback((fileName: string, bytes: Uint8Array) => {
+    prepareDeviceFile(fileName, bytes)
+      .then(setImporting)
+      .catch((error: unknown) =>
+        toast({ title: `Cannot read ${fileName}`, description: String(error), variant: 'fail' }),
+      )
+  }, [])
+  const importConfig = useCallback(
+    (next: CanopenSlaveConfig, fileName: string, mode: 'replace' | 'add') => {
+      const before = config
+      apply(() => next)
+      setImporting(null)
+      setImported({
+        fileName,
+        before,
+        text: mode === 'replace' ? slaveImportSummary(next) : addedText(next.objects.length - before.objects.length),
+      })
+    },
+    [apply, config],
   )
 
   const aliasProblem = useCallback(
@@ -303,6 +341,28 @@ const CanopenSlaveEditor = () => {
             />
             Expert view
           </label>
+          <button type='button' className={secondaryButtonClassName} onClick={() => fileInput.current?.click()}>
+            Import...
+          </button>
+          <input
+            ref={fileInput}
+            type='file'
+            accept='.eds,.EDS,.dcf,.DCF,.xdd,.XDD,.xdc,.XDC'
+            aria-label='Device file to import'
+            data-testid='canopen-slave-import-input'
+            className='hidden'
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (!file) return
+              file
+                .arrayBuffer()
+                .then((buffer) => chooseFile(file.name, new Uint8Array(buffer)))
+                .catch((error: unknown) =>
+                  toast({ title: `Cannot read ${file.name}`, description: String(error), variant: 'fail' }),
+                )
+            }}
+          />
           <button type='button' className={secondaryButtonClassName} onClick={() => setExporting(true)}>
             Export...
           </button>
@@ -315,6 +375,36 @@ const CanopenSlaveEditor = () => {
           />
         </div>
       </div>
+
+      {imported ? (
+        <div
+          className='mb-4 flex shrink-0 items-center gap-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200'
+          data-testid='canopen-slave-imported'
+        >
+          <span className='min-w-0 flex-1'>
+            Imported <span className='font-mono text-[11px]'>{imported.fileName}</span>: {imported.text}.
+          </span>
+          <button
+            type='button'
+            className={secondaryButtonClassName}
+            onClick={() => {
+              const { before } = imported
+              setImported(null)
+              apply(() => before)
+            }}
+          >
+            Undo import
+          </button>
+          <button
+            type='button'
+            aria-label='Close'
+            className='rounded px-1 text-sky-700 hover:bg-sky-100 dark:text-sky-300 dark:hover:bg-sky-900/40'
+            onClick={() => setImported(null)}
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
 
       {problems.length > 0 ? (
         <SlaveProblemList
@@ -367,6 +457,16 @@ const CanopenSlaveEditor = () => {
           <OnlineTab config={config} live={live} lssSlot={lssSlot} />
         </Tabs.Content>
       </Tabs.Root>
+
+      {importing ? (
+        <SlaveImportDialog
+          name={name}
+          prepared={importing}
+          config={config}
+          onCancel={() => setImporting(null)}
+          onImport={(next, mode) => importConfig(next, importing.fileName, mode)}
+        />
+      ) : null}
 
       {exported ? (
         <ExportDialog
