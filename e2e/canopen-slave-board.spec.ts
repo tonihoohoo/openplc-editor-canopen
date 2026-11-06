@@ -90,7 +90,8 @@ async function launch(userData: string): Promise<{ app: ElectronApplication; pag
     for (const w of app.windows()) {
       try {
         if (w.url().includes('index.html')) {
-          await w.getByText(PROJECT_NAME, { exact: true }).first().waitFor({ timeout: 30000 })
+          // The start screen hides the list until the window is resized; attached is enough here.
+          await w.getByText(PROJECT_NAME, { exact: true }).first().waitFor({ state: 'attached', timeout: 30000 })
           await app.evaluate(({ ipcMain }) => {
             ipcMain.removeHandler('packages:verify-signatures')
             ipcMain.handle('packages:verify-signatures', () => [])
@@ -125,7 +126,7 @@ test('a CANopen slave on an ESP32 board shows its CAN pins and board notes', asy
   test.setTimeout(180000)
   const { userData } = writeFixture()
   const { app, page } = await launch(userData)
-  await windowSize(app, 1600, 1000)
+  await expect(() => windowSize(app, 1600, 1000)).toPass({ timeout: 15000 })
   try {
     await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
     await page.getByText('slave', { exact: true }).first().click({ timeout: 30000 })

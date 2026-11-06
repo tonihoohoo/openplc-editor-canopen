@@ -90,7 +90,7 @@ const BoardPinsCard = ({
           value={pins.tx}
           min={0}
           max={63}
-          hint={`To the transceiver's TXD; default GPIO ${board.txPin}`}
+          hint={`Transceiver TXD; default GPIO ${board.txPin}`}
           onCommit={(value) => onChange({ boardPins: { ...pins, tx: value } })}
         />
         <NumberField
@@ -98,7 +98,7 @@ const BoardPinsCard = ({
           value={pins.rx}
           min={0}
           max={63}
-          hint={`From the transceiver's RXD; default GPIO ${board.rxPin}`}
+          hint={`Transceiver RXD; default GPIO ${board.rxPin}`}
           onCommit={(value) => onChange({ boardPins: { ...pins, rx: value } })}
         />
         <SelectField
