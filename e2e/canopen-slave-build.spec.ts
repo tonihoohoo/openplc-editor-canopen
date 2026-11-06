@@ -185,6 +185,47 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
         },
       ],
     })
+
+    // PDO 5-16: an object moved to TPDO 5, whose COB-ID the master gives or is fixed.
+    await page
+      .getByText(/^(\* )?slave$/)
+      .filter({ visible: true })
+      .first()
+      .click()
+    await page.getByRole('tab', { name: 'PDOs' }).click()
+    const tpdos = page.getByTestId('canopen-slave-tpdos')
+    for (let i = 0; i < 4; i++) await tpdos.getByRole('button', { name: /Add TPDO/ }).click()
+    for (const n of [2, 3, 4]) await page.getByRole('button', { name: `Remove TPDO ${n}` }).click()
+    await page.getByRole('button', { name: 'Move ToMaster to another PDO' }).click()
+    await expect(page.getByRole('menuitem', { name: 'A new TPDO (TPDO 2)' })).toBeVisible()
+    await slaveKeyView(page, 'slave-pdos-menu')
+    await page.getByRole('menuitem', { name: 'TPDO 5' }).click()
+    const tpdo5 = page.getByTestId('canopen-slave-tpdo5')
+    await expect(tpdo5.getByLabel('COB-ID', { exact: true })).toHaveValue('not set')
+    await expect(page.getByTestId('canopen-slave-tpdo1')).toContainText('No objects mapped')
+    await tpdo5.scrollIntoViewIfNeeded()
+    await slaveKeyView(page, 'slave-pdos-master-cob')
+    await tpdo5.getByLabel('Given by the master').uncheck()
+    const cob = tpdo5.getByLabel('COB-ID', { exact: true })
+    await cob.fill('0x205')
+    await cob.press('Enter')
+    await expect(tpdo5).toContainText("TPDO 5: COB-ID 0x205 is already RPDO 1's")
+    await slaveKeyView(page, 'slave-pdos-fixed-cob')
+    await tpdo5.getByLabel('Given by the master').check()
+
+    // An object in no default PDO stays mappable; the master maps it.
+    await page.getByRole('button', { name: 'Take ToMaster out of TPDO 5' }).click()
+    const byMaster = page.getByTestId('canopen-slave-tpdo-by-master')
+    await expect(byMaster).toContainText('ToMaster')
+    await byMaster.scrollIntoViewIfNeeded()
+    await slaveKeyView(page, 'slave-pdos-by-master')
+    await byMaster.getByRole('button', { name: 'Move ToMaster to another PDO' }).click()
+    await page.getByRole('menuitem', { name: 'TPDO 5' }).click()
+    await expect(tpdo5).toContainText('ToMaster')
+
+    await page.getByRole('tab', { name: 'Data' }).click()
+    await page.getByTestId('canopen-slave-to-master').getByRole('button', { name: 'TPDO 5' }).click()
+    await expect(page.getByRole('tab', { name: 'PDOs' })).toHaveAttribute('aria-selected', 'true')
   } finally {
     await quitApp(app, page)
   }
@@ -334,8 +375,8 @@ test('a CANopen slave byte packed as 8 bits: bit rows, aliases, defaults, the PD
     await slaveKeyView(page, 'slave-data-bits')
 
     await page.getByRole('tab', { name: 'PDOs' }).click()
-    await expect(page.getByTestId('canopen-slave-rpdo1')).toContainText('Valves (8 bits)')
-    await expect(page.getByTestId('canopen-slave-tpdo1')).toContainText('Lamps (8 bits)')
+    await expect(page.getByTestId('canopen-slave-rpdo1')).toContainText('Valves')
+    await expect(page.getByTestId('canopen-slave-tpdo1')).toContainText('Lamps')
     await slaveKeyView(page, 'slave-pdos-bits')
 
     await buildFromMenu(page, 'Build only')

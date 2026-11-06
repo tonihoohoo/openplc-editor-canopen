@@ -4,6 +4,7 @@ PROGRAM main
     limit AT %IW1 : UINT;
     echo AT %QW0 : INT;
     limit_echo AT %QW1 : UINT;
+    copy AT %QW2 : INT;
     valve_1 AT %IX0.0 : BOOL;
     valve_2 AT %IX0.1 : BOOL;
     valve_3 AT %IX0.2 : BOOL;
@@ -23,7 +24,9 @@ PROGRAM main
   END_VAR
 
 (* The master's setpoint, the limit parameter and the eight valve bits go back to the master in TPDO 1. *)
+(* The setpoint also goes back in TPDO 5, whose COB-ID the master sets. *)
 echo := setpoint;
+copy := setpoint;
 limit_echo := limit;
 lamp_1 := valve_1;
 lamp_2 := valve_2;
