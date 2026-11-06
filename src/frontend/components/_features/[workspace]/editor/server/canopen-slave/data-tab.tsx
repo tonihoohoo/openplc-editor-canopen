@@ -70,9 +70,21 @@ type DataTabProps = {
 }
 
 /** The PDO an object is in, as a link to the PDOs tab. */
-const PdoCell = ({ pdo, onShowPdo }: { pdo: SlavePdo | null; onShowPdo: (key: string) => void }) => (
+const PdoCell = ({
+  object,
+  pdo,
+  onShowPdo,
+}: {
+  object: CanopenSlaveObject
+  pdo: SlavePdo | null
+  onShowPdo: (key: string) => void
+}) => (
   <div className='flex h-[30px] items-center whitespace-nowrap text-xs'>
-    {pdo ? (
+    {object.exchange === 'pdo' && object.mappedByMaster ? (
+      <span className={hintClassName} title='In no default PDO; the master maps it'>
+        master
+      </span>
+    ) : pdo ? (
       <button
         type='button'
         className='text-brand hover:underline'
@@ -95,10 +107,22 @@ const TYPE_OPTIONS: ReadonlyArray<SelectOption<TypeChoice>> = [
   { value: 'PACKED', label: SLAVE_PACKED_LABEL, title: SLAVE_PACKED_HINT },
 ]
 
-const exchangeOptions = (object: CanopenSlaveObject): ReadonlyArray<SelectOption<CanopenSlaveExchange>> => {
+/** The exchange picker's choices: a PDO object is in a default PDO, or only the master maps it. */
+type ExchangeChoice = CanopenSlaveExchange | 'pdo_master'
+
+const exchangeChoice = (object: CanopenSlaveObject): ExchangeChoice =>
+  object.exchange === 'pdo' && object.mappedByMaster ? 'pdo_master' : object.exchange
+
+const exchangeOptions = (object: CanopenSlaveObject): ReadonlyArray<SelectOption<ExchangeChoice>> => {
   const reason = object.dataType === 'VISIBLE_STRING' ? 'a STRING is a constant' : null
   return [
-    { value: 'pdo', label: 'PDO', disabledReason: reason },
+    { value: 'pdo', label: 'PDO', title: 'In a default PDO; the master may map it elsewhere', disabledReason: reason },
+    {
+      value: 'pdo_master',
+      label: 'By master',
+      title: 'Mappable, in no default PDO: the master maps it',
+      disabledReason: reason,
+    },
     { value: 'sdo', label: 'SDO only', disabledReason: reason },
     { value: 'constant', label: 'Constant', disabledReason: isSlavePacked(object) ? 'the bits have addresses' : null },
   ]
@@ -284,13 +308,19 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo
           <SelectField
             hideLabel
             label='Exchange'
-            value={object.exchange}
+            value={exchangeChoice(object)}
             options={exchangeOptions(object)}
-            onChange={(exchange) => change({ exchange })}
+            onChange={(choice) =>
+              change(
+                choice === 'pdo_master'
+                  ? { exchange: 'pdo', mappedByMaster: true }
+                  : { exchange: choice, mappedByMaster: undefined },
+              )
+            }
           />
         </td>
         <td className={cn(cellClassName, 'w-[56px]')} data-testid='canopen-slave-in-pdo'>
-          <PdoCell pdo={pdo} onShowPdo={onShowPdo} />
+          <PdoCell object={object} pdo={pdo} onShowPdo={onShowPdo} />
         </td>
         <td className={cn(cellClassName, 'w-[104px]')}>
           <div

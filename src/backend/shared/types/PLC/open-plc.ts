@@ -651,6 +651,7 @@ const CanopenSlaveObjectSchema = z.object({
   ]),
   direction: z.enum(['from_master', 'to_master']),
   exchange: z.enum(['pdo', 'sdo', 'constant']),
+  mappedByMaster: z.boolean().optional(),
   iecLocation: z.string(),
   alias: z.string().optional(),
   defaultValue: z.string(),

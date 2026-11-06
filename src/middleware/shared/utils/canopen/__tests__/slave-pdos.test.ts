@@ -9,10 +9,13 @@ import {
   cannotMoveSlaveObject,
   checkCanopenSlave,
   defaultCanopenSlaveConfig,
+  leaveSlaveObjectToMaster,
   moveSlaveObject,
+  placeSlaveObject,
   removeSlavePdo,
   shiftSlaveObject,
   slaveDevicesOut,
+  slaveMasterMappedObjects,
   slavePdoLayout,
   slavePdoWarnings,
   suggestedSlavePdoCobId,
@@ -91,7 +94,7 @@ describe('CANopen slave PDO layout', () => {
     expect(ids(grown)[0]).toEqual([1, ['pos', 'flag']])
   })
 
-  it('moves an object to a new PDO and turns the objects of a removed PDO into SDO only', () => {
+  it('moves an object to a new PDO and leaves the objects of a removed PDO to the master', () => {
     const c = moveSlaveObject(withSlavePdoLayout(base()), 'speed', 7)
     expect(ids(c)).toEqual([
       [1, ['pos']],
@@ -106,7 +109,29 @@ describe('CANopen slave PDO layout', () => {
       [2, ['temp']],
       [3, ['count']],
     ])
-    expect(removed.objects.find((o) => o.id === 'speed')?.exchange).toBe('sdo')
+    expect(removed.objects.find((o) => o.id === 'speed')).toMatchObject({ exchange: 'pdo', mappedByMaster: true })
+    expect(slaveMasterMappedObjects(removed, 'to_master').map((o) => o.id)).toEqual(['speed'])
+  })
+
+  it('keeps an object mappable in no default PDO, and moves it back into one', () => {
+    const c = leaveSlaveObjectToMaster(withSlavePdoLayout(base()), 'temp')
+    expect(ids(c)).toEqual([
+      [1, ['pos', 'speed']],
+      [2, []],
+      [3, ['count']],
+    ])
+    expect(slaveMasterMappedObjects(c, 'to_master').map((o) => o.id)).toEqual(['temp'])
+    const out = slaveDevicesOut([server(c)])[0]
+    expect(out.objects.find((o) => o.subindex === 3)).toMatchObject({ exchange: 'pdo' })
+    expect(JSON.stringify(out.tpdos)).not.toContain('"subindex":3')
+    const eds = parseEds(buildSlaveExport('io', c, 'eds', new Date(2026, 10, 5)).text, 'io.eds')
+    expect(eds.objects.find((o) => o.index === 0x2100 && o.subIndex === 3)?.pdoMapping).toBe(true)
+    expect(cannotMoveSlaveObject(c, 'temp', 1)).toBe('2 bytes free, needs 4')
+    const back = moveSlaveObject(c, 'temp', 2)
+    expect(ids(back)[1]).toEqual([2, ['temp']])
+    expect(back.objects.find((o) => o.id === 'temp')?.mappedByMaster).toBeUndefined()
+    const placed = placeSlaveObject(back, 'speed', 0)
+    expect(ids(placed)[0]).toEqual([1, ['speed', 'pos']])
   })
 
   it('migrates the TPDO settings of an older project', () => {

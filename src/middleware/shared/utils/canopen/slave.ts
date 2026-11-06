@@ -206,7 +206,28 @@ export interface SlavePdoLayout {
 }
 
 const pdoObjects = (config: CanopenSlaveConfig, direction: CanopenSlaveDirection): CanopenSlaveObject[] =>
-  config.objects.filter((o) => o.direction === direction && o.exchange === 'pdo' && !isSlaveString(o))
+  config.objects.filter(
+    (o) => o.direction === direction && o.exchange === 'pdo' && !o.mappedByMaster && !isSlaveString(o),
+  )
+
+/** PDO objects in no default PDO, which the master maps itself. */
+export function slaveMasterMappedObjects(
+  config: CanopenSlaveConfig,
+  direction: CanopenSlaveDirection,
+): CanopenSlaveObject[] {
+  return config.objects.filter(
+    (o) => o.direction === direction && o.exchange === 'pdo' && o.mappedByMaster === true && !isSlaveString(o),
+  )
+}
+
+const withMappedByMaster = (config: CanopenSlaveConfig, ids: ReadonlySet<string>, on: boolean): CanopenSlaveConfig => ({
+  ...config,
+  objects: config.objects.map((o) => {
+    if (!ids.has(o.id)) return o
+    const { mappedByMaster: _was, ...rest } = o
+    return on ? { ...rest, mappedByMaster: true } : rest
+  }),
+})
 
 const pdoKey = (direction: CanopenSlaveDirection): 'rpdos' | 'tpdos' =>
   direction === 'from_master' ? 'rpdos' : 'tpdos'
@@ -349,7 +370,7 @@ export function addSlavePdo(
   return { config: editPdos(config, direction, (pdos) => [...pdos, newPdo(config, direction, number)]), number }
 }
 
-/** The config without the PDO; its objects become SDO only, so they are not placed again. */
+/** The config without the PDO; its objects stay mappable, in no default PDO, so they are not placed again. */
 export function removeSlavePdo(
   config: CanopenSlaveConfig,
   direction: CanopenSlaveDirection,
@@ -358,10 +379,14 @@ export function removeSlavePdo(
   const stored = withSlavePdoLayout(config)
   const ids = new Set(stored.pdos?.[pdoKey(direction)].find((p) => p.number === number)?.objects ?? [])
   const edited = editPdos(stored, direction, (pdos) => pdos.filter((p) => p.number !== number))
-  return {
-    ...edited,
-    objects: edited.objects.map((o) => (ids.has(o.id) ? { ...o, exchange: 'sdo' as const } : o)),
-  }
+  return withMappedByMaster(edited, ids, true)
+}
+
+/** The config with the object taken out of its default PDO: still mappable, the master maps it. */
+export function leaveSlaveObjectToMaster(config: CanopenSlaveConfig, objectId: string): CanopenSlaveConfig {
+  const object = config.objects.find((o) => o.id === objectId)
+  if (!object || object.exchange !== 'pdo' || isSlaveString(object)) return config
+  return withSlavePdoLayout(withMappedByMaster(config, new Set([objectId]), true))
 }
 
 /** The config with one PDO's settings changed. */
@@ -383,10 +408,12 @@ export function slavePdoOf(layout: SlavePdoLayout, objectId: string): SlavePdo |
 export function cannotMoveSlaveObject(config: CanopenSlaveConfig, objectId: string, number: number): string | null {
   const layout = slavePdoLayout(config)
   const from = slavePdoOf(layout, objectId)
-  const object = from?.objects.find((o) => o.id === objectId)
-  if (!from || !object) return 'The object is not in a PDO.'
-  if (from.number === number) return 'It is already there.'
-  const to = layout[pdoKey(from.direction)].find((p) => p.number === number)
+  const object =
+    from?.objects.find((o) => o.id === objectId) ??
+    config.objects.find((o) => o.id === objectId && o.exchange === 'pdo' && o.mappedByMaster && !isSlaveString(o))
+  if (!object) return 'The object is not a PDO object.'
+  if (from?.number === number) return 'It is already there.'
+  const to = layout[pdoKey(object.direction)].find((p) => p.number === number)
   if (!to) return null
   const size = slaveObjectBytes(object)
   const free = SLAVE_PDO_BYTES - to.bytes
@@ -398,13 +425,15 @@ export function cannotMoveSlaveObject(config: CanopenSlaveConfig, objectId: stri
 /** The config with the object moved to the end of PDO `number`, which is added when the layout has none. */
 export function moveSlaveObject(config: CanopenSlaveConfig, objectId: string, number: number): CanopenSlaveConfig {
   if (cannotMoveSlaveObject(config, objectId, number) !== null) return config
-  const from = slavePdoOf(slavePdoLayout(config), objectId)
-  if (!from) return config
-  return editPdos(config, from.direction, (pdos) => {
+  const object = config.objects.find((o) => o.id === objectId)
+  if (!object) return config
+  const direction = object.direction
+  const placed = withSlavePdoLayout(config)
+  return editPdos(withMappedByMaster(placed, new Set([objectId]), false), direction, (pdos) => {
     const list = pdos.map((p) => ({ ...p, objects: p.objects.filter((id) => id !== objectId) }))
     const to = list.find((p) => p.number === number)
     if (to) to.objects.push(objectId)
-    else list.push({ ...newPdo(config, from.direction, number), objects: [objectId] })
+    else list.push({ ...newPdo(config, direction, number), objects: [objectId] })
     return list
   })
 }
@@ -421,6 +450,21 @@ export function shiftSlaveObject(config: CanopenSlaveConfig, objectId: string, s
       const objects = [...p.objects]
       objects[at] = objects[to]
       objects[to] = objectId
+      return { ...p, objects }
+    }),
+  )
+}
+
+/** The config with the object at place `to` of its PDO, the others shifted to make room. */
+export function placeSlaveObject(config: CanopenSlaveConfig, objectId: string, to: number): CanopenSlaveConfig {
+  const from = slavePdoOf(slavePdoLayout(config), objectId)
+  if (!from) return config
+  return editPdos(config, from.direction, (pdos) =>
+    pdos.map((p) => {
+      const at = p.objects.indexOf(objectId)
+      if (at < 0 || to < 0 || to >= p.objects.length || to === at) return p
+      const objects = p.objects.filter((id) => id !== objectId)
+      objects.splice(to, 0, objectId)
       return { ...p, objects }
     }),
   )

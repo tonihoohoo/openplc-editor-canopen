@@ -366,6 +366,8 @@ export interface CanopenSlaveObject {
   dataType: CanopenSlaveDataType
   direction: CanopenSlaveDirection
   exchange: CanopenSlaveExchange
+  /** A PDO object in no default PDO: mappable, and the master maps it where it wants. */
+  mappedByMaster?: boolean
   /** %I (from the master) or %Q (to the master) of the object's size; empty for a constant. */
   iecLocation: string
   alias?: string
