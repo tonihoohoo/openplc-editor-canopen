@@ -3,7 +3,7 @@ import type { CanopenLss, CanopenNode } from '@root/middleware/shared/ports/cano
 import { parseEdsInteger } from '@root/middleware/shared/utils/canopen'
 
 import { CheckboxField, TextField } from './fields'
-import { cardClassName, headingClassName, hintClassName, inputClassName, labelClassName } from './styles'
+import { cardClassName, headingClassName, hintClassName, labelClassName } from './styles'
 
 const hex8 = (v: number): string => `0x${v.toString(16).toUpperCase().padStart(8, '0')}`
 
@@ -42,25 +42,19 @@ const Radio = ({ label, hint, checked, disabledReason, onPick }: RadioProps) => 
   </label>
 )
 
-/** A read-only value from the device file. */
-const FromFile = ({ label, value }: { label: string; value: string }) => (
-  <label className='flex flex-col gap-1'>
-    <span className={labelClassName}>{label}</span>
-    <input type='text' aria-label={label} value={value} readOnly disabled className={cn(inputClassName, 'font-mono')} />
-    <span className={hintClassName}>From the device file</span>
-  </label>
-)
-
 type LssSectionProps = {
   node: CanopenNode
+  /** The expert view: the revision shows also when it is "any". */
+  expert: boolean
   onChange: (update: (node: CanopenNode) => CanopenNode) => void
 }
 
 /** How the device gets its node ID: set on the device, or given by the master over LSS (CiA 305). */
-export const LssSection = ({ node, onChange }: LssSectionProps) => {
+export const LssSection = ({ node, expert, onChange }: LssSectionProps) => {
   const lss = node.lss ?? NO_LSS
   const supported = node.eds.lssSupported === true
   const on = lss.enabled
+  const showRevision = expert || lss.revision !== 0
   const set = (update: Partial<CanopenLss>) => onChange((n) => ({ ...n, lss: { ...(n.lss ?? NO_LSS), ...update } }))
   return (
     <div className={cardClassName} data-testid='canopen-lss-section'>
@@ -73,8 +67,8 @@ export const LssSection = ({ node, onChange }: LssSectionProps) => {
           onPick={() => set({ enabled: false })}
         />
         <Radio
-          label='Given by the master over LSS at every start'
-          hint={`The master finds the device by its LSS address and gives it node ID ${node.nodeId} before booting it. To swap a broken device, enter the new serial number`}
+          label='Given by the master over LSS (CiA 305)'
+          hint={`At every start the master finds the device by its serial number and gives it node ID ${node.nodeId} before booting it`}
           checked={on}
           disabledReason={
             supported || on ? null : 'The device file does not list LSS support (LSS_Supported is missing or 0)'
@@ -83,14 +77,19 @@ export const LssSection = ({ node, onChange }: LssSectionProps) => {
         />
         {on ? (
           <div className='ml-5 flex flex-col gap-3'>
+            <p
+              className='rounded-md bg-neutral-50 px-3 py-2 text-xs text-neutral-600 dark:bg-neutral-950 dark:text-neutral-400'
+              data-testid='canopen-lss-address'
+            >
+              LSS address: vendor <span className='font-mono'>{hex8(node.eds.vendorId)}</span>, product{' '}
+              <span className='font-mono'>{hex8(node.eds.productCode)}</span> (from the device file)
+            </p>
             <div className='grid grid-cols-2 gap-4'>
-              <FromFile label='Vendor ID' value={hex8(node.eds.vendorId)} />
-              <FromFile label='Product code' value={hex8(node.eds.productCode)} />
               <TextField
                 label='Serial number'
                 value={lss.serialNumber === null ? '' : hex8(lss.serialNumber)}
                 placeholder='For example 0x00001234'
-                hint="On the device's label (0x1018:04), hexadecimal (0x...) or decimal"
+                hint="On the device's label (0x1018:04), hexadecimal (0x...) or decimal. To swap a broken device, enter the new one"
                 onCommit={(text) => {
                   const v = parse32(text)
                   if (v === 'bad') return 'Enter a number from 1 to 0xFFFFFFFF.'
@@ -99,23 +98,26 @@ export const LssSection = ({ node, onChange }: LssSectionProps) => {
                   return null
                 }}
               />
-              <TextField
-                label='Revision'
-                value={lss.revision === 0 ? '' : hex8(lss.revision)}
-                placeholder='Any'
-                hint='Empty for any: the master searches for it (up to about 3 s more at start)'
-                onCommit={(text) => {
-                  const v = parse32(text)
-                  if (v === 'bad') return 'Enter a number up to 0xFFFFFFFF, or leave it empty for any.'
-                  set({ revision: v ?? 0 })
-                  return null
-                }}
-              />
+              {showRevision ? (
+                <TextField
+                  label='Revision'
+                  expertTag={!expert}
+                  value={lss.revision === 0 ? '' : hex8(lss.revision)}
+                  placeholder='Any'
+                  hint='Empty for any: the master searches for it (up to about 3 s more at start)'
+                  onCommit={(text) => {
+                    const v = parse32(text)
+                    if (v === 'bad') return 'Enter a number up to 0xFFFFFFFF, or leave it empty for any.'
+                    set({ revision: v ?? 0 })
+                    return null
+                  }}
+                />
+              ) : null}
             </div>
             <CheckboxField
               label='Also store the node ID in the device'
               checked={lss.store}
-              hint='Off: the device forgets it at power-off and gets it again at the next start. On: it keeps it, also with another master'
+              hint='Off: given again at every start. On: the device keeps it, also with another master'
               onChange={(store) => set({ store })}
             />
             {!supported ? (

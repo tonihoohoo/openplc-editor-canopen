@@ -39,7 +39,7 @@ import {
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
-import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
+import { CheckboxField, ExpertMark, NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { LssSection } from './lss-section'
 import { OnlineTab } from './online-tab'
 import { PdoSection } from './pdo-section'
@@ -88,15 +88,7 @@ const nonDefaultExpert = (node: CanopenNode) => ({
 })
 
 /** Marks an expert setting shown in the basic view because it is not at its default. */
-const ExpertTag = ({ shown }: { shown: boolean }) =>
-  shown ? (
-    <span
-      className='ml-2 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium normal-case text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
-      title='An expert setting, shown because it is not at its default'
-    >
-      expert
-    </span>
-  ) : null
+const ExpertTag = ({ shown }: { shown: boolean }) => (shown ? <ExpertMark /> : null)
 
 const Card = ({ title, tag, children }: { title: string; tag?: boolean; children: ReactNode }) => (
   <div className={cardClassName}>
@@ -436,7 +428,7 @@ const NodePanel = ({
               </div>
             </Card>
 
-            <LssSection node={node} onChange={onChange} />
+            <LssSection node={node} expert={expert} onChange={onChange} />
 
             {show('configure') || show('restoreDefaults') ? (
               <Card title='Startup' tag={tag('configure') || tag('restoreDefaults')}>
@@ -809,7 +801,12 @@ const NodePanel = ({
               emcy={emcySupported === 'none' ? 'none' : emcy.enabled ? 'on' : 'off'}
               lssAddress={
                 node.lss?.enabled && node.lss.serialNumber !== null
-                  ? { vendorId: eds.vendorId, productCode: eds.productCode, serialNumber: node.lss.serialNumber }
+                  ? {
+                      vendorId: eds.vendorId,
+                      productCode: eds.productCode,
+                      serialNumber: node.lss.serialNumber,
+                      productName: eds.productName,
+                    }
                   : undefined
               }
             />

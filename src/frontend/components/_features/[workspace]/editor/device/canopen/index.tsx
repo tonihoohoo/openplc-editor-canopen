@@ -2,6 +2,7 @@ import * as Tabs from '@radix-ui/react-tabs'
 import { toast } from '@root/frontend/components/_features/[app]/toast/use-toast'
 import { APP_VERSION } from '@root/frontend/data/constants/app-version'
 import { useAliasRegistry } from '@root/frontend/hooks/use-alias-registry'
+import { useCanopenExpertView } from '@root/frontend/hooks/use-canopen-expert-view'
 import { useCanopenOnline } from '@root/frontend/hooks/use-canopen-online'
 import { useCanopenOnlineReads } from '@root/frontend/hooks/use-canopen-online-reads'
 import { useCanopenStatus } from '@root/frontend/hooks/use-canopen-status'
@@ -204,6 +205,7 @@ const CanopenEditor = () => {
   // A network that is off shows no node dots, no Status tab and no online tools.
   const live = on ? status : null
   const online = useCanopenOnline(deviceName, config, live)
+  const [expert, setExpert] = useCanopenExpertView()
   const reads = useCanopenOnlineReads(online)
 
   const [chosenTab, setTab] = useState<EditorTab>('nodes')
@@ -449,7 +451,7 @@ const CanopenEditor = () => {
         ) : null}
         {online && !(tab === 'nodes' && nodeOnlineShown && !online.service.open) ? (
           <div className='mt-2'>
-            <ServiceBus online={online} networkBitrate={config.network.bitrate} />
+            <ServiceBus online={online} networkBitrate={config.network.bitrate} expert={expert} />
           </div>
         ) : null}
         {online && serviceBitrateNote(online.service.bitrate, config.network.bitrate) ? (
@@ -585,7 +587,14 @@ const CanopenEditor = () => {
         </Tabs.Content>
         {online && lssTools ? (
           <Tabs.Content value='online' className='flex-1 data-[state=inactive]:hidden'>
-            <LssPanel online={online} config={config} others={otherNetworks} onAdd={addLssNode} />
+            <LssPanel
+              online={online}
+              config={config}
+              others={otherNetworks}
+              expert={expert}
+              onExpertChange={setExpert}
+              onAdd={addLssNode}
+            />
           </Tabs.Content>
         ) : null}
       </Tabs.Root>

@@ -1,6 +1,6 @@
 /**
  * The LSS tools of the network's Online tab: what a device without a node ID matches in the project,
- * the node IDs to offer it, and the LSS node "Add to project" creates.
+ * the node IDs to offer it, and the LSS node "Add as node" creates.
  */
 
 import type { CanopenConfig, CanopenEdsInfo, CanopenNode } from '../../ports/canopen-types'
@@ -32,6 +32,20 @@ export function lssMatch(device: LssDevice, config: CanopenConfig, others: reado
       return { kind: 'file', eds: withFile.eds, fileName: withFile.eds.source?.fileName ?? withFile.eds.productName }
   }
   return { kind: 'none' }
+}
+
+/** The name a found device is listed by: the product name of the device file it matches. */
+export function lssDeviceName(match: LssMatch): string {
+  if (match.kind === 'node') return match.node.eds.productName
+  if (match.kind === 'file') return match.eds.productName
+  return 'Unknown device'
+}
+
+const hex8 = (v: number): string => `0x${v.toString(16).toUpperCase().padStart(8, '0')}`
+
+/** A found device's full LSS address in one line, for a tooltip or a dialog. */
+export function lssAddressText(device: LssDevice): string {
+  return `Vendor ${hex8(device.vendorId)}, product ${hex8(device.productCode)}, revision ${hex8(device.revision)}, serial ${hex8(device.serialNumber)}`
 }
 
 /** Node IDs to offer: the free ones first, then those the project's nodes use; never the master's. */

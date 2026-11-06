@@ -12,6 +12,7 @@ import {
   eventText,
   hex,
   linkResetParts,
+  lssNodeFacts,
   lssResultText,
   nmtStateLabel,
   nodeDot,
@@ -117,9 +118,31 @@ const LssPanel = ({
 }) => {
   const rows = events.flatMap((e) => (e.lss ? [{ time: e.time, lss: e.lss }] : []))
   if (rows.length === 0 && result.time !== undefined) rows.push({ time: result.time, lss: result })
+  const facts = lssNodeFacts(result, nodeId, address, localTime)
   return (
     <div className={cardClassName} data-testid='canopen-status-lss'>
       <h4 className={headingClassName}>LSS</h4>
+      <div className='grid grid-cols-3 gap-4' data-testid='canopen-status-lss-facts'>
+        {facts.map((f) => (
+          <div key={f.key} className='min-w-0'>
+            <p className='text-[11px] text-neutral-500 dark:text-neutral-400'>{f.label}</p>
+            <p
+              className={cn(
+                'mt-0.5 text-sm font-semibold',
+                f.key === 'looks_for' && 'font-mono',
+                f.tone === 'good' && 'text-green-700 dark:text-green-400',
+                f.tone === 'bad' && 'text-amber-700 dark:text-amber-400',
+                f.tone === 'plain' && 'text-neutral-1000 dark:text-neutral-100',
+              )}
+              data-testid={`canopen-status-lss-${f.key}`}
+            >
+              {f.value}
+            </p>
+            <p className='mt-0.5 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400'>{f.detail}</p>
+          </div>
+        ))}
+      </div>
+      <p className='mb-1 mt-3 text-[11px] text-neutral-500 dark:text-neutral-400'>History</p>
       {rows.length === 0 ? (
         <p className={hintClassName}>The master has not given the node ID yet.</p>
       ) : (

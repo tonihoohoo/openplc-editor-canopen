@@ -353,13 +353,14 @@ A node's **General** tab has a section *How the device gets node ID N*:
 
 - **Set on the device** (the default): DIP switches, the device's own tool, or stored earlier. The
   node ID on the page must match it.
-- **Given by the master over LSS at every start**: the runtime's master finds the device by its LSS
-  address (CiA 305) and gives it the node ID before it boots it. The vendor ID and product code come
-  from the device file and are read-only; enter the **serial number** from the device's label
-  (0x1018:04, hexadecimal `0x...` or decimal) and, when needed, the **revision** (empty for any: the
-  master then searches for it, a few seconds more at start). **Also store the node ID in the device**
-  (off by default) makes the device keep the ID after a power-off; the master stores it when it
-  changed it, not at every start. To swap a broken device, enter the new serial number.
+- **Given by the master over LSS (CiA 305)**: at every start the runtime's master finds the device by
+  its LSS address and gives it the node ID before it boots it. A line under the choice shows the
+  vendor ID and product code from the device file; enter the **serial number** from the device's label
+  (0x1018:04, hexadecimal `0x...` or decimal). **Also store the node ID in the device** (off by
+  default) makes the device keep the ID after a power-off; the master stores it when it changed it,
+  not at every start. To swap a broken device, enter the new serial number. In the expert view, the
+  **revision** can be set too (empty for any: the master then searches for it, a few seconds more at
+  start); a revision that is set stays visible in the basic view, marked as expert.
 
 The choice is offered only when the device file says the device supports LSS (`LSS_Supported=1` in
 an EDS or DCF, `layerSettingServiceSlave="true"` in an XDD or XDC); otherwise it is grey with that
@@ -373,9 +374,10 @@ one network have the same LSS address (vendor ID, product code, revision and ser
 `revision` (0 for any), `serial_number` and `store`.
 
 While connected, the node list shows *LSS: no device answered* or *LSS: node ID refused* under the
-node's name, and the node's **Status** tab has an **LSS** panel with the latest LSS results in words,
-such as "Node ID 3 given (device had none); not stored" or the full address the master looked for
-when no device answered.
+node's name, and the node's **Status** tab has an **LSS** card. Its top line shows the node ID and how
+the device got it, the serial number the master looks for, and the last result; under it, **History**
+lists the latest LSS results in words, such as "Node ID 3 given (device had none); not stored" or the
+full address the master looked for when no device answered.
 
 ## Live status
 
@@ -450,36 +452,42 @@ and no Open bus, and turning it off closes the service mode the editor opened.
   service mode with the network's settings and nodes; the online tools then work as with a running PLC while the master sends nothing of its own.
   The NMT state follows the commands sent and the nodes' heartbeats and boot-ups.
   **Close bus** closes it, and so does closing the device editor; the runtime closes it before the
-  PLC starts and after 5 minutes without a request. With the runtime's `"lss"` feature a bit rate
-  choice sits next to Open bus (the network's rate by default), so a device that runs at another
-  rate can be reached; while the bus is open at another rate than the network's, the header says so.
+  PLC starts and after 5 minutes without a request. With the runtime's `"lss"` feature and the expert
+  view on, a bit rate choice sits next to Open bus (the network's rate by default), so a device that
+  runs at another rate can be reached; while the bus is open at another rate than the network's, the
+  header says so.
 
 ### Devices without node ID (LSS)
 
 With the runtime's `"lss"` feature the network has an **Online** tab (next to Nodes and Network)
-with the panel **Devices without node ID (LSS)**. **Find devices without node ID** runs an LSS
-fastscan on the runtime, about 7 s per device, while the PLC runs or in service mode; devices show
-as they answer, and a device that already has a node ID is left out. Each row has the device's LSS
-address (vendor ID, product code, revision, serial number) and what it matches:
+with the panel **Devices without node ID (LSS)** and an **Expert view** switch (the same setting as
+on the node pages). **Find devices without node ID** runs an LSS fastscan on the runtime, about 7 s
+per device, while the PLC runs or in service mode; devices show as they answer, and a device that
+already has a node ID is left out. Each row has the device (the product name of the device file it
+matches, or *Unknown device*), its serial number and what it matches in the project; the row's
+tooltip gives the full LSS address, and the expert view adds the vendor ID, product code and
+revision columns:
 
 - a project node given its ID over LSS with the same serial number, vendor ID and product code
   ("serial matches"): **Give node ID 3** gives it that node's ID;
 - else a device file of the project (any CANopen network) with the same vendor ID and product code
-  ("not in project"): **Give node ID...**, and **Add to project** when the file lists LSS support,
-  which adds the node with the lowest free node ID, set to get it over LSS at every start;
-- else nothing: **Give node ID...** only.
+  ("not in project"): **Add as node...**;
+- else nothing: **Give node ID...**.
 
 If the search stops early (after 64 devices, or because a device answered out of turn, which some
 devices do once found), the devices found so far stay in the list under the reason. Give them a node
 ID and search again to find the rest.
 
-The **Give node ID** dialog lists the free node IDs first, then the ones the project uses. *Store it
-in the device* (off by default) stores the ID in the device, needed when the project does not give
-it over LSS at every start. *Add it to the project* (on when a device file matched) adds the node
-with that ID, set to get it over LSS when its file lists LSS support. In service mode the dialog also
-sets the device's bit rate: the change must be confirmed, it is always stored, and the device takes it
-after its next reset or power-off. The runtime refuses a node ID that a running node uses, and a bit
-rate change while the PLC runs.
+The dialog lists the free node IDs first, then the ones the project uses. *Also store the node ID in
+the device* (off by default) stores the ID in the device, needed when the project does not give it
+over LSS at every start. **Add as node** adds a node with the matched device file and the chosen ID,
+set to get it over LSS with the device's serial number when the file lists LSS support; *Give it node
+ID N now* (on by default) also gives it at once, and off leaves it to the master at the next PLC
+start. A device file without LSS support makes a node with a fixed ID, so the ID is then always given
+now and stored. In service mode with the expert view on, the dialog also sets the device's bit rate:
+the change must be confirmed, it is always stored, and the device takes it after its next reset or
+power-off. The runtime refuses a node ID that a running node uses, and a bit rate change while the
+PLC runs.
 
 ## PLC function blocks
 
