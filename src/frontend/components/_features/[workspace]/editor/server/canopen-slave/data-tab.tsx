@@ -29,19 +29,23 @@ import {
   slaveAddressText,
   slaveDetailLines,
   slaveEngineeringText,
+  slaveFreeSubIndexText,
   slaveGroups,
   slaveHasNumber,
   slaveHasWholeNumber,
+  slaveIndexDirection,
   slaveMeaningValueProblem,
+  slaveObjectNumberWarnings,
   type SlavePdo,
   slavePdoLayout,
   slavePdoName,
   slavePdoOf,
   type SlaveProblem,
   slaveScaledValue,
+  slaveTypeLimits,
   slaveValueProblem,
 } from '@root/middleware/shared/utils/canopen'
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { SelectField, type SelectOption, TextField } from '../../device/canopen/fields'
@@ -54,8 +58,11 @@ import {
   secondaryButtonClassName,
 } from '../../device/canopen/styles'
 import { TextAreaField } from './detail-fields'
+import { ObjectNumberField } from './object-number-field'
 
 type Update = (update: (config: CanopenSlaveConfig) => CanopenSlaveConfig) => void
+
+type SlaveNumberWarning = ReturnType<typeof slaveObjectNumberWarnings>[number]
 
 type DataTabProps = {
   config: CanopenSlaveConfig
@@ -127,8 +134,6 @@ const exchangeOptions = (object: CanopenSlaveObject): ReadonlyArray<SelectOption
     { value: 'constant', label: 'Constant', disabledReason: isSlavePacked(object) ? 'the bits have addresses' : null },
   ]
 }
-
-const OBJECT_REF = /^(?:0x)?([0-9a-f]{1,4}):(?:0x)?([0-9a-f]{1,2})$/i
 
 const updateObject = (
   config: CanopenSlaveConfig,
@@ -209,6 +214,7 @@ type ObjectRowProps = {
   aliasProblem: DataTabProps['aliasProblem']
   pdo: SlavePdo | null
   onShowPdo: DataTabProps['onShowPdo']
+  warning: SlaveNumberWarning | null
 }
 
 /** "0 · Off" or "215 · 21.5 °C" under the default, when the object has meanings, a unit or a scale. */
@@ -220,7 +226,17 @@ const engineeringHint = (object: CanopenSlaveObject): string | undefined => {
   return text === undefined ? undefined : `${raw} · ${text}`
 }
 
-const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo, onShowPdo }: ObjectRowProps) => {
+const ObjectRow = ({
+  config,
+  object,
+  problems,
+  expert,
+  commit,
+  aliasProblem,
+  pdo,
+  onShowPdo,
+  warning,
+}: ObjectRowProps) => {
   const fromMaster = object.direction === 'from_master'
   const constant = object.exchange === 'constant'
   const string = object.dataType === 'VISIBLE_STRING'
@@ -230,6 +246,7 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo
   const change = (update: Partial<CanopenSlaveObject>) => commit((c) => updateObject(c, object.id, update))
   const columns = fromMaster ? 12 : 10
   const details = slaveDetailLines(object)
+  const limits = slaveTypeLimits(object.dataType)
   return (
     <>
       <tr
@@ -239,26 +256,8 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo
         )}
         data-testid={`canopen-slave-object-${object.id}`}
       >
-        <td className={cn(cellClassName, 'w-[92px]')}>
-          <TextField
-            hideLabel
-            label='Object'
-            value={objectRef(object.index, object.subIndex)}
-            onCommit={(typed) => {
-              const m = OBJECT_REF.exec(typed)
-              if (!m) return 'Write the object as 0x2000:01.'
-              const index = parseInt(m[1] ?? '', 16)
-              const subIndex = parseInt(m[2] ?? '', 16)
-              if (index < 0x2000 || index > 0x5fff || subIndex < 1 || subIndex > 254)
-                return 'Use 0x2000:01 - 0x5FFF:FE.'
-              const other = config.objects.find(
-                (o) => o.id !== object.id && o.index === index && o.subIndex === subIndex,
-              )
-              if (other) return `"${other.name}" uses it.`
-              change({ index, subIndex })
-              return null
-            }}
-          />
+        <td className={cn(cellClassName, 'w-[104px]')}>
+          <ObjectNumberField config={config} object={object} onPlace={(place) => change(place)} />
         </td>
         <td className={cellClassName}>
           <div className='flex items-start gap-1'>
@@ -291,7 +290,7 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo
             />
           </div>
         </td>
-        <td className={cn(cellClassName, 'w-[190px]')}>
+        <td className={cn(cellClassName, 'w-[176px]')}>
           <SelectField
             hideLabel
             label='Type'
@@ -322,7 +321,7 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo
         <td className={cn(cellClassName, 'w-[56px]')} data-testid='canopen-slave-in-pdo'>
           <PdoCell object={object} pdo={pdo} onShowPdo={onShowPdo} />
         </td>
-        <td className={cn(cellClassName, 'w-[104px]')}>
+        <td className={cn(cellClassName, 'w-[96px]')}>
           <div
             className='flex h-[30px] items-center whitespace-nowrap font-mono text-xs text-neutral-700 dark:text-neutral-300'
             data-testid='canopen-slave-address'
@@ -330,7 +329,7 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo
             {constant ? <span className={hintClassName}>none</span> : slaveAddressText(object)}
           </div>
         </td>
-        <td className={cn(cellClassName, 'w-[140px]')}>
+        <td className={cn(cellClassName, 'w-[120px]')}>
           {packed ? (
             <div className={cn(hintClassName, 'flex h-[30px] items-center')}>per bit</div>
           ) : constant ? null : (
@@ -348,7 +347,7 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo
             />
           )}
         </td>
-        <td className={cn(cellClassName, string ? 'w-[200px]' : 'w-[100px]')}>
+        <td className={cn(cellClassName, string ? 'w-[200px]' : 'w-[90px]')}>
           <TextField
             hideLabel
             label={constant ? 'Value' : 'Default'}
@@ -367,13 +366,13 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo
         {fromMaster ? (
           <>
             {(['min', 'max'] as const).map((field) => (
-              <td key={field} className={cn(cellClassName, 'w-[90px]')}>
+              <td key={field} className={cn(cellClassName, 'w-[80px]')}>
                 {constant || packed ? null : (
                   <TextField
                     hideLabel
                     label={field === 'min' ? 'Minimum' : 'Maximum'}
                     value={object[field] ?? ''}
-                    placeholder={field === 'min' ? 'min' : 'max'}
+                    placeholder={limits ? limits[field === 'min' ? 0 : 1] : field}
                     onCommit={(typed) => {
                       const problem = typed === '' ? null : slaveValueProblem(typed, object.dataType)
                       if (problem) return `The value ${problem}.`
@@ -444,6 +443,27 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo
             />
           ))
         : null}
+      {warning ? (
+        <tr data-testid='canopen-slave-number-warning'>
+          <td colSpan={columns} className='px-1 pb-1.5'>
+            <p className='rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300'>
+              {warning.text}
+              {warning.moveTo ? (
+                <>
+                  {' '}
+                  <button
+                    type='button'
+                    className='font-medium underline hover:text-amber-950 dark:hover:text-amber-100'
+                    onClick={() => warning.moveTo && change(warning.moveTo)}
+                  >
+                    Move to {objectRef(warning.moveTo.index, warning.moveTo.subIndex)}
+                  </button>
+                </>
+              ) : null}
+            </p>
+          </td>
+        </tr>
+      ) : null}
       {problems.length > 0 ? (
         <tr>
           <td colSpan={columns} className='px-2 pb-1.5'>
@@ -768,10 +788,45 @@ const BitRow = ({ object, bit, value, commit, aliasProblem, columns }: BitRowPro
   )
 }
 
+const GROUP_DIRECTION: Record<'from_master' | 'to_master' | 'both', string> = {
+  from_master: 'From the master',
+  to_master: 'To the master',
+  both: 'Both directions',
+}
+
+/** Expert view: the index above its objects, with its direction, count, highest sub-index and free sub-indexes. */
+const GroupRow = ({ config, index, columns }: { config: CanopenSlaveConfig; index: number; columns: number }) => {
+  const subs = config.objects.filter((o) => o.index === index).map((o) => o.subIndex)
+  const direction = slaveIndexDirection(config, index)
+  const free = slaveFreeSubIndexText(config, index)
+  const highest = Math.max(...subs)
+  const parts = [
+    direction === null ? null : GROUP_DIRECTION[direction],
+    `${subs.length} ${subs.length === 1 ? 'object' : 'objects'}${
+      subs.length > 1 || highest > 1 ? `, highest sub-index ${highest.toString(16).toUpperCase().padStart(2, '0')}` : ''
+    }`,
+    free === '' ? null : `free: ${free}`,
+  ].filter((p): p is string => p !== null)
+  return (
+    <tr data-testid='canopen-slave-group-row' className='border-t border-neutral-200 dark:border-neutral-800'>
+      <td
+        colSpan={columns}
+        className='bg-neutral-50 px-2 py-1 text-[10px] text-neutral-600 dark:bg-neutral-900/60 dark:text-neutral-400'
+      >
+        <span className='mr-2 font-mono text-neutral-800 dark:text-neutral-200'>
+          0x{index.toString(16).toUpperCase().padStart(4, '0')}
+        </span>
+        {parts.join(' · ')}
+      </td>
+    </tr>
+  )
+}
+
 type ObjectTableProps = Omit<DataTabProps, 'problems'> & {
   direction: CanopenSlaveDirection
   problemsOf: (id: string) => string[]
   pdoOf: (id: string) => SlavePdo | null
+  warningOf: (id: string) => SlaveNumberWarning | null
 }
 
 const ObjectTable = ({
@@ -782,10 +837,13 @@ const ObjectTable = ({
   aliasProblem,
   problemsOf,
   pdoOf,
+  warningOf,
   onShowPdo,
 }: ObjectTableProps) => {
   const fromMaster = direction === 'from_master'
-  const objects = config.objects.filter((o) => o.direction === direction)
+  const listed = config.objects.filter((o) => o.direction === direction)
+  const objects = expert ? [...listed].sort((a, b) => a.index - b.index || a.subIndex - b.subIndex) : listed
+  const columns = fromMaster ? 12 : 10
   const place = nextSlaveObjectPlace(config, direction)
   const add = () =>
     commit((c) => {
@@ -815,6 +873,10 @@ const ObjectTable = ({
             {fromMaster
               ? 'The master writes these; the program reads them at %I addresses. A range makes the slave refuse SDO writes outside it.'
               : 'The program writes these at %Q addresses; the master reads them.'}
+          </p>
+          <p className={hintClassName} data-testid='canopen-slave-number-hint'>
+            Object numbers come by themselves: 0x2000 from the master, 0x2100 to the master. Change one only when the
+            master or a spec needs a fixed number.
           </p>
         </div>
         <button
@@ -852,18 +914,23 @@ const ObjectTable = ({
               </tr>
             </thead>
             <tbody>
-              {objects.map((o) => (
-                <ObjectRow
-                  key={o.id}
-                  config={config}
-                  object={o}
-                  problems={problemsOf(o.id)}
-                  expert={expert}
-                  commit={commit}
-                  aliasProblem={aliasProblem}
-                  pdo={pdoOf(o.id)}
-                  onShowPdo={onShowPdo}
-                />
+              {objects.map((o, i) => (
+                <Fragment key={o.id}>
+                  {expert && objects[i - 1]?.index !== o.index ? (
+                    <GroupRow config={config} index={o.index} columns={columns} />
+                  ) : null}
+                  <ObjectRow
+                    config={config}
+                    object={o}
+                    problems={problemsOf(o.id)}
+                    expert={expert}
+                    commit={commit}
+                    aliasProblem={aliasProblem}
+                    pdo={pdoOf(o.id)}
+                    onShowPdo={onShowPdo}
+                    warning={warningOf(o.id)}
+                  />
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -878,6 +945,8 @@ const DataTab = ({ config, problems, expert, commit, aliasProblem, onShowPdo }: 
   const problemsOf = (id: string): string[] => problems.filter((p) => p.where === id).map((p) => p.text)
   const layout = slavePdoLayout(config)
   const pdoOf = (id: string): SlavePdo | null => slavePdoOf(layout, id)
+  const warnings = slaveObjectNumberWarnings(config)
+  const warningOf = (id: string): SlaveNumberWarning | null => warnings.find((w) => w.where === id) ?? null
   return (
     <div className='flex flex-col gap-4 pb-4'>
       <ObjectTable
@@ -888,6 +957,7 @@ const DataTab = ({ config, problems, expert, commit, aliasProblem, onShowPdo }: 
         aliasProblem={aliasProblem}
         problemsOf={problemsOf}
         pdoOf={pdoOf}
+        warningOf={warningOf}
         onShowPdo={onShowPdo}
       />
       <ObjectTable
@@ -898,6 +968,7 @@ const DataTab = ({ config, problems, expert, commit, aliasProblem, onShowPdo }: 
         aliasProblem={aliasProblem}
         problemsOf={problemsOf}
         pdoOf={pdoOf}
+        warningOf={warningOf}
         onShowPdo={onShowPdo}
       />
     </div>
