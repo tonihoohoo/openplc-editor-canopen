@@ -288,6 +288,7 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await summary.evaluate((el) => el.closest('.overflow-auto')?.scrollTo(0, 0))
     await slaveKeyView(page, 'slave-lss-off')
     await page.getByLabel('An LSS master may set it (CiA 305)', { exact: true }).check()
+    await page.getByTestId('canopen-slave-lss').evaluate((el) => el.scrollIntoView({ block: 'start' }))
     await slaveKeyView(page, 'slave-lss-on')
     await page.getByLabel('At first start', { exact: true }).selectOption('wait')
     await expect(page.getByLabel('Node ID', { exact: true })).toHaveValue('Set by the LSS master')
