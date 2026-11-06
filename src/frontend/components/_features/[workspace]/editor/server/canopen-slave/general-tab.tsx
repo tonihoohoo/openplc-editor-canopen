@@ -69,6 +69,14 @@ const STOP_STATE_OPTIONS: ReadonlyArray<SelectOption<CanopenSlaveOnPlcStopState>
   { value: 'stopped', label: 'Go stopped' },
 ]
 
+const START_OPTIONS: ReadonlyArray<SelectOption<'master' | 'self'>> = [
+  { value: 'master', label: 'Master' },
+  { value: 'self', label: 'Itself (no master needed)' },
+]
+
+/** The master timeout a newly ticked "Watch the master" starts with. */
+const MASTER_WATCH_START_MS = 500
+
 const SLAVE_BLOCKS = 'CANOPEN_SLAVE_STATUS, CANOPEN_SLAVE_NMT, CANOPEN_SLAVE_EMCY, CANOPEN_SLAVE_WRITTEN'
 
 const isStop = (v: string): v is CanopenSlaveOnPlcStop => v === 'hold' || v === 'zero'
@@ -96,12 +104,27 @@ type LssPanelProps = {
   onChange: (update: Partial<CanopenSlaveConfig>) => void
 }
 
-/** CiA 305 LSS settings: off by default; each setting says what it does. */
-/** Wider than its column, so the label stays on one line; the column's left edge is kept. */
-const LSS_CHECKBOX_CLASS = 'w-[300px]'
+type RadioProps = { label: string; hint: string; checked: boolean; onPick: () => void }
 
-const LSS_OFF_REASON = 'Applies once an LSS master may set the node ID'
+/** One choice of the node ID card, as on a master node page. */
+const Radio = ({ label, hint, checked, onPick }: RadioProps) => (
+  <label className='flex items-start gap-2'>
+    <input
+      type='radio'
+      name='canopen-slave-node-id-source'
+      aria-label={label}
+      checked={checked}
+      onChange={onPick}
+      className='mt-0.5 h-3.5 w-3.5 accent-brand'
+    />
+    <span className='flex flex-col'>
+      <span className={labelClassName}>{label}</span>
+      <span className={hintClassName}>{hint}</span>
+    </span>
+  </label>
+)
 
+/** How the slave gets its node ID: fixed, or set by an LSS master (CiA 305); the LSS settings show only then. */
 const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
   const lss = slaveLss(config)
   const set = (update: Partial<CanopenSlaveLss>) => onChange({ lss: { ...lss, ...update } })
@@ -109,71 +132,75 @@ const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
     { value: 'node', label: `Use node ID ${config.nodeId}` },
     { value: 'wait', label: 'Wait for the master' },
   ]
-  const off = lss.enabled ? null : LSS_OFF_REASON
   return (
-    <div className={cardClassName}>
-      <h3 className={headingClassName}>LSS</h3>
-      <div className='flex max-w-[640px] flex-col gap-4'>
-        <div className='grid grid-cols-3 gap-4'>
-          <SelectField
-            label='At first start'
-            value={lss.waitForMaster ? 'wait' : 'node'}
-            options={firstStartOptions}
-            disabledReason={off}
-            hint={
-              lss.waitForMaster
-                ? 'No boot-up, heartbeat, PDO or SDO until a master gives a node ID; it finds the slave by LSS fastscan'
-                : 'Starts with the node ID above; a master may change it'
-            }
-            onChange={(value) => set({ waitForMaster: value === 'wait' })}
-          />
-          <div className='flex flex-col gap-1'>
-            <SelectField
-              label='Serial number'
-              value={lss.serial === null ? 'auto' : 'fixed'}
-              options={SERIAL_OPTIONS}
-              objectRef='0x1018:04'
-              disabledReason={off}
-              hint={
-                lss.serial === null
-                  ? 'The last part of the LSS address; made once on the runtime device and kept'
-                  : 'Must differ between slaves with the same identity on one bus'
-              }
-              warning={lss.enabled ? problems.find((p) => p.where === 'lss')?.text : undefined}
-              onChange={(value) => set({ serial: value === 'auto' ? null : (lss.serial ?? 1) })}
-            />
-            {lss.serial !== null ? (
-              <NumberField
-                label='Fixed serial number'
-                hideLabel
-                value={lss.serial}
-                min={0}
-                max={0xffffffff}
-                hex
-                hexWidth={8}
-                disabled={!lss.enabled}
-                onCommit={(value) => {
-                  if (value === 0) return 'The serial number is part of the LSS address and cannot be 0.'
-                  set({ serial: value })
-                  return null
-                }}
+    <div className={cardClassName} data-slave-where='lss' data-testid='canopen-slave-lss'>
+      <h3 className={headingClassName}>
+        {lss.enabled && lss.waitForMaster
+          ? 'How this slave gets its node ID'
+          : `How this slave gets node ID ${config.nodeId}`}
+      </h3>
+      <div className='flex max-w-[640px] flex-col gap-3'>
+        <Radio
+          label='Fixed in the project'
+          hint='The Node ID above; the PDO and SDO COB-IDs follow it'
+          checked={!lss.enabled}
+          onPick={() => set({ enabled: false })}
+        />
+        <Radio
+          label='An LSS master may set it (CiA 305)'
+          hint='The master finds the slave by its LSS address and may give it another node ID and bit rate'
+          checked={lss.enabled}
+          onPick={() => set({ enabled: true })}
+        />
+        {lss.enabled ? (
+          <div className='ml-5 flex flex-col gap-3'>
+            <div className='grid grid-cols-2 gap-4'>
+              <SelectField
+                label='At first start'
+                value={lss.waitForMaster ? 'wait' : 'node'}
+                options={firstStartOptions}
+                hint={
+                  lss.waitForMaster
+                    ? 'No boot-up, heartbeat, PDO or SDO until a master gives a node ID; it finds the slave by LSS fastscan'
+                    : 'Starts with the node ID above; a master may change it'
+                }
+                onChange={(value) => set({ waitForMaster: value === 'wait' })}
               />
-            ) : null}
-          </div>
-          <div className='flex flex-col gap-3'>
-            <CheckboxField
-              label='An LSS master may set the node ID'
-              besideInputs
-              className={LSS_CHECKBOX_CLASS}
-              hint='Layer setting services, CiA 305'
-              checked={lss.enabled}
-              onChange={(enabled) => set({ enabled })}
-            />
+              <div className='flex flex-col gap-1'>
+                <SelectField
+                  label='Serial number'
+                  value={lss.serial === null ? 'auto' : 'fixed'}
+                  options={SERIAL_OPTIONS}
+                  objectRef='0x1018:04'
+                  hint={
+                    lss.serial === null
+                      ? 'The last part of the LSS address; made once on the runtime device and kept'
+                      : 'Must differ between slaves with the same identity on one bus'
+                  }
+                  warning={problems.find((p) => p.where === 'lss')?.text}
+                  onChange={(value) => set({ serial: value === 'auto' ? null : (lss.serial ?? 1) })}
+                />
+                {lss.serial !== null ? (
+                  <NumberField
+                    label='Fixed serial number'
+                    hideLabel
+                    value={lss.serial}
+                    min={0}
+                    max={0xffffffff}
+                    hex
+                    hexWidth={8}
+                    onCommit={(value) => {
+                      if (value === 0) return 'The serial number is part of the LSS address and cannot be 0.'
+                      set({ serial: value })
+                      return null
+                    }}
+                  />
+                ) : null}
+              </div>
+            </div>
             <CheckboxField
               label='The master may change the bit rate'
-              className={LSS_CHECKBOX_CLASS}
               checked={lss.bitrateChange}
-              disabledReason={off}
               hint={
                 lss.bitrateChange
                   ? 'A stored bit rate from the CiA 301 table is used from the next start'
@@ -181,12 +208,12 @@ const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
               }
               onChange={(bitrateChange) => set({ bitrateChange })}
             />
+            <p className={hintClassName}>
+              When the master sends Store, the node ID and bit rate it set are kept on the runtime device and win over
+              the values above, also after a restart, a new upload or a runtime update, until they are forgotten.
+            </p>
           </div>
-        </div>
-        <p className={cn(hintClassName, !lss.enabled && 'opacity-60')}>
-          When the master sends Store, the node ID and bit rate it set are kept on the runtime device and win over the
-          values above, also after a restart, a new upload or a runtime update, until they are forgotten.
-        </p>
+        ) : null}
       </div>
     </div>
   )
@@ -207,7 +234,7 @@ const DeviceDetailsPanel = ({ config, tagged, onChange }: DeviceDetailsPanelProp
   const short = (typed: string): string | null =>
     typed.length > SLAVE_MAX_CHARACTERISTIC ? `At most ${SLAVE_MAX_CHARACTERISTIC} characters.` : null
   return (
-    <div className={cardClassName} data-testid='canopen-slave-device-details'>
+    <div className={cardClassName} data-testid='canopen-slave-device-details' data-slave-where='details'>
       <h3 className={headingClassName}>
         Device file details
         <span className='ml-2 font-normal normal-case text-neutral-500 dark:text-neutral-400'>
@@ -215,7 +242,7 @@ const DeviceDetailsPanel = ({ config, tagged, onChange }: DeviceDetailsPanelProp
         </span>
         {tagged ? <ExpertTag /> : null}
       </h3>
-      <div className='grid max-w-[960px] grid-cols-3 gap-4'>
+      <div className='grid max-w-[640px] grid-cols-2 gap-4'>
         <TextAreaField
           label='Product text'
           value={config.productText ?? ''}
@@ -255,10 +282,10 @@ const DeviceDetailsPanel = ({ config, tagged, onChange }: DeviceDetailsPanelProp
           <table className='mt-1 w-full border-collapse' data-testid='canopen-slave-characteristics'>
             <thead>
               <tr>
-                <th className='w-[40%] px-1 py-1 text-left text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400'>
+                <th className='w-[40%] px-1 py-1 text-left text-[10px] font-medium text-neutral-500 dark:text-neutral-400'>
                   Name
                 </th>
-                <th className='px-1 py-1 text-left text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400'>
+                <th className='px-1 py-1 text-left text-[10px] font-medium text-neutral-500 dark:text-neutral-400'>
                   Value
                 </th>
                 <th className='w-[32px]' aria-label='Remove' />
@@ -341,9 +368,9 @@ const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, on
   const lss = slaveLss(config)
   return (
     <div className='flex flex-col gap-4 pb-4'>
-      <div className={cardClassName}>
-        <h3 className={headingClassName}>CAN bus</h3>
-        <div className='grid max-w-[640px] grid-cols-3 gap-4'>
+      <div className={cardClassName} data-slave-where='interface bitrate'>
+        <h3 className={headingClassName}>CAN interface</h3>
+        <div className='grid max-w-[640px] grid-cols-2 gap-4'>
           <div className='flex flex-col gap-1'>
             <TextField
               label='Interface'
@@ -370,6 +397,12 @@ const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, on
             hint={lss.enabled ? "The master's bit rate; an LSS master may change it" : "The master's bit rate"}
             onChange={(value) => onChange({ bitrate: Number(value) })}
           />
+        </div>
+      </div>
+
+      <div className={cardClassName} data-slave-where='nodeId'>
+        <h3 className={headingClassName}>Node</h3>
+        <div className='grid max-w-[640px] grid-cols-2 gap-4'>
           {lss.enabled && lss.waitForMaster ? (
             <NodeIdFromMaster />
           ) : (
@@ -386,25 +419,102 @@ const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, on
               onCommit={(value) => onChange({ nodeId: value })}
             />
           )}
+          <SelectField
+            label='Started by'
+            value={config.startAlone ? 'self' : 'master'}
+            options={START_OPTIONS}
+            hint={
+              config.startAlone
+                ? 'Goes operational by itself after its boot-up, without waiting for the NMT start'
+                : 'Waits pre-operational until the master starts it'
+            }
+            onChange={(value) => onChange({ startAlone: value === 'self' })}
+          />
         </div>
       </div>
 
       <LssPanel config={config} problems={problems} onChange={onChange} />
 
+      <div className={cardClassName} data-slave-where='heartbeat masterWatch'>
+        <h3 className={headingClassName}>Supervision</h3>
+        <div className='grid max-w-[640px] grid-cols-2 gap-4'>
+          <NumberField
+            label='Heartbeat producer (ms)'
+            value={config.heartbeatMs}
+            min={1}
+            max={65535}
+            objectRef='0x1017'
+            hint="The slave's own heartbeat, 1 - 65535; the slave always sends one"
+            onCommit={(value) => onChange({ heartbeatMs: value })}
+          />
+        </div>
+        <div className='mt-4 flex max-w-[640px] flex-col gap-3'>
+          <CheckboxField
+            label='Watch the master'
+            checked={watching}
+            hint="The slave reacts when the master's heartbeat stops. Written to 0x1016:01"
+            onChange={(on) =>
+              onChange({ masterWatch: { ...config.masterWatch, timeMs: on ? MASTER_WATCH_START_MS : 0 } })
+            }
+          />
+          {watching ? (
+            <div className='grid grid-cols-2 gap-4'>
+              <NumberField
+                label='Master node ID'
+                value={config.masterWatch.nodeId}
+                min={1}
+                max={127}
+                hint='The node whose heartbeat the slave watches'
+                warning={problemText(problems, 'masterWatch')}
+                onCommit={(value) => onChange({ masterWatch: { ...config.masterWatch, nodeId: value } })}
+              />
+              <NumberField
+                label='Master timeout (ms)'
+                value={config.masterWatch.timeMs}
+                min={1}
+                max={65535}
+                hint="How long the slave waits for the master's heartbeat"
+                onCommit={(value) => onChange({ masterWatch: { ...config.masterWatch, timeMs: value } })}
+              />
+              <SelectField
+                label='When the master is gone'
+                value={config.onMasterLost}
+                options={LOST_OPTIONS}
+                objectRef='0x1029:01'
+                hint='Also sends EMCY 8130h'
+                onChange={(value) => onChange({ onMasterLost: value })}
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
+
       <div className={cardClassName}>
-        <h3 className={headingClassName}>Identity</h3>
-        <div className='grid max-w-[640px] grid-cols-3 gap-4'>
-          <TextField
-            label='Vendor name'
-            value={config.vendorName}
-            hint='Device file only'
-            placeholder='OpenPLC'
-            onCommit={(value) => {
-              if (value.length > 255) return 'At most 255 characters.'
-              onChange({ vendorName: value })
-              return null
+        <h3 className={headingClassName}>When the PLC stops</h3>
+        <div className='grid max-w-[640px] grid-cols-2 gap-4'>
+          <SelectField
+            label='Values to the master'
+            value={config.onPlcStop}
+            options={STOP_OPTIONS}
+            hint='The slave stays on the bus and sends EMCY 6200h'
+            onChange={(value) => {
+              if (isStop(value)) onChange({ onPlcStop: value })
             }}
           />
+          <SelectField
+            label='NMT state'
+            value={config.onPlcStopState}
+            options={STOP_STATE_OPTIONS}
+            objectRef='0x1029:02'
+            hint="The slave's own state; the master can change it, and its NMT start brings the slave back"
+            onChange={(value) => onChange({ onPlcStopState: value })}
+          />
+        </div>
+      </div>
+
+      <div className={cardClassName} data-slave-where='identity'>
+        <h3 className={headingClassName}>Identity</h3>
+        <div className='grid max-w-[640px] grid-cols-2 gap-4'>
           <TextField
             label='Device name'
             value={config.deviceName}
@@ -417,13 +527,13 @@ const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, on
             }}
           />
           <TextField
-            label='Software version'
-            value={config.softwareVersion}
-            hint='0x100A; empty for none'
+            label='Vendor name'
+            value={config.vendorName}
+            hint='Device file only'
+            placeholder='OpenPLC'
             onCommit={(value) => {
               if (value.length > 255) return 'At most 255 characters.'
-              if (!/^[\x20-\x7e]*$/.test(value)) return 'Use printable ASCII characters.'
-              onChange({ softwareVersion: value })
+              onChange({ vendorName: value })
               return null
             }}
           />
@@ -458,76 +568,21 @@ const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, on
             hint='The export suggests the next one after changes'
             onCommit={(value) => onChange({ revision: value })}
           />
+          <TextField
+            label='Software version'
+            value={config.softwareVersion}
+            hint='0x100A; empty for none'
+            onCommit={(value) => {
+              if (value.length > 255) return 'At most 255 characters.'
+              if (!/^[\x20-\x7e]*$/.test(value)) return 'Use printable ASCII characters.'
+              onChange({ softwareVersion: value })
+              return null
+            }}
+          />
         </div>
       </div>
 
       {showDetails ? <DeviceDetailsPanel config={config} tagged={!expert} onChange={onChange} /> : null}
-
-      <div className={cardClassName}>
-        <h3 className={headingClassName}>Behaviour</h3>
-        <div className='grid max-w-[960px] grid-cols-3 gap-4'>
-          <NumberField
-            label='Heartbeat (ms)'
-            value={config.heartbeatMs}
-            min={1}
-            max={65535}
-            objectRef='0x1017'
-            hint='1 - 65535; the slave always sends a heartbeat'
-            onCommit={(value) => onChange({ heartbeatMs: value })}
-          />
-          <SelectField
-            label='When the PLC stops: values'
-            value={config.onPlcStop}
-            options={STOP_OPTIONS}
-            hint='The values sent to the master; the slave stays on the bus and sends EMCY 6200h'
-            onChange={(value) => {
-              if (isStop(value)) onChange({ onPlcStop: value })
-            }}
-          />
-          <SelectField
-            label='When the PLC stops: NMT state'
-            value={config.onPlcStopState}
-            options={STOP_STATE_OPTIONS}
-            objectRef='0x1029:02'
-            hint="The slave's own state; the master can change it, and its NMT start brings the slave back"
-            onChange={(value) => onChange({ onPlcStopState: value })}
-          />
-          <NumberField
-            label='Master node ID to watch'
-            value={config.masterWatch.nodeId}
-            min={1}
-            max={127}
-            objectRef='0x1016:01'
-            hint="The master's heartbeat the slave watches"
-            warning={problemText(problems, 'masterWatch')}
-            onCommit={(value) => onChange({ masterWatch: { ...config.masterWatch, nodeId: value } })}
-          />
-          <NumberField
-            label='Master heartbeat timeout (ms)'
-            value={config.masterWatch.timeMs}
-            min={0}
-            max={65535}
-            objectRef='0x1016:01'
-            hint='0 to not watch the master'
-            onCommit={(value) => onChange({ masterWatch: { ...config.masterWatch, timeMs: value } })}
-          />
-          <SelectField
-            label='When the master is lost'
-            value={config.onMasterLost}
-            options={LOST_OPTIONS}
-            objectRef='0x1029:01'
-            hint={watching ? 'Also sends EMCY 8130h' : 'Applies once the master is watched'}
-            onChange={(value) => onChange({ onMasterLost: value })}
-          />
-          <CheckboxField
-            label='Start without a master'
-            besideInputs
-            checked={config.startAlone}
-            hint='Goes operational by itself after its boot-up, without waiting for the NMT start'
-            onChange={(startAlone) => onChange({ startAlone })}
-          />
-        </div>
-      </div>
 
       <div className={cardClassName} data-testid='canopen-slave-program'>
         <h3 className={headingClassName}>In the PLC program</h3>
@@ -544,7 +599,7 @@ const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, on
         </p>
         <p className='mt-1 text-[11px] text-neutral-500 dark:text-neutral-400'>
           {libraryOn
-            ? 'Emergencies from the program: up to 31 at a time. Program NMT changes and emergencies show on the Online tab.'
+            ? 'Emergencies from the program: up to 31 at a time. Program NMT changes and emergencies show on the Status tab.'
             : 'Turn on the CANopen library in the Library Manager to use them.'}
         </p>
       </div>

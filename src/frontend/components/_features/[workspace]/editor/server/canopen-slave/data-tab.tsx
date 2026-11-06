@@ -33,6 +33,10 @@ import {
   slaveHasNumber,
   slaveHasWholeNumber,
   slaveMeaningValueProblem,
+  type SlavePdo,
+  slavePdoLayout,
+  slavePdoName,
+  slavePdoOf,
   type SlaveProblem,
   slaveScaledValue,
   slaveValueProblem,
@@ -61,7 +65,39 @@ type DataTabProps = {
   commit: Update
   /** Why the alias cannot be given to the object (or to its bit `bit`), or null. */
   aliasProblem: (object: CanopenSlaveObject, alias: string, bit?: number) => string | null
+  /** Opens the PDOs tab at the PDO named by its layout key, such as `tpdos5`. */
+  onShowPdo: (key: string) => void
 }
+
+/** The PDO an object is in, as a link to the PDOs tab. */
+const PdoCell = ({
+  object,
+  pdo,
+  onShowPdo,
+}: {
+  object: CanopenSlaveObject
+  pdo: SlavePdo | null
+  onShowPdo: (key: string) => void
+}) => (
+  <div className='flex h-[30px] items-center whitespace-nowrap text-xs'>
+    {object.exchange === 'pdo' && object.mappedByMaster ? (
+      <span className={hintClassName} title='In no default PDO; the master maps it'>
+        master
+      </span>
+    ) : pdo ? (
+      <button
+        type='button'
+        className='text-brand hover:underline'
+        title='Show it on the PDOs tab'
+        onClick={() => onShowPdo(`${pdo.direction === 'from_master' ? 'rpdos' : 'tpdos'}${pdo.number}`)}
+      >
+        {slavePdoName(pdo.direction, pdo.number)}
+      </button>
+    ) : (
+      <span className={hintClassName}>—</span>
+    )}
+  </div>
+)
 
 /** The type picker's choices: the data types, then an UNSIGNED8 packed as 8 BOOLs. */
 type TypeChoice = CanopenSlaveDataType | 'PACKED'
@@ -71,10 +107,22 @@ const TYPE_OPTIONS: ReadonlyArray<SelectOption<TypeChoice>> = [
   { value: 'PACKED', label: SLAVE_PACKED_LABEL, title: SLAVE_PACKED_HINT },
 ]
 
-const exchangeOptions = (object: CanopenSlaveObject): ReadonlyArray<SelectOption<CanopenSlaveExchange>> => {
+/** The exchange picker's choices: a PDO object is in a default PDO, or only the master maps it. */
+type ExchangeChoice = CanopenSlaveExchange | 'pdo_master'
+
+const exchangeChoice = (object: CanopenSlaveObject): ExchangeChoice =>
+  object.exchange === 'pdo' && object.mappedByMaster ? 'pdo_master' : object.exchange
+
+const exchangeOptions = (object: CanopenSlaveObject): ReadonlyArray<SelectOption<ExchangeChoice>> => {
   const reason = object.dataType === 'VISIBLE_STRING' ? 'a STRING is a constant' : null
   return [
-    { value: 'pdo', label: 'PDO', disabledReason: reason },
+    { value: 'pdo', label: 'PDO', title: 'In a default PDO; the master may map it elsewhere', disabledReason: reason },
+    {
+      value: 'pdo_master',
+      label: 'By master',
+      title: 'Mappable, in no default PDO: the master maps it',
+      disabledReason: reason,
+    },
     { value: 'sdo', label: 'SDO only', disabledReason: reason },
     { value: 'constant', label: 'Constant', disabledReason: isSlavePacked(object) ? 'the bits have addresses' : null },
   ]
@@ -149,7 +197,7 @@ const bitOn = (defaultValue: string, bit: number): boolean => {
   return Number.isFinite(value) && ((value >> bit) & 1) === 1
 }
 
-const headClassName = 'px-2 py-1.5 text-left text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400'
+const headClassName = 'px-2 py-1.5 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400'
 const cellClassName = 'px-1 py-1 align-top'
 
 type ObjectRowProps = {
@@ -159,6 +207,8 @@ type ObjectRowProps = {
   expert: boolean
   commit: Update
   aliasProblem: DataTabProps['aliasProblem']
+  pdo: SlavePdo | null
+  onShowPdo: DataTabProps['onShowPdo']
 }
 
 /** "0 · Off" or "215 · 21.5 °C" under the default, when the object has meanings, a unit or a scale. */
@@ -170,7 +220,7 @@ const engineeringHint = (object: CanopenSlaveObject): string | undefined => {
   return text === undefined ? undefined : `${raw} · ${text}`
 }
 
-const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem }: ObjectRowProps) => {
+const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo, onShowPdo }: ObjectRowProps) => {
   const fromMaster = object.direction === 'from_master'
   const constant = object.exchange === 'constant'
   const string = object.dataType === 'VISIBLE_STRING'
@@ -178,7 +228,7 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem }: O
   const [open, setOpen] = useState(true)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const change = (update: Partial<CanopenSlaveObject>) => commit((c) => updateObject(c, object.id, update))
-  const columns = fromMaster ? 11 : 9
+  const columns = fromMaster ? 12 : 10
   const details = slaveDetailLines(object)
   return (
     <>
@@ -241,7 +291,7 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem }: O
             />
           </div>
         </td>
-        <td className={cn(cellClassName, 'w-[210px]')}>
+        <td className={cn(cellClassName, 'w-[190px]')}>
           <SelectField
             hideLabel
             label='Type'
@@ -258,10 +308,19 @@ const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem }: O
           <SelectField
             hideLabel
             label='Exchange'
-            value={object.exchange}
+            value={exchangeChoice(object)}
             options={exchangeOptions(object)}
-            onChange={(exchange) => change({ exchange })}
+            onChange={(choice) =>
+              change(
+                choice === 'pdo_master'
+                  ? { exchange: 'pdo', mappedByMaster: true }
+                  : { exchange: choice, mappedByMaster: undefined },
+              )
+            }
           />
+        </td>
+        <td className={cn(cellClassName, 'w-[56px]')} data-testid='canopen-slave-in-pdo'>
+          <PdoCell object={object} pdo={pdo} onShowPdo={onShowPdo} />
         </td>
         <td className={cn(cellClassName, 'w-[104px]')}>
           <div
@@ -667,6 +726,7 @@ const BitRow = ({ object, bit, value, commit, aliasProblem, columns }: BitRowPro
         <div className='flex h-[30px] items-center px-1'>BOOL</div>
       </td>
       <td className={cellClassName} />
+      <td className={cellClassName} />
       <td className={cellClassName}>
         <div
           className='flex h-[30px] items-center font-mono text-xs text-neutral-700 dark:text-neutral-300'
@@ -689,7 +749,7 @@ const BitRow = ({ object, bit, value, commit, aliasProblem, columns }: BitRowPro
           }}
         />
       </td>
-      <td className={cellClassName} colSpan={columns - 6}>
+      <td className={cellClassName} colSpan={columns - 7}>
         <div className='flex h-[30px] items-center px-1'>
           <input
             type='checkbox'
@@ -711,9 +771,19 @@ const BitRow = ({ object, bit, value, commit, aliasProblem, columns }: BitRowPro
 type ObjectTableProps = Omit<DataTabProps, 'problems'> & {
   direction: CanopenSlaveDirection
   problemsOf: (id: string) => string[]
+  pdoOf: (id: string) => SlavePdo | null
 }
 
-const ObjectTable = ({ config, direction, expert, commit, aliasProblem, problemsOf }: ObjectTableProps) => {
+const ObjectTable = ({
+  config,
+  direction,
+  expert,
+  commit,
+  aliasProblem,
+  problemsOf,
+  pdoOf,
+  onShowPdo,
+}: ObjectTableProps) => {
   const fromMaster = direction === 'from_master'
   const objects = config.objects.filter((o) => o.direction === direction)
   const place = nextSlaveObjectPlace(config, direction)
@@ -767,6 +837,7 @@ const ObjectTable = ({ config, direction, expert, commit, aliasProblem, problems
                 <th className={headClassName}>Name</th>
                 <th className={headClassName}>Type</th>
                 <th className={headClassName}>Exchange</th>
+                <th className={headClassName}>In</th>
                 <th className={headClassName}>Address</th>
                 <th className={headClassName}>Alias</th>
                 <th className={headClassName}>Default</th>
@@ -790,6 +861,8 @@ const ObjectTable = ({ config, direction, expert, commit, aliasProblem, problems
                   expert={expert}
                   commit={commit}
                   aliasProblem={aliasProblem}
+                  pdo={pdoOf(o.id)}
+                  onShowPdo={onShowPdo}
                 />
               ))}
             </tbody>
@@ -801,8 +874,10 @@ const ObjectTable = ({ config, direction, expert, commit, aliasProblem, problems
 }
 
 /** The slave's application objects, one table per direction. */
-const DataTab = ({ config, problems, expert, commit, aliasProblem }: DataTabProps) => {
+const DataTab = ({ config, problems, expert, commit, aliasProblem, onShowPdo }: DataTabProps) => {
   const problemsOf = (id: string): string[] => problems.filter((p) => p.where === id).map((p) => p.text)
+  const layout = slavePdoLayout(config)
+  const pdoOf = (id: string): SlavePdo | null => slavePdoOf(layout, id)
   return (
     <div className='flex flex-col gap-4 pb-4'>
       <ObjectTable
@@ -812,6 +887,8 @@ const DataTab = ({ config, problems, expert, commit, aliasProblem }: DataTabProp
         commit={commit}
         aliasProblem={aliasProblem}
         problemsOf={problemsOf}
+        pdoOf={pdoOf}
+        onShowPdo={onShowPdo}
       />
       <ObjectTable
         config={config}
@@ -820,6 +897,8 @@ const DataTab = ({ config, problems, expert, commit, aliasProblem }: DataTabProp
         commit={commit}
         aliasProblem={aliasProblem}
         problemsOf={problemsOf}
+        pdoOf={pdoOf}
+        onShowPdo={onShowPdo}
       />
     </div>
   )

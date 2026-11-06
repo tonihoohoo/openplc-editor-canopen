@@ -1,5 +1,5 @@
 /**
- * The CANopen slave's Online tab against a fake runtime that reports the slave: running, with
+ * The CANopen slave's Status tab against a fake runtime that reports the slave: running, with
  * settings the master changed, with the PLC stopped, with the master lost, with a node ID an LSS
  * master stored and Forget, and the states with nothing live to show.
  *
@@ -39,9 +39,12 @@ const LSS = {
 }
 
 function body(view: View, now: number) {
-  const slave = (fields: Record<string, unknown> = {}) => slaveStatus(now, { interface: 'vcan0', ...fields })
+  const shared = slaveStatus(now)
+  // The project's slave also sends Copy (0x2100:04) in TPDO 5, whose COB-ID the master gives.
+  const base = { ...shared, values: [...shared.values, { index: 0x2100, subindex: 4, data: 'dc05' }] }
+  const slave = (fields: Record<string, unknown> = {}) =>
+    slaveStatus(now, { interface: 'vcan0', values: base.values, ...fields })
   const status = (slaves: unknown[]) => ({ version: 1, active: false, now, slaves })
-  const base = slaveStatus(now)
   switch (view) {
     case 'running':
       return status([slave()])
@@ -157,7 +160,7 @@ async function slaveKeyView(page: Page, name: string): Promise<void> {
   })
 }
 
-test('the slave Online tab shows the running slave and what the master changed', async () => {
+test('the slave Status tab shows the running slave and what the master changed', async () => {
   test.setTimeout(300000)
   let view: View = 'running'
   const requests: unknown[] = []
@@ -186,7 +189,7 @@ test('the slave Online tab shows the running slave and what the master changed',
     await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
     await connectRuntime(page, 'e2e', 'e2e')
     await page.getByText('slave', { exact: true }).first().click({ timeout: 30000 })
-    await page.getByRole('tab', { name: 'Online' }).click()
+    await page.getByRole('tab', { name: 'Status', exact: true }).click()
     const state = page.getByTestId('canopen-slave-online-state')
     const notice = page.getByTestId('canopen-slave-online-notice')
     const value = (ref: string) =>
@@ -209,7 +212,7 @@ test('the slave Online tab shows the running slave and what the master changed',
     await expect(notice).toContainText('The master changed 4 settings of this slave.', { timeout: 10000 })
     await expect(value('0x2000:03')).toHaveText('500written by the master')
     await expect(page.getByTestId('canopen-slave-online-pdo-tx1')).toContainText('remapped by the master')
-    await page.getByRole('tab', { name: 'Online' }).scrollIntoViewIfNeeded()
+    await page.getByRole('tab', { name: 'Status', exact: true }).scrollIntoViewIfNeeded()
     await slaveKeyView(page, 'slave-online-changed')
     await page.getByTestId('canopen-slave-online-events').scrollIntoViewIfNeeded()
     await slaveKeyView(page, 'slave-online-changed-values')
@@ -219,7 +222,7 @@ test('the slave Online tab shows the running slave and what the master changed',
     await expect(state).toContainText('0x4210 device temperature (class), from the PLC program')
     await expect(page.getByTestId('canopen-slave-online-events')).toContainText('The PLC program sent EMCY 0x4210')
     await expect(notice).toContainText('The master changed 1 setting of this slave.')
-    await page.getByRole('tab', { name: 'Online' }).scrollIntoViewIfNeeded()
+    await page.getByRole('tab', { name: 'Status', exact: true }).scrollIntoViewIfNeeded()
     await slaveKeyView(page, 'slave-online-program')
     await page.getByTestId('canopen-slave-online-events').scrollIntoViewIfNeeded()
     await shot(page, 'slave-online-program-events')
@@ -227,7 +230,7 @@ test('the slave Online tab shows the running slave and what the master changed',
     view = 'stopped'
     await expect(notice).toContainText('The PLC is stopped.', { timeout: 10000 })
     await expect(state).toContainText('1 active')
-    await page.getByRole('tab', { name: 'Online' }).scrollIntoViewIfNeeded()
+    await page.getByRole('tab', { name: 'Status', exact: true }).scrollIntoViewIfNeeded()
     await slaveKeyView(page, 'slave-online-plc-stopped')
 
     view = 'lost'

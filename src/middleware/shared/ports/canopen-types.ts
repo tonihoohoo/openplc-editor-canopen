@@ -366,6 +366,8 @@ export interface CanopenSlaveObject {
   dataType: CanopenSlaveDataType
   direction: CanopenSlaveDirection
   exchange: CanopenSlaveExchange
+  /** A PDO object in no default PDO: mappable, and the master maps it where it wants. */
+  mappedByMaster?: boolean
   /** %I (from the master) or %Q (to the master) of the object's size; empty for a constant. */
   iecLocation: string
   alias?: string
@@ -394,12 +396,28 @@ export interface CanopenSlaveBit {
   alias?: string
 }
 
-/** Sending settings of one TPDO; its mapping and COB-ID follow from the objects and the node ID. */
+/** Sending settings of one TPDO of a project made before the stored PDO layout. */
 export interface CanopenSlaveTpdoSettings {
   /** 254/255 on change, 1-240 every N SYNC. */
   transmissionType: number
   /** Inhibit time in 100 µs. */
   inhibitTime: number
+  eventTimerMs: number
+}
+
+/** One PDO of the slave's layout. */
+export interface CanopenSlavePdo {
+  /** 1-16. */
+  number: number
+  /** Ids of the mapped objects, in mapping order. */
+  objects: string[]
+  /** PDO 5-16: a fixed COB-ID, or null for one the master gives. PDO 1-4 follow the node ID. */
+  cobId: number | null
+  /** TPDO: 254/255 on change, 1-240 every N SYNC. RPDO: 255. */
+  transmissionType: number
+  /** TPDO: inhibit time in 100 µs. */
+  inhibitTime: number
+  /** TPDO: event timer; RPDO: receive timeout. Ms, 0 for off. */
   eventTimerMs: number
 }
 
@@ -446,8 +464,10 @@ export interface CanopenSlaveConfig {
   /** Absent in projects made before LSS: LSS off. */
   lss?: CanopenSlaveLss
   objects: CanopenSlaveObject[]
-  /** TPDO 1-4 sending settings, by PDO number - 1. */
-  tpdos: CanopenSlaveTpdoSettings[]
+  /** The PDO layout; absent in projects made before it, which get the objects in table order. */
+  pdos?: { rpdos: CanopenSlavePdo[]; tpdos: CanopenSlavePdo[] }
+  /** TPDO 1-4 sending settings of a project made before `pdos`, by PDO number - 1. */
+  tpdos?: CanopenSlaveTpdoSettings[]
   /** Device file details; the XDD holds them all, the EDS the order number and 0x1009. */
   productText?: string
   /** The device name when empty. */

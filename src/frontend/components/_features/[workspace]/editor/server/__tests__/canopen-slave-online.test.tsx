@@ -62,8 +62,8 @@ async function show(
   })
   render(<CanopenSlaveEditor />, { wrapper: createStoreWrapper(store, ports) })
   await flush()
-  fireEvent.mouseDown(screen.getByRole('tab', { name: 'Online' }))
-  fireEvent.click(screen.getByRole('tab', { name: 'Online' }))
+  fireEvent.mouseDown(screen.getByRole('tab', { name: 'Status' }))
+  fireEvent.click(screen.getByRole('tab', { name: 'Status' }))
 }
 
 const inactive = (slaves: unknown[]) => ({ version: 1, active: false, now: SLAVE_NOW, slaves })
@@ -71,7 +71,7 @@ const inactive = (slaves: unknown[]) => ({ version: 1, active: false, now: SLAVE
 const value = (ref: string) =>
   within(screen.getByTestId(`canopen-slave-online-value-${ref}`)).getByTestId('canopen-slave-online-value').textContent
 
-describe('the slave Online tab', () => {
+describe('the slave Status tab', () => {
   beforeEach(() => {
     jest.useFakeTimers()
     store = createTestStore()
