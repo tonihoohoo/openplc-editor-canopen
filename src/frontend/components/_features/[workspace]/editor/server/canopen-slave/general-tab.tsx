@@ -10,6 +10,8 @@ import type {
 import type { CanopenValueMeaning } from '@root/middleware/shared/ports/canopen-types'
 import {
   CANOPEN_BITRATES,
+  type CanopenSlaveBoardProfile,
+  SLAVE_BOARD_BITRATES,
   SLAVE_MAX_CHARACTERISTIC,
   SLAVE_MAX_CHARACTERISTICS,
   SLAVE_MAX_HARDWARE_VERSION,
@@ -42,6 +44,8 @@ type GeneralTabProps = {
   libraryOn: boolean
   /** The expert view: the device file details show also when empty. */
   expert: boolean
+  /** The board whose firmware runs the slave, null on a runtime. */
+  board: CanopenSlaveBoardProfile | null
   onChange: (update: Partial<CanopenSlaveConfig>) => void
 }
 
@@ -51,6 +55,85 @@ const BITRATE_OPTIONS: ReadonlyArray<SelectOption<string>> = [
   ...CANOPEN_BITRATES.map((rate) => ({ value: String(rate), label: bitrateLabel(rate) })),
   { value: '0', label: 'Leave as configured' },
 ]
+
+const BOARD_BITRATE_OPTIONS: ReadonlyArray<SelectOption<string>> = SLAVE_BOARD_BITRATES.map((rate) => ({
+  value: String(rate),
+  label: bitrateLabel(rate),
+}))
+
+/** The CAN pins and bit rate of a slave in a board's firmware. */
+const BoardPinsCard = ({
+  config,
+  board,
+  problems,
+  onChange,
+}: {
+  config: CanopenSlaveConfig
+  board: CanopenSlaveBoardProfile
+  problems: readonly SlaveProblem[]
+  onChange: (update: Partial<CanopenSlaveConfig>) => void
+}) => {
+  const pins = config.boardPins ?? { tx: board.txPin, rx: board.rxPin }
+  const pinProblems = problems.filter((p) => p.where === 'pins' || p.where === 'interface')
+  const bitrateProblem = problemText(problems, 'bitrate')
+  const bitrateValue = SLAVE_BOARD_BITRATES.some((b) => b === config.bitrate) ? String(config.bitrate) : ''
+  return (
+    <div className={cardClassName} data-slave-where='pins bitrate interface' data-testid='canopen-slave-board-pins'>
+      <h3 className={headingClassName}>CAN pins</h3>
+      <p className={cn(hintClassName, 'mb-3 max-w-[640px]')}>
+        The board's own CAN controller ({board.controller.toUpperCase()}, {board.chip}). Connect a 3.3 V CAN transceiver
+        to these pins.
+      </p>
+      <div className='grid max-w-[640px] grid-cols-3 gap-4'>
+        <NumberField
+          label='TX (GPIO)'
+          value={pins.tx}
+          min={0}
+          max={63}
+          hint={`To the transceiver's TXD; default GPIO ${board.txPin}`}
+          onCommit={(value) => onChange({ boardPins: { ...pins, tx: value } })}
+        />
+        <NumberField
+          label='RX (GPIO)'
+          value={pins.rx}
+          min={0}
+          max={63}
+          hint={`From the transceiver's RXD; default GPIO ${board.rxPin}`}
+          onCommit={(value) => onChange({ boardPins: { ...pins, rx: value } })}
+        />
+        <SelectField
+          label='Bit rate'
+          value={bitrateValue}
+          options={BOARD_BITRATE_OPTIONS}
+          hint="The master's bit rate"
+          warning={bitrateProblem}
+          onChange={(value) => onChange({ bitrate: Number(value) })}
+        />
+      </div>
+      {pinProblems.map((p) => (
+        <span key={p.text} role='alert' className='mt-2 block text-[10px] text-red-600 dark:text-red-400'>
+          {p.text}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/** The LSS card on a board: not there yet; LSS left on in the project is named as a problem. */
+const BoardLssNote = ({ problems }: { problems: readonly SlaveProblem[] }) => {
+  const lssProblem = problemText(problems, 'lss')
+  return (
+    <div className={cardClassName} data-slave-where='lss' data-testid='canopen-slave-lss'>
+      <h3 className={headingClassName}>LSS</h3>
+      <p className={hintClassName}>Not on boards yet: the node ID is the one above, fixed in the project.</p>
+      {lssProblem ? (
+        <span role='alert' className='mt-2 block text-[10px] text-red-600 dark:text-red-400'>
+          {lssProblem}
+        </span>
+      ) : null}
+    </div>
+  )
+}
 
 const STOP_OPTIONS: ReadonlyArray<SelectOption<CanopenSlaveOnPlcStop>> = [
   { value: 'hold', label: 'Hold the last values' },
@@ -361,44 +444,48 @@ const problemText = (problems: readonly SlaveProblem[], where: string): string |
   problems.find((p) => p.where === where)?.text
 
 /** Bus, identity and behaviour of the slave; each field names the object it sets. */
-const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, onChange }: GeneralTabProps) => {
+const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, board, onChange }: GeneralTabProps) => {
   const showDetails = expert || slaveHasDeviceDetails(config)
   const interfaceProblem = problemText(problems, 'interface')
   const watching = config.masterWatch.timeMs > 0
   const lss = slaveLss(config)
   return (
     <div className='flex flex-col gap-4 pb-4'>
-      <div className={cardClassName} data-slave-where='interface bitrate'>
-        <h3 className={headingClassName}>CAN interface</h3>
-        <div className='grid max-w-[640px] grid-cols-2 gap-4'>
-          <div className='flex flex-col gap-1'>
-            <TextField
-              label='Interface'
-              value={config.interface}
-              hint='SocketCAN interface on the runtime device, e.g. can1'
-              onCommit={(typed) => {
-                const value = typed.trim()
-                if (value === '') return 'Enter the interface name.'
-                if (value.length > 15) return 'Interface names have at most 15 characters.'
-                onChange({ interface: value })
-                return null
-              }}
+      {board ? (
+        <BoardPinsCard config={config} board={board} problems={problems} onChange={onChange} />
+      ) : (
+        <div className={cardClassName} data-slave-where='interface bitrate'>
+          <h3 className={headingClassName}>CAN interface</h3>
+          <div className='grid max-w-[640px] grid-cols-2 gap-4'>
+            <div className='flex flex-col gap-1'>
+              <TextField
+                label='Interface'
+                value={config.interface}
+                hint='SocketCAN interface on the runtime device, e.g. can1'
+                onCommit={(typed) => {
+                  const value = typed.trim()
+                  if (value === '') return 'Enter the interface name.'
+                  if (value.length > 15) return 'Interface names have at most 15 characters.'
+                  onChange({ interface: value })
+                  return null
+                }}
+              />
+              {interfaceProblem ? (
+                <span role='alert' className='text-[10px] text-red-600 dark:text-red-400'>
+                  {interfaceProblem}
+                </span>
+              ) : null}
+            </div>
+            <SelectField
+              label='Bit rate'
+              value={String(config.bitrate)}
+              options={BITRATE_OPTIONS}
+              hint={lss.enabled ? "The master's bit rate; an LSS master may change it" : "The master's bit rate"}
+              onChange={(value) => onChange({ bitrate: Number(value) })}
             />
-            {interfaceProblem ? (
-              <span role='alert' className='text-[10px] text-red-600 dark:text-red-400'>
-                {interfaceProblem}
-              </span>
-            ) : null}
           </div>
-          <SelectField
-            label='Bit rate'
-            value={String(config.bitrate)}
-            options={BITRATE_OPTIONS}
-            hint={lss.enabled ? "The master's bit rate; an LSS master may change it" : "The master's bit rate"}
-            onChange={(value) => onChange({ bitrate: Number(value) })}
-          />
         </div>
-      </div>
+      )}
 
       <div className={cardClassName} data-slave-where='nodeId'>
         <h3 className={headingClassName}>Node</h3>
@@ -433,7 +520,11 @@ const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, on
         </div>
       </div>
 
-      <LssPanel config={config} problems={problems} onChange={onChange} />
+      {board ? (
+        <BoardLssNote problems={problems} />
+      ) : (
+        <LssPanel config={config} problems={problems} onChange={onChange} />
+      )}
 
       <div className={cardClassName} data-slave-where='heartbeat masterWatch'>
         <h3 className={headingClassName}>Supervision</h3>

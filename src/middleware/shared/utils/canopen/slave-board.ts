@@ -6,6 +6,7 @@
  */
 
 import type { CanopenSlaveConfig } from '../../ports/canopen-types'
+import type { SlaveProblem } from './slave'
 
 /** CAN controller the firmware module drives. */
 export type CanopenSlaveController = 'twai'
@@ -74,9 +75,42 @@ export interface SlaveBoardBuildCheck {
 }
 
 /**
- * What stops a board build with CANopen slaves, and what it warns about: one slave at most, no
- * LSS, a bit rate the controller is built for, two different CAN pins that the pin mapping does
- * not use, and a cycle time the bus timing can follow.
+ * Problems of one slave on a board, each naming its field (`pins`, `bitrate`, `lss`): no LSS, a
+ * bit rate the controller is built for, and two different CAN pins the pin mapping does not use.
+ */
+export function slaveBoardProblems(
+  config: CanopenSlaveConfig,
+  board: CanopenSlaveBoardProfile,
+  pins: readonly { pin: string; address: string }[] = [],
+): SlaveProblem[] {
+  const problems: SlaveProblem[] = []
+  if (config.lss?.enabled)
+    problems.push({ where: 'lss', text: 'LSS is not on boards yet; set the node ID fixed in the project' })
+  if (!SLAVE_BOARD_BITRATES.some((b) => b === config.bitrate))
+    problems.push({
+      where: 'bitrate',
+      text:
+        config.bitrate === 0
+          ? 'a board has no interface whose bit rate it could keep; pick 50 to 1000 kbit/s'
+          : `${config.bitrate / 1000} kbit/s is not on boards yet; pick 50 to 1000 kbit/s`,
+    })
+  const tx = config.boardPins?.tx ?? board.txPin
+  const rx = config.boardPins?.rx ?? board.rxPin
+  if (tx === rx) problems.push({ where: 'pins', text: `CAN TX and RX are both GPIO ${tx}` })
+  for (const p of pins) {
+    const gpio = gpioNumber(p.pin)
+    if (gpio !== null && (gpio === tx || gpio === rx))
+      problems.push({
+        where: 'pins',
+        text: `CAN ${gpio === tx ? 'TX' : 'RX'} GPIO ${gpio} is also pin ${p.pin} (${p.address}) of the pin mapping`,
+      })
+  }
+  return problems
+}
+
+/**
+ * What stops a board build with CANopen slaves, and what it warns about: one slave at most, the
+ * problems of `slaveBoardProblems`, and a cycle time the bus timing can follow.
  */
 export function checkSlaveBoardBuild(input: {
   slaves: readonly { name: string; config: CanopenSlaveConfig }[]
@@ -92,22 +126,9 @@ export function checkSlaveBoardBuild(input: {
     errors.push(
       `CANopen slaves ${on.map((s) => `"${s.name}"`).join(', ')}: a board has one CAN controller; turn all but one off`,
     )
-  for (const { name, config } of on) {
-    const what = `CANopen slave "${name}"`
-    if (config.lss?.enabled) errors.push(`${what}: LSS is not on boards yet; turn LSS off`)
-    if (!SLAVE_BOARD_BITRATES.some((b) => b === config.bitrate))
-      errors.push(`${what}: ${config.bitrate / 1000} kbit/s is not on boards yet; use 50 to 1000 kbit/s`)
-    const tx = config.boardPins?.tx ?? input.board.txPin
-    const rx = config.boardPins?.rx ?? input.board.rxPin
-    if (tx === rx) errors.push(`${what}: CAN TX and RX are both GPIO ${tx}`)
-    for (const p of input.pins ?? []) {
-      const gpio = gpioNumber(p.pin)
-      if (gpio !== null && (gpio === tx || gpio === rx))
-        errors.push(
-          `${what}: CAN ${gpio === tx ? 'TX' : 'RX'} GPIO ${gpio} is also pin ${p.pin} (${p.address}) of the pin mapping`,
-        )
-    }
-  }
+  for (const { name, config } of on)
+    for (const p of slaveBoardProblems(config, input.board, input.pins))
+      errors.push(`CANopen slave "${name}": ${p.text}`)
   if (on.length > 0) {
     const cycle = input.cycleUs ? input.cycleUs / 1000 : null
     if (cycle !== null && cycle > SLAVE_BOARD_MAX_CYCLE_MS)

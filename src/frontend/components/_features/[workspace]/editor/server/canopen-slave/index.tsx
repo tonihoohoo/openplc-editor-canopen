@@ -2,6 +2,7 @@ import * as Tabs from '@radix-ui/react-tabs'
 import { toast } from '@root/frontend/components/_features/[app]/toast/use-toast'
 import { useAliasRegistry } from '@root/frontend/hooks/use-alias-registry'
 import { useCanopenExpertView } from '@root/frontend/hooks/use-canopen-expert-view'
+import { useBoardPins, useCanopenSlaveBoard } from '@root/frontend/hooks/use-canopen-slave-board'
 import { type CanopenSlaveLiveStatus, useCanopenSlaveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { useOpenPLCStore, useOpenPLCStoreApi } from '@root/frontend/store'
 import { cn } from '@root/frontend/utils/cn'
@@ -17,6 +18,7 @@ import {
   exportFileType,
   type ExportFormat,
   slaveBitChannel,
+  slaveBoardProblems,
   slaveEdsLosses,
   slaveLayoutText,
   slaveLss,
@@ -155,7 +157,9 @@ const CanopenSlaveEditor = () => {
     setShownPdo({ key, at: Date.now() })
     setTab('pdos')
   }, [])
-  const live = useCanopenSlaveStatus(name, on)
+  const board = useCanopenSlaveBoard()
+  const boardPins = useBoardPins()
+  const live = useCanopenSlaveStatus(name, on && board === null)
   const [exporting, setExporting] = useState(false)
   const [format, setFormat] = useState<SlaveFormat>('eds')
   const [expert, setExpert] = useCanopenExpertView()
@@ -169,8 +173,13 @@ const CanopenSlaveEditor = () => {
 
   const problems = useMemo(() => {
     const others = slavesOn(servers).filter((s) => s.name !== name)
-    return checkCanopenSlave(name, config, remoteDevices, others)
-  }, [servers, remoteDevices, name, config])
+    const own = checkCanopenSlave(name, config, remoteDevices, others, { board: board !== null })
+    if (!board) return own
+    const extra = slaveBoardProblems(config, board, boardPins)
+    if (on && others.length > 0)
+      extra.push({ where: 'interface', text: 'a board has one CAN controller; turn the other CANopen slaves off' })
+    return [...own, ...extra]
+  }, [servers, remoteDevices, name, config, board, boardPins, on])
 
   const pdosInUse = useMemo(() => {
     const layout = slavePdoLayout(config)
@@ -285,7 +294,9 @@ const CanopenSlaveEditor = () => {
             className={cn('text-sm text-neutral-600 dark:text-neutral-400', !on && 'opacity-50')}
             data-testid='canopen-slave-summary'
           >
-            {config.interface}
+            {board
+              ? `CAN on GPIO ${config.boardPins?.tx ?? board.txPin}/${config.boardPins?.rx ?? board.rxPin}`
+              : config.interface}
             {bitrate}, {nodeText}, {objects} object{objects === 1 ? '' : 's'}
           </p>
           <SlaveBusLine live={live} />
@@ -346,6 +357,7 @@ const CanopenSlaveEditor = () => {
             slaveNumber={slaveNumber}
             libraryOn={libraryOn}
             expert={expert}
+            board={board}
             onChange={(update) => commit((c) => ({ ...c, ...update }))}
           />
         </Tabs.Content>
@@ -363,7 +375,7 @@ const CanopenSlaveEditor = () => {
           <PdosTab config={config} problems={problems} commit={commit} shown={shownPdo} />
         </Tabs.Content>
         <Tabs.Content value='status' className='data-[state=inactive]:hidden'>
-          <OnlineTab config={config} live={live} lssSlot={lssSlot} />
+          {board ? <BoardStatusNote /> : <OnlineTab config={config} live={live} lssSlot={lssSlot} />}
         </Tabs.Content>
       </Tabs.Root>
 
@@ -392,5 +404,16 @@ const CanopenSlaveEditor = () => {
     </div>
   )
 }
+
+/** The Status tab on a board: the runtime's status request has no board counterpart yet. */
+const BoardStatusNote = () => (
+  <div className={compactCardClassName} data-testid='canopen-slave-board-status'>
+    <p className='text-sm font-medium text-neutral-900 dark:text-neutral-100'>Not on boards yet</p>
+    <p className={hintClassName}>
+      The live status comes from the runtime, and a board has none. The master sees the slave on the bus; the program
+      reads its state with CANOPEN_SLAVE_STATUS.
+    </p>
+  </div>
+)
 
 export { CanopenSlaveEditor }
