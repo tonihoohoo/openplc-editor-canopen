@@ -1389,6 +1389,8 @@ const PLCProjectDataSchema = z.object({
       }),
     )
     .optional(),
+  /** Opaque VPP screen data keyed by (packageId, screenId). */
+  vppExtensions: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
 })
 
 type PLCProjectData = z.infer<typeof PLCProjectDataSchema>
