@@ -625,6 +625,17 @@ objects), PDOs (number of PDOs in use) and Status:
   alias, a default and, from the master, an optional range; the slave refuses SDO writes outside it
   (abort 0609 0031h / 0032h). A constant has no address, and a STRING is always a constant. See
   [Objects packed as 8 bits](#objects-packed-as-8-bits) for the **UNSIGNED8 (8 × BOOL)** type.
+  Object numbers come by themselves: a new object takes the first free sub-index of its direction's
+  groups (0x2000 from the master, 0x2100 to the master, then the other groups of that direction) and,
+  when they are full, a new empty group from 0x2200 up; it never goes into a group of the other
+  direction. Change a number only when the master or a spec needs a fixed one: type it, or pick a
+  group in the field's menu (its own groups with the number the object would get, a **New group**, and
+  the other direction's groups shown but not selectable). A number outside 0x2000:01 - 0x5FFF:FE is
+  refused with the reason for its area (data types, communication objects, device profiles,
+  standardized variables). An object in a group of the other direction gets a warning that does not
+  stop the build, with a link that moves it back. An empty minimum and maximum show the limits of the
+  type. In the Expert view a row above each index gives its direction, object count, highest
+  sub-index and free sub-indexes.
 - **PDOs**: the default layout of up to 16 RPDOs and 16 TPDOs of 8 bytes each, one card per PDO with
   the same fields as a master node's PDO. A new object marked PDO goes to the first PDO of its
   direction with room, or to a new one; the layout is kept, so an object stays where it is when
