@@ -515,17 +515,197 @@ export function suggestedSlavePdoCobId(config: CanopenSlaveConfig): number {
   return 0x681
 }
 
-/** The next free sub-index for a new object of this direction: in 0x2000 (from) or 0x2100 (to), then on. */
+/** First and last index of the slave's own objects (CiA 301 manufacturer-specific area). */
+export const SLAVE_FIRST_INDEX = 0x2000
+export const SLAVE_LAST_INDEX = 0x5fff
+
+/** First index of a new group. */
+const SLAVE_NEW_GROUP_INDEX = 0x2200
+
+/** The direction an index belongs to: that of all its objects, else its default group's; `both` when mixed. */
+export function slaveIndexDirection(
+  config: CanopenSlaveConfig,
+  index: number,
+  ignoreId?: string,
+): CanopenSlaveDirection | 'both' | null {
+  const directions = new Set(
+    config.objects.filter((o) => o.index === index && o.id !== ignoreId).map((o) => o.direction),
+  )
+  if (directions.size > 1) return 'both'
+  const [only] = [...directions]
+  if (only) return only
+  if (index === SLAVE_FROM_MASTER_INDEX) return 'from_master'
+  if (index === SLAVE_TO_MASTER_INDEX) return 'to_master'
+  return null
+}
+
+const freeSubIndex = (config: CanopenSlaveConfig, index: number, ignoreId?: string): number | null => {
+  const used = new Set(config.objects.filter((o) => o.index === index && o.id !== ignoreId).map((o) => o.subIndex))
+  for (let sub = 1; sub <= 254; sub++) if (!used.has(sub)) return sub
+  return null
+}
+
+/** The lowest index from 0x2200 up, in steps of 0x100, that holds no object. */
+export function newSlaveGroupIndex(config: CanopenSlaveConfig, ignoreId?: string): number | null {
+  const used = new Set(config.objects.filter((o) => o.id !== ignoreId).map((o) => o.index))
+  for (let index = SLAVE_NEW_GROUP_INDEX; index <= SLAVE_LAST_INDEX; index += 0x100) if (!used.has(index)) return index
+  return null
+}
+
+/** The indexes of a direction, ascending: its default group and every index all of whose objects go that way. */
+function directionIndexes(config: CanopenSlaveConfig, direction: CanopenSlaveDirection, ignoreId?: string): number[] {
+  const candidates = new Set([
+    direction === 'from_master' ? SLAVE_FROM_MASTER_INDEX : SLAVE_TO_MASTER_INDEX,
+    ...config.objects.filter((o) => o.id !== ignoreId).map((o) => o.index),
+  ])
+  return [...candidates]
+    .filter((i) => i >= SLAVE_FIRST_INDEX && i <= SLAVE_LAST_INDEX)
+    .filter((i) => slaveIndexDirection(config, i, ignoreId) === direction)
+    .sort((a, b) => a - b)
+}
+
+/**
+ * The next free place for an object of this direction: the first free sub-index of the direction's
+ * indexes (0x2000 from the master, 0x2100 to the master, then the others), else a new empty group.
+ * Never an index that holds the other direction.
+ */
 export function nextSlaveObjectPlace(
   config: CanopenSlaveConfig,
   direction: CanopenSlaveDirection,
+  ignoreId?: string,
 ): { index: number; subIndex: number } | null {
-  const used = new Set(config.objects.map((o) => o.index * 256 + o.subIndex))
-  const start = direction === 'from_master' ? SLAVE_FROM_MASTER_INDEX : SLAVE_TO_MASTER_INDEX
-  for (let index = start; index <= 0x5fff; index += 0x100) {
-    for (let sub = 1; sub <= 254; sub++) if (!used.has(index * 256 + sub)) return { index, subIndex: sub }
+  for (const index of directionIndexes(config, direction, ignoreId)) {
+    const sub = freeSubIndex(config, index, ignoreId)
+    if (sub !== null) return { index, subIndex: sub }
   }
+  const index = newSlaveGroupIndex(config, ignoreId)
+  return index === null ? null : { index, subIndex: 1 }
+}
+
+/** One entry of an object's group menu. */
+export interface SlaveGroupChoice {
+  index: number
+  direction: CanopenSlaveDirection | 'both' | null
+  /** Where the object would go; null when the group is full or holds the other direction. */
+  place: { index: number; subIndex: number } | null
+  /** The object is in this group now. */
+  current: boolean
+  /** The group is new (no objects yet). */
+  isNew: boolean
+}
+
+/** The group menu of an object: the groups of both directions, its own first, then a new group. */
+export function slaveGroupChoices(config: CanopenSlaveConfig, objectId: string): SlaveGroupChoice[] {
+  const object = config.objects.find((o) => o.id === objectId)
+  if (!object) return []
+  const indexes = new Set([
+    SLAVE_FROM_MASTER_INDEX,
+    SLAVE_TO_MASTER_INDEX,
+    ...config.objects.map((o) => o.index).filter((i) => i >= SLAVE_FIRST_INDEX && i <= SLAVE_LAST_INDEX),
+  ])
+  const choices: SlaveGroupChoice[] = [...indexes]
+    .sort((a, b) => a - b)
+    .map((index) => {
+      const direction = slaveIndexDirection(config, index, objectId)
+      const current = index === object.index
+      const sub = freeSubIndex(config, index, objectId)
+      const own = direction === object.direction || (direction === null && current)
+      const place = current
+        ? { index, subIndex: object.subIndex }
+        : own && sub !== null
+          ? { index, subIndex: sub }
+          : null
+      return { index, direction, place, current, isNew: false }
+    })
+  const fresh = newSlaveGroupIndex(config, objectId)
+  if (fresh !== null && !indexes.has(fresh))
+    choices.push({
+      index: fresh,
+      direction: null,
+      place: { index: fresh, subIndex: 1 },
+      current: false,
+      isNew: true,
+    })
+  return choices.sort((a, b) => Number(b.current) - Number(a.current))
+}
+
+/** Why an object number cannot be used, by the CiA 301 area it falls in, or null when it can. */
+export function slaveObjectNumberProblem(index: number, subIndex: number): string | null {
+  const allowed = 'Use 0x2000:01 - 0x5FFF:FE.'
+  const hex = `0x${index.toString(16).toUpperCase().padStart(4, '0')}`
+  if (!Number.isInteger(index) || index < 0 || index > 0xffff) return `${hex} is not an object index. ${allowed}`
+  if (index < 0x1000) return `${hex} is in 0x0000 - 0x0FFF, the area of data types. ${allowed}`
+  if (index < SLAVE_FIRST_INDEX)
+    return `${hex} is a communication object (0x1000 - 0x1FFF); the slave fills these in itself. ${allowed}`
+  if (index > 0xafff) return `${hex} is in a standardized or reserved area (0xB000 - 0xFFFF). ${allowed}`
+  if (index > 0x9fff) return `${hex} is in 0xA000 - 0xAFFF, the area of standardized network variables. ${allowed}`
+  if (index > SLAVE_LAST_INDEX)
+    return `${hex} belongs to device profiles (0x6000 - 0x9FFF), so a master may treat it as a standard object. ${allowed}`
+  if (!Number.isInteger(subIndex) || subIndex < 1 || subIndex > 254)
+    return `Sub-index 00 holds the highest sub-index and FF is reserved; use 01 - FE.`
   return null
+}
+
+const OBJECT_NUMBER = /^(?:0x)?([0-9a-f]{1,4}):(?:0x)?([0-9a-f]{1,2})$/i
+
+/** The place a typed object number names for the object, or why it is refused. */
+export function parseSlaveObjectNumber(
+  config: CanopenSlaveConfig,
+  objectId: string,
+  typed: string,
+): { place: { index: number; subIndex: number } } | { refusal: string } {
+  const m = OBJECT_NUMBER.exec(typed.trim())
+  if (!m) return { refusal: 'Write the object as 0x2000:01.' }
+  const index = parseInt(m[1] ?? '', 16)
+  const subIndex = parseInt(m[2] ?? '', 16)
+  const problem = slaveObjectNumberProblem(index, subIndex)
+  if (problem) return { refusal: problem }
+  const other = config.objects.find((o) => o.id !== objectId && o.index === index && o.subIndex === subIndex)
+  if (other) return { refusal: `"${other.name}" uses it.` }
+  return { place: { index, subIndex } }
+}
+
+/** The direction an index is named after: its default group's, else that of its lowest sub-index. */
+function indexOwner(config: CanopenSlaveConfig, index: number): CanopenSlaveDirection | null {
+  if (index === SLAVE_FROM_MASTER_INDEX) return 'from_master'
+  if (index === SLAVE_TO_MASTER_INDEX) return 'to_master'
+  const first = config.objects.filter((o) => o.index === index).sort((a, b) => a.subIndex - b.subIndex)[0]
+  return first?.direction ?? null
+}
+
+/** Notes on object numbers that do not stop a build: objects in a group of the other direction. */
+export function slaveObjectNumberWarnings(
+  config: CanopenSlaveConfig,
+): { where: string; text: string; moveTo: { index: number; subIndex: number } | null }[] {
+  const out: { where: string; text: string; moveTo: { index: number; subIndex: number } | null }[] = []
+  for (const o of config.objects) {
+    const direction = indexOwner(config, o.index)
+    if (direction === null || direction === o.direction) continue
+    const hex = `0x${o.index.toString(16).toUpperCase()}`
+    const group = direction === 'from_master' ? 'from the master' : 'to the master'
+    out.push({
+      where: o.id,
+      text: `${hex} is the group of objects ${group}. The slave works, but the device file names the group "Objects" and the master's user may read it the wrong way.`,
+      moveTo: nextSlaveObjectPlace(config, o.direction, o.id),
+    })
+  }
+  return out
+}
+
+/** Free sub-indexes below the highest one of an index, as "03, 05-07"; '' when none. */
+export function slaveFreeSubIndexText(config: CanopenSlaveConfig, index: number): string {
+  const used = new Set(config.objects.filter((o) => o.index === index).map((o) => o.subIndex))
+  const highest = Math.max(0, ...used)
+  const parts: string[] = []
+  const hex2 = (n: number): string => n.toString(16).toUpperCase().padStart(2, '0')
+  for (let sub = 1; sub < highest; sub++) {
+    if (used.has(sub)) continue
+    let end = sub
+    while (end + 1 < highest && !used.has(end + 1)) end++
+    parts.push(end === sub ? hex2(sub) : `${hex2(sub)}-${hex2(end)}`)
+    sub = end
+  }
+  return parts.join(', ')
 }
 
 /** "Setpoint", "Setpoint_2", ...: a name no object of the slave uses yet. */
@@ -598,6 +778,12 @@ export function parseSlaveValue(text: string, dataType: CanopenSlaveDataType): n
   const range = INTEGER_RANGES[dataType]
   if (!range || big < range[0] || big > range[1]) return null
   return Number(big)
+}
+
+/** The values a whole-number type takes, as text, or null for REAL and STRING types. */
+export function slaveTypeLimits(dataType: CanopenSlaveDataType): [string, string] | null {
+  const range = INTEGER_RANGES[dataType]
+  return range ? [String(range[0]), String(range[1])] : null
 }
 
 /** Why a value text does not suit the type, or null. */
@@ -777,8 +963,8 @@ export function checkCanopenSlave(
   for (const o of config.objects) {
     const ref = `${objectRef(o.index, o.subIndex)} "${o.name}"`
     for (const text of slaveObjectDetailProblems(o)) add(o.id, `${ref}: ${text}`, true)
-    if (o.index < 0x2000 || o.index > 0x5fff || o.subIndex < 1 || o.subIndex > 254)
-      add(o.id, `${ref}: the object must be in 0x2000:01 - 0x5FFF:FE`)
+    const numberProblem = slaveObjectNumberProblem(o.index, o.subIndex)
+    if (numberProblem) add(o.id, `${ref}: ${numberProblem}`)
     const key = o.index * 256 + o.subIndex
     if (places.has(key)) add(o.id, `${ref}: the object is also used by "${places.get(key)}"`)
     else places.set(key, o.name)

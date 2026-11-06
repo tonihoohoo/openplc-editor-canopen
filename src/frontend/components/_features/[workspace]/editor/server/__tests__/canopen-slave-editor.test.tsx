@@ -245,6 +245,63 @@ describe('CanopenSlaveEditor', () => {
     expect(config()?.objects[1]).toMatchObject({ index: 0x2000, subIndex: 0x10 })
   })
 
+  it('explains object numbers, moves a row to a new group from its menu and refuses a profile number', async () => {
+    openTab('Data')
+    expect(screen.getAllByTestId('canopen-slave-number-hint')[0].textContent).toContain(
+      'Object numbers come by themselves',
+    )
+    addObject('from')
+    addObject('from')
+    addObject('to')
+    const [, second] = config()?.objects ?? []
+    const row = screen.getByTestId(`canopen-slave-object-${second.id}`)
+    await userEvent.click(within(row).getByRole('button', { name: `Groups for ${second.name}` }))
+    const menu = screen.getByRole('listbox', { name: `Groups for ${second.name}` })
+    const toMaster = within(menu).getByRole('option', { name: /0x2100 · To the master/ })
+    expect(toMaster).toHaveProperty('disabled', true)
+    expect(toMaster.textContent).toContain('other direction')
+    await userEvent.click(within(menu).getByRole('option', { name: /0x2200 · New group/ }))
+    expect(config()?.objects[1]).toMatchObject({ index: 0x2200, subIndex: 1 })
+    type(within(row).getByLabelText('Object'), '0x6200:01')
+    expect(within(row).getByRole('alert').textContent).toContain('belongs to device profiles')
+    expect(config()?.objects[1]).toMatchObject({ index: 0x2200, subIndex: 1 })
+  })
+
+  it('warns about a row in the group of the other direction and moves it back', () => {
+    openTab('Data')
+    addObject('from')
+    addObject('from')
+    addObject('to')
+    const [, second] = config()?.objects ?? []
+    const row = screen.getByTestId(`canopen-slave-object-${second.id}`)
+    type(within(row).getByLabelText('Object'), '0x2100:02')
+    const warning = screen.getByTestId('canopen-slave-number-warning')
+    expect(warning.textContent).toContain('0x2100 is the group of objects to the master')
+    fireEvent.click(within(warning).getByRole('button', { name: 'Move to 0x2000:02' }))
+    expect(config()?.objects[1]).toMatchObject({ index: 0x2000, subIndex: 2 })
+    expect(screen.queryByTestId('canopen-slave-number-warning')).toBeNull()
+  })
+
+  it('shows type limits as range placeholders and group rows in the expert view', () => {
+    openTab('Data')
+    addObject('to')
+    addObject('to')
+    addObject('to')
+    addObject('from')
+    const third = config()?.objects[2]
+    if (!third) throw new Error('no third object')
+    type(within(screen.getByTestId(`canopen-slave-object-${third.id}`)).getByLabelText('Object'), '2100:04')
+    expect(screen.getByLabelText('Minimum').getAttribute('placeholder')).toBe('-32768')
+    expect(screen.getByLabelText('Maximum').getAttribute('placeholder')).toBe('32767')
+    expect(screen.queryByTestId('canopen-slave-group-row')).toBeNull()
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
+    const groups = screen.getAllByTestId('canopen-slave-group-row').map((r) => r.textContent)
+    expect(groups).toEqual([
+      '0x2000From the master · 1 object',
+      '0x2100To the master · 3 objects, highest sub-index 04 · free: 03',
+    ])
+  })
+
   it('packs a byte as 8 bits with their own addresses, aliases and defaults, and unpacks it', () => {
     openTab('Data')
     addObject('from')
