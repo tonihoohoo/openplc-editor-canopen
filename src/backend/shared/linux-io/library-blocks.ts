@@ -199,7 +199,7 @@ ${SHOW}`,
 
 const PWM_OUT = block(
   'PWM_OUT',
-  `Drives a hardware PWM channel of the Linux device (sysfs) at FREQUENCY (Hz) with DUTY (0 to 100 %). CHIP is the pwmchip number ('0'), its name ('pwmchip0') or its device name; CHANNEL counts from 0. The channel is set up outside the PLC scan and written only when a value changes; VALID is TRUE once it runs with the values asked for. When the block is no longer called (PLC stop, PLC error, new upload) the channel goes to ON_STOP: LIO_STOP_OFF (default, duty 0 and disabled) or LIO_STOP_HOLD. A board may need its PWM driver switched on in its boot settings first.
+  `Drives a hardware PWM channel of the Linux device (sysfs) at FREQUENCY (Hz) with DUTY (0 to 100 %). CHIP is the pwmchip number ('0'), its name ('pwmchip0') or its device name; CHANNEL counts from 0. The channel is set up outside the PLC scan and written only when a value changes; VALID is TRUE once it runs with the values asked for. When the block is no longer called (PLC stop, PLC error, new upload) the channel goes to ON_STOP: LIO_STOP_OFF (default, duty 0 and disabled) or LIO_STOP_HOLD. ENABLE FALSE turns the channel off, also one left running by LIO_STOP_HOLD before. A board may need its PWM driver switched on in its boot settings first.
 Example: fan(ENABLE := TRUE, CHIP := '0', CHANNEL := 0, FREQUENCY := 1000.0, DUTY := speed);`,
   `  CHIP : STRING;
   CHANNEL : USINT;
@@ -208,7 +208,20 @@ Example: fan(ENABLE := TRUE, CHIP := '0', CHANNEL := 0, FREQUENCY := 1000.0, DUT
   ON_STOP : USINT;
 `,
   '',
-  `${disabled('k_pwm', '')}
+  `  if (!ENABLE) {
+    char l_key[lio::key_size];
+    snprintf(l_key, sizeof(l_key), "%s:%u", CHIP.c_str(), static_cast<unsigned>(CHANNEL));
+    unsigned short l_id = lio_slot;
+    unsigned l_gen = lio_gen;
+    lio::pwm_off(l_id, l_gen, l_key);
+    lio_slot = l_id;
+    lio_gen = l_gen;
+    VALID = false;
+    ERROR = 0;
+    if (lio_last != 0) ERRORTEXT = "";
+    lio_last = 0;
+    return;
+  }
 ${wrongInput('k_pwm', 'ON_STOP != 0 && ON_STOP != 2', 'ON_STOP is LIO_STOP_OFF or LIO_STOP_HOLD', '')}
   double l_freq = FREQUENCY;
   double l_duty = DUTY;

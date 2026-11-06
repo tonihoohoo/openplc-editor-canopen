@@ -227,6 +227,7 @@ struct slot {
   double applied_duty;
   bool applied_on;
   bool exported;
+  bool force_off;  // write the off state even if this slot never ran the channel
   char pwm_dir[256];
   // reads
   long long period;
@@ -576,7 +577,7 @@ inline void pwm_apply(slot &s, bool on) {
     s.applied_duty = -1;
   }
   if (!on) {
-    if (s.applied_on) {
+    if (s.applied_on || s.force_off) {
       pwm_write(s, "duty_cycle", 0, subject);
       pwm_write(s, "enable", 0, subject);
     }
@@ -950,6 +951,50 @@ inline void disable(unsigned short &id, unsigned &gen, int kind) {
   }
   pthread_mutex_unlock(&st.lock);
   id = 0;
+  gen = 0;
+}
+
+// PWM with ENABLE FALSE: turns the channel off whatever ON_STOP says, also one a block left running
+// (LIO_STOP_HOLD) before. Runs once per disable; id = pwm_done marks it done until the block runs again.
+const unsigned short pwm_done = 0xFFFF;
+inline void pwm_off(unsigned short &id, unsigned &gen, const char *key) {
+  if (id == pwm_done) return;
+  state &st = shared();
+  (void)guard();
+  pthread_mutex_lock(&st.lock);
+  slot *s = nullptr;
+  if (id >= 1 && id <= max_slots && st.slots[id - 1].used && st.slots[id - 1].kind == k_pwm &&
+      st.slots[id - 1].gen == gen)
+    s = &st.slots[id - 1];
+  for (int i = 0; i < max_slots && !s; ++i)
+    if (st.slots[i].used && st.slots[i].kind == k_pwm && st.slots[i].gen == 0 && same(st.slots[i].key, key))
+      s = &st.slots[i];
+  bool other = false;
+  for (int i = 0; i < max_slots && !s && !other; ++i)
+    other = st.slots[i].used && st.slots[i].kind == k_pwm && same(st.slots[i].key, key);
+  for (int i = 0; i < max_slots && !s && !other; ++i) {
+    if (!st.slots[i].used) {
+      s = &st.slots[i];
+      slot fresh{};
+      fresh.fd = -1;
+      fresh.used = true;
+      fresh.kind = k_pwm;
+      fresh.applied = -1;
+      copy_cstr(fresh.key, sizeof(fresh.key), key);
+      *s = fresh;
+    }
+  }
+  if (s) {
+    s->stop = stop_off;
+    s->force_off = true;
+    s->last_call = 0;  // the helper turns it off, unexports it and frees the slot
+    s->stopped = true;
+    s->interval = 0;
+    s->gen = 0;
+    ensure_helper(st);
+  }
+  pthread_mutex_unlock(&st.lock);
+  id = pwm_done;
   gen = 0;
 }
 
