@@ -24,6 +24,7 @@ import { execRecipeArgv } from './recipe-exec'
 // the shared `runProgramBuildPipeline`.
 type StrucppCompileError = import('strucpp').CompileError
 
+import { CANOPENNODE_LIBRARY_DIR } from '@root/backend/shared/compile/steps/compose-firmware-bundle'
 import { buildArduinoCliCompileArgs } from '@root/backend/shared/firmware/build-arduino-cli-args'
 import { runLibraryBuildPipeline } from '@root/backend/shared/library/library-build-orchestrator'
 import { type NativePouRef, parseNativePouRefs } from '@root/backend/shared/library/native-pou-list'
@@ -851,7 +852,7 @@ class CompilerModule {
     }
 
     // canopennode/** → canopennode/** (the CANopen slave's stack, a library with subfolders)
-    const canopennodeDir = join(this.sourceDirectoryPath, 'canopennode')
+    const canopennodeDir = join(this.sourceDirectoryPath, CANOPENNODE_LIBRARY_DIR)
     const walk = async (dir: string, prefix: string): Promise<void> => {
       const entries = await readdir(dir, { withFileTypes: true })
       await Promise.all(
@@ -1605,6 +1606,10 @@ class CompilerModule {
       // 2nd --library both resolves the boundary header and auto-links the
       // src/<build.mcu>/lib*.a archive (the lib ships precompiled=full).
       ...(info.precompiledLibraryDir ? ['--library', info.precompiledLibraryDir] : []),
+      // The CANopenNode stack of a board slave; the bundle holds it only when a slave is on.
+      ...(existsSync(join(compilationPath, CANOPENNODE_LIBRARY_DIR, 'library.properties'))
+        ? ['--library', join(compilationPath, CANOPENNODE_LIBRARY_DIR)]
+        : []),
       ...this.arduinoCliBaseParameters,
     ]
 

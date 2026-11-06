@@ -35,6 +35,7 @@ CANopen:
 - Up to 16 RPDOs and 16 TPDOs in the CANopen slave, each object placed in the PDO you choose, COB-IDs of PDO 5-16 given by the master or fixed, and an RPDO receive timeout: [docs/canopen.md](docs/canopen.md#canopen-slave)
 - CANopen slave objects packed as 8 bits: one UNSIGNED8 on the bus, eight named BOOL addresses in the program: [docs/canopen.md](docs/canopen.md#objects-packed-as-8-bits)
 - XDD details of the CANopen slave behind the Expert view: descriptions, units and scales, value meanings, groups, product text, characteristics and the hardware version 0x1009: [docs/canopen.md](docs/canopen.md#xdd-details-of-the-slave)
+- CANopen slave in the firmware of an ESP32 board, on its own CAN controller with two GPIO pins: [docs/canopen.md](docs/canopen.md#slave-on-an-esp32-board)
 - Upload refused to a runtime without CANopen support: [docs/canopen.md](docs/canopen.md#installing-a-release-and-the-runtime-check)
 
 Editor:

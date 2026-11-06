@@ -758,6 +758,33 @@ At build time each slave that is on becomes an item of `devices` in `conf/canope
 the file is written when only a slave is on. The checks that stop the build name the slave and the
 field or object.
 
+### Slave on an ESP32 board
+
+A project for an ESP32 board (an Arduino-core target whose chip has a TWAI CAN controller: ESP32,
+-S2, -S3, -C3, -C6, -H2) can have one CANopen slave too. It runs in the board's firmware, with
+CANopenNode v4.1 on the chip's own CAN controller, and behaves as the slave on the runtime: the same
+objects, PDOs, SDO range checks, heartbeat, master watch, EMCY, 0x1029, PLC stop and start, and the
+slave blocks in the program. The board needs a 3.3 V CAN transceiver on two GPIO pins.
+
+On such a board the slave's General tab shows **CAN pins** in place of the interface: **TX (GPIO)**
+and **RX (GPIO)** (GPIO 5 and 4 by default) and the **Bit rate** (50 to 1000 kbit/s, the master's).
+The build stops when:
+
+- more than one slave is on (a board has one CAN controller),
+- TX and RX are the same pin, or a CAN pin is also a pin of the board's pin mapping,
+- the bit rate is not one the firmware is built for,
+- LSS is on: LSS is not on boards yet, so the node ID is the one fixed in the project.
+
+A cycle time above 10 ms is a warning: the stack runs on every pass of the firmware's loop, but the
+PDO data follow the scan. The Status tab says it has nothing live to show on a board yet. The
+exported EDS or XDD is the same as for the runtime's slave.
+
+The build writes `canopen_slave_config.h` (pins, bit rate, node ID) and `canopen_slave_od.h` (the
+object dictionary in CANopenNode's static form, from `slave-board-header.ts`) next to the firmware
+sources, and adds the bundled CANopenNode library (`resources/sources/canopennode/`). Without a
+slave the library is not built and the module (`resources/sources/arduino/canopen_slave.cpp`)
+compiles to nothing.
+
 ## Installing a release and the runtime check
 
 This fork's releases are on its GitHub Releases page (`v<upstream version>-canopen.<N>`); installing one
@@ -859,6 +886,11 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   differs fails the job, and the comment shows the baseline, the new image and the difference. For an
   intended change, take the new images from the run's `canopen-ui-results` artifact
   (`<view>-actual.png`), save them as `e2e/<spec>-snapshots/<view>-chromium-linux.png` and commit.
+- Slave on a board: `slave-board.test.ts` (board table, pin and bit rate checks, build check,
+  generated headers) and `e2e/canopen-slave-board.spec.ts` (CAN pins, pin problem, board notes,
+  with a fixture board package). The runtime fork's CI builds `e2e/fixtures/canopen-slave-board/`
+  for an ESP32 with the editor CLI, runs the firmware in Espressif's QEMU with the TWAI on a virtual
+  CAN bus and the same module built for Linux on another, and plays the master against both.
 - `e2e/canopen-lss.spec.ts` covers the LSS section, the list mark, the build check and the LSS panel
   of the Status tab against the fake runtime.
 - `e2e/layout-canopen-online.spec.ts` (local only, outside the CI glob) takes screenshots of the Online
