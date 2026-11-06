@@ -244,6 +244,42 @@ describe('computeIoImage — sizing from producers', () => {
     expect(image.sizes).toEqual({ '%QX': 4 })
   })
 
+  it('counts a CANopen slave on a board, and no CANopen master node there', () => {
+    const board: AddressProducerCapabilities = {
+      pinMapping: true,
+      vppIo: true,
+      modbusTcpRemote: false,
+      ethercat: false,
+      canopenSlave: true,
+    }
+    const project = makeProject({
+      pous: [
+        {
+          name: 'main',
+          variables: [
+            variable('sp', '%IW0', { definition: 'base-type', value: 'INT' }),
+            variable('n', '%IW8', { definition: 'base-type', value: 'INT' }),
+          ],
+        },
+      ],
+      servers: [
+        {
+          name: 'slave',
+          protocol: 'canopen-slave',
+          canopenSlaveConfig: { objects: [{ id: 'sp', iecLocation: '%IW0' }] },
+        },
+      ],
+      remoteDevices: [
+        {
+          name: 'bus',
+          canopenConfig: { nodes: [{ name: 'n2', tpdos: [{ entries: [{ channelId: 'a', iecLocation: '%IW8' }] }] }] },
+        },
+      ],
+    })
+    expect(compute(project, { capabilities: board }).unbacked.map((u) => u.location)).toEqual(['%IW8'])
+    expect(compute(project).unbacked).toEqual([])
+  })
+
   it('skips a global with no location', () => {
     const project = makeProject({
       globals: [variable('g', ''), variable('h', '%MW1')],

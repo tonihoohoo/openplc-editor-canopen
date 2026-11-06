@@ -55,7 +55,7 @@ export function activeKindsFor(caps: AddressProducerCapabilities): Set<string> {
   if (caps.vppIo) kinds.add('vpp-io')
   if (caps.modbusTcpRemote) kinds.add('modbus-tcp-remote')
   if (caps.ethercat) kinds.add('ethercat')
-  if (caps.ethercat) kinds.add('canopen')
+  if (caps.ethercat || caps.canopenSlave) kinds.add('canopen')
   return kinds
 }
 

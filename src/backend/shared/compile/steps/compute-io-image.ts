@@ -330,7 +330,10 @@ function producerClaims(input: ComputeIoImageInput, backed: Map<string, Set<numb
   const registry = migrateToRegistry({
     pinMapping: { pins: input.devicePinMapping ?? [] },
     vendorIoMapping: vppEntries(input.vendorScreenData),
-    remoteDevices: input.projectData.remoteDevices,
+    // Without the master (a board with a CANopen slave), CANopen master nodes back nothing.
+    remoteDevices: input.capabilities.ethercat
+      ? input.projectData.remoteDevices
+      : input.projectData.remoteDevices?.filter((d) => !d.canopenConfig),
     servers: input.projectData.servers,
   })
 
