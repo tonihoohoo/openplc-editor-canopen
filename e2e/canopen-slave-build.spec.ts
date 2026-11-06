@@ -139,6 +139,11 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await page.getByRole('button', { name: 'Export EDS or XDD...' }).click()
     const dialog = page.getByTestId('canopen-export-dialog')
     await expect(dialog.getByTestId('canopen-export-check')).toContainText('CiA 306 OK')
+    // The check line wraps instead of cutting the file summary off.
+    const clipped = await dialog
+      .getByTestId('canopen-export-check')
+      .evaluate((e) => e.scrollWidth > e.clientWidth || e.scrollHeight > e.clientHeight)
+    expect(clipped).toBe(false)
     await shot(page, 'slave-export')
     await dialog.getByTestId('canopen-export-save').click()
     await expect(dialog).toHaveCount(0)

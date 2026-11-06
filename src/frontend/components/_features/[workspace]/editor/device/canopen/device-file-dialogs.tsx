@@ -590,7 +590,7 @@ export const ExportDialog = ({
         )}
         <div className='sticky bottom-0 -mx-6 mt-auto flex shrink-0 items-center gap-2 border-t border-neutral-200 bg-white px-6 py-4 dark:border-neutral-800 dark:bg-neutral-950'>
           <p
-            className='min-w-0 flex-1 truncate text-xs'
+            className='line-clamp-2 min-w-0 flex-1 break-words text-xs leading-snug'
             data-testid='canopen-export-check'
             title={
               ok ? files.map((f) => `${f.fileName}: ${f.summary}`).join('\n') : errors.map((e) => e.plain).join('\n')
