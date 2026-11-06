@@ -6,6 +6,10 @@ on:
       - main
       - development
       - canopen
+  # Every job on each merge to canopen, blocking nothing.
+  push:
+    branches:
+      - canopen
 
 jobs:
   changes:
@@ -14,6 +18,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     outputs:
       docs_only: ${{ steps.files.outputs.docs_only }}
     steps:
@@ -26,7 +31,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: .github/scripts/docs-only.sh
+
+      - name: Head and base for the next push
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          mkdir -p ci-base
+          echo "${{ github.event.pull_request.head.sha }}" > ci-base/head
+          echo "${{ github.event.pull_request.base.sha }}" > ci-base/base
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ github.event_name == 'pull_request' }}
+        with:
+          name: ci-base
+          path: ci-base/
+          retention-days: 7
 
   architecture:
     needs: [changes]
@@ -65,6 +87,7 @@ jobs:
 
   sync:
     needs: [format]
+    if: ${{ github.event_name == 'pull_request' }}
     uses: ./.github/workflows/ci-sync.yml
     secrets: inherit
 

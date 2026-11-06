@@ -1,3 +1,12 @@
+// ci-covers:
+//   src/middleware/shared/utils/canopen/dcf-import.ts
+//   src/middleware/shared/utils/canopen/dcf-export.ts
+//   src/middleware/shared/utils/canopen/eds-check.ts
+//   src/middleware/shared/utils/canopen/eds-document.ts
+//   src/middleware/shared/utils/canopen/device-import.ts
+//   src/middleware/shared/utils/canopen/device-export.ts
+//   src/middleware/shared/utils/canopen/device-writer.ts
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/device-file-dialogs.tsx
 /**
  * EDS and DCF files: the CiA 306 check dialog, a node from a DCF with its settings, a refused file,
  * a node and the network exported as DCF files, and an exported DCF added again.

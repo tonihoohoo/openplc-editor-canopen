@@ -1,3 +1,10 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/online-tab.tsx
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/object-details.tsx
+//   src/middleware/shared/utils/canopen/online.ts
+//   src/frontend/hooks/use-canopen-online.ts
+//   src/frontend/hooks/use-canopen-online-reads.ts
+//   src/middleware/shared/ports/canopen-online.ts
 /**
  * The CANopen online tools against a connected runtime: the Online tab reads the node's objects
  * and shows the one that differs from the project, and in the expert view writes a value the node

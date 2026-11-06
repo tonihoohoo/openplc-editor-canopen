@@ -1,3 +1,6 @@
+// ci-covers:
+//   src/middleware/shared/utils/canopen/xdd-parser.ts
+//   src/middleware/shared/utils/canopen/object-info.ts
 /**
  * XDD labels: objects are named by the file's label, with the object dictionary name on hover and in
  * the details pane, and the device card counts the labels.

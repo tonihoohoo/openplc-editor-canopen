@@ -1,3 +1,6 @@
+// ci-covers:
+//   src/middleware/shared/utils/canopen/dbc-export.ts
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/export-options.tsx
 /**
  * DBC export: a network of three nodes exported as one DBC at 1280x720 without scrolling, the frame
  * options changing only texts and counts, Show all, the options kept for the next export, and a

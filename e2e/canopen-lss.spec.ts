@@ -1,3 +1,7 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/lss-panel.tsx
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/lss-section.tsx
+//   src/middleware/shared/utils/canopen/lss-tools.ts
 /**
  * Node ID over LSS: the General tab section of a node whose device file supports LSS, the LSS mark
  * in the node list, the check that stops the build without a serial number, and, against a fake

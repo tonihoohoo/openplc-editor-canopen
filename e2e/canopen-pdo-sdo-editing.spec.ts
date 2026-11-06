@@ -1,3 +1,8 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/pdo-section.tsx
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/sdo-section.tsx
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/sortable-rows.tsx
+//   src/middleware/shared/utils/canopen/sdo-value.ts
 /**
  * PDO and startup SDO editing in the CANopen device editor: an entry moved up, a synchronous
  * transmission type and a startup SDO added by search all reach conf/canopen.json.

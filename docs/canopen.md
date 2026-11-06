@@ -855,21 +855,39 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   against a fake runtime on port 8443 (`e2e/helpers/canopen-runtime.ts`), the live status, the Online
   tab, Save to node and Restore defaults, and service mode. Run them locally with
   `npx playwright test e2e/canopen-` after the build steps in CLAUDE.md ("Electron e2e").
-- CI: `.github/workflows/canopen-ui.yml` runs them on every pull request to `canopen` that changes a
-  path under `src/` or `e2e/` with `canopen` in it, an e2e helper, the dependencies or the workflow,
-  and on upstream sync pull requests; for any other pull request the job is skipped. A pull request
-  that changes only the slave server page, `slave.ts`, their tests or the slave e2e files runs only
-  `e2e/canopen-slave-*.spec.ts`; one that changes only other CANopen files runs the other specs; one
-  that changes a CANopen file the slave code imports (found by `.github/scripts/canopen-ui-groups.mjs`,
-  `--shared` lists them) runs both, and the comment names the set that ran. It builds the app
-  once on `ubuntu-24.04` with `.github/scripts/canopen-ui-build.sh` (production mode without
-  minification, source maps or module concatenation, about a minute instead of six) and runs the tests under `xvfb`. Their screenshots go to the `ci-screenshots`
-  branch and one comment on the pull request, updated on each run.
+- CI: `.github/workflows/canopen-ui.yml` runs on every pull request to `canopen`, on pushes to
+  `canopen` and when started by hand. A pull request runs only the specs its changed files need
+  (`.github/scripts/canopen-ui-select.mjs`): each `e2e/canopen-*.spec.ts` starts with a
+  `// ci-covers:` block of the source files it covers (a file, or a folder ending in `/**`; a spec with
+  nothing to list writes `// ci-covers: none`), and a changed file selects the specs that list it. A
+  CANopen file no spec lists runs its whole set: the slave specs (`e2e/canopen-slave-*.spec.ts`) for
+  the slave server page, `slave.ts` and their tests, the master specs for the other CANopen files, both
+  for a CANopen file the slave code imports (`--shared` lists them). A spec or its baseline images run
+  that spec, an e2e helper the specs that import it, an e2e fixture the specs that name it, and the
+  dependencies, the Playwright configuration and the CANopen UI workflow and scripts everything.
+  `e2e/canopen-offline-build.spec.ts` runs whenever anything runs. A missing or stale `ci-covers`
+  block fails the job (`node .github/scripts/canopen-ui-select.mjs --check`). When a push to a pull
+  request changes only specs or baselines, the base has not moved and the previous run left its
+  selection, the run takes only those specs and the ones that failed before. Pushes to `canopen`,
+  upstream sync pull requests and runs started by hand run every spec. More than 12 specs run in
+  three shards (`CANopen UI shard i/n`); the required `CANopen UI tests` job merges them. With nothing
+  to run it passes within seconds. It builds the app on `ubuntu-24.04` with
+  `.github/scripts/canopen-ui-build.sh` (production mode without minification, source maps or module
+  concatenation, about a minute instead of six) and runs the tests under `xvfb`. The screenshots go to
+  the `ci-screenshots` branch and one comment on the pull request, updated on each run: the specs that
+  ran, then the screenshots of the specs the change chose, with the others in a collapsed list.
 - Key views of the device editor and the slave server page are compared with the baselines in
-  `e2e/<spec>-snapshots/` (`keyView` in `e2e/helpers/canopen-shots.ts`), in CI only, because the baselines are Linux renderings. A view that
-  differs fails the job, and the comment shows the baseline, the new image and the difference. For an
-  intended change, take the new images from the run's `canopen-ui-results` artifact
-  (`<view>-actual.png`), save them as `e2e/<spec>-snapshots/<view>-chromium-linux.png` and commit.
+  `e2e/<spec>-snapshots/` (`keyView` in `e2e/helpers/canopen-shots.ts`), in CI only, because the
+  baselines are Linux renderings. A view that differs does not fail its test: it is recorded under
+  `test-results/canopen-key-views/` and the `CANopen UI tests` job fails at its end, and the comment
+  shows the baseline, the new image and the difference. For an intended change, take the new images
+  from the run's `canopen-ui-results` artifact (`<view>-actual.png`), save them as
+  `e2e/<spec>-snapshots/<view>-chromium-linux.png` and commit.
+- Main CI (`.github/workflows/ci.yml`) also runs on pushes to `canopen`. Its unit tests run in three
+  Jest shards, and `Unit Tests + Coverage` merges their coverage and checks the floors of
+  `jest.config.json` (`.github/scripts/coverage-merge.mjs`). A push to a pull request that changes
+  only files under `e2e/`, on an unchanged base after a passing run, skips its jobs like a docs-only
+  change.
 - `e2e/canopen-lss.spec.ts` covers the LSS section, the list mark, the build check and the LSS panel
   of the Status tab against the fake runtime.
 - `e2e/layout-canopen-online.spec.ts` (local only, outside the CI glob) takes screenshots of the Online

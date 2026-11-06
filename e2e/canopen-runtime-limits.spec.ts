@@ -1,3 +1,5 @@
+// ci-covers:
+//   src/middleware/shared/utils/canopen/runtime-support.ts
 /**
  * Values the runtime refuses never reach a build: the SYNC period field takes 1000 µs and more, the
  * interface name loses its spaces, and a read-only emergency COB-ID of 0 turns the node's emergency

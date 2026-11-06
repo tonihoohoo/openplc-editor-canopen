@@ -1,3 +1,5 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/network-settings.tsx
 /**
  * The Network tab of the CANopen device editor: bit rates the nodes do not support are greyed out
  * with the reason, the master, SYNC and startup settings reach conf/canopen.json, and the defaults

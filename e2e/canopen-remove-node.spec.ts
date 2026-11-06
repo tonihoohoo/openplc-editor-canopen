@@ -1,3 +1,6 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/remove-node-confirm.tsx
+//   src/middleware/shared/utils/canopen/node-removal.ts
 /**
  * Removing a CANopen node asks first: Cancel keeps the node, Remove takes it out of the network and
  * out of conf/canopen.json.

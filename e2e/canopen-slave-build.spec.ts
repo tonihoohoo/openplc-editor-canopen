@@ -1,3 +1,12 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/data-tab.tsx
+//   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/detail-fields.tsx
+//   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/general-tab.tsx
+//   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/object-number-field.tsx
+//   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/pdos-tab.tsx
+//   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/problem-list.tsx
+//   src/middleware/shared/utils/canopen/slave.ts
+//   src/middleware/shared/utils/canopen/slave-details.ts
 /**
  * A CANopen slave created from the "+" menu: its General, Data and PDOs tabs, its EDS exported and
  * added to a network as a node, and the build of both into conf/canopen.json.

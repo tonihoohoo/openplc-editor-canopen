@@ -1,3 +1,4 @@
+// ci-covers: none
 /**
  * Node startup and supervision options: the expert view, an optional node, a check with its fix,
  * who starts the node and whether it is on at PLC start, and the network's error behaviour and TIME,

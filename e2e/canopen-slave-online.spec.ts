@@ -1,3 +1,6 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/server/canopen-slave/online-tab.tsx
+//   src/middleware/shared/utils/canopen/slave-online.ts
 /**
  * The CANopen slave's Status tab against a fake runtime that reports the slave: running, with
  * settings the master changed, with the PLC stopped, with the master lost, with a node ID an LSS
@@ -145,9 +148,6 @@ function body(view: View, now: number) {
   }
 }
 
-/** Key views that differed from their baseline; the test fails at its end, so every view is compared in one run. */
-const differing: string[] = []
-
 async function slaveKeyView(page: Page, name: string): Promise<void> {
   await page.mouse.move(0, 0)
   await keyView(
@@ -155,9 +155,7 @@ async function slaveKeyView(page: Page, name: string): Promise<void> {
     name,
     [page.getByTestId('canopen-slave-online-since'), page.getByTestId('canopen-slave-online-time')],
     SLAVE_EDITOR,
-  ).catch((error: unknown) => {
-    differing.push(`${name}: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`)
-  })
+  )
 }
 
 test('the slave Status tab shows the running slave and what the master changed', async () => {
@@ -258,7 +256,6 @@ test('the slave Status tab shows the running slave and what the master changed',
     await expect(notice).toContainText('The runtime does not run this slave.', { timeout: 10000 })
     await expect(state).toHaveCount(0)
     await slaveKeyView(page, 'slave-online-not-running')
-    expect(differing, 'key views that differ from their baseline').toEqual([])
   } finally {
     await quitApp(app, page)
     runtime.close()

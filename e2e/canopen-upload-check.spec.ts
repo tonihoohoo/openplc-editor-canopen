@@ -1,3 +1,5 @@
+// ci-covers:
+//   src/middleware/shared/utils/canopen/runtime-support.ts
 /**
  * Build and upload of a CANopen project to a runtime without CANopen support is refused before
  * the upload, with the reason. The runtime is a local fake (`helpers/canopen-runtime.ts`).

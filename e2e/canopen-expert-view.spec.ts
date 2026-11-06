@@ -1,3 +1,4 @@
+// ci-covers: none
 /**
  * The basic and expert views of a CANopen node: expert settings are hidden in the basic view
  * unless they differ from their default, where an "expert" tag marks them. Covers heartbeat
