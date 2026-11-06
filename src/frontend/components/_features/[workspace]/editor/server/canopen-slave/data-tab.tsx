@@ -290,7 +290,7 @@ const ObjectRow = ({
             />
           </div>
         </td>
-        <td className={cn(cellClassName, 'w-[176px]')}>
+        <td className={cn(cellClassName, 'w-[190px]')}>
           <SelectField
             hideLabel
             label='Type'
