@@ -9,6 +9,7 @@
 #include <cmath>
 #include <string>
 #include <cstdio>
+#include <unistd.h>
 
 static int failures = 0;
 static void check(bool ok, const char *what) {
@@ -99,6 +100,37 @@ int main() {
   r.freq = 50;
   lio::pwm_apply(r, true);
   check(r.error == lio::e_not_found, "unknown PWM chip");
+
+  // Helper thread: ENABLE FALSE turns off a channel, also one left running by LIO_STOP_HOLD.
+  unsigned short id = 0;
+  unsigned gen = 0;
+  lio::slot *h = lio::enter(id, gen, lio::k_pwm, "0:0", 0);
+  h->stop = lio::stop_hold;
+  h->freq = 1000;
+  h->duty = 25;
+  lio::leave();
+  usleep(150 * 1000);
+  check(content("/class/pwm/pwmchip0/pwm0/enable") == "1", "helper runs the channel");
+  usleep(2500 * 1000);
+  check(content("/class/pwm/pwmchip0/pwm0/enable") == "1", "LIO_STOP_HOLD keeps it running after release");
+  unsigned short off_id = 0;
+  unsigned off_gen = 0;
+  lio::pwm_off(off_id, off_gen, "0:0");
+  check(off_id == lio::pwm_done, "ENABLE FALSE marks the block done");
+  usleep(150 * 1000);
+  check(content("/class/pwm/pwmchip0/pwm0/enable") == "0", "ENABLE FALSE turns off a held channel");
+  id = 0;
+  gen = 0;
+  h = lio::enter(id, gen, lio::k_pwm, "0:0", 0);
+  h->stop = lio::stop_hold;
+  h->freq = 1000;
+  h->duty = 25;
+  lio::leave();
+  usleep(150 * 1000);
+  check(content("/class/pwm/pwmchip0/pwm0/enable") == "1", "channel runs again");
+  lio::pwm_off(id, gen, "0:0");
+  usleep(150 * 1000);
+  check(content("/class/pwm/pwmchip0/pwm0/enable") == "0", "ENABLE FALSE turns off the block's own held channel");
 
   if (failures == 0) std::printf("ok\n");
   return failures == 0 ? 0 : 1;

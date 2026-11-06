@@ -1,4 +1,4 @@
-(* Drives a hardware PWM channel of the Linux device (sysfs) at FREQUENCY (Hz) with DUTY (0 to 100 %). CHIP is the pwmchip number ('0'), its name ('pwmchip0') or its device name; CHANNEL counts from 0. The channel is set up outside the PLC scan and written only when a value changes; VALID is TRUE once it runs with the values asked for. When the block is no longer called (PLC stop, PLC error, new upload) the channel goes to ON_STOP: LIO_STOP_OFF (default, duty 0 and disabled) or LIO_STOP_HOLD. A board may need its PWM driver switched on in its boot settings first.
+(* Drives a hardware PWM channel of the Linux device (sysfs) at FREQUENCY (Hz) with DUTY (0 to 100 %). CHIP is the pwmchip number ('0'), its name ('pwmchip0') or its device name; CHANNEL counts from 0. The channel is set up outside the PLC scan and written only when a value changes; VALID is TRUE once it runs with the values asked for. When the block is no longer called (PLC stop, PLC error, new upload) the channel goes to ON_STOP: LIO_STOP_OFF (default, duty 0 and disabled) or LIO_STOP_HOLD. ENABLE FALSE turns the channel off, also one left running by LIO_STOP_HOLD before. A board may need its PWM driver switched on in its boot settings first.
 Example: fan(ENABLE := TRUE, CHIP := '0', CHANNEL := 0, FREQUENCY := 1000.0, DUTY := speed); *)
 FUNCTION_BLOCK PWM_OUT
 VAR_INPUT
@@ -227,6 +227,7 @@ struct slot {
   double applied_duty;
   bool applied_on;
   bool exported;
+  bool force_off;  // write the off state even if this slot never ran the channel
   char pwm_dir[256];
   // reads
   long long period;
@@ -576,7 +577,7 @@ inline void pwm_apply(slot &s, bool on) {
     s.applied_duty = -1;
   }
   if (!on) {
-    if (s.applied_on) {
+    if (s.applied_on || s.force_off) {
       pwm_write(s, "duty_cycle", 0, subject);
       pwm_write(s, "enable", 0, subject);
     }
@@ -953,6 +954,50 @@ inline void disable(unsigned short &id, unsigned &gen, int kind) {
   gen = 0;
 }
 
+// PWM with ENABLE FALSE: turns the channel off whatever ON_STOP says, also one a block left running
+// (LIO_STOP_HOLD) before. Runs once per disable; id = pwm_done marks it done until the block runs again.
+const unsigned short pwm_done = 0xFFFF;
+inline void pwm_off(unsigned short &id, unsigned &gen, const char *key) {
+  if (id == pwm_done) return;
+  state &st = shared();
+  (void)guard();
+  pthread_mutex_lock(&st.lock);
+  slot *s = nullptr;
+  if (id >= 1 && id <= max_slots && st.slots[id - 1].used && st.slots[id - 1].kind == k_pwm &&
+      st.slots[id - 1].gen == gen)
+    s = &st.slots[id - 1];
+  for (int i = 0; i < max_slots && !s; ++i)
+    if (st.slots[i].used && st.slots[i].kind == k_pwm && st.slots[i].gen == 0 && same(st.slots[i].key, key))
+      s = &st.slots[i];
+  bool other = false;
+  for (int i = 0; i < max_slots && !s && !other; ++i)
+    other = st.slots[i].used && st.slots[i].kind == k_pwm && same(st.slots[i].key, key);
+  for (int i = 0; i < max_slots && !s && !other; ++i) {
+    if (!st.slots[i].used) {
+      s = &st.slots[i];
+      slot fresh{};
+      fresh.fd = -1;
+      fresh.used = true;
+      fresh.kind = k_pwm;
+      fresh.applied = -1;
+      copy_cstr(fresh.key, sizeof(fresh.key), key);
+      *s = fresh;
+    }
+  }
+  if (s) {
+    s->stop = stop_off;
+    s->force_off = true;
+    s->last_call = 0;  // the helper turns it off, unexports it and frees the slot
+    s->stopped = true;
+    s->interval = 0;
+    s->gen = 0;
+    ensure_helper(st);
+  }
+  pthread_mutex_unlock(&st.lock);
+  id = pwm_done;
+  gen = 0;
+}
+
 #endif  // __linux__
 
 }  // namespace lio
@@ -988,11 +1033,13 @@ void setup() {
 void loop() {
 #if defined(__linux__)
   if (!ENABLE) {
+    char l_key[lio::key_size];
+    snprintf(l_key, sizeof(l_key), "%s:%u", CHIP.c_str(), static_cast<unsigned>(CHANNEL));
     unsigned short l_id = lio_slot;
     unsigned l_gen = lio_gen;
-    lio::disable(l_id, l_gen, lio::k_pwm);
-    lio_slot = 0;
-    lio_gen = 0;
+    lio::pwm_off(l_id, l_gen, l_key);
+    lio_slot = l_id;
+    lio_gen = l_gen;
     VALID = false;
     ERROR = 0;
     if (lio_last != 0) ERRORTEXT = "";

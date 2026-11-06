@@ -29,8 +29,9 @@ blocks build but touch nothing: `VALID` stays FALSE and `ERROR` is `LIO_NOT_SUPP
 ## Blocks
 
 Every block has `ENABLE : BOOL` and the outputs `VALID : BOOL`, `ERROR : USINT` and
-`ERRORTEXT : STRING`. `ENABLE` FALSE releases the block's line or channel; an output goes to its
-stop state first.
+`ERRORTEXT : STRING`. `ENABLE` FALSE releases the block's line or channel; a `GPIO_OUT` goes to its
+stop state first. A `PWM_OUT` with `ENABLE` FALSE turns its channel off, whatever `ON_STOP` says,
+also a channel that `LIO_STOP_HOLD` left running before (for example from the previous run).
 
 | Block | Inputs | Outputs | What it does |
 | --- | --- | --- | --- |
@@ -71,7 +72,9 @@ The blocks run only while the program calls them. A helper thread of the library
 - After 2 s without a call a block's line or channel is released, so a newly uploaded program can
   claim it. Whether a released line keeps its level or bias depends on the board's GPIO driver.
 
-`LIO_STOP_OFF` matches what the runtime does with every `%Q` output on a PLC stop.
+`LIO_STOP_OFF` matches what the runtime does with every `%Q` output on a PLC stop. A CANopen slave
+stays operational over a PLC stop, so its TPDOs then carry those zeroed `%Q` values, not the levels
+of the inputs, and a master should not read them as input levels while the PLC is stopped.
 
 ## Errors
 
@@ -96,6 +99,13 @@ settings, usually a device tree overlay line in the boot configuration file, the
 the board's documentation for the overlay names; afterwards `/sys/class/pwm/` lists the PWM chips and
 `/sys/bus/iio/devices/` the IIO devices (each with a `name` file). The runtime container sees them
 without a restart of its own.
+
+A PWM chip's number depends on which drivers the boot settings switch on, so the same `CHIP := '0'`
+can name another PWM block after an overlay is added. A board can also have a PWM block that drives
+no header pin (for example one kept for a fan), and a block on it is `VALID` with no signal on any
+pin. Give `CHIP` as the chip's device name (the last part of the `/sys/class/pwm/pwmchipN/device`
+link, such as `'1f00098000.pwm'`), which does not change with the numbering, and check with the
+board's pin tool that the pin shows the PWM function.
 
 ## Examples
 
