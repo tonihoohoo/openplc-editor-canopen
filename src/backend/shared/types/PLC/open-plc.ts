@@ -657,6 +657,12 @@ const CanopenSlaveObjectSchema = z.object({
   min: z.string().optional(),
   max: z.string().optional(),
   bits: z.array(z.object({ name: z.string(), iecLocation: z.string(), alias: z.string().optional() })).optional(),
+  description: z.string().optional(),
+  unit: z.string().optional(),
+  multiplier: z.number().optional(),
+  offset: z.number().optional(),
+  values: z.array(z.object({ value: z.string(), label: z.string() })).optional(),
+  group: z.string().optional(),
 })
 
 const CanopenSlavePdoSchema = z.object({
@@ -705,6 +711,10 @@ const CanopenSlaveConfigSchema = z.object({
       }),
     )
     .optional(),
+  productText: z.string().optional(),
+  orderNumber: z.string().optional(),
+  hardwareVersion: z.string().optional(),
+  characteristics: z.array(z.object({ value: z.string(), label: z.string() })).optional(),
   lastExport: z.object({ revision: z.number().int().min(0), layout: z.string() }).optional(),
 })
 

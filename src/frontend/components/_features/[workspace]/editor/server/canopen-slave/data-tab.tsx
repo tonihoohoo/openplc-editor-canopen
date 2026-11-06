@@ -1,4 +1,4 @@
-import { ChevronDownIcon, ChevronRightIcon, PlusIcon, TrashIcon } from '@radix-ui/react-icons'
+import { ChevronDownIcon, ChevronRightIcon, InfoCircledIcon, PlusIcon, TrashIcon } from '@radix-ui/react-icons'
 import { cn } from '@root/frontend/utils/cn'
 import type {
   CanopenSlaveBit,
@@ -7,6 +7,7 @@ import type {
   CanopenSlaveDirection,
   CanopenSlaveExchange,
   CanopenSlaveObject,
+  CanopenValueMeaning,
 } from '@root/middleware/shared/ports/canopen-types'
 import {
   isSlaveDataType,
@@ -15,19 +16,32 @@ import {
   nextSlaveObjectName,
   nextSlaveObjectPlace,
   objectRef,
+  parseSlaveValue,
   SLAVE_DATA_TYPES,
   SLAVE_IEC_TYPE,
+  SLAVE_MAX_DESCRIPTION,
+  SLAVE_MAX_GROUP,
+  SLAVE_MAX_MEANING,
+  SLAVE_MAX_UNIT,
+  SLAVE_MAX_VALUES,
   SLAVE_PACKED_HINT,
   SLAVE_PACKED_LABEL,
   slaveAddressText,
+  slaveDetailLines,
+  slaveEngineeringText,
+  slaveGroups,
+  slaveHasNumber,
+  slaveHasWholeNumber,
+  slaveMeaningValueProblem,
   type SlavePdo,
   slavePdoLayout,
   slavePdoName,
   slavePdoOf,
   type SlaveProblem,
+  slaveScaledValue,
   slaveValueProblem,
 } from '@root/middleware/shared/utils/canopen'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { SelectField, type SelectOption, TextField } from '../../device/canopen/fields'
@@ -35,14 +49,19 @@ import {
   cardClassName,
   hintClassName,
   iconButtonClassName,
+  inputClassName,
+  labelClassName,
   secondaryButtonClassName,
 } from '../../device/canopen/styles'
+import { TextAreaField } from './detail-fields'
 
 type Update = (update: (config: CanopenSlaveConfig) => CanopenSlaveConfig) => void
 
 type DataTabProps = {
   config: CanopenSlaveConfig
   problems: readonly SlaveProblem[]
+  /** The expert view: each row opens its details strip. */
+  expert: boolean
   commit: Update
   /** Why the alias cannot be given to the object (or to its bit `bit`), or null. */
   aliasProblem: (object: CanopenSlaveObject, alias: string, bit?: number) => string | null
@@ -161,20 +180,32 @@ type ObjectRowProps = {
   config: CanopenSlaveConfig
   object: CanopenSlaveObject
   problems: readonly string[]
+  expert: boolean
   commit: Update
   aliasProblem: DataTabProps['aliasProblem']
   pdo: SlavePdo | null
   onShowPdo: DataTabProps['onShowPdo']
 }
 
-const ObjectRow = ({ config, object, problems, commit, aliasProblem, pdo, onShowPdo }: ObjectRowProps) => {
+/** "0 · Off" or "215 · 21.5 °C" under the default, when the object has meanings, a unit or a scale. */
+const engineeringHint = (object: CanopenSlaveObject): string | undefined => {
+  if (!slaveHasNumber(object)) return undefined
+  const raw = parseSlaveValue(object.defaultValue, object.dataType)
+  if (raw === null) return undefined
+  const text = slaveEngineeringText(object, raw)
+  return text === undefined ? undefined : `${raw} · ${text}`
+}
+
+const ObjectRow = ({ config, object, problems, expert, commit, aliasProblem, pdo, onShowPdo }: ObjectRowProps) => {
   const fromMaster = object.direction === 'from_master'
   const constant = object.exchange === 'constant'
   const string = object.dataType === 'VISIBLE_STRING'
   const packed = isSlavePacked(object)
   const [open, setOpen] = useState(true)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const change = (update: Partial<CanopenSlaveObject>) => commit((c) => updateObject(c, object.id, update))
-  const columns = fromMaster ? 11 : 9
+  const columns = fromMaster ? 12 : 10
+  const details = slaveDetailLines(object)
   return (
     <>
       <tr
@@ -293,6 +324,7 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem, pdo, onShow
             label={constant ? 'Value' : 'Default'}
             value={object.defaultValue}
             placeholder={string ? 'text' : '0'}
+            hint={engineeringHint(object)}
             onCommit={(typed) => {
               const value = string || typed !== '' ? typed : '0'
               const problem = slaveValueProblem(value, object.dataType)
@@ -324,6 +356,31 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem, pdo, onShow
             ))}
           </>
         ) : null}
+        <td className={cn(cellClassName, 'w-[28px]')}>
+          <div className='flex h-[30px] items-center justify-center'>
+            {expert ? (
+              <button
+                type='button'
+                aria-label={detailsOpen ? `Hide the details of ${object.name}` : `Show the details of ${object.name}`}
+                aria-expanded={detailsOpen}
+                className='rounded p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200'
+                onClick={() => setDetailsOpen(!detailsOpen)}
+              >
+                {detailsOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+              </button>
+            ) : details.length > 0 ? (
+              <span
+                role='img'
+                aria-label={`Details of ${object.name}`}
+                title={details.join('\n')}
+                data-testid='canopen-slave-details-mark'
+                className='text-neutral-500 dark:text-neutral-400'
+              >
+                <InfoCircledIcon />
+              </span>
+            ) : null}
+          </div>
+        </td>
         <td className={cn(cellClassName, 'w-[32px]')}>
           <div className='flex h-[30px] items-center'>
             <button
@@ -337,6 +394,13 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem, pdo, onShow
           </div>
         </td>
       </tr>
+      {expert && detailsOpen ? (
+        <tr data-testid={`canopen-slave-details-${object.id}`}>
+          <td colSpan={columns} className='px-1 pb-2'>
+            <DetailsStrip config={config} object={object} change={change} />
+          </td>
+        </tr>
+      ) : null}
       {packed && open
         ? (object.bits ?? []).map((bit, i) => (
             <BitRow
@@ -362,6 +426,234 @@ const ObjectRow = ({ config, object, problems, commit, aliasProblem, pdo, onShow
         </tr>
       ) : null}
     </>
+  )
+}
+
+const numberText = (n: number | undefined, fallback: string): string => (n === undefined ? fallback : String(n))
+
+/** A raw value for the scale example: the default, or 100 when the default is 0. */
+const exampleRaw = (object: CanopenSlaveObject): number => {
+  const raw = parseSlaveValue(object.defaultValue, object.dataType)
+  return raw === null || raw === 0 ? 100 : raw
+}
+
+type DetailsStripProps = {
+  config: CanopenSlaveConfig
+  object: CanopenSlaveObject
+  change: (update: Partial<CanopenSlaveObject>) => void
+}
+
+/** The value meanings of an integer object: raw value and text rows. */
+const MeaningsField = ({ object, change }: Omit<DetailsStripProps, 'config'>) => {
+  const values = object.values ?? []
+  const set = (next: CanopenValueMeaning[]) => change({ values: next.length > 0 ? next : undefined })
+  const setAt = (at: number, update: Partial<CanopenValueMeaning>) =>
+    set(values.map((v, i) => (i === at ? { ...v, ...update } : v)))
+  const nextValue = (): string => {
+    const used = new Set(values.map((v) => v.value.trim()))
+    for (let n = 0; ; n++) if (!used.has(String(n))) return String(n)
+  }
+  return (
+    <div className='flex flex-col gap-1' data-testid='canopen-slave-meanings'>
+      <span className={labelClassName}>Value meanings</span>
+      {values.map((v, i) => (
+        <div key={i} className='flex items-start gap-1'>
+          <TextField
+            className='w-[72px] shrink-0'
+            hideLabel
+            label={`Raw value of meaning ${i + 1}`}
+            value={v.value}
+            onCommit={(typed) => {
+              const problem = slaveMeaningValueProblem(object, typed)
+              if (problem) return `The value ${problem}.`
+              if (values.some((w, k) => k !== i && w.value.trim() !== '' && BigInt(w.value.trim()) === BigInt(typed)))
+                return 'Another meaning has this value.'
+              setAt(i, { value: typed })
+              return null
+            }}
+          />
+          <TextField
+            className='min-w-0 flex-1'
+            hideLabel
+            label={`Meaning of ${v.value}`}
+            value={v.label}
+            placeholder='meaning'
+            onCommit={(typed) => {
+              if (typed.length > SLAVE_MAX_MEANING) return `At most ${SLAVE_MAX_MEANING} characters.`
+              setAt(i, { label: typed })
+              return null
+            }}
+          />
+          <div className='flex h-[30px] items-center'>
+            <button
+              type='button'
+              aria-label={`Remove the meaning of ${v.value}`}
+              className={iconButtonClassName}
+              onClick={() => set(values.filter((_, k) => k !== i))}
+            >
+              <TrashIcon />
+            </button>
+          </div>
+        </div>
+      ))}
+      <div>
+        <button
+          type='button'
+          className={cn(secondaryButtonClassName, 'flex items-center gap-1')}
+          disabled={values.length >= SLAVE_MAX_VALUES}
+          onClick={() => set([...values, { value: nextValue(), label: '' }])}
+        >
+          <PlusIcon /> Value
+        </button>
+      </div>
+      <span className={hintClassName}>XDD allowed values with their texts; they do not limit what a master writes</span>
+    </div>
+  )
+}
+
+/** Unit and scale of a numeric object, with an example. */
+const UnitField = ({ object, change }: Omit<DetailsStripProps, 'config'>) => {
+  const raw = exampleRaw(object)
+  const scaled = slaveScaledValue(object, raw)
+  return (
+    <div className='flex flex-col gap-1' data-testid='canopen-slave-unit'>
+      <TextField
+        label='Unit'
+        value={object.unit ?? ''}
+        placeholder='none'
+        onCommit={(typed) => {
+          if (typed.length > SLAVE_MAX_UNIT) return `At most ${SLAVE_MAX_UNIT} characters.`
+          change({ unit: typed === '' ? undefined : typed })
+          return null
+        }}
+      />
+      <span className={cn(labelClassName, 'mt-1')}>Scale</span>
+      <div className='flex items-start gap-2'>
+        <TextField
+          className='min-w-0 flex-1'
+          hideLabel
+          label='Multiplier'
+          value={numberText(object.multiplier, '')}
+          placeholder='× 1'
+          onCommit={(typed) => {
+            if (typed === '') {
+              change({ multiplier: undefined })
+              return null
+            }
+            const n = Number(typed)
+            if (!Number.isFinite(n) || n === 0) return 'Enter a number other than 0.'
+            change({ multiplier: n === 1 ? undefined : n })
+            return null
+          }}
+        />
+        <TextField
+          className='min-w-0 flex-1'
+          hideLabel
+          label='Offset'
+          value={numberText(object.offset, '')}
+          placeholder='offset 0'
+          onCommit={(typed) => {
+            if (typed === '') {
+              change({ offset: undefined })
+              return null
+            }
+            const n = Number(typed)
+            if (!Number.isFinite(n)) return 'Enter a number.'
+            change({ offset: n === 0 ? undefined : n })
+            return null
+          }}
+        />
+      </div>
+      <span className={hintClassName} data-testid='canopen-slave-scale-example'>
+        {scaled !== undefined
+          ? `Raw ${raw} = ${scaled}; engineering value = (raw + offset) × multiplier`
+          : 'Engineering value = (raw + offset) × multiplier'}
+      </span>
+    </div>
+  )
+}
+
+/** The group, picked from the slave's groups or a new one. */
+const GroupField = ({ config, object, change }: DetailsStripProps) => {
+  const [text, setText] = useState(object.group ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const listId = `canopen-slave-groups-${object.id}`
+  useEffect(() => setText(object.group ?? ''), [object.group])
+  const commit = () => {
+    const next = text.trim()
+    if (next === (object.group ?? '')) return
+    if (next.length > SLAVE_MAX_GROUP) {
+      setError(`At most ${SLAVE_MAX_GROUP} characters.`)
+      setText(object.group ?? '')
+      return
+    }
+    setError(null)
+    const known = slaveGroups(config).find((g) => g.toLowerCase() === next.toLowerCase())
+    change({ group: next === '' ? undefined : (known ?? next) })
+  }
+  return (
+    <label className='flex flex-col gap-1'>
+      <span className={labelClassName}>Group</span>
+      <input
+        type='text'
+        aria-label='Group'
+        list={listId}
+        value={text}
+        placeholder='none'
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+        }}
+        className={inputClassName}
+      />
+      <datalist id={listId}>
+        {slaveGroups(config).map((g) => (
+          <option key={g} value={g} />
+        ))}
+      </datalist>
+      {error ? (
+        <span className='text-[10px] text-red-600 dark:text-red-400'>{error}</span>
+      ) : (
+        <span className={hintClassName}>XDD parameter group; a master lists the objects by it</span>
+      )}
+    </label>
+  )
+}
+
+/** The expert view's details of one object: what only an XDD holds. */
+const DetailsStrip = ({ config, object, change }: DetailsStripProps) => {
+  const number = slaveHasNumber(object)
+  const whole = slaveHasWholeNumber(object)
+  return (
+    <div className='grid grid-cols-3 gap-4 rounded-md border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/40'>
+      <TextAreaField
+        label='Description'
+        value={object.description ?? ''}
+        rows={3}
+        hint='XDD parameter description'
+        onCommit={(typed) => {
+          if (typed.length > SLAVE_MAX_DESCRIPTION) return `At most ${SLAVE_MAX_DESCRIPTION} characters.`
+          change({ description: typed === '' ? undefined : typed })
+          return null
+        }}
+      />
+      {whole ? (
+        <MeaningsField object={object} change={change} />
+      ) : number ? (
+        <UnitField object={object} change={change} />
+      ) : (
+        <p className={cn(hintClassName, 'pt-5')}>
+          {isSlavePacked(object)
+            ? 'The bit names above go into the XDD.'
+            : 'A text has no unit, scale or value meanings.'}
+        </p>
+      )}
+      <div className='flex flex-col gap-3'>
+        <GroupField config={config} object={object} change={change} />
+        {whole ? <UnitField object={object} change={change} /> : null}
+      </div>
+    </div>
   )
 }
 
@@ -452,7 +744,16 @@ type ObjectTableProps = Omit<DataTabProps, 'problems'> & {
   pdoOf: (id: string) => SlavePdo | null
 }
 
-const ObjectTable = ({ config, direction, commit, aliasProblem, problemsOf, pdoOf, onShowPdo }: ObjectTableProps) => {
+const ObjectTable = ({
+  config,
+  direction,
+  expert,
+  commit,
+  aliasProblem,
+  problemsOf,
+  pdoOf,
+  onShowPdo,
+}: ObjectTableProps) => {
   const fromMaster = direction === 'from_master'
   const objects = config.objects.filter((o) => o.direction === direction)
   const place = nextSlaveObjectPlace(config, direction)
@@ -516,6 +817,7 @@ const ObjectTable = ({ config, direction, commit, aliasProblem, problemsOf, pdoO
                     <th className={headClassName}>Max</th>
                   </>
                 ) : null}
+                <th className={headClassName} aria-label='Details' />
                 <th className={headClassName} aria-label='Remove' />
               </tr>
             </thead>
@@ -526,6 +828,7 @@ const ObjectTable = ({ config, direction, commit, aliasProblem, problemsOf, pdoO
                   config={config}
                   object={o}
                   problems={problemsOf(o.id)}
+                  expert={expert}
                   commit={commit}
                   aliasProblem={aliasProblem}
                   pdo={pdoOf(o.id)}
@@ -541,7 +844,7 @@ const ObjectTable = ({ config, direction, commit, aliasProblem, problemsOf, pdoO
 }
 
 /** The slave's application objects, one table per direction. */
-const DataTab = ({ config, problems, commit, aliasProblem, onShowPdo }: DataTabProps) => {
+const DataTab = ({ config, problems, expert, commit, aliasProblem, onShowPdo }: DataTabProps) => {
   const problemsOf = (id: string): string[] => problems.filter((p) => p.where === id).map((p) => p.text)
   const layout = slavePdoLayout(config)
   const pdoOf = (id: string): SlavePdo | null => slavePdoOf(layout, id)
@@ -550,6 +853,7 @@ const DataTab = ({ config, problems, commit, aliasProblem, onShowPdo }: DataTabP
       <ObjectTable
         config={config}
         direction='from_master'
+        expert={expert}
         commit={commit}
         aliasProblem={aliasProblem}
         problemsOf={problemsOf}
@@ -559,6 +863,7 @@ const DataTab = ({ config, problems, commit, aliasProblem, onShowPdo }: DataTabP
       <ObjectTable
         config={config}
         direction='to_master'
+        expert={expert}
         commit={commit}
         aliasProblem={aliasProblem}
         problemsOf={problemsOf}

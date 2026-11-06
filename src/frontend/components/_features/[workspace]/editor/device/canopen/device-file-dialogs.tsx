@@ -448,6 +448,8 @@ type ExportDialogProps = {
   missing: readonly CanopenNode[]
   /** What the files do not hold. */
   losses: readonly string[]
+  /** A line under the list of what the file leaves out. */
+  lossesNote?: string
   saveLabel: string
   /** Options of the picked format, shown below the format row. */
   options?: ReactNode
@@ -485,6 +487,7 @@ export const ExportDialog = ({
   files,
   missing,
   losses,
+  lossesNote,
   saveLabel,
   options,
   formats,
@@ -562,6 +565,11 @@ export const ExportDialog = ({
               >
                 {showAll ? 'Show fewer' : `Show all ${losses.length}`}
               </button>
+            ) : null}
+            {lossesNote ? (
+              <p className={cn(hintClassName, 'mt-1 text-xs')} data-testid='canopen-export-losses-note'>
+                {lossesNote}
+              </p>
             ) : null}
           </div>
         ) : null}

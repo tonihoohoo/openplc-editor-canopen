@@ -606,7 +606,7 @@ network and a slave at the same time. The page has four tabs:
 
 - **General**: interface, bit rate (or "Leave as configured"), node ID; identity (vendor name for the
   device file, device name 0x1008, software version 0x100A, vendor ID, product code and revision in
-  0x1018); heartbeat time 0x1017 (always sent), the master's node ID and heartbeat timeout to watch
+  0x1018); the [device file details](#xdd-details-of-the-slave); heartbeat time 0x1017 (always sent), the master's node ID and heartbeat timeout to watch
   (0x1016:01, 0 for none), what happens when the master is lost (0x1029:01, with EMCY 8130h), the
   values sent while the PLC is stopped (hold or zero, with EMCY 6200h), the slave's NMT state on a PLC
   stop (0x1029:02: no change, pre-operational from operational, or stopped; the master can change it
@@ -676,6 +676,36 @@ master) whose eight bits are separate BOOL addresses in the program, as CiA 401 
 - `conf/canopen.json` (version 12) lists the eight locations in the object's `bits` in place of
   `location`.
 
+### XDD details of the slave
+
+The slave page has the same **Expert view** switch as a master's node page, with the same remembered
+setting, so turning it on or off in one place does so on every CANopen page. It adds what only an XDD
+(CiA 311) holds; none of it reaches the runtime except the hardware version, and none of it raises the
+suggested revision.
+
+- **Data**: each row has a ▸ that opens its details: a **Description** (up to 1000 characters), for a
+  whole-number object **Value meanings** (raw value and text, up to 64, inside the type and the row's
+  range), for a numeric object a **Unit** (up to 32 characters) and a **Scale** (multiplier, not 0,
+  and offset; the engineering value is (raw + offset) × multiplier), and a **Group** picked from the
+  slave's groups or typed new. A packed object keeps its bit names and takes a description and group.
+  With a unit, scale or meanings, the Default column shows the engineering value or the meaning
+  ("0 · Off", "215 · 21.5 °C") and the Online tab's values do the same, in decimal also in Hex mode
+  ("7 · no meaning" when no meaning fits).
+- **General**: a **Device file details** panel below Identity with the **Product text** (up to 1000
+  characters), **Order number** (up to 245, the device name when empty), **Hardware version** (up to
+  255 printable ASCII characters; it sets 0x1009, a read-only object a master can read by SDO, absent
+  when empty) and **Characteristics** (up to 16 name and value pairs).
+- In the basic view the details are hidden: a row with details shows an "i" mark whose tooltip lists
+  them, and the Device file details panel shows only when something is filled in, marked "expert". A
+  problem in a hidden detail offers to turn the expert view on.
+- The XDD writes each object's details as a parameter of the device profile (label, description,
+  allowed values with their texts, unit and multiplier, offset) and the groups as parameter groups;
+  with value meanings it also writes the allowed range (the row's own, else the type's), so the
+  meanings do not narrow what a master may write. The product text, order number and characteristics
+  go in the device identity and capabilities. A master network that adds the XDD shows the units,
+  scaled values, value names and groups. The EDS keeps only the order number (`OrderCode`) and 0x1009;
+  with EDS picked, the export dialog lists what the file leaves out, by kind and count.
+
 ### LSS
 
 The General tab's **LSS** panel (layer setting services, CiA 305), off by default, lets an LSS master
@@ -711,7 +741,7 @@ from, checks it (CiA 306 or CiA 311) and suggests the next revision when the obj
 since the last export, so a master that imported the old file is not fed the wrong layout. A master
 project imports the file like any other node's.
 
-At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 11);
+At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 12);
 the file is written when only a slave is on. The checks that stop the build name the slave and the
 field or object.
 

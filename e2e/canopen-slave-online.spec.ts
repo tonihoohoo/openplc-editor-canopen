@@ -199,13 +199,13 @@ test('the slave Online tab shows the running slave and what the master changed',
     await expect(page.getByTestId('canopen-slave-bus-status')).toHaveText(
       'Bus OK (error active), errors TX 0 RX 0, load 3.1 %',
     )
-    await expect(value('0x2000:01')).toHaveText('1500')
+    await expect(value('0x2000:01')).toHaveText('1500 · 150 °C')
     await expect(notice).toHaveCount(0)
     await slaveKeyView(page, 'slave-online-running')
     await page.getByTestId('canopen-slave-online-events').scrollIntoViewIfNeeded()
     await slaveKeyView(page, 'slave-online-running-values')
     await page.getByLabel('Number display').selectOption('hex')
-    await expect(value('0x2000:01')).toHaveText('0x05DC')
+    await expect(value('0x2000:01')).toHaveText('0x05DC · 150 °C')
     await page.getByLabel('Number display').selectOption('decimal')
 
     view = 'changed'

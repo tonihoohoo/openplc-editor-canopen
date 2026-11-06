@@ -16,6 +16,7 @@ import { canopenTypeBits, objectRef } from './data-types'
 import { busStateLabel, emcyText, hex, resetText, sdoAbortText } from './diagnostics'
 import { formatCanopenValue, type ValueDisplay } from './online'
 import { isSlavePacked, isSlaveString, parseSlaveValue, SLAVE_PDO_COUNT, slaveBitsOn, slavePdoLayout } from './slave'
+import { slaveEngineeringText, slaveHasNumber } from './slave-details'
 
 // ---- values ----
 
@@ -33,6 +34,18 @@ export function slaveValueText(
   if (isSlaveString(object)) return object.defaultValue === '' ? '""' : `"${object.defaultValue}"`
   const data = slaveValueData(slave, object.index, object.subIndex)
   return data === undefined ? '-' : formatCanopenValue(object.dataType, slaveValueBytes(data), display)
+}
+
+/** The engineering value or meaning of the reported value ("21.5 °C", "Auto"), always decimal; undefined without. */
+export function slaveValueEngineering(
+  object: CanopenSlaveObject,
+  slave: CanopenSlaveStatus | null,
+): string | undefined {
+  if (!slaveHasNumber(object)) return undefined
+  const data = slaveValueData(slave, object.index, object.subIndex)
+  if (data === undefined) return undefined
+  const raw = Number(formatCanopenValue(object.dataType, slaveValueBytes(data), 'decimal'))
+  return Number.isFinite(raw) ? slaveEngineeringText(object, raw) : undefined
 }
 
 /** The bits of a packed object's reported value: each bit's state, bit 0 first, and the names of those on. */

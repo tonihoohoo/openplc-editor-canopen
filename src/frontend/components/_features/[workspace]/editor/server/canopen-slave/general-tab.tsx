@@ -1,3 +1,4 @@
+import { PlusIcon, TrashIcon } from '@radix-ui/react-icons'
 import { cn } from '@root/frontend/utils/cn'
 import type {
   CanopenSlaveConfig,
@@ -6,16 +7,30 @@ import type {
   CanopenSlaveOnPlcStop,
   CanopenSlaveOnPlcStopState,
 } from '@root/middleware/shared/ports/canopen-types'
-import { CANOPEN_BITRATES, slaveLss, type SlaveProblem } from '@root/middleware/shared/utils/canopen'
+import type { CanopenValueMeaning } from '@root/middleware/shared/ports/canopen-types'
+import {
+  CANOPEN_BITRATES,
+  SLAVE_MAX_CHARACTERISTIC,
+  SLAVE_MAX_CHARACTERISTICS,
+  SLAVE_MAX_HARDWARE_VERSION,
+  SLAVE_MAX_ORDER_NUMBER,
+  SLAVE_MAX_PRODUCT_TEXT,
+  slaveHasDeviceDetails,
+  slaveLss,
+  type SlaveProblem,
+} from '@root/middleware/shared/utils/canopen'
 
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from '../../device/canopen/fields'
 import {
   cardClassName,
   headingClassName,
   hintClassName,
+  iconButtonClassName,
   inputClassName,
   labelClassName,
+  secondaryButtonClassName,
 } from '../../device/canopen/styles'
+import { ExpertTag, TextAreaField } from './detail-fields'
 
 type GeneralTabProps = {
   name: string
@@ -25,6 +40,8 @@ type GeneralTabProps = {
   slaveNumber: number | null
   /** The project has the canopen block library. */
   libraryOn: boolean
+  /** The expert view: the device file details show also when empty. */
+  expert: boolean
   onChange: (update: Partial<CanopenSlaveConfig>) => void
 }
 
@@ -175,11 +192,150 @@ const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
   )
 }
 
+type DeviceDetailsPanelProps = {
+  config: CanopenSlaveConfig
+  tagged: boolean
+  onChange: (update: Partial<CanopenSlaveConfig>) => void
+}
+
+/** Device file details: only the XDD holds them, except the order number and 0x1009 that the EDS keeps too. */
+const DeviceDetailsPanel = ({ config, tagged, onChange }: DeviceDetailsPanelProps) => {
+  const list = config.characteristics ?? []
+  const setList = (next: CanopenValueMeaning[]) => onChange({ characteristics: next.length > 0 ? next : undefined })
+  const setItem = (at: number, update: Partial<CanopenValueMeaning>) =>
+    setList(list.map((c, i) => (i === at ? { ...c, ...update } : c)))
+  const short = (typed: string): string | null =>
+    typed.length > SLAVE_MAX_CHARACTERISTIC ? `At most ${SLAVE_MAX_CHARACTERISTIC} characters.` : null
+  return (
+    <div className={cardClassName} data-testid='canopen-slave-device-details'>
+      <h3 className={headingClassName}>
+        Device file details
+        <span className='ml-2 font-normal normal-case text-neutral-500 dark:text-neutral-400'>
+          only in the XDD; the EDS keeps the order number and hardware version
+        </span>
+        {tagged ? <ExpertTag /> : null}
+      </h3>
+      <div className='grid max-w-[960px] grid-cols-3 gap-4'>
+        <TextAreaField
+          label='Product text'
+          value={config.productText ?? ''}
+          hint='Shown with the device when a master imports the XDD'
+          onCommit={(value) => {
+            if (value.length > SLAVE_MAX_PRODUCT_TEXT) return `At most ${SLAVE_MAX_PRODUCT_TEXT} characters.`
+            onChange({ productText: value === '' ? undefined : value })
+            return null
+          }}
+        />
+        <TextField
+          label='Order number'
+          value={config.orderNumber ?? ''}
+          placeholder={config.deviceName}
+          hint='The device name when empty'
+          onCommit={(value) => {
+            if (value.length > SLAVE_MAX_ORDER_NUMBER) return `At most ${SLAVE_MAX_ORDER_NUMBER} characters.`
+            onChange({ orderNumber: value === '' ? undefined : value })
+            return null
+          }}
+        />
+        <TextField
+          label='Hardware version'
+          value={config.hardwareVersion ?? ''}
+          hint='Sets 0x1009, which a master can read by SDO; empty for none'
+          onCommit={(value) => {
+            if (value.length > SLAVE_MAX_HARDWARE_VERSION) return `At most ${SLAVE_MAX_HARDWARE_VERSION} characters.`
+            if (!/^[\x20-\x7e]*$/.test(value)) return 'Use printable ASCII characters.'
+            onChange({ hardwareVersion: value === '' ? undefined : value })
+            return null
+          }}
+        />
+      </div>
+      <div className='mt-4 max-w-[640px]'>
+        <span className={labelClassName}>Characteristics</span>
+        {list.length > 0 ? (
+          <table className='mt-1 w-full border-collapse' data-testid='canopen-slave-characteristics'>
+            <thead>
+              <tr>
+                <th className='w-[40%] px-1 py-1 text-left text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400'>
+                  Name
+                </th>
+                <th className='px-1 py-1 text-left text-[10px] font-semibold uppercase text-neutral-500 dark:text-neutral-400'>
+                  Value
+                </th>
+                <th className='w-[32px]' aria-label='Remove' />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((c, i) => (
+                <tr key={i}>
+                  <td className='px-1 py-1 align-top'>
+                    <TextField
+                      hideLabel
+                      label={`Name of characteristic ${i + 1}`}
+                      value={c.value}
+                      placeholder='name'
+                      onCommit={(typed) => {
+                        const problem = short(typed)
+                        if (problem) return problem
+                        setItem(i, { value: typed })
+                        return null
+                      }}
+                    />
+                  </td>
+                  <td className='px-1 py-1 align-top'>
+                    <TextField
+                      hideLabel
+                      label={`Value of characteristic ${i + 1}`}
+                      value={c.label}
+                      placeholder='value'
+                      onCommit={(typed) => {
+                        const problem = short(typed)
+                        if (problem) return problem
+                        setItem(i, { label: typed })
+                        return null
+                      }}
+                    />
+                  </td>
+                  <td className='px-1 py-1 align-top'>
+                    <div className='flex h-[30px] items-center'>
+                      <button
+                        type='button'
+                        aria-label={`Remove characteristic ${i + 1}`}
+                        className={iconButtonClassName}
+                        onClick={() => setList(list.filter((_, k) => k !== i))}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+        <div className='mt-1 flex items-center gap-3'>
+          <button
+            type='button'
+            className={cn(secondaryButtonClassName, 'flex items-center gap-1')}
+            disabled={list.length >= SLAVE_MAX_CHARACTERISTICS}
+            onClick={() => setList([...list, { value: '', label: '' }])}
+          >
+            <PlusIcon /> Characteristic
+          </button>
+          <span className={hintClassName}>
+            Name and value pairs, written as XDD characteristics; at most {SLAVE_MAX_CHARACTERISTICS}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const problemText = (problems: readonly SlaveProblem[], where: string): string | undefined =>
   problems.find((p) => p.where === where)?.text
 
 /** Bus, identity and behaviour of the slave; each field names the object it sets. */
-const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, onChange }: GeneralTabProps) => {
+const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, onChange }: GeneralTabProps) => {
+  const showDetails = expert || slaveHasDeviceDetails(config)
   const interfaceProblem = problemText(problems, 'interface')
   const watching = config.masterWatch.timeMs > 0
   const lss = slaveLss(config)
@@ -304,6 +460,8 @@ const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, onChange }
           />
         </div>
       </div>
+
+      {showDetails ? <DeviceDetailsPanel config={config} tagged={!expert} onChange={onChange} /> : null}
 
       <div className={cardClassName}>
         <h3 className={headingClassName}>Behaviour</h3>

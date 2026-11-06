@@ -1,6 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { toast } from '@root/frontend/components/_features/[app]/toast/use-toast'
 import { useAliasRegistry } from '@root/frontend/hooks/use-alias-registry'
+import { useCanopenExpertView } from '@root/frontend/hooks/use-canopen-expert-view'
 import { type CanopenSlaveLiveStatus, useCanopenSlaveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { useOpenPLCStore, useOpenPLCStoreApi } from '@root/frontend/store'
 import { cn } from '@root/frontend/utils/cn'
@@ -16,6 +17,7 @@ import {
   exportFileType,
   type ExportFormat,
   slaveBitChannel,
+  slaveEdsLosses,
   slaveLayoutText,
   slaveLss,
   slaveLssForgetText,
@@ -158,6 +160,7 @@ const CanopenSlaveEditor = () => {
   const live = useCanopenSlaveStatus(name, on)
   const [exporting, setExporting] = useState(false)
   const [format, setFormat] = useState<SlaveFormat>('eds')
+  const [expert, setExpert] = useCanopenExpertView()
 
   const libraries = useOpenPLCStore((s) => s.project.data.libraries)
   const libraryOn = usesCanopenLibrary(libraries)
@@ -263,6 +266,17 @@ const CanopenSlaveEditor = () => {
           <SlaveBusLine live={live} />
         </div>
         <div className='flex shrink-0 items-center gap-4'>
+          <label className='flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300'>
+            <input
+              type='checkbox'
+              role='switch'
+              aria-label='Expert view'
+              checked={expert}
+              onChange={(e) => setExpert(e.target.checked)}
+              className='h-3.5 w-3.5 accent-brand'
+            />
+            Expert view
+          </label>
           <button type='button' className={primaryButtonClassName} onClick={() => setExporting(true)}>
             Export EDS or XDD...
           </button>
@@ -289,6 +303,15 @@ const CanopenSlaveEditor = () => {
               <li key={`${p.where}-${p.text}`}>{p.text}</li>
             ))}
           </ul>
+          {!expert && problems.some((p) => p.expert) ? (
+            <button
+              type='button'
+              className='mt-1 font-medium text-red-800 underline dark:text-red-300'
+              onClick={() => setExpert(true)}
+            >
+              Turn on the expert view to fix the details
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -312,6 +335,7 @@ const CanopenSlaveEditor = () => {
             problems={problems}
             slaveNumber={slaveNumber}
             libraryOn={libraryOn}
+            expert={expert}
             onChange={(update) => commit((c) => ({ ...c, ...update }))}
           />
         </Tabs.Content>
@@ -319,6 +343,7 @@ const CanopenSlaveEditor = () => {
           <DataTab
             config={config}
             problems={problems}
+            expert={expert}
             commit={commit}
             aliasProblem={aliasProblem}
             onShowPdo={showPdo}
@@ -339,7 +364,8 @@ const CanopenSlaveEditor = () => {
           formats={SLAVE_FORMATS}
           files={[exported]}
           missing={[]}
-          losses={[]}
+          losses={format === 'eds' ? slaveEdsLosses(config) : []}
+          lossesNote={format === 'eds' ? 'Pick XDD to keep them; a master that imports the XDD shows them.' : undefined}
           saveLabel={`Save ${exported.fileName}...`}
           options={<RevisionCard config={config} onUse={(revision) => commit((c) => ({ ...c, revision }))} />}
           onFormatChange={(f) => {

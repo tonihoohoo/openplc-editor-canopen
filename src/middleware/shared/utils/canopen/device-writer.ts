@@ -181,8 +181,8 @@ export function xddAccess(o: CanopenObject): string {
   return o.access === 'rwr' || o.access === 'rww' ? 'rw' : o.access
 }
 
-/** uniqueID of the parameter that names the bits of an object, in the XDD's application process. */
-function bitsParameterId(o: CanopenObject): string {
+/** uniqueID of the parameter that describes an object, in the XDD's application process. */
+function parameterId(o: CanopenObject): string {
   return `PAR_${hex4(o.index)}_${o.subIndex.toString(16).toUpperCase().padStart(2, '0')}`
 }
 
@@ -195,44 +195,100 @@ const PARAMETER_ACCESS: Readonly<Record<CanopenAccess, string>> = {
   rww: 'readWrite',
 }
 
+/** IEC 61131-3 type of a parameter, by the object's data type name. */
+const PARAMETER_TYPES: Readonly<Record<string, string>> = {
+  BOOLEAN: 'BOOL',
+  INTEGER8: 'SINT',
+  INTEGER16: 'INT',
+  INTEGER32: 'DINT',
+  INTEGER64: 'LINT',
+  UNSIGNED8: 'USINT',
+  UNSIGNED16: 'UINT',
+  UNSIGNED32: 'UDINT',
+  UNSIGNED64: 'ULINT',
+  REAL32: 'REAL',
+  REAL64: 'LREAL',
+  VISIBLE_STRING: 'STRING',
+}
+
 const hasBitNames = (o: CanopenObject): boolean => (o.info?.bits?.length ?? 0) > 0
 
+/** The object has details a parameter carries: bit names, or a parameter type for the other details. */
+const hasParameter = (o: CanopenObject): boolean => {
+  if (hasBitNames(o)) return true
+  const i = o.info
+  if (!i || PARAMETER_TYPES[o.dataType] === undefined) return false
+  return [i.description, i.unit, i.multiplier, i.offset, i.values, i.group, i.min, i.max].some((v) => v !== undefined)
+}
+
+const label = (t: string): string => `<label lang="en">${xmlText(t)}</label>`
+
+function bitStruct(o: CanopenObject): string {
+  const id = parameterId(o)
+  const bits = [...(o.info?.bits ?? [])].sort((a, b) => Number(a.value) - Number(b.value))
+  let at = 0
+  const vars: string[] = []
+  for (const b of bits) {
+    const bit = Number(b.value)
+    if (bit > at)
+      vars.push(
+        `<c:varDeclaration name="Reserved_${at}" uniqueID="${id}_R${at}" size="${bit - at}"><BITSTRING/></c:varDeclaration>`,
+      )
+    vars.push(
+      `<c:varDeclaration name="Bit_${bit}" uniqueID="${id}_B${bit}">${label(b.label)}<BOOL/></c:varDeclaration>`,
+    )
+    at = bit + 1
+  }
+  return `<c:struct name="${xmlAttr(o.name)}_bits" uniqueID="${id}_T">${label(o.name)}${vars.join('')}</c:struct>`
+}
+
+function parameter(o: CanopenObject): string {
+  const info = o.info ?? {}
+  const attrs = [`uniqueID="${parameterId(o)}"`, `access="${PARAMETER_ACCESS[o.access]}"`]
+  if (info.offset !== undefined) attrs.push(`offset="${info.offset}"`)
+  if (info.multiplier !== undefined && info.unit === undefined) attrs.push(`multiplier="${info.multiplier}"`)
+  const body = [label(info.label ?? o.name)]
+  if (info.description !== undefined) body.push(`<description lang="en">${xmlText(info.description)}</description>`)
+  body.push(
+    hasBitNames(o) ? `<c:dataTypeIDRef uniqueIDRef="${parameterId(o)}_T"/>` : `<${PARAMETER_TYPES[o.dataType]}/>`,
+  )
+  const values = (info.values ?? []).map((v) => `<c:value value="${xmlAttr(v.value)}">${label(v.label)}</c:value>`)
+  const range =
+    info.min !== undefined || info.max !== undefined
+      ? `<c:range>${info.min !== undefined ? `<c:minValue value="${xmlAttr(info.min)}"/>` : ''}${info.max !== undefined ? `<c:maxValue value="${xmlAttr(info.max)}"/>` : ''}</c:range>`
+      : ''
+  if (values.length > 0 || range !== '') body.push(`<c:allowedValues>${values.join('')}${range}</c:allowedValues>`)
+  if (info.unit !== undefined) body.push(`<c:unit multiplier="${info.multiplier ?? 1}">${label(info.unit)}</c:unit>`)
+  return `<c:parameter ${attrs.join(' ')}>${body.join('')}</c:parameter>`
+}
+
 /**
- * The device profile's application process for objects with bit names: a struct data type of one BOOL
- * per named bit, and a parameter of that type the object refers to. Empty when no object names bits.
+ * The device profile's application process for objects with details: per object a parameter with its
+ * label, description, allowed values, unit and scaling (bit names as a struct type of one BOOL per named
+ * bit), and the parameter groups. Empty when no object has details.
  */
 function applicationProcess(eds: CanopenEdsInfo): string {
-  const named = eds.objects.filter(hasBitNames)
-  if (named.length === 0) return ''
-  const label = (t: string): string => `<label lang="en">${xmlText(t)}</label>`
-  const structs = named.map((o) => {
-    const id = bitsParameterId(o)
-    const bits = [...(o.info?.bits ?? [])].sort((a, b) => Number(a.value) - Number(b.value))
-    let at = 0
-    const vars: string[] = []
-    for (const b of bits) {
-      const bit = Number(b.value)
-      if (bit > at)
-        vars.push(
-          `<c:varDeclaration name="Reserved_${at}" uniqueID="${id}_R${at}" size="${bit - at}"><BITSTRING/></c:varDeclaration>`,
-        )
-      vars.push(
-        `<c:varDeclaration name="Bit_${bit}" uniqueID="${id}_B${bit}">${label(b.label)}<BOOL/></c:varDeclaration>`,
-      )
-      at = bit + 1
-    }
-    return `<c:struct name="${xmlAttr(o.name)}_bits" uniqueID="${id}_T">${label(o.name)}${vars.join('')}</c:struct>`
-  })
-  const parameters = named.map((o) => {
-    const access = PARAMETER_ACCESS[o.access]
-    return `<c:parameter uniqueID="${bitsParameterId(o)}" access="${access}">${label(o.name)}<c:dataTypeIDRef uniqueIDRef="${bitsParameterId(o)}_T"/></c:parameter>`
-  })
+  const described = eds.objects.filter(hasParameter)
+  if (described.length === 0) return ''
+  const structs = described.filter(hasBitNames).map(bitStruct)
+  const groups = new Map<string, CanopenObject[]>()
+  for (const o of described) {
+    const g = o.info?.group
+    if (g !== undefined) groups.set(g, [...(groups.get(g) ?? []), o])
+  }
+  const groupList = [...groups.entries()].map(
+    ([name, list], k) =>
+      `<c:parameterGroup uniqueID="GRP_${k + 1}">${label(name)}${list.map((o) => `<c:parameterRef uniqueIDRef="${parameterId(o)}"/>`).join('')}</c:parameterGroup>`,
+  )
   return [
     '<c:ApplicationProcess>',
-    `<c:dataTypeList>${structs.join('')}</c:dataTypeList>`,
-    `<c:parameterList>${parameters.join('')}</c:parameterList>`,
+    structs.length > 0 ? `<c:dataTypeList>${structs.join('')}</c:dataTypeList>` : '',
+    `<c:parameterList>${described.map(parameter).join('')}</c:parameterList>`,
+    groupList.length > 0 ? `<c:parameterGroupList>${groupList.join('')}</c:parameterGroupList>` : '',
     '</c:ApplicationProcess>',
-  ].join('\n')
+  ]
+    .filter((l) => l !== '')
+    .join('\n')
 }
 
 function xddObjectAttrs(o: CanopenObject, sub: boolean): string {
@@ -246,7 +302,7 @@ function xddObjectAttrs(o: CanopenObject, sub: boolean): string {
     `accessType="${xddAccess(o)}"`,
     o.defaultValue !== undefined ? `defaultValue="${xmlAttr(o.defaultValue)}"` : undefined,
     `PDOmapping="${xddPdoMapping(o)}"`,
-    hasBitNames(o) ? `uniqueIDRef="${bitsParameterId(o)}"` : undefined,
+    hasParameter(o) ? `uniqueIDRef="${parameterId(o)}"` : undefined,
   ]
   return parts.filter((p) => p !== undefined).join(' ')
 }
@@ -282,7 +338,6 @@ function bodyAttrs(kind: string, options: WriteOptions): string {
 }
 
 function deviceFunction(eds: CanopenEdsInfo): string {
-  const label = (t: string): string => `<label lang="en">${xmlText(t)}</label>`
   // CiA 311 asks for at least one characteristic.
   const given = eds.details?.characteristics ?? []
   const list = (given.length > 0 ? given : [{ value: 'Product', label: eds.productName || 'CANopen device' }])
@@ -305,6 +360,7 @@ export function writeXdd(eds: CanopenEdsInfo, options: WriteOptions): string {
   const supported = CANOPEN_BITRATES.filter((b) => !eds.unsupportedBitrates?.includes(b))
   const rates = supported.map((b) => `<supportedBaudRate value="${b / 1000} Kbps"/>`).join('')
   const order = eds.details?.orderNumber ? `<c:orderNumber>${xmlText(eds.details.orderNumber)}</c:orderNumber>` : ''
+  const productText = eds.details?.productText ? `<c:productText>${label(eds.details.productText)}</c:productText>` : ''
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<c:ISO15745ProfileContainer xmlns:c="${NS}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">`,
@@ -316,6 +372,7 @@ export function writeXdd(eds: CanopenEdsInfo, options: WriteOptions): string {
     `<c:vendorID>${hex8(eds.vendorId)}</c:vendorID>`,
     `<c:productName>${xmlText(eds.productName)}</c:productName>`,
     `<c:productID>${hex8(eds.productCode)}</c:productID>`,
+    productText,
     order,
     '</c:DeviceIdentity>',
     deviceFunction(eds),
