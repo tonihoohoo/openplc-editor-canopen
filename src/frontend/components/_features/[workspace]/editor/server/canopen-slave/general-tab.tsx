@@ -101,6 +101,8 @@ const NodeIdFromMaster = () => (
 type LssPanelProps = {
   config: CanopenSlaveConfig
   problems: readonly SlaveProblem[]
+  /** The expert view: the serial number and bit rate settings show also at their defaults. */
+  expert: boolean
   onChange: (update: Partial<CanopenSlaveConfig>) => void
 }
 
@@ -125,13 +127,15 @@ const Radio = ({ label, hint, checked, onPick }: RadioProps) => (
 )
 
 /** How the slave gets its node ID: fixed, or set by an LSS master (CiA 305); the LSS settings show only then. */
-const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
+const LssPanel = ({ config, problems, expert, onChange }: LssPanelProps) => {
   const lss = slaveLss(config)
   const set = (update: Partial<CanopenSlaveLss>) => onChange({ lss: { ...lss, ...update } })
   const firstStartOptions: ReadonlyArray<SelectOption<FirstStart>> = [
     { value: 'node', label: `Use node ID ${config.nodeId}` },
-    { value: 'wait', label: 'Wait for the master' },
+    { value: 'wait', label: 'No node ID: wait for the master' },
   ]
+  const showSerial = expert || lss.serial !== null
+  const showBitrate = expert || !lss.bitrateChange
   return (
     <div className={cardClassName} data-slave-where='lss' data-testid='canopen-slave-lss'>
       <h3 className={headingClassName}>
@@ -147,8 +151,8 @@ const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
           onPick={() => set({ enabled: false })}
         />
         <Radio
-          label='An LSS master may set it (CiA 305)'
-          hint='The master finds the slave by its LSS address and may give it another node ID and bit rate'
+          label='Given by an LSS master (CiA 305)'
+          hint='A master finds the slave by its LSS address and may give it another node ID'
           checked={lss.enabled}
           onPick={() => set({ enabled: true })}
         />
@@ -156,7 +160,7 @@ const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
           <div className='ml-5 flex flex-col gap-3'>
             <div className='grid grid-cols-2 gap-4'>
               <SelectField
-                label='At first start'
+                label='Until a master gives one'
                 value={lss.waitForMaster ? 'wait' : 'node'}
                 options={firstStartOptions}
                 hint={
@@ -166,51 +170,60 @@ const LssPanel = ({ config, problems, onChange }: LssPanelProps) => {
                 }
                 onChange={(value) => set({ waitForMaster: value === 'wait' })}
               />
-              <div className='flex flex-col gap-1'>
-                <SelectField
-                  label='Serial number'
-                  value={lss.serial === null ? 'auto' : 'fixed'}
-                  options={SERIAL_OPTIONS}
-                  objectRef='0x1018:04'
-                  hint={
-                    lss.serial === null
-                      ? 'The last part of the LSS address; made once on the runtime device and kept'
-                      : 'Must differ between slaves with the same identity on one bus'
-                  }
-                  warning={problems.find((p) => p.where === 'lss')?.text}
-                  onChange={(value) => set({ serial: value === 'auto' ? null : (lss.serial ?? 1) })}
-                />
-                {lss.serial !== null ? (
-                  <NumberField
-                    label='Fixed serial number'
-                    hideLabel
-                    value={lss.serial}
-                    min={0}
-                    max={0xffffffff}
-                    hex
-                    hexWidth={8}
-                    onCommit={(value) => {
-                      if (value === 0) return 'The serial number is part of the LSS address and cannot be 0.'
-                      set({ serial: value })
-                      return null
-                    }}
+              {showSerial ? (
+                <div className='flex flex-col gap-1'>
+                  <SelectField
+                    label='Serial number'
+                    expertTag={!expert}
+                    value={lss.serial === null ? 'auto' : 'fixed'}
+                    options={SERIAL_OPTIONS}
+                    objectRef='0x1018:04'
+                    hint={
+                      lss.serial === null
+                        ? 'The last part of the LSS address; made once on the runtime device and kept'
+                        : 'Must differ between slaves with the same identity on one bus'
+                    }
+                    warning={problems.find((p) => p.where === 'lss')?.text}
+                    onChange={(value) => set({ serial: value === 'auto' ? null : (lss.serial ?? 1) })}
                   />
-                ) : null}
-              </div>
+                  {lss.serial !== null ? (
+                    <NumberField
+                      label='Fixed serial number'
+                      hideLabel
+                      value={lss.serial}
+                      min={0}
+                      max={0xffffffff}
+                      hex
+                      hexWidth={8}
+                      onCommit={(value) => {
+                        if (value === 0) return 'The serial number is part of the LSS address and cannot be 0.'
+                        set({ serial: value })
+                        return null
+                      }}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
             </div>
-            <CheckboxField
-              label='The master may change the bit rate'
-              checked={lss.bitrateChange}
-              hint={
-                lss.bitrateChange
-                  ? 'A stored bit rate from the CiA 301 table is used from the next start'
-                  : 'Bit rate requests are answered with "not supported"'
-              }
-              onChange={(bitrateChange) => set({ bitrateChange })}
-            />
-            <p className={hintClassName}>
-              When the master sends Store, the node ID and bit rate it set are kept on the runtime device and win over
-              the values above, also after a restart, a new upload or a runtime update, until they are forgotten.
+            {showBitrate ? (
+              <CheckboxField
+                label='The master may change the bit rate'
+                expertTag={!expert}
+                checked={lss.bitrateChange}
+                hint={
+                  lss.bitrateChange
+                    ? 'A stored bit rate from the CiA 301 table is used from the next start'
+                    : 'Bit rate requests are answered with "not supported"'
+                }
+                onChange={(bitrateChange) => set({ bitrateChange })}
+              />
+            ) : null}
+            <p className={hintClassName} data-testid='canopen-slave-lss-note'>
+              {showSerial
+                ? ''
+                : 'Serial number: automatic, made once on the runtime device and shown on the Status tab. '}
+              A node ID{lss.bitrateChange ? ' or bit rate' : ''} the master stores is kept on the runtime device, also
+              after a restart, a new upload or a runtime update, until you forget it on the Status tab.
             </p>
           </div>
         ) : null}
@@ -433,7 +446,7 @@ const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, on
         </div>
       </div>
 
-      <LssPanel config={config} problems={problems} onChange={onChange} />
+      <LssPanel config={config} problems={problems} expert={expert} onChange={onChange} />
 
       <div className={cardClassName} data-slave-where='heartbeat masterWatch'>
         <h3 className={headingClassName}>Supervision</h3>

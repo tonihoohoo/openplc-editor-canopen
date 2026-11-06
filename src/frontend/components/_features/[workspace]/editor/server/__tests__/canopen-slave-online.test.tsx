@@ -203,9 +203,11 @@ describe('the slave Status tab', () => {
       })
       const card = screen.getByTestId('canopen-slave-online-lss')
       expect(screen.getByTestId('canopen-slave-lss-node_id').textContent).toBe('12')
-      expect(card.textContent).toContain('Stored by an LSS master (project 5)')
+      expect(card.textContent).toContain('Stored by an LSS master (project: 5)')
       expect(card.textContent).toContain('0x1234ABCD')
-      expect(card.textContent).toContain('Picked by the runtime and kept')
+      expect(card.textContent).toContain('Automatic, kept on the runtime device')
+      // The LSS state is in the expert view only.
+      expect(screen.queryByTestId('canopen-slave-lss-state')).toBeNull()
       expect(screen.getByTestId('canopen-slave-lss-stored').textContent).toContain('Stored on the runtime: node ID 12.')
       expect(screen.queryByTestId('canopen-slave-online-notice')).toBeNull()
       fireEvent.click(within(card).getByRole('button', { name: 'Forget stored LSS values...' }))

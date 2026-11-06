@@ -732,16 +732,19 @@ The General tab's **How this slave gets node ID N** card (layer setting services
 master find the slave and give it its node ID and bit rate. **Fixed in the project** is the default;
 the settings below show only with LSS on, and are kept while it is off:
 
-- **An LSS master may set it (CiA 305)** turns LSS on. The exported EDS then has `LSS_Supported=1`
+- **Given by an LSS master (CiA 305)** turns LSS on. The exported EDS then has `LSS_Supported=1`
   and the XDD `layerSettingServiceSlave="true"`.
-- **At first start**: **Use node ID N** starts with the node ID above, which a master may change;
-  **Wait for the master** starts with no node ID (FFh) and stays silent apart from LSS until a master
-  gives it one, finding it by LSS fastscan. The Node ID field then shows "Set by the LSS master" and
-  keeps the typed value for when this is turned back.
+- **Until a master gives one**: **Use node ID N** starts with the node ID above, which a master may
+  change; **No node ID: wait for the master** starts with no node ID (FFh) and stays silent apart from
+  LSS until a master gives it one, finding it by LSS fastscan. The Node ID field then shows "Set by the
+  LSS master" and keeps the typed value for when this is turned back.
+
+In the expert view (a setting off its default stays visible in the basic view, marked as expert):
+
 - **Serial number** (0x1018:04, the last part of the LSS address after the vendor ID, product code and
-  revision): **Automatic (per device)** is made once on the runtime device and kept, so copies of the
-  project on other devices differ; **Fixed** takes a number from 0x00000001, which must differ between
-  slaves with the same identity on one bus.
+  revision): **Automatic (per device)**, the default, is made once on the runtime device and kept, so
+  copies of the project on other devices differ; **Fixed** takes a number from 0x00000001, which must
+  differ between slaves with the same identity on one bus.
 - **The master may change the bit rate** (on by default): a bit rate the master configures and
   stores is used from the slave's next start. Off, the slave answers "not supported".
 
@@ -751,7 +754,8 @@ forgotten. Default COB-IDs (EMCY, SDO, PDOs 1-4) follow the node ID in use.
 
 On the Status tab, the **LSS** card of a running LSS slave shows the node ID in use and where it
 comes from (the project, stored by a master, or given and not stored), the bit rate in use, the serial
-number and the LSS state, and what is stored on the runtime. **Forget stored LSS values...** asks first
+number (in hexadecimal) and what is stored on the runtime; the expert view adds the LSS state
+(*Normal*, or *Selected by a master* while a master configures it). **Forget stored LSS values...** asks first
 and then removes the stored values (request `slave_lss_forget`, runtimes that list the `slave_lss`
 feature); the slave restarts with the project's node ID and bit rate. The tab compares the PDO COB-IDs
 at the node ID in use, so a node ID from the master is not shown as a change.

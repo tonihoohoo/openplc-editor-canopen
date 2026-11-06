@@ -661,7 +661,7 @@ function bitrateText(bitrate: number | undefined): string {
 export function slaveLssFacts(slave: CanopenSlaveStatus): SlaveLssFact[] | null {
   const lss = slave.lss
   if (!lss) return null
-  const projectNode = `project ${lss.project_node_id}`
+  const projectNode = `project: ${lss.project_node_id}`
   const nodeDetail: Record<typeof lss.node_id_from, string> = {
     none: 'Waiting for an LSS master to give one',
     project: 'From the project',
@@ -682,21 +682,23 @@ export function slaveLssFacts(slave: CanopenSlaveStatus): SlaveLssFact[] | null 
       value: bitrateText(lss.bitrate),
       detail:
         lss.bitrate_from === 'stored'
-          ? `Stored by an LSS master (project ${bitrateText(lss.project_bitrate).toLowerCase()})`
+          ? `Stored by an LSS master (project: ${bitrateText(lss.project_bitrate).toLowerCase()})`
           : 'From the project',
     },
     {
       key: 'serial',
       label: 'Serial number',
-      value: serial === undefined ? '-' : `${hex(serial, 8)} (${serial})`,
-      detail: lss.serial_auto ? 'Picked by the runtime and kept' : 'From the project',
+      value: serial === undefined ? '-' : hex(serial, 8),
+      detail: lss.serial_auto ? 'Automatic, kept on the runtime device' : 'From the project',
     },
     {
       key: 'state',
       label: 'LSS state',
-      value: lss.state === 'configuration' ? 'Configuration' : 'Waiting',
+      value: lss.state === 'configuration' ? 'Selected by a master' : 'Normal',
       detail:
-        lss.state === 'configuration' ? 'An LSS master selected the slave to configure it' : 'Answers an LSS master',
+        lss.state === 'configuration'
+          ? 'LSS configuration state: a master is setting it up'
+          : 'LSS waiting state: answers an LSS master',
     },
   ]
 }
