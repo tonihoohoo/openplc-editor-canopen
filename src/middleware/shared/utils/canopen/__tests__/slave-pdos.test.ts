@@ -122,8 +122,10 @@ describe('CANopen slave PDO layout', () => {
     ])
     expect(slaveMasterMappedObjects(c, 'to_master').map((o) => o.id)).toEqual(['temp'])
     const out = slaveDevicesOut([server(c)])[0]
-    expect(out.objects.find((o) => o.subindex === 3)).toMatchObject({ exchange: 'pdo' })
-    expect(JSON.stringify(out.tpdos)).not.toContain('"subindex":3')
+    expect(out).toMatchObject({
+      objects: expect.arrayContaining([expect.objectContaining({ name: 'temp', exchange: 'pdo' })]),
+    })
+    expect(JSON.stringify(out)).not.toMatch(/"entries":\[[^\]]*"subindex":3/)
     const eds = parseEds(buildSlaveExport('io', c, 'eds', new Date(2026, 10, 5)).text, 'io.eds')
     expect(eds.objects.find((o) => o.index === 0x2100 && o.subIndex === 3)?.pdoMapping).toBe(true)
     expect(cannotMoveSlaveObject(c, 'temp', 1)).toBe('2 bytes free, needs 4')
