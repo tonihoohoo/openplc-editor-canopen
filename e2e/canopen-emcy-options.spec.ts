@@ -1,3 +1,4 @@
+// ci-covers: none
 /**
  * Emergency settings follow the EDS: a node without 0x1014 gets them greyed out and off, a read-only
  * 0x1014 fixes the COB-ID to the EDS value, greyed-out options say why on hover, and the build

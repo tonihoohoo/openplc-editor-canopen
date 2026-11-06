@@ -1,3 +1,9 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/status-view.tsx
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/status-info.ts
+//   src/frontend/hooks/use-canopen-status.ts
+//   src/middleware/shared/ports/canopen-status.ts
+//   src/middleware/shared/utils/canopen/diagnostics/**
 /**
  * The CANopen device editor shows the live status of a connected runtime: a state dot per node, the
  * bus status and a Status tab with the reason of a failed boot in words. A runtime that does not

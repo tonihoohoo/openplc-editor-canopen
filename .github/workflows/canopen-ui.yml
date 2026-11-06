@@ -1,17 +1,22 @@
 name: CANopen UI
 
 # The CANopen device editor's Playwright tests (e2e/canopen-*.spec.ts) against a production build
-# under a virtual display. Runs only when a pull request can change the CANopen screens (see
-# .github/scripts/canopen-ui-changed.sh); otherwise the job is skipped, which counts as passed.
-# A change only to the slave server page runs only e2e/canopen-slave-*.spec.ts, a change only to
-# master files runs the other specs, and a change to code both use runs all of them.
-# Screenshots go to the ci-screenshots branch and one comment on the pull request; key views are
-# compared with the baselines in e2e/*-snapshots/.
+# under a virtual display. A pull request runs the specs its changed files need: each spec lists the
+# source paths it covers in a "// ci-covers:" block, a CANopen file no spec lists runs its whole set
+# (slave, master or both), and e2e/canopen-offline-build.spec.ts always runs with them (see
+# .github/scripts/canopen-ui-select.mjs). A push that only changes specs or baselines reruns those
+# specs and the ones that failed before (.github/scripts/canopen-ui-changed.sh). Pushes to canopen,
+# upstream syncs and runs started by hand run every spec. More than 12 specs run in three shards.
+# "CANopen UI tests" is the required check: it merges the shards, posts the screenshots of the chosen
+# specs on the pull request (key views compared with e2e/*-snapshots/) and fails on a test failure
+# or a differing key view. With nothing to run it passes within seconds.
 # The editor is built without minification, source maps or module concatenation
 # (.github/scripts/canopen-ui-build.sh), which cuts the build from minutes to about one.
 
 on:
   pull_request:
+    branches: [canopen]
+  push:
     branches: [canopen]
   workflow_dispatch:
 
@@ -29,36 +34,46 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     outputs:
       ui: ${{ steps.files.outputs.ui }}
+      specs: ${{ steps.files.outputs.specs }}
+      chosen: ${{ steps.files.outputs.chosen }}
       slave: ${{ steps.files.outputs.slave }}
       master: ${{ steps.files.outputs.master }}
+      shards: ${{ steps.files.outputs.shards }}
+      matrix: ${{ steps.files.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # src/ for the import walk that finds the files the slave and master tests share.
+          # src/ for the import walk that finds the files the slave and master tests share, e2e/ for
+          # the specs' covers lists.
           sparse-checkout: |
             .github/scripts
             src
+            e2e
 
-      - name: CANopen UI files
+      - name: CANopen UI specs
         id: files
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REF: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: .github/scripts/canopen-ui-changed.sh
 
-  ui-tests:
-    name: CANopen UI tests
+  shard:
+    name: CANopen UI shard ${{ matrix.shard }}/${{ needs.changes.outputs.shards }}
     needs: changes
     if: ${{ needs.changes.outputs.ui == 'true' }}
     # Pinned so fonts and rendering stay those of the baselines.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    permissions:
-      contents: write
-      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.changes.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -87,27 +102,94 @@ jobs:
           ln -sfn "$PWD/node_modules/strucpp" release/app/dist/main/node_modules/strucpp
 
       - name: Tests
-        id: tests
         env:
           CANOPEN_UI_VISUAL: '1'
-          SLAVE: ${{ needs.changes.outputs.slave }}
-          MASTER: ${{ needs.changes.outputs.master }}
+          SPECS: ${{ needs.changes.outputs.specs }}
+          SHARD: ${{ matrix.shard }}/${{ needs.changes.outputs.shards }}
         run: |
-          if [ "$SLAVE" = true ] && [ "$MASTER" = true ]; then
-            specs=(e2e/canopen-)
-          elif [ "$SLAVE" = true ]; then
-            specs=(e2e/canopen-slave-)
-          else
-            mapfile -t specs < <(ls e2e/canopen-*.spec.ts | grep -v '^e2e/canopen-slave-')
-          fi
+          read -ra list <<<"$SPECS"
           status=0
           xvfb-run -a --server-args='-screen 0 1920x1080x24' \
-            npx playwright test "${specs[@]}" --workers=1 --reporter=list,html || status=$?
+            npx playwright test "${list[@]}" --workers=1 --shard="$SHARD" --reporter=list,blob || status=$?
+          mkdir -p test-results
+          echo "$status" > test-results/shard-status-${{ matrix.shard }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canopen-ui-shard-${{ matrix.shard }}
+          path: |
+            test-results/
+            blob-report/
+          retention-days: 3
+
+  ui-tests:
+    name: CANopen UI tests
+    needs: [changes, shard]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Nothing to run
+        if: ${{ needs.changes.result == 'success' && needs.changes.outputs.ui != 'true' }}
+        run: echo "No CANopen UI spec needed for this change."
+
+      - name: Choice failed
+        if: ${{ needs.changes.result != 'success' }}
+        run: |
+          echo "::error::choosing the CANopen UI specs failed; see the Changed files job"
+          exit 1
+
+      - uses: actions/checkout@v4
+        if: ${{ needs.changes.outputs.ui == 'true' }}
+
+      - uses: actions/setup-node@v4
+        if: ${{ needs.changes.outputs.ui == 'true' }}
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        if: ${{ needs.changes.outputs.ui == 'true' }}
+        run: npm ci --ignore-scripts
+
+      - uses: actions/download-artifact@v4
+        if: ${{ needs.changes.outputs.ui == 'true' }}
+        with:
+          pattern: canopen-ui-shard-*
+          merge-multiple: true
+
+      - name: Merge the shards
+        id: merge
+        if: ${{ needs.changes.outputs.ui == 'true' }}
+        env:
+          SHARDS: ${{ needs.changes.outputs.shards }}
+        run: |
+          npx playwright merge-reports --reporter=html ./blob-report || true
+          PLAYWRIGHT_JSON_OUTPUT_NAME=report.json npx playwright merge-reports --reporter=json ./blob-report || true
+          status=0
+          for i in $(seq 1 "$SHARDS"); do
+            s=$(cat "test-results/shard-status-$i" 2>/dev/null || echo missing)
+            echo "Shard $i: $s"
+            [ "$s" = 0 ] || status=1
+          done
+          # Specs with a failed test or a differing key view, for the next run's choice.
+          mkdir -p selection
+          {
+            [ -f report.json ] && python3 .github/scripts/canopen_ui_failed.py report.json
+            cat test-results/canopen-key-views/*.txt 2>/dev/null | sed -n '1~2p' | sed "s|^$PWD/||"
+          } | sort -u > selection/failed || true
+          echo "Failed specs:"; cat selection/failed
+          echo "${{ github.event.pull_request.head.sha }}" > selection/head
+          echo "${{ github.event.pull_request.base.sha }}" > selection/base
           echo "status=$status" >> "$GITHUB_OUTPUT"
 
       - name: Screenshots on the pull request
         if: >-
-          ${{ always() && github.event_name == 'pull_request' &&
+          ${{ needs.changes.outputs.ui == 'true' && github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -115,14 +197,17 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SLAVE: ${{ needs.changes.outputs.slave }}
           MASTER: ${{ needs.changes.outputs.master }}
+          CHOSEN: ${{ needs.changes.outputs.chosen }}
         run: |
           outcome=success
-          [ "${{ steps.tests.outputs.status }}" = "0" ] || outcome=failure
+          if [ "${{ steps.merge.outputs.status }}" != "0" ] || ls test-results/canopen-key-views/*.txt >/dev/null 2>&1; then
+            outcome=failure
+          fi
           python3 .github/scripts/canopen_ui_report.py --results test-results --outcome "$outcome" \
-            --slave "$SLAVE" --master "$MASTER"
+            --slave "$SLAVE" --master "$MASTER" --chosen "$CHOSEN"
 
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ needs.changes.outputs.ui == 'true' }}
         with:
           name: canopen-ui-results
           path: |
@@ -130,9 +215,24 @@ jobs:
             playwright-report/
           retention-days: 7
 
+      - uses: actions/upload-artifact@v4
+        if: ${{ needs.changes.outputs.ui == 'true' && github.event_name == 'pull_request' }}
+        with:
+          name: canopen-ui-selection
+          path: selection/
+          retention-days: 7
+
       - name: Result
+        if: ${{ needs.changes.outputs.ui == 'true' }}
         run: |
-          if [ "${{ steps.tests.outputs.status }}" != "0" ]; then
+          failed=0
+          if [ "${{ steps.merge.outputs.status }}" != "0" ]; then
             echo "::error::CANopen UI tests failed; see the pull request comment and the artifact"
-            exit 1
+            failed=1
           fi
+          for f in test-results/canopen-key-views/*.txt; do
+            [ -e "$f" ] || continue
+            echo "::error::key view $(basename "$f" .txt) differs from its baseline: $(sed -n 2p "$f")"
+            failed=1
+          done
+          exit "$failed"

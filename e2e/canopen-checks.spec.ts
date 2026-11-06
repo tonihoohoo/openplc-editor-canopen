@@ -1,3 +1,5 @@
+// ci-covers:
+//   src/middleware/shared/utils/canopen/check-fix.ts
 /**
  * Checks before the build in the CANopen device editor: an error stops the build and is listed
  * until it is fixed, and a receive timeout on a TPDO sent only on a change is warned about, with a

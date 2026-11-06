@@ -1,3 +1,4 @@
+// ci-covers: none
 /**
  * A node whose heartbeat time (0x1017) is read-only in its device file: the node page shows the
  * file's time, the master does not offer to change it, and a heartbeat timeout is checked against it.

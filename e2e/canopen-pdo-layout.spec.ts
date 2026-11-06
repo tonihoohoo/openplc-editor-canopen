@@ -1,3 +1,7 @@
+// ci-covers:
+//   src/middleware/shared/utils/canopen/pdo-layout.ts
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/pdo-section.tsx
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/sortable-rows.tsx
 /**
  * PDO layout in the CANopen device editor: PDOs added beyond the predefined set with a free COB-ID,
  * an entry moved to another PDO, a PDO between two nodes and the mapping choice on Replace, checked

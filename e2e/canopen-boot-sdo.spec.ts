@@ -1,3 +1,7 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/boot-writes.tsx
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/refusal-policy.tsx
+//   src/middleware/shared/utils/canopen/sdo-value.ts
 /**
  * Boot writes in the CANopen device editor: the "Written at boot" list, a startup SDO that jumps
  * past a line when refused, text and byte values, a gap in an RPDO and an RPDO deadline, checked in

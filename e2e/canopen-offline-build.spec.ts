@@ -1,3 +1,4 @@
+// ci-covers: none
 /**
  * A CANopen node added from an EDS file in the device editor builds offline into
  * conf/canopen.json, with its PDOs mapped to the addresses the program uses.

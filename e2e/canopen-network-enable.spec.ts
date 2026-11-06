@@ -1,3 +1,5 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/network-switch.tsx
 /**
  * A CANopen network turned off with the header switch is left out of the build: the project builds
  * although the network still has errors, no conf/canopen.json is written, and the tree shows "Off".

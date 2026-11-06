@@ -1,3 +1,6 @@
+// ci-covers:
+//   src/middleware/shared/utils/canopen/html-export.ts
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/export-options.tsx
 /**
  * HTML documentation export: the network exported as one HTML document with its section options,
  * the saved document shown in a window of its own and printed to PDF on A4 landscape pages.
@@ -11,7 +14,7 @@ import { join } from 'node:path'
 import { type ElectronApplication, expect, type Page, test } from '@playwright/test'
 
 import { EDS_TEXT, EMPTY_STATION, openNetwork, windowSize, writeEds } from './helpers/canopen-project'
-import { shot, SHOTS_DIR } from './helpers/canopen-shots'
+import { shot, shotPath, SHOTS_DIR } from './helpers/canopen-shots'
 import { launch, quitApp, writeEthercatProject } from './helpers/ethercat-project'
 
 /** Answers the save dialog in the main process and keeps the text the editor saves. */
@@ -97,9 +100,9 @@ test('a network is exported as an HTML document', async () => {
     await expect(doc.locator('h1')).toHaveText('CANopen network canopen_1')
     await expect(doc.locator('#io ~ table').first()).toContainText('NMT state')
     await expect(doc.locator('section.node')).toHaveCount(1)
-    await doc.screenshot({ path: join(SHOTS_DIR, 'html-document-top.png') })
+    await doc.screenshot({ path: shotPath('html-document-top') })
     await doc.evaluate(() => document.querySelector('section.node')?.scrollIntoView())
-    await doc.screenshot({ path: join(SHOTS_DIR, 'html-document-node.png') })
+    await doc.screenshot({ path: shotPath('html-document-node') })
 
     const pdf = await app.evaluate(async ({ BrowserWindow }) => {
       const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith('canopen_1.html'))

@@ -11,11 +11,16 @@ on:
         default: false
 
 jobs:
-  unit-tests:
-    name: Unit Tests + Coverage
+  # The suite runs in three shards; `Unit Tests + Coverage` merges their coverage and checks the
+  # floors of jest.config.json (.github/scripts/coverage-merge.mjs).
+  shard:
+    name: Unit Tests shard ${{ matrix.shard }}/3
     if: ${{ !inputs.docs_only }}
     runs-on: ubuntu-latest
-    # Required check on `development` — a red suite blocks the merge.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,7 +43,48 @@ jobs:
         run: npm run setup:strucpp
 
       - name: Run tests with coverage
-        run: npx jest --config jest.config.json --collectCoverage --ci
+        run: >-
+          npx jest --config jest.config.json --collectCoverage --ci --shard=${{ matrix.shard }}/3
+          --coverageReporters=json --coverageThreshold='{}' --coverageDirectory=coverage-shard
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unit-coverage-${{ matrix.shard }}
+          path: coverage-shard/coverage-final.json
+          retention-days: 1
+
+  unit-tests:
+    name: Unit Tests + Coverage
+    needs: shard
+    # Runs when a shard fails too, so the required check reports the failure instead of skipping.
+    if: ${{ !cancelled() && !inputs.docs_only }}
+    runs-on: ubuntu-latest
+    # Required check on `development` — a red suite blocks the merge.
+    steps:
+      - name: Shards
+        if: ${{ needs.shard.result != 'success' }}
+        run: |
+          echo "::error::a unit test shard failed (${{ needs.shard.result }}); see the Unit Tests shard jobs"
+          exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: unit-coverage-*
+
+      - name: Merge coverage and check the floors
+        run: node .github/scripts/coverage-merge.mjs unit-coverage-*/coverage-final.json
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4

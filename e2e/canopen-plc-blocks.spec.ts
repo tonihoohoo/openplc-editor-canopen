@@ -1,3 +1,6 @@
+// ci-covers:
+//   src/middleware/shared/utils/canopen/plc-names.ts
+//   src/backend/shared/canopen/**
 /**
  * The project's first CANopen network turns the canopen block library on: its blocks appear in the
  * library tree, a program calls them with a node's name, and the build gives the program the names as

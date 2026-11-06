@@ -1,3 +1,5 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/scroll.ts
 /**
  * The CANopen editor scrolls as one area: node tabs have no scroll box of their own, the node's tab
  * bar and the node list stay in view, and a tab switch far down starts the new tab under the bar.

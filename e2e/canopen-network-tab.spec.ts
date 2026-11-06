@@ -1,3 +1,5 @@
+// ci-covers:
+//   src/frontend/components/_features/[workspace]/editor/device/canopen/use-element-width.ts
 /**
  * The CANopen device editor stays usable in a short window: the hidden tab takes no space, the
  * Network tab scrolls to its last section and a node's PDO list keeps a usable height.

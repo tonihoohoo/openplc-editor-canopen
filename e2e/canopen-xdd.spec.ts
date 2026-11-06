@@ -1,3 +1,7 @@
+// ci-covers:
+//   src/middleware/shared/utils/canopen/xdd-parser.ts
+//   src/middleware/shared/utils/canopen/xdd-check.ts
+//   src/middleware/shared/utils/canopen/xdd-export.ts
 /**
  * XDD and XDC files: a node from an XDC with its settings and the device card, the network
  * exported as XDC files, and an exported XDC added again.

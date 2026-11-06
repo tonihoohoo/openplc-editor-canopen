@@ -1,3 +1,4 @@
+// ci-covers: none
 /**
  * A node whose EDS lets it consume a heartbeat watches the master by default: the editor asks for a
  * master heartbeat, and the build writes 0x1016 and 0x1029 to the node with the bus priority.
