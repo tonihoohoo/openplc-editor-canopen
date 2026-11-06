@@ -1,0 +1,12 @@
+{
+  "name": "linux_io",
+  "version": "1.0.0",
+  "displayName": "Linux I/O",
+  "description": "The Linux device's own I/O through the kernel's interfaces: GPIO inputs and outputs (bias, active low, debounce, open drain), hardware PWM, and values of kernel drivers such as temperatures and IIO sensors (ADCs). Outputs go off (or to their ON_STOP state) when the PLC stops. Needs OpenPLC Runtime v4 on Linux; on other targets the blocks report LIO_NOT_SUPPORTED.",
+  "documentation": {
+    "LIO_ERROR": "The ERROR of the blocks (USINT): LIO_NO_ERROR, LIO_NOT_SUPPORTED (not a Linux target), LIO_WRONG_INPUT, LIO_NOT_FOUND (no such pin, chip, file or device), LIO_BUSY (the pin is in use), LIO_REFUSED (the driver refused the settings), LIO_IO_ERROR, LIO_NO_SLOT (more than 64 blocks).",
+    "LIO_BIAS": "The BIAS of GPIO_IN (USINT): LIO_BIAS_NONE, LIO_BIAS_PULL_UP, LIO_BIAS_PULL_DOWN.",
+    "LIO_DRIVE": "The DRIVE of GPIO_OUT (USINT): LIO_DRIVE_PUSH_PULL, LIO_DRIVE_OPEN_DRAIN, LIO_DRIVE_OPEN_SOURCE.",
+    "LIO_STOP": "The ON_STOP of GPIO_OUT and PWM_OUT (USINT): LIO_STOP_OFF (default), LIO_STOP_ON (GPIO_OUT only), LIO_STOP_HOLD."
+  }
+}

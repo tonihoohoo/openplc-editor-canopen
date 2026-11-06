@@ -47,6 +47,10 @@ Editor:
 - Documentation in ST hovers and in the suggestion details: [docs/st-calls.md](docs/st-calls.md#documentation-in-st)
 - Language server suggestions show their own icons (upstream showed most with the wrong icon): [docs/st-calls.md](docs/st-calls.md#suggestion-icons)
 
+Linux I/O:
+
+- The `linux_io` function block library: GPIO inputs and outputs, hardware PWM and kernel driver values (temperatures, IIO sensors) of a Linux runtime device, with outputs off on a PLC stop: [docs/linux-io.md](docs/linux-io.md)
+
 Releases:
 
 - Releases, the update notice and the runtime's Change version dialog use this fork's releases: [docs/canopen-releases.md](docs/canopen-releases.md)

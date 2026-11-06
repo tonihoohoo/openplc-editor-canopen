@@ -1,0 +1,184 @@
+{
+  "name": "io",
+  "protocol": "canopen-slave",
+  "canopenSlaveConfig": {
+    "enabled": true,
+    "interface": "vcan0",
+    "bitrate": 0,
+    "nodeId": 5,
+    "priority": 90,
+    "vendorName": "OpenPLC",
+    "deviceName": "linux-io",
+    "softwareVersion": "1.0",
+    "vendorId": 43981,
+    "productCode": 3,
+    "revision": 65536,
+    "heartbeatMs": 100,
+    "masterWatch": {
+      "nodeId": 127,
+      "timeMs": 0
+    },
+    "onMasterLost": "pre_operational",
+    "onPlcStop": "hold",
+    "onPlcStopState": "none",
+    "startAlone": false,
+    "objects": [
+      {
+        "id": "outputs",
+        "index": 8192,
+        "subIndex": 1,
+        "name": "Outputs",
+        "dataType": "UNSIGNED8",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "",
+        "defaultValue": "0",
+        "bits": [
+          {
+            "name": "Out 0",
+            "iecLocation": "%IX0.0"
+          },
+          {
+            "name": "Out 1",
+            "iecLocation": "%IX0.1"
+          },
+          {
+            "name": "Out 2",
+            "iecLocation": "%IX0.2"
+          },
+          {
+            "name": "Out 3",
+            "iecLocation": "%IX0.3"
+          },
+          {
+            "name": "Out 4",
+            "iecLocation": "%IX0.4"
+          },
+          {
+            "name": "Out 5",
+            "iecLocation": "%IX0.5"
+          },
+          {
+            "name": "Out 6",
+            "iecLocation": "%IX0.6"
+          },
+          {
+            "name": "Out 7",
+            "iecLocation": "%IX0.7"
+          }
+        ]
+      },
+      {
+        "id": "inputs",
+        "index": 8448,
+        "subIndex": 1,
+        "name": "Inputs",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "",
+        "defaultValue": "0",
+        "bits": [
+          {
+            "name": "In 0",
+            "iecLocation": "%QX0.0"
+          },
+          {
+            "name": "In 1",
+            "iecLocation": "%QX0.1"
+          },
+          {
+            "name": "In 2",
+            "iecLocation": "%QX0.2"
+          },
+          {
+            "name": "In 3",
+            "iecLocation": "%QX0.3"
+          },
+          {
+            "name": "In 4",
+            "iecLocation": "%QX0.4"
+          },
+          {
+            "name": "In 5",
+            "iecLocation": "%QX0.5"
+          },
+          {
+            "name": "In 6",
+            "iecLocation": "%QX0.6"
+          },
+          {
+            "name": "In 7",
+            "iecLocation": "%QX0.7"
+          }
+        ]
+      },
+      {
+        "id": "mtu",
+        "index": 8448,
+        "subIndex": 2,
+        "name": "Mtu",
+        "dataType": "UNSIGNED32",
+        "direction": "to_master",
+        "exchange": "sdo",
+        "iecLocation": "%QD1",
+        "defaultValue": "0"
+      },
+      {
+        "id": "in-error",
+        "index": 8448,
+        "subIndex": 3,
+        "name": "InError",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "sdo",
+        "iecLocation": "%QB1",
+        "defaultValue": "0"
+      },
+      {
+        "id": "out-error",
+        "index": 8448,
+        "subIndex": 4,
+        "name": "OutError",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "sdo",
+        "iecLocation": "%QB2",
+        "defaultValue": "0"
+      },
+      {
+        "id": "read-error",
+        "index": 8448,
+        "subIndex": 5,
+        "name": "ReadError",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "sdo",
+        "iecLocation": "%QB3",
+        "defaultValue": "0"
+      }
+    ],
+    "tpdos": [
+      {
+        "transmissionType": 255,
+        "inhibitTime": 0,
+        "eventTimerMs": 0
+      },
+      {
+        "transmissionType": 255,
+        "inhibitTime": 0,
+        "eventTimerMs": 0
+      },
+      {
+        "transmissionType": 255,
+        "inhibitTime": 0,
+        "eventTimerMs": 0
+      },
+      {
+        "transmissionType": 255,
+        "inhibitTime": 0,
+        "eventTimerMs": 0
+      }
+    ]
+  }
+}
