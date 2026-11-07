@@ -144,7 +144,9 @@ attach_device() {
     if [ -n "${SIM_LINK[$dev]:-}" ]; then attach_link "$dev" sim0 "${SIM_LINK[$dev]}"; fi
 }
 
-# Every machine bus link forwards to every other one; a frame is forwarded once.
+# Every machine bus link forwards to every other one; a frame is forwarded once. Only these rules
+# are added and removed; other gateway rules on the host are left alone. The kernel drops a rule
+# by itself when one of its links goes away.
 gateway_rules() {
     local action="$1" a b
     for a in "${DEVICES[@]}"; do
@@ -152,13 +154,20 @@ gateway_rules() {
         for b in "${DEVICES[@]}"; do
             [ "$a" = "$b" ] && continue
             ip link show "${BUS_LINK[$b]}" >/dev/null 2>&1 || continue
-            cangw "-$action" -s "${BUS_LINK[$a]}" -d "${BUS_LINK[$b]}" 2>/dev/null || true
+            if [ "$action" = D ]; then
+                # Removes every copy of the rule, a few at most.
+                for _ in 1 2 3 4 5 6 7 8; do
+                    cangw -D -s "${BUS_LINK[$a]}" -d "${BUS_LINK[$b]}" 2>/dev/null || break
+                done
+            else
+                cangw -A -s "${BUS_LINK[$a]}" -d "${BUS_LINK[$b]}" 2>/dev/null || true
+            fi
         done
     done
 }
 
 reset_gateway() {
-    cangw -F 2>/dev/null || true
+    gateway_rules D
     gateway_rules A
 }
 
@@ -208,7 +217,7 @@ EOF
 cmd_down() {
     need_root down
     local dev
-    cangw -F 2>/dev/null || true
+    gateway_rules D
     for dev in "${DEVICES[@]}"; do
         docker rm -f "$(container "$dev")" >/dev/null 2>&1 || true
         docker volume rm "$(volume "$dev")" >/dev/null 2>&1 || true
