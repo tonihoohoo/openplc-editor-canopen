@@ -17,9 +17,11 @@ fi
 [ $# -eq 1 ] || { echo "usage: $0 user@host | --remove" >&2; exit 2; }
 
 forwards=(-L 8080:127.0.0.1:8080)
+port=18443 # run.sh up publishes the runtimes at 127.0.0.1:18443 - 18446 on the host
 for a in "${addresses[@]}"; do
     ifconfig lo0 | grep -q "inet $a " || sudo ifconfig lo0 alias "$a" up
-    forwards+=(-L "$a:8443:$a:8443")
+    forwards+=(-L "$a:8443:127.0.0.1:$port")
+    port=$((port + 1))
 done
 echo "Editor: 127.0.0.10 chassis-controller, .11 platform-box, .12 valve-module, .13 tilt-sensor. Panel: http://127.0.0.1:8080"
 exec ssh -N "${forwards[@]}" "$1"

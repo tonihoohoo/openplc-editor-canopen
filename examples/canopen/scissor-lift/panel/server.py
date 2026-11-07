@@ -65,7 +65,10 @@ class CanBus:
 
     def drain(self):
         if self.sock is None:
-            return
+            try:
+                self._open()
+            except OSError:
+                return
         try:
             while True:
                 frame = self.sock.recv(16)
@@ -163,7 +166,7 @@ def summarize(status):
             out["nodes"].append(
                 {"name": node.get("name"), "state": node.get("state"), "nmt": node.get("nmt"), "enabled": node.get("enabled"), "warning": node.get("warning")}
             )
-        out["events"] = [e.get("kind") for e in net.get("events", [])[-6:]]
+        out["events"] = [e.get("kind") for e in net.get("events", [])[:6]]  # newest first
     for slave in status.get("slaves", []):
         item = {"name": slave.get("name"), "state": slave.get("state"), "node_id": slave.get("node_id"), "master_seen": slave.get("master_seen")}
         if "lss" in slave:
@@ -204,8 +207,9 @@ class Machine:
             if not self.inputs["ground_estop"] and not self.inputs["platform_estop"]:
                 self.latched = True
                 self.message = "Safety relay reset"
-            else:
-                self.message = "Release both emergency stops before the reset"
+                return True
+            self.message = "Release both emergency stops before the reset"
+            return False
 
     def set_input(self, name, value):
         with self.lock:
@@ -288,8 +292,7 @@ class Machine:
 
     def act(self, name, device=None):
         if name == "reset":
-            self.press_reset()
-            return True
+            return self.press_reset()
         if name in ("stop", "start") and device in DEVICES:
             args = [name, device]
         elif name == "swap":

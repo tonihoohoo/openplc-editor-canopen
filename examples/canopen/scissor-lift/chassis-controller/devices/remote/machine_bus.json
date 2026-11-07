@@ -10331,11 +10331,11 @@
             "followsNodeId": true,
             "exchanged": true,
             "fixedMapping": false,
-            "transmissionType": 255,
+            "transmissionType": 1,
             "eventTimerMs": 0,
             "inhibitTime": 0,
             "receiveTimeoutMs": 0,
-            "deadlineMs": 0,
+            "deadlineMs": 100,
             "entries": [
               {
                 "channelId": "ch-8",

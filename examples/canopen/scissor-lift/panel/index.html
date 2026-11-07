@@ -12,27 +12,25 @@ header{padding:12px 16px;border-bottom:1px solid var(--line)}h1{font-size:18px;m
 main{display:grid;gap:12px;padding:12px 16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
 section{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px}h2{font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute)}
 .wide{grid-column:1/-1}button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}button:hover{border-color:var(--accent)}
-button.on{background:var(--accent);border-color:var(--accent);color:#fff}button.danger.on{background:var(--bad);border-color:var(--bad)}
+button.on{background:var(--accent);border-color:var(--accent);color:var(--card)}button.danger.on{background:var(--bad);border-color:var(--bad)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}label{display:flex;gap:6px;align-items:center}input[type=range]{flex:1;min-width:120px}
 .lamp{display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:12px}.lamp i{width:12px;height:12px;border-radius:50%;background:var(--line);display:inline-block}.lamp i.on{background:var(--ok)}.lamp i.on.red{background:var(--bad)}.lamp i.on.amber{background:var(--warn)}
-table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;padding:3px 6px;border-bottom:1px solid var(--line)}.pill{padding:1px 7px;border-radius:9px;background:var(--line)}.pill.ok{background:var(--ok);color:#fff}.pill.bad{background:var(--bad);color:#fff}.pill.warn{background:var(--warn);color:#fff}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;padding:3px 6px;border-bottom:1px solid var(--line)}.pill{display:inline-block;margin:1px 0;padding:1px 7px;border-radius:9px;background:var(--line);white-space:nowrap}.pill.ok{background:var(--ok);color:var(--card)}.pill.bad{background:var(--bad);color:var(--card)}.pill.warn{background:var(--warn);color:var(--card)}
 #pad{width:160px;height:160px;border:1px solid var(--line);border-radius:8px;position:relative;touch-action:none;background:var(--bg)}#knob{width:26px;height:26px;border-radius:50%;background:var(--accent);position:absolute;left:67px;top:67px}
-#msg{color:var(--mute);min-height:1.4em;font-size:12px}svg text{fill:var(--ink);font-size:11px}
+#msg{color:var(--mute);min-height:1.4em;font-size:12px}.readout{display:flex;flex-wrap:wrap;gap:4px 18px;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
 <header><h1>Scissor lift machine panel</h1><p>A demonstration, not a safety system. The safety relay below is simulated.</p></header>
 <main>
 <section class="wide"><h2>Machine</h2>
-<svg id="machine" viewBox="0 0 520 250" width="100%" style="max-height:290px">
- <line x1="0" y1="215" x2="520" y2="215" stroke="var(--steel)" stroke-width="2" id="ground"/>
- <g id="slope"><rect x="150" y="190" width="220" height="24" rx="5" fill="var(--steel)"/>
+<div class="readout"><span id="tHeight">Height</span><span id="tTilt">Tilt</span><span id="tLoad">Load</span><span id="tTravel">Travel</span><span id="tRelay">Safety relay</span></div>
+<svg id="machine" viewBox="0 36 520 214" width="100%" style="max-height:290px">
+ <g id="slope"><line x1="-100" y1="230" x2="620" y2="230" stroke="var(--steel)" stroke-width="2" id="ground"/><rect x="150" y="190" width="220" height="24" rx="5" fill="var(--steel)"/>
  <circle cx="180" cy="216" r="14" fill="var(--ink)"/><circle cx="340" cy="216" r="14" fill="var(--ink)"/>
- <g id="scissor" stroke="var(--steel)" stroke-width="7" fill="none"></g>
+ <g id="scissor" stroke="var(--steel)" stroke-width="4" stroke-linecap="round" fill="none"></g>
  <rect id="deck" x="150" y="100" width="220" height="10" fill="var(--accent)"/>
  <rect id="rail" x="150" y="70" width="220" height="30" fill="none" stroke="var(--accent)" stroke-width="3"/></g>
- <text x="12" y="20" id="tHeight">Height</text><text x="12" y="36" id="tTilt">Tilt</text><text x="12" y="52" id="tLoad">Load</text><text x="12" y="68" id="tTravel">Travel</text>
- <text x="400" y="20" id="tRelay">Safety relay</text>
 </svg></section>
 <section><h2>Emergency stop and safety relay</h2>
 <div class="row"><button class="danger" id="ground_estop">Ground e-stop</button><button class="danger" id="platform_estop">Platform e-stop</button><button id="reset">Reset relay</button></div>

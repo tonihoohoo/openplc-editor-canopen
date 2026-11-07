@@ -10,7 +10,7 @@
 #   run.sh start <device>  start it again and join it to the bus
 #   run.sh swap            replace the platform box by a new one with a new serial number
 #   run.sh panel [--bind ADDRESS] [--port PORT]   open the machine panel (default 127.0.0.1:8080)
-set -euo pipefail
+set -Eeuo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE="${SCISSOR_IMAGE:-ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.3}"
@@ -97,12 +97,23 @@ chip_device() { # the /dev node and sysfs directory of a device's chip
 }
 
 # ---------------------------------------------------------------- containers and links
+# False when something (another runtime on the host, for example) already listens on port 8443
+# on all addresses or on this one.
+loop_port_free() {
+    ! ss -Hltn 2>/dev/null | awk '{print $4}' | grep -qE "^(0\.0\.0\.0|\*|\[::\]|$1):8443$"
+}
+
 run_container() {
     local dev="$1" args=() chipdev
     args+=(--name "$(container "$dev")" -d
         --cap-add SYS_NICE --cap-add SYS_RESOURCE --ulimit rtprio=99 --ulimit memlock=-1
         -v "$(volume "$dev"):/var/run/runtime"
-        -p "127.0.0.1:${API_PORT[$dev]}:8443" -p "${LOOP_ADDR[$dev]}:8443:8443")
+        -p "127.0.0.1:${API_PORT[$dev]}:8443")
+    if loop_port_free "${LOOP_ADDR[$dev]}"; then
+        args+=(-p "${LOOP_ADDR[$dev]}:8443:8443")
+    else
+        echo "run.sh: port 8443 is in use on this host, so $(container "$dev") is only at 127.0.0.1:${API_PORT[$dev]}" >&2
+    fi
     if [ -n "${CHIP_LINES[$dev]:-}" ]; then
         read -r chipdev _ <<<"$(chip_device "$dev")"
         args+=(--device "$chipdev")
@@ -179,11 +190,13 @@ cmd_up() {
     for dev in "${DEVICES[@]}"; do
         if docker inspect "$(container "$dev")" >/dev/null 2>&1; then die "$(container "$dev") exists; run 'run.sh down' first"; fi
     done
+    trap 'echo "run.sh: up failed, removing what it made" >&2; cmd_down >/dev/null' ERR
     for dev in "${!CHIP_LINES[@]}"; do make_chip "$dev"; done
     for dev in "${DEVICES[@]}"; do run_container "$dev"; done
     for dev in "${DEVICES[@]}"; do attach_device "$dev"; done
     reset_gateway
     write_state
+    trap - ERR
     cat <<EOF
 The four runtimes are up. Open them from the editor at:
   chassis-controller  127.0.0.10   platform-box  127.0.0.11   valve-module  127.0.0.12   tilt-sensor  127.0.0.13

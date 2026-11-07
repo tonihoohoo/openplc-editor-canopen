@@ -41,6 +41,7 @@ PROGRAM main
     sensor_serial : STRING;
     operating_s : UDINT;
     stick : INT;
+    raised : BOOL;
   END_VAR
 
 (* What the platform box reports in its buttons byte, and what the valve module reports in its status. *)
@@ -79,9 +80,11 @@ IF valves_emcy.CONFIRM THEN
   END_IF;
 END_IF;
 
-(* A tilt of more than 3.00 degrees with the platform raised stops the valve module over NMT. It is
+(* The platform floor is 1200 mm high when stowed; more than 300 mm above that counts as raised.
+   A tilt of more than 3.00 degrees with the platform raised stops the valve module over NMT. It is
    started again once the tilt is back within 2.50 degrees and the stick is in neutral. *)
-IF height > 300 AND ABS(tilt) > 300 THEN
+raised := height > 1500;
+IF raised AND ABS(tilt) > 300 THEN
   tilt_alarm := TRUE;
 ELSIF ABS(tilt) < 250 THEN
   tilt_alarm := FALSE;
@@ -104,7 +107,7 @@ IF can_move THEN
     IF stick < 0 OR lift_up_ok THEN
       lift_sp := stick;
     END_IF;
-  ELSIF sensor_state = 5 AND height < 300 THEN
+  ELSIF sensor_state = 5 AND NOT raised THEN
     drive_sp := stick;
   END_IF;
 END_IF;

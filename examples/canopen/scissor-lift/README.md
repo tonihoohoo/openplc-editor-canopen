@@ -60,15 +60,16 @@ sudo ./run.sh down      # remove everything the example made
 
 The runtimes are at `127.0.0.10` (chassis controller), `127.0.0.11` (platform box), `127.0.0.12`
 (valve module) and `127.0.0.13` (tilt sensor), port 8443. They also listen on `127.0.0.1:18443` to
-`18446`. Each runtime needs a user once; the example uses `lift` with the password `lift-example`
+`18446`. When another runtime on the host already uses port 8443, `run.sh up` says so and publishes only
+the `18443` to `18446` ports; reach the runtimes from another machine with the helpers below. Each runtime needs a user once; the example uses `lift` with the password `lift-example`
 (set `SCISSOR_USER` and `SCISSOR_PASSWORD` to change them). The image is
 `ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.3`; set `SCISSOR_IMAGE` for another.
 
 ### Open the editor
 
 - **Linux, the editor on the host:** use the addresses above.
-- **Mac:** `./mac-connect.sh user@host` adds loopback addresses and one SSH session that forwards the four
-  runtimes and the panel. `./mac-connect.sh --remove` takes them away.
+- **Mac:** `./mac-connect.sh user@host` adds loopback addresses and one SSH session that forwards them to
+  the runtimes' ports `18443` to `18446` and the panel. `./mac-connect.sh --remove` takes them away.
 - **Windows:** in PowerShell run `.\connect.ps1`. It relays `127.0.0.10` to `127.0.0.13` port 8443 to the
   published ports of the WSL distribution without administrator rights.
 
@@ -77,9 +78,11 @@ controller goes to `127.0.0.10`. Upload the three slaves first, then the master.
 
 ### Commission the platform box
 
-The platform box starts without a node ID and a random serial number. The first time, open the
-chassis controller's node page, run the LSS search under Online, and let it assign node 10. The master
-stores the serial. After that the box gets its ID at every start. `./run.sh swap` replaces the box
+The platform box starts without a node ID and a random serial number. The chassis controller's platform
+node is given its node ID over LSS, but the project does not know the box's serial yet. Open the master's
+Online tab and run the LSS search: it lists the box with its serial number. Enter that serial in the LSS
+settings of the platform node and upload the chassis controller again; from then on the master gives the
+box node 10 at every start. To start at once, "Give node ID" in the search result gives it node 10 now. `./run.sh swap` replaces the box
 with a new one, so you can see a spare part being commissioned.
 
 ## The machine panel
@@ -96,8 +99,11 @@ physics: the PLC programs only see inputs.
 
 ## Checked with
 
-The projects compile and the master configuration validates with the editor's own checks. The run on a
-Raspberry Pi and on WSL 2 is recorded here once it has been done.
+The projects compile and the master configuration validates with the editor's own checks. The example
+ran on a Raspberry Pi 5 (64-bit Raspberry Pi OS) with the projects uploaded from the editor on
+Windows over an SSH tunnel: lift, lower and drive, both emergency stops and the relay reset, the tilt alarm
+with its restart, overload, the coil fault, stopping and starting a device, and replacing the platform box.
+The run on WSL 2 is recorded here once it has been done.
 
 ## Files
 

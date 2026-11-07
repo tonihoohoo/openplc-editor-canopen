@@ -42,8 +42,8 @@ live := status.OPERATIONAL AND supply_in.Q AND NOT coil_in.Q;
 IF live AND lift_enable THEN lift_target := lift_sp; ELSE lift_target := 0; END_IF;
 IF live AND drive_enable THEN drive_target := drive_sp; ELSE drive_target := 0; END_IF;
 
-(* The ramp time limits how fast the applied value follows the target, per 20 ms scan. *)
-step := UINT_TO_INT(20000 / MAX(ramp_ms, 100) / 20);
+(* The ramp time is the time from 0 to full scale (1000); the step is per 20 ms scan. *)
+step := UINT_TO_INT(20000 / MAX(ramp_ms, 100));
 IF step < 1 THEN step := 1; END_IF;
 IF NOT live THEN
   lift_applied := 0;
