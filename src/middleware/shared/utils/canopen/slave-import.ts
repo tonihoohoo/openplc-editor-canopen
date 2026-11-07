@@ -16,7 +16,7 @@ import type {
   CanopenSlavePdo,
   CanopenValueMeaning,
 } from '../../ports/canopen-types'
-import { CANOPEN_BITRATES, objectRef, reservedCobId, toCanopenDataType } from './data-types'
+import { CANOPEN_BITRATES, MAX_SUB_OBJECTS, objectRef, reservedCobId, toCanopenDataType } from './data-types'
 import type { DcfContent } from './dcf-import'
 import { findObject, parseEdsInteger } from './eds-parser'
 import {
@@ -314,7 +314,7 @@ function readPdos(
   for (const direction of ['from_master', 'to_master'] as const) {
     const tpdo = direction === 'to_master'
     for (let n = 1; n <= 512; n++) {
-      const count = fileInt(file, mapIndex(direction, n), 0, nodeId) ?? 0
+      const count = Math.min(fileInt(file, mapIndex(direction, n), 0, nodeId) ?? 0, MAX_SUB_OBJECTS)
       if (count <= 0) continue
       const name = slavePdoName(direction, n)
       if (n > SLAVE_PDO_COUNT) {

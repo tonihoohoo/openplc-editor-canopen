@@ -141,6 +141,11 @@ shows it dimmed with an **Off** tag.
 
 ## Device files
 
+**Limits.** A device file larger than 8 MiB is refused with its size. A count read from a file (the
+sub-objects of `CompactSubObj`, the entries of a PDO mapping) is cut to 255, and the check warns when
+a file asks for more. Exported EDS and DCF files hold every value on one line. A node name may not be
+a word of Structured Text (`INT`, `IF`, `END_VAR` and so on), as it becomes a program constant.
+
 **Check.** Every EDS or DCF file is checked against CiA 306 (`checkEds`) before a node is made from
 it. The dialog lists the findings by rule, each with its clause, section, key and line; rules with
 many findings are folded. Most findings are warnings and the node is added. Errors in the

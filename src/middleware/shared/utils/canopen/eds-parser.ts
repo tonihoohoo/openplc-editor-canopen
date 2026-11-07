@@ -4,7 +4,7 @@
  */
 
 import type { CanopenAccess, CanopenEdsInfo, CanopenObject } from '../../ports/canopen-types'
-import { CANOPEN_BITRATES, CANOPEN_TYPE_CODES } from './data-types'
+import { CANOPEN_BITRATES, CANOPEN_TYPE_CODES, MAX_SUB_OBJECTS } from './data-types'
 import { type EdsDocument, type EdsSection, readEdsDocument } from './eds-document'
 
 export class EdsParseError extends Error {
@@ -185,7 +185,7 @@ export function parseEdsDocument(doc: EdsDocument, fileName: string): CanopenEds
     }
     if (objectType !== 8 && objectType !== 9) continue // DEFTYPE, DEFSTRUCT
     const parentName = strKey(section, 'ParameterName')
-    const compact = intKey(section, 'CompactSubObj', 0)
+    const compact = Math.min(Math.max(intKey(section, 'CompactSubObj', 0), 0), MAX_SUB_OBJECTS)
     if (compact > 0) {
       const names = sections.get(`${m[1]}NAME`)
       objects.push({

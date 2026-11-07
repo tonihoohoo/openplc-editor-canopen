@@ -8,6 +8,7 @@ import JSZip from 'jszip'
 
 import type { CanopenConfig, CanopenNetworkSettings, CanopenNode, CanopenObject } from '../../ports/canopen-types'
 import { CANOPEN_TYPE_CODES, canopenTypeBits, objectRef } from './data-types'
+import { oneLine } from './device-writer'
 import { checkEds, type Cia306Finding } from './eds-check'
 import { readEdsDocument } from './eds-document'
 import { findObject } from './eds-parser'
@@ -239,7 +240,7 @@ function addImplicitObject(lines: Lines, node: CanopenNode, index: number): void
   const id = hex4(index)
   const body = [
     `[${id}]`,
-    `ParameterName=${objects[0].parentName ?? id}`,
+    `ParameterName=${oneLine(objects[0].parentName ?? id)}`,
     'ObjectType=0x9',
     `SubNumber=${objects.length}`,
     '',
@@ -247,11 +248,11 @@ function addImplicitObject(lines: Lines, node: CanopenNode, index: number): void
   for (const o of objects) {
     body.push(
       `[${id}sub${o.subIndex.toString(16).toUpperCase()}]`,
-      `ParameterName=${o.name}`,
+      `ParameterName=${oneLine(o.name)}`,
       'ObjectType=0x7',
       `DataType=0x${hex4(typeCode(o.dataType) ?? 0)}`,
       `AccessType=${o.access}`,
-      ...(o.defaultValue !== undefined ? [`DefaultValue=${o.defaultValue}`] : []),
+      ...(o.defaultValue !== undefined ? [`DefaultValue=${oneLine(o.defaultValue)}`] : []),
       'PDOMapping=0',
       '',
     )

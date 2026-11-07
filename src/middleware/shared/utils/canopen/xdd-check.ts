@@ -420,7 +420,7 @@ function checkObjects(c: Checker, network: XmlNode, params: Map<string, ParamTyp
   for (const obj of children(list, 'CANopenObject')) {
     const indexText = attr(obj, 'index')
     const index = hexAttr(indexText)
-    const line = c.lineOf(new RegExp(`<(\\w+:)?CANopenObject\\b[^>]*\\bindex="${indexText ?? ''}"`))
+    const line = c.lineOf(new RegExp(`<(\\w+:)?CANopenObject\\b[^>]*\\bindex="${escapeRe(indexText ?? '')}"`))
     if (index === null) {
       c.add('object-type', `index "${indexText ?? ''}" is not a hexadecimal index`, { line })
       continue
@@ -468,7 +468,8 @@ function checkObjects(c: Checker, network: XmlNode, params: Map<string, ParamTyp
     for (const sub of subs) {
       const subText = attr(sub, 'subIndex')
       const subIndex = hexAttr(subText)
-      const subLine = c.lineOf(new RegExp(`<(\\w+:)?CANopenSubObject\\b[^>]*\\bsubIndex="${subText ?? ''}"`)) ?? line
+      const subLine =
+        c.lineOf(new RegExp(`<(\\w+:)?CANopenSubObject\\b[^>]*\\bsubIndex="${escapeRe(subText ?? '')}"`)) ?? line
       if (subIndex === null || subIndex > 0xff) {
         c.add('object-type', `subIndex "${subText ?? ''}" is not a hexadecimal sub-index`, {
           element,

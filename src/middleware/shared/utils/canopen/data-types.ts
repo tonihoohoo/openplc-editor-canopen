@@ -119,3 +119,9 @@ export function reservedCobId(id: number): string | null {
   if (id === 0x7e4 || id === 0x7e5) return 'LSS'
   return null
 }
+
+/** Sub-indexes an object has at most (CiA 306: sub-index 1 - 255); counts read from files are cut to it. */
+export const MAX_SUB_OBJECTS = 255
+
+/** Largest device file the editor reads, in bytes. */
+export const MAX_DEVICE_FILE_BYTES = 8 * 1024 * 1024

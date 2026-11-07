@@ -68,6 +68,9 @@ function hhmm(d: Date): string {
   return `${p(((d.getHours() + 11) % 12) + 1)}:${p(d.getMinutes())}${d.getHours() < 12 ? 'AM' : 'PM'}`
 }
 
+/** A value on one line: line breaks would start a new key or section in the file. */
+export const oneLine = (text: string): string => text.replace(/[\r\n]+/g, ' ')
+
 const eds306 = (text: string, max: number): string =>
   text
     .replace(/[\r\n]+/g, ' ')
@@ -83,9 +86,9 @@ function edsObjectLines(o: CanopenObject, section: string): string[] {
     `DataType=0x${hex4(code)}`,
     `AccessType=${o.access}`,
   ]
-  if (o.defaultValue !== undefined) lines.push(`DefaultValue=${o.defaultValue}`)
-  if (o.lowLimit !== undefined) lines.push(`LowLimit=${o.lowLimit}`)
-  if (o.highLimit !== undefined) lines.push(`HighLimit=${o.highLimit}`)
+  if (o.defaultValue !== undefined) lines.push(`DefaultValue=${oneLine(o.defaultValue)}`)
+  if (o.lowLimit !== undefined) lines.push(`LowLimit=${oneLine(o.lowLimit)}`)
+  if (o.highLimit !== undefined) lines.push(`HighLimit=${oneLine(o.highLimit)}`)
   lines.push(`PDOMapping=${o.pdoMapping ? 1 : 0}`)
   if (o.objFlags !== undefined) lines.push(`ObjFlags=${o.objFlags}`)
   return lines
