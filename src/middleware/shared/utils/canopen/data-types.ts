@@ -120,6 +120,12 @@ export function reservedCobId(id: number): string | null {
   return null
 }
 
+/** Sub-indexes an object has at most (CiA 306: sub-index 1 - 255); counts read from files are cut to it. */
+export const MAX_SUB_OBJECTS = 255
+
+/** Largest device file the editor reads, in bytes. */
+export const MAX_DEVICE_FILE_BYTES = 8 * 1024 * 1024
+
 /** Why a CAN interface name cannot be used (the runtime builds file names from it), or null when it is fine. */
 export function interfaceNameProblem(name: string): string | null {
   if (name.length > 15) return `interface name "${name}" is longer than 15 characters`

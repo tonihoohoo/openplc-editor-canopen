@@ -4,6 +4,7 @@
  * (0x1000-0x1FFF) that are not only about limits block; everything else is a warning.
  */
 
+import { MAX_SUB_OBJECTS } from './data-types'
 import type { DeviceFileEncoding } from './device-file'
 import {
   commissioningSection,
@@ -855,7 +856,14 @@ function checkObject(c: Checker, s: EdsSection, index: number): void {
     return
   }
   const subNumber = plainInt(c.get(s, 'SubNumber')) ?? 0
-  const compact = plainInt(c.get(s, 'CompactSubObj')) ?? 0
+  const compactText = plainInt(c.get(s, 'CompactSubObj')) ?? 0
+  if (compactText > MAX_SUB_OBJECTS)
+    c.add(
+      'compact-sub-obj',
+      `CompactSubObj is ${compactText}; at most ${MAX_SUB_OBJECTS} are read`,
+      c.at(s, 'CompactSubObj'),
+    )
+  const compact = Math.min(compactText, MAX_SUB_OBJECTS)
   const structured = objectType === 6 || objectType === 8 || objectType === 9
   if (objectType === 2) {
     checkName(c, s)

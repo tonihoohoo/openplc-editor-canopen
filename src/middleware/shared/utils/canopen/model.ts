@@ -16,7 +16,7 @@ import type {
   CanopenPdo,
   CanopenSupervision,
 } from '../../ports/canopen-types'
-import { accessFits, canopenTypeBits, iecPrefixFor, toCanopenDataType } from './data-types'
+import { accessFits, canopenTypeBits, iecPrefixFor, MAX_SUB_OBJECTS, toCanopenDataType } from './data-types'
 import { findObject, masterMayWrite, parseEdsInteger } from './eds-parser'
 
 export type PdoDirection = 'input' | 'output'
@@ -384,7 +384,7 @@ export function unreadableDefaultMappings(
 ): UnreadableMapping[] {
   const { map } = pdoObjectIndices(direction, number)
   const out: UnreadableMapping[] = []
-  const count = defaultInt(eds, map, 0, nodeId) ?? 0
+  const count = Math.min(defaultInt(eds, map, 0, nodeId) ?? 0, MAX_SUB_OBJECTS)
   for (let k = 1; k <= count; k++) {
     const value = defaultInt(eds, map, k, nodeId)
     if (value === null || value === 0) continue
@@ -468,7 +468,7 @@ export function edsPdo(
     deadlineMs: 0,
     entries: [],
   }
-  const count = defaultInt(eds, map, 0, nodeId) ?? 0
+  const count = Math.min(defaultInt(eds, map, 0, nodeId) ?? 0, MAX_SUB_OBJECTS)
   for (let k = 1; k <= count; k++) {
     const value = defaultInt(eds, map, k, nodeId)
     if (value === null || value === 0) continue

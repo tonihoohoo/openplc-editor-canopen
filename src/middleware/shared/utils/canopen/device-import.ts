@@ -10,7 +10,7 @@ import type {
   CanopenNode,
   CanopenPdo,
 } from '../../ports/canopen-types'
-import { accessFits, objectRef, toCanopenDataType } from './data-types'
+import { accessFits, MAX_DEVICE_FILE_BYTES, objectRef, toCanopenDataType } from './data-types'
 import { type DcfContent, type DcfImportLine, hasDcfSettings, readDcfContent } from './dcf-import'
 import { decodeDeviceFile, type DeviceFileEncoding, deviceFileFormat, deviceFileHash } from './device-file'
 import { checkEds } from './eds-check'
@@ -48,6 +48,10 @@ export interface PreparedDeviceFile {
 
 /** Decodes, checks and reads a chosen device file. */
 export async function prepareDeviceFile(fileName: string, bytes: Uint8Array): Promise<PreparedDeviceFile> {
+  if (bytes.length > MAX_DEVICE_FILE_BYTES)
+    throw new Error(
+      `the file is ${(bytes.length / (1024 * 1024)).toFixed(1)} MiB; a device file may be at most ${MAX_DEVICE_FILE_BYTES / (1024 * 1024)} MiB`,
+    )
   const { text, encoding } = decodeDeviceFile(bytes)
   const format = deviceFileFormat(fileName)
   if (format === 'xdd' || format === 'xdc') {
