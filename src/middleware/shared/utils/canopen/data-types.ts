@@ -119,3 +119,23 @@ export function reservedCobId(id: number): string | null {
   if (id === 0x7e4 || id === 0x7e5) return 'LSS'
   return null
 }
+
+/** Why a CAN interface name cannot be used (the runtime builds file names from it), or null when it is fine. */
+export function interfaceNameProblem(name: string): string | null {
+  if (name.length > 15) return `interface name "${name}" is longer than 15 characters`
+  if (!/^[A-Za-z0-9_.-]+$/.test(name) || name === '.' || name === '..')
+    return `interface name "${name}" may hold only letters, digits, "_", "." and "-"`
+  return null
+}
+
+/** Entries per table of the runtime's I/O image (%IX bytes, %IB, %IW, %ID and %IL alike, and the outputs). */
+export const RUNTIME_IMAGE_SIZE = 65536
+
+/** Why an address lies outside the runtime's I/O image, or null when it is inside. */
+export function outsideImage(location: string): string | null {
+  const match = /^%[IQ][XBWDL](\d+)/i.exec(location)
+  if (!match) return null
+  return Number(match[1]) >= RUNTIME_IMAGE_SIZE
+    ? `lies outside the runtime's I/O image (index ${RUNTIME_IMAGE_SIZE - 1} at most)`
+    : null
+}
