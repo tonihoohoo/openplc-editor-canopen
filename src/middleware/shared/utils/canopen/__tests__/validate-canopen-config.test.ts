@@ -25,6 +25,12 @@ describe('validateCanopenProject', () => {
     ])
     config.network.interface = 'a-very-long-interface'
     expect(errorsOf(config)[0]).toMatch(/longer than 15 characters/)
+    for (const name of ['x/../../../a', 'can 0', '..']) {
+      config.network.interface = name
+      expect(errorsOf(config)[0]).toMatch(/may hold only letters, digits/)
+    }
+    config.network.interface = 'vcan-1.a_b'
+    expect(errorsOf(config).join('\n')).not.toMatch(/interface name/)
   })
 
   it('refuses one interface on two networks', () => {

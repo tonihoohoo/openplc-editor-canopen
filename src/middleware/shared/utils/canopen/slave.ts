@@ -19,7 +19,15 @@ import type {
   CanopenSlavePdo,
 } from '../../ports/canopen-types'
 import type { PLCRemoteDevice, PLCServer } from '../../ports/types'
-import { CANOPEN_BITRATES, canopenTypeBits, iecSizeLetter, objectRef, reservedCobId } from './data-types'
+import {
+  CANOPEN_BITRATES,
+  canopenTypeBits,
+  iecSizeLetter,
+  interfaceNameProblem,
+  objectRef,
+  outsideImage,
+  reservedCobId,
+} from './data-types'
 import type { DeviceFileExport } from './dcf-export'
 import { writeEds, writeXdd } from './device-writer'
 import { checkEds } from './eds-check'
@@ -919,7 +927,7 @@ export function checkCanopenSlave(
   }
   const iface = config.interface.trim()
   if (iface === '') add('interface', 'no CAN interface')
-  else if (iface.length > 15) add('interface', `interface name "${iface}" is longer than 15 characters`)
+  else if (interfaceNameProblem(iface) !== null) add('interface', interfaceNameProblem(iface) ?? '')
   else {
     for (const d of remoteDevices ?? [])
       if (
@@ -987,6 +995,8 @@ export function checkCanopenSlave(
     if (o.iecLocation === '') add(o.id, `${ref}: no address`)
     else if (!o.iecLocation.startsWith(prefix) || !/^%[IQ][BWDL]\d+$/.test(o.iecLocation))
       add(o.id, `${ref}: address ${o.iecLocation} must be a ${prefix} address`)
+    else if (outsideImage(o.iecLocation) !== null)
+      add(o.id, `${ref}: address ${o.iecLocation} ${outsideImage(o.iecLocation) ?? ''}`)
     else if (locations.has(o.iecLocation))
       add(o.id, `${ref}: address ${o.iecLocation} is also used by "${locations.get(o.iecLocation)}"`)
     else locations.set(o.iecLocation, o.name)

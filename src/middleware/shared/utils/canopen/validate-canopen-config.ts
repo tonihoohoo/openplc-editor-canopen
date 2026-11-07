@@ -7,7 +7,18 @@
 import type { CanopenNode, CanopenPdo, CanopenSdo } from '../../ports/canopen-types'
 import type { PLCRemoteDevice } from '../../ports/types'
 import { checkCanopenNetwork, checkText } from './check-fix'
-import { CANOPEN_BITRATES, canopenTypeBits, iecPrefixFor, objectRef, reservedCobId } from './data-types'
+import {
+  CANOPEN_BITRATES,
+  canopenTypeBits,
+  iecPrefixFor,
+  interfaceNameProblem,
+  objectRef,
+  outsideImage,
+  reservedCobId,
+  RUNTIME_IMAGE_SIZE,
+} from './data-types'
+
+export { outsideImage, RUNTIME_IMAGE_SIZE }
 import { findObject, OBJ_FLAG_REFUSE_WRITE } from './eds-parser'
 import { pdoConfigured, watchesMaster } from './generate-canopen-config'
 import {
@@ -45,7 +56,7 @@ export function validateCanopenProject(
     const net = `CANopen "${device.name}"`
     const iface = network.interface.trim()
     if (iface === '') errors.push(`${net}: no CAN interface`)
-    else if (iface.length > 15) errors.push(`${net}: interface name "${iface}" is longer than 15 characters`)
+    else if (interfaceNameProblem(iface) !== null) errors.push(`${net}: ${interfaceNameProblem(iface)}`)
     else if (interfaces.has(iface)) errors.push(`${net}: interface ${iface} is also used by ${interfaces.get(iface)}`)
     else interfaces.set(iface, net)
     if (network.bitrate !== 0 && !CANOPEN_BITRATES.some((b) => b === network.bitrate))
@@ -140,18 +151,6 @@ export function validateCanopenProject(
     }
   }
   return errors
-}
-
-/** Entries per table of the runtime's I/O image (%IX bytes, %IB, %IW, %ID and %IL alike, and the outputs). */
-export const RUNTIME_IMAGE_SIZE = 65536
-
-/** Why an address lies outside the runtime's I/O image, or null when it is inside. */
-export function outsideImage(location: string): string | null {
-  const match = /^%[IQ][XBWDL](\d+)/i.exec(location)
-  if (!match) return null
-  return Number(match[1]) >= RUNTIME_IMAGE_SIZE
-    ? `lies outside the runtime's I/O image (index ${RUNTIME_IMAGE_SIZE - 1} at most)`
-    : null
 }
 
 /** Why a startup SDO's "jump to" target cannot be used, or null (also null without a jump). */

@@ -164,6 +164,17 @@ describe('CANopen slave model', () => {
     ])
   })
 
+  it('refuses an address outside the runtime image and an interface that is not a plain name', () => {
+    const c = io()
+    c.objects[0] = { ...c.objects[0], iecLocation: '%IW70000' }
+    c.interface = 'x/../../../a'
+    const text = checkCanopenSlave('io', c, []).map((p) => p.text)
+    expect(text.some((t) => /address %IW70000 lies outside the runtime's I\/O image/.test(t))).toBe(true)
+    expect(text.some((t) => /may hold only letters, digits/.test(t))).toBe(true)
+    c.objects[0] = { ...c.objects[0], iecLocation: '%IW65535' }
+    expect(checkCanopenSlave('io', c, []).some((p) => p.text.includes('outside'))).toBe(false)
+  })
+
   it('leaves a slave that is off out of the build', () => {
     expect(generateCanopenConfig([], null, [server({ ...io(), enabled: false })])).toBeNull()
   })

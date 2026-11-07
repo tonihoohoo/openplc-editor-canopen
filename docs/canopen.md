@@ -19,7 +19,7 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
 
 1. Add a remote device and pick **CANopen**. One device is one CAN interface.
 2. **Network** tab: the SocketCAN interface on the runtime device (`can0`, spaces around it are
-   dropped), the bit rate (or
+   dropped; 1 - 15 letters, digits, `_`, `.` or `-`), the bit rate (or
    "Leave as configured" for a link set up outside the runtime), the master node ID, the master's
    heartbeat (100 ms for a new network), the real-time priority of the bus work on the runtime
    (1 to 97, default 90, above the PLC tasks), SYNC (none, once per PLC cycle, or a fixed period
@@ -127,7 +127,7 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
 5. Give entries aliases and bind variables to them, as with other remote I/O. An entry keeps its
    address when other entries, PDOs, nodes or devices are added, removed or moved: a new entry takes
    the lowest free address, and a removed one leaves a hole. Only an entry whose address a hardware
-   pin takes moves. An address must lie inside the runtime's I/O image (index 65535 at most).
+   pin takes moves. An address must lie inside the runtime's I/O image (index 65535 at most); a slave object's address is checked the same way.
 
 Problems that would stop the build are listed at the top of the editor as they appear.
 
