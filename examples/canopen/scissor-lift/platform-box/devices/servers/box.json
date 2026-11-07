@@ -1,0 +1,185 @@
+{
+  "name": "box",
+  "protocol": "canopen-slave",
+  "canopenSlaveConfig": {
+    "enabled": true,
+    "interface": "can0",
+    "bitrate": 250000,
+    "nodeId": 10,
+    "priority": 90,
+    "vendorName": "OpenPLC example",
+    "deviceName": "Platform control box",
+    "softwareVersion": "1.0",
+    "hardwareVersion": "HW 1",
+    "productText": "Joystick, buttons and lamps on the platform rail.",
+    "orderNumber": "SL-10",
+    "vendorId": 43981,
+    "productCode": 10,
+    "revision": 65536,
+    "heartbeatMs": 100,
+    "masterWatch": {
+      "nodeId": 1,
+      "timeMs": 300
+    },
+    "onMasterLost": "stopped",
+    "onPlcStop": "zero",
+    "onPlcStopState": "stopped",
+    "startAlone": false,
+    "objects": [
+      {
+        "id": "lamps",
+        "index": 8192,
+        "subIndex": 1,
+        "name": "Lamps",
+        "dataType": "UNSIGNED8",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "",
+        "defaultValue": "0",
+        "bits": [
+          {
+            "name": "Ready",
+            "iecLocation": "%IX0.0"
+          },
+          {
+            "name": "Emergency stop",
+            "iecLocation": "%IX0.1"
+          },
+          {
+            "name": "Tilt alarm",
+            "iecLocation": "%IX0.2"
+          },
+          {
+            "name": "Overload",
+            "iecLocation": "%IX0.3"
+          },
+          {
+            "name": "Buzzer",
+            "iecLocation": "%IX0.4"
+          },
+          {
+            "name": "Fault",
+            "iecLocation": "%IX0.5"
+          },
+          {
+            "name": "Spare 6",
+            "iecLocation": "%IX0.6"
+          },
+          {
+            "name": "Spare 7",
+            "iecLocation": "%IX0.7"
+          }
+        ],
+        "group": "Display"
+      },
+      {
+        "id": "joy-x",
+        "index": 8448,
+        "subIndex": 1,
+        "name": "Joystick X",
+        "dataType": "INTEGER16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW0",
+        "defaultValue": "0",
+        "unit": "\u2030",
+        "group": "Controls",
+        "description": "Joystick sideways, -1000 to 1000 per mille."
+      },
+      {
+        "id": "joy-y",
+        "index": 8448,
+        "subIndex": 2,
+        "name": "Joystick Y",
+        "dataType": "INTEGER16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW1",
+        "defaultValue": "0",
+        "unit": "\u2030",
+        "group": "Controls",
+        "description": "Joystick forward and back, or up and down, -1000 to 1000 per mille."
+      },
+      {
+        "id": "buttons",
+        "index": 8448,
+        "subIndex": 3,
+        "name": "Buttons",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "",
+        "defaultValue": "0",
+        "group": "Controls",
+        "bits": [
+          {
+            "name": "Emergency stop healthy",
+            "iecLocation": "%QX0.0"
+          },
+          {
+            "name": "Enable switch",
+            "iecLocation": "%QX0.1"
+          },
+          {
+            "name": "Drive mode",
+            "iecLocation": "%QX0.2"
+          },
+          {
+            "name": "Horn",
+            "iecLocation": "%QX0.3"
+          },
+          {
+            "name": "Work light",
+            "iecLocation": "%QX0.4"
+          },
+          {
+            "name": "Spare 5",
+            "iecLocation": "%QX0.5"
+          },
+          {
+            "name": "Spare 6",
+            "iecLocation": "%QX0.6"
+          },
+          {
+            "name": "Spare 7",
+            "iecLocation": "%QX0.7"
+          }
+        ]
+      }
+    ],
+    "pdos": {
+      "rpdos": [
+        {
+          "number": 1,
+          "objects": [
+            "lamps"
+          ],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 0,
+          "eventTimerMs": 0
+        }
+      ],
+      "tpdos": [
+        {
+          "number": 1,
+          "objects": [
+            "joy-x",
+            "joy-y",
+            "buttons"
+          ],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 100,
+          "eventTimerMs": 100
+        }
+      ]
+    },
+    "lss": {
+      "enabled": true,
+      "waitForMaster": true,
+      "serial": null,
+      "bitrateChange": true
+    }
+  }
+}

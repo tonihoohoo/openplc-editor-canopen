@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scissor lift machine panel</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#1c2430;--mute:#5d6b7c;--line:#d5dbe3;--ok:#1a8a4a;--warn:#c27a00;--bad:#c0312b;--accent:#2563c4;--steel:#8794a6}
+@media (prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1b222b;--ink:#e6ebf2;--mute:#97a4b5;--line:#2e3846;--ok:#4cc27d;--warn:#e0a030;--bad:#ef6b63;--accent:#6aa3f5;--steel:#6d7a8c}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,sans-serif}
+header{padding:12px 16px;border-bottom:1px solid var(--line)}h1{font-size:18px;margin:0}header p{margin:2px 0 0;color:var(--mute);font-size:12px}
+main{display:grid;gap:12px;padding:12px 16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+section{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px}h2{font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute)}
+.wide{grid-column:1/-1}button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}button:hover{border-color:var(--accent)}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}button.danger.on{background:var(--bad);border-color:var(--bad)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}label{display:flex;gap:6px;align-items:center}input[type=range]{flex:1;min-width:120px}
+.lamp{display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:12px}.lamp i{width:12px;height:12px;border-radius:50%;background:var(--line);display:inline-block}.lamp i.on{background:var(--ok)}.lamp i.on.red{background:var(--bad)}.lamp i.on.amber{background:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;padding:3px 6px;border-bottom:1px solid var(--line)}.pill{padding:1px 7px;border-radius:9px;background:var(--line)}.pill.ok{background:var(--ok);color:#fff}.pill.bad{background:var(--bad);color:#fff}.pill.warn{background:var(--warn);color:#fff}
+#pad{width:160px;height:160px;border:1px solid var(--line);border-radius:8px;position:relative;touch-action:none;background:var(--bg)}#knob{width:26px;height:26px;border-radius:50%;background:var(--accent);position:absolute;left:67px;top:67px}
+#msg{color:var(--mute);min-height:1.4em;font-size:12px}svg text{fill:var(--ink);font-size:11px}
+</style>
+</head>
+<body>
+<header><h1>Scissor lift machine panel</h1><p>A demonstration, not a safety system. The safety relay below is simulated.</p></header>
+<main>
+<section class="wide"><h2>Machine</h2>
+<svg id="machine" viewBox="0 0 520 250" width="100%" style="max-height:290px">
+ <line x1="0" y1="215" x2="520" y2="215" stroke="var(--steel)" stroke-width="2" id="ground"/>
+ <g id="slope"><rect x="150" y="190" width="220" height="24" rx="5" fill="var(--steel)"/>
+ <circle cx="180" cy="216" r="14" fill="var(--ink)"/><circle cx="340" cy="216" r="14" fill="var(--ink)"/>
+ <g id="scissor" stroke="var(--steel)" stroke-width="7" fill="none"></g>
+ <rect id="deck" x="150" y="100" width="220" height="10" fill="var(--accent)"/>
+ <rect id="rail" x="150" y="70" width="220" height="30" fill="none" stroke="var(--accent)" stroke-width="3"/></g>
+ <text x="12" y="20" id="tHeight">Height</text><text x="12" y="36" id="tTilt">Tilt</text><text x="12" y="52" id="tLoad">Load</text><text x="12" y="68" id="tTravel">Travel</text>
+ <text x="400" y="20" id="tRelay">Safety relay</text>
+</svg></section>
+<section><h2>Emergency stop and safety relay</h2>
+<div class="row"><button class="danger" id="ground_estop">Ground e-stop</button><button class="danger" id="platform_estop">Platform e-stop</button><button id="reset">Reset relay</button></div>
+<div class="row"><span>Relay: <span class="pill" id="relay">open</span></span></div>
+<p style="color:var(--mute);font-size:12px;margin:4px 0 0">Both e-stops are in series. The relay cuts the valve power. The PLCs only read its status.</p></section>
+<section><h2>Platform control box</h2>
+<div class="row"><div id="pad"><div id="knob"></div></div><div>
+<div class="row"><button id="enable">Enable switch</button></div><div class="row"><button id="drive_mode">Drive mode</button></div>
+<div class="row"><button id="horn">Horn</button><button id="light">Work light</button></div></div></div>
+<div id="lamps" class="row"></div></section>
+<section><h2>Machine conditions</h2>
+<div class="row"><label style="flex:1">Slope <input type="range" id="slope_in" min="-8" max="8" step="0.1"><span id="slope_v"></span></label></div>
+<div class="row"><label style="flex:1">Load <input type="range" id="load_in" min="0" max="700" step="10"><span id="load_v"></span></label></div>
+<div class="row"><button id="coil_fault">Valve coil fault</button></div></section>
+<section><h2>Scenarios</h2>
+<div class="row"><button data-act="stop:valves">Stop valve module</button><button data-act="start:valves">Start valve module</button></div>
+<div class="row"><button data-act="stop:sensor">Stop sensor</button><button data-act="start:sensor">Start sensor</button></div>
+<div class="row"><button data-act="stop:platform">Stop platform box</button><button data-act="start:platform">Start platform box</button></div>
+<div class="row"><button data-act="swap:">Replace platform box (new serial)</button></div><div id="msg"></div></section>
+<section class="wide"><h2>Runtimes</h2><table><thead><tr><th>Runtime</th><th>State</th><th>Detail</th></tr></thead><tbody id="rt"></tbody></table></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+let local={};
+for(const id of ['ground_estop','platform_estop','enable','drive_mode','horn','light','coil_fault']){
+  $(id).onclick=()=>post('/api/input',{name:id,value:!(local[id])});
+}
+$('reset').onclick=()=>post('/api/action',{name:'reset'});
+document.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{const [n,d]=b.dataset.act.split(':');post('/api/action',{name:n,device:d||undefined});});
+$('slope_in').oninput=e=>post('/api/input',{name:'slope',value:e.target.value});
+$('load_in').oninput=e=>post('/api/input',{name:'load',value:e.target.value});
+const pad=$('pad'),knob=$('knob');let drag=false;
+function setStick(x,y){knob.style.left=(67+x*67/1000)+'px';knob.style.top=(67-y*67/1000)+'px';post('/api/input',{name:'stick_x',value:Math.round(x)});post('/api/input',{name:'stick_y',value:Math.round(y)});}
+function move(e){const r=pad.getBoundingClientRect();let x=((e.clientX-r.left)/r.width*2-1)*1000,y=-((e.clientY-r.top)/r.height*2-1)*1000;x=Math.max(-1000,Math.min(1000,x));y=Math.max(-1000,Math.min(1000,y));setStick(x,y);}
+pad.onpointerdown=e=>{drag=true;pad.setPointerCapture(e.pointerId);move(e)};pad.onpointermove=e=>{if(drag)move(e)};pad.onpointerup=()=>{drag=false;setStick(0,0)};
+function pill(t,c){return '<span class="pill '+(c||'')+'">'+t+'</span>'}
+const lampDef={PB_LAMP_READY:['Ready','on'],PB_LAMP_ESTOP:['E-stop','red'],PB_LAMP_TILT:['Tilt','amber'],PB_LAMP_LOAD:['Overload','amber'],PB_LAMP_FAULT:['Fault','red'],PB_BUZZER:['Buzzer','amber']};
+function draw(s){
+  local=s.inputs;
+  for(const id of ['ground_estop','platform_estop','enable','drive_mode','horn','light','coil_fault'])$(id).classList.toggle('on',!!s.inputs[id]);
+  $('slope_v').textContent=s.inputs.slope.toFixed(1)+'°';$('load_v').textContent=s.inputs.load+' kg';
+  if(document.activeElement!==$('slope_in'))$('slope_in').value=s.inputs.slope;if(document.activeElement!==$('load_in'))$('load_in').value=s.inputs.load;
+  $('relay').textContent=s.relay.closed?'closed (valves powered)':'open';$('relay').className='pill '+(s.relay.closed?'ok':'bad');
+  $('tRelay').textContent='Relay '+(s.relay.closed?'closed':'open');
+  $('tHeight').textContent='Height '+s.height+' mm';$('tTilt').textContent='Tilt '+s.inputs.slope.toFixed(1)+'°';$('tLoad').textContent='Load '+s.inputs.load+' kg';$('tTravel').textContent='Travel '+s.travel+' m';
+  const f=(s.height-1200)/7800,top=190-f*110,lw=110*(1-f*0.6);
+  $('deck').setAttribute('y',top);$('rail').setAttribute('y',top-30);
+  let d='';const n=3;for(let i=0;i<n;i++){const y1=190-(190-top)*i/n,y2=190-(190-top)*(i+1)/n;d+='<path d="M'+(260-lw)+' '+y1+' L'+(260+lw)+' '+y2+' M'+(260+lw)+' '+y1+' L'+(260-lw)+' '+y2+'"/>';}
+  $('scissor').innerHTML=d;$('slope').setAttribute('transform','rotate('+(-s.inputs.slope)+' 260 215)');
+  $('lamps').innerHTML=Object.entries(lampDef).map(([k,[t,c]])=>'<span class="lamp"><i class="'+(s.lamps[k]?'on '+c:'')+'"></i>'+t+'</span>').join('');
+  $('msg').textContent=s.message||'';
+  const rows=[];
+  for(const [dev,r] of Object.entries(s.runtimes)){
+    if(!r.reachable){rows.push('<tr><td>'+dev+'</td><td>'+pill('offline','bad')+'</td><td>'+(r.error||'')+'</td></tr>');continue;}
+    const det=[];
+    (r.nodes||[]).forEach(n=>det.push(n.name+': '+pill(n.state||n.nmt,n.warning?'warn':(n.state==='running'||n.nmt==='operational'?'ok':''))));
+    (r.slaves||[]).forEach(n=>det.push(n.name+': '+pill(n.state,n.state==='operational'?'ok':'')+(n.node_id_from?' ('+n.node_id_from+')':'')));
+    rows.push('<tr><td>'+dev+'</td><td>'+pill(r.active?'program running':'no program',r.active?'ok':'warn')+'</td><td>'+det.join(' ')+'</td></tr>');
+  }
+  $('rt').innerHTML=rows.join('');
+}
+async function tick(){try{draw(await (await fetch('/api/state')).json())}catch(e){}setTimeout(tick,300)}
+tick();
+</script>
+</body>
+</html>

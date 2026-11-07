@@ -1,0 +1,71 @@
+{
+  "name": "terminals",
+  "protocol": "canopen-slave",
+  "canopenSlaveConfig": {
+    "enabled": true,
+    "interface": "sim0",
+    "bitrate": 0,
+    "nodeId": 2,
+    "priority": 90,
+    "vendorName": "OpenPLC example",
+    "deviceName": "Terminals (simulation)",
+    "softwareVersion": "1.0",
+    "hardwareVersion": "HW 1",
+    "productText": "Joystick axes from the machine panel.",
+    "orderNumber": "SL-902",
+    "vendorId": 43981,
+    "productCode": 902,
+    "revision": 65536,
+    "heartbeatMs": 100,
+    "masterWatch": {
+      "nodeId": 1,
+      "timeMs": 0
+    },
+    "onMasterLost": "no_change",
+    "onPlcStop": "hold",
+    "onPlcStopState": "none",
+    "startAlone": true,
+    "objects": [
+      {
+        "id": "stick-x",
+        "index": 8192,
+        "subIndex": 1,
+        "name": "Stick X",
+        "dataType": "INTEGER16",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IW0",
+        "defaultValue": "0",
+        "unit": "\u2030"
+      },
+      {
+        "id": "stick-y",
+        "index": 8192,
+        "subIndex": 2,
+        "name": "Stick Y",
+        "dataType": "INTEGER16",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IW1",
+        "defaultValue": "0",
+        "unit": "\u2030"
+      }
+    ],
+    "pdos": {
+      "rpdos": [
+        {
+          "number": 1,
+          "objects": [
+            "stick-x",
+            "stick-y"
+          ],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 0,
+          "eventTimerMs": 0
+        }
+      ],
+      "tpdos": []
+    }
+  }
+}

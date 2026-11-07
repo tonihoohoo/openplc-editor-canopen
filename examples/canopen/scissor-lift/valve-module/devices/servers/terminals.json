@@ -1,0 +1,71 @@
+{
+  "name": "terminals",
+  "protocol": "canopen-slave",
+  "canopenSlaveConfig": {
+    "enabled": true,
+    "interface": "sim0",
+    "bitrate": 0,
+    "nodeId": 2,
+    "priority": 90,
+    "vendorName": "OpenPLC example",
+    "deviceName": "Terminals (simulation)",
+    "softwareVersion": "1.0",
+    "hardwareVersion": "HW 1",
+    "productText": "Proportional valve currents, read by the machine panel.",
+    "orderNumber": "SL-902",
+    "vendorId": 43981,
+    "productCode": 902,
+    "revision": 65536,
+    "heartbeatMs": 100,
+    "masterWatch": {
+      "nodeId": 1,
+      "timeMs": 0
+    },
+    "onMasterLost": "no_change",
+    "onPlcStop": "hold",
+    "onPlcStopState": "none",
+    "startAlone": true,
+    "objects": [
+      {
+        "id": "lift-cmd",
+        "index": 8448,
+        "subIndex": 1,
+        "name": "Lift command",
+        "dataType": "INTEGER16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW4",
+        "defaultValue": "0",
+        "unit": "\u2030"
+      },
+      {
+        "id": "drive-cmd",
+        "index": 8448,
+        "subIndex": 2,
+        "name": "Drive command",
+        "dataType": "INTEGER16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW5",
+        "defaultValue": "0",
+        "unit": "\u2030"
+      }
+    ],
+    "pdos": {
+      "rpdos": [],
+      "tpdos": [
+        {
+          "number": 1,
+          "objects": [
+            "lift-cmd",
+            "drive-cmd"
+          ],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 0,
+          "eventTimerMs": 20
+        }
+      ]
+    }
+  }
+}

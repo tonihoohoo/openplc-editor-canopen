@@ -1,0 +1,146 @@
+{
+  "name": "sensor",
+  "protocol": "canopen-slave",
+  "canopenSlaveConfig": {
+    "enabled": true,
+    "interface": "can0",
+    "bitrate": 250000,
+    "nodeId": 30,
+    "priority": 90,
+    "vendorName": "OpenPLC example",
+    "deviceName": "Tilt and load sensor",
+    "softwareVersion": "1.0",
+    "hardwareVersion": "HW 1",
+    "productText": "Tilt, platform height and load.",
+    "orderNumber": "SL-30",
+    "vendorId": 43981,
+    "productCode": 30,
+    "revision": 65536,
+    "heartbeatMs": 100,
+    "masterWatch": {
+      "nodeId": 1,
+      "timeMs": 300
+    },
+    "onMasterLost": "stopped",
+    "onPlcStop": "zero",
+    "onPlcStopState": "stopped",
+    "startAlone": false,
+    "objects": [
+      {
+        "id": "filter",
+        "index": 8192,
+        "subIndex": 1,
+        "name": "Filter time",
+        "dataType": "UNSIGNED16",
+        "direction": "from_master",
+        "exchange": "sdo",
+        "iecLocation": "%IW0",
+        "defaultValue": "100",
+        "min": "0",
+        "max": "5000",
+        "unit": "ms",
+        "group": "Parameters",
+        "description": "Averaging time of tilt and load."
+      },
+      {
+        "id": "load-limit",
+        "index": 8192,
+        "subIndex": 2,
+        "name": "Load limit",
+        "dataType": "UNSIGNED16",
+        "direction": "from_master",
+        "exchange": "sdo",
+        "iecLocation": "%IW1",
+        "defaultValue": "450",
+        "min": "50",
+        "max": "1000",
+        "unit": "kg",
+        "group": "Parameters",
+        "description": "Load above this raises an overload emergency."
+      },
+      {
+        "id": "tilt",
+        "index": 8448,
+        "subIndex": 1,
+        "name": "Tilt",
+        "dataType": "INTEGER16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW0",
+        "defaultValue": "0",
+        "unit": "\u00b0",
+        "multiplier": 0.01,
+        "group": "Measurements"
+      },
+      {
+        "id": "height",
+        "index": 8448,
+        "subIndex": 2,
+        "name": "Height",
+        "dataType": "UNSIGNED16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW1",
+        "defaultValue": "0",
+        "unit": "mm",
+        "group": "Measurements"
+      },
+      {
+        "id": "load",
+        "index": 8448,
+        "subIndex": 3,
+        "name": "Load",
+        "dataType": "UNSIGNED16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW2",
+        "defaultValue": "0",
+        "unit": "kg",
+        "group": "Measurements"
+      },
+      {
+        "id": "seconds",
+        "index": 8448,
+        "subIndex": 4,
+        "name": "Operating time",
+        "dataType": "UNSIGNED32",
+        "direction": "to_master",
+        "exchange": "sdo",
+        "iecLocation": "%QD0",
+        "defaultValue": "0",
+        "unit": "s",
+        "group": "Diagnostics",
+        "description": "Seconds since the sensor program started."
+      },
+      {
+        "id": "serial",
+        "index": 8704,
+        "subIndex": 1,
+        "name": "Serial",
+        "dataType": "VISIBLE_STRING",
+        "direction": "to_master",
+        "exchange": "constant",
+        "iecLocation": "",
+        "defaultValue": "SN-TILT-0001",
+        "group": "Identity"
+      }
+    ],
+    "pdos": {
+      "rpdos": [],
+      "tpdos": [
+        {
+          "number": 1,
+          "objects": [
+            "tilt",
+            "height",
+            "load"
+          ],
+          "cobId": null,
+          "transmissionType": 1,
+          "inhibitTime": 0,
+          "eventTimerMs": 0
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,236 @@
+{
+  "name": "valves",
+  "protocol": "canopen-slave",
+  "canopenSlaveConfig": {
+    "enabled": true,
+    "interface": "can0",
+    "bitrate": 250000,
+    "nodeId": 20,
+    "priority": 90,
+    "vendorName": "OpenPLC example",
+    "deviceName": "Valve module",
+    "softwareVersion": "1.0",
+    "hardwareVersion": "HW 1",
+    "productText": "Lift and drive valves of the chassis.",
+    "orderNumber": "SL-20",
+    "vendorId": 43981,
+    "productCode": 20,
+    "revision": 65536,
+    "heartbeatMs": 100,
+    "masterWatch": {
+      "nodeId": 1,
+      "timeMs": 300
+    },
+    "onMasterLost": "stopped",
+    "onPlcStop": "zero",
+    "onPlcStopState": "stopped",
+    "startAlone": false,
+    "objects": [
+      {
+        "id": "lift-sp",
+        "index": 8192,
+        "subIndex": 1,
+        "name": "Lift setpoint",
+        "dataType": "INTEGER16",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IW0",
+        "defaultValue": "0",
+        "unit": "\u2030",
+        "group": "Setpoints",
+        "description": "Lift speed, -1000 (down) to 1000 (up) per mille."
+      },
+      {
+        "id": "drive-sp",
+        "index": 8192,
+        "subIndex": 2,
+        "name": "Drive setpoint",
+        "dataType": "INTEGER16",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IW1",
+        "defaultValue": "0",
+        "unit": "\u2030",
+        "group": "Setpoints",
+        "description": "Drive speed, -1000 (reverse) to 1000 (forward) per mille."
+      },
+      {
+        "id": "enable",
+        "index": 8192,
+        "subIndex": 3,
+        "name": "Enable",
+        "dataType": "UNSIGNED8",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "",
+        "defaultValue": "0",
+        "group": "Setpoints",
+        "bits": [
+          {
+            "name": "Lift enable",
+            "iecLocation": "%IX0.0"
+          },
+          {
+            "name": "Drive enable",
+            "iecLocation": "%IX0.1"
+          },
+          {
+            "name": "Spare 2",
+            "iecLocation": "%IX0.2"
+          },
+          {
+            "name": "Spare 3",
+            "iecLocation": "%IX0.3"
+          },
+          {
+            "name": "Spare 4",
+            "iecLocation": "%IX0.4"
+          },
+          {
+            "name": "Spare 5",
+            "iecLocation": "%IX0.5"
+          },
+          {
+            "name": "Spare 6",
+            "iecLocation": "%IX0.6"
+          },
+          {
+            "name": "Spare 7",
+            "iecLocation": "%IX0.7"
+          }
+        ]
+      },
+      {
+        "id": "ramp",
+        "index": 8192,
+        "subIndex": 4,
+        "name": "Ramp time",
+        "dataType": "UNSIGNED16",
+        "direction": "from_master",
+        "exchange": "sdo",
+        "iecLocation": "%IW2",
+        "defaultValue": "1000",
+        "min": "100",
+        "max": "5000",
+        "unit": "ms",
+        "group": "Parameters",
+        "description": "Time a setpoint takes to go from zero to full."
+      },
+      {
+        "id": "lift-applied",
+        "index": 8448,
+        "subIndex": 1,
+        "name": "Lift applied",
+        "dataType": "INTEGER16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW0",
+        "defaultValue": "0",
+        "unit": "\u2030",
+        "group": "Feedback"
+      },
+      {
+        "id": "drive-applied",
+        "index": 8448,
+        "subIndex": 2,
+        "name": "Drive applied",
+        "dataType": "INTEGER16",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QW1",
+        "defaultValue": "0",
+        "unit": "\u2030",
+        "group": "Feedback"
+      },
+      {
+        "id": "status",
+        "index": 8448,
+        "subIndex": 3,
+        "name": "Status",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "",
+        "defaultValue": "0",
+        "group": "Feedback",
+        "bits": [
+          {
+            "name": "Supply on",
+            "iecLocation": "%QX0.0"
+          },
+          {
+            "name": "Coil fault",
+            "iecLocation": "%QX0.1"
+          },
+          {
+            "name": "Lift active",
+            "iecLocation": "%QX0.2"
+          },
+          {
+            "name": "Drive active",
+            "iecLocation": "%QX0.3"
+          },
+          {
+            "name": "Spare 4",
+            "iecLocation": "%QX0.4"
+          },
+          {
+            "name": "Spare 5",
+            "iecLocation": "%QX0.5"
+          },
+          {
+            "name": "Spare 6",
+            "iecLocation": "%QX0.6"
+          },
+          {
+            "name": "Spare 7",
+            "iecLocation": "%QX0.7"
+          }
+        ]
+      },
+      {
+        "id": "ramp-writes",
+        "index": 8448,
+        "subIndex": 4,
+        "name": "Ramp writes",
+        "dataType": "UNSIGNED32",
+        "direction": "to_master",
+        "exchange": "sdo",
+        "iecLocation": "%QD0",
+        "defaultValue": "0",
+        "group": "Diagnostics",
+        "description": "How often the master wrote the ramp time."
+      }
+    ],
+    "pdos": {
+      "rpdos": [
+        {
+          "number": 1,
+          "objects": [
+            "lift-sp",
+            "drive-sp",
+            "enable"
+          ],
+          "cobId": null,
+          "transmissionType": 1,
+          "inhibitTime": 0,
+          "eventTimerMs": 100
+        }
+      ],
+      "tpdos": [
+        {
+          "number": 1,
+          "objects": [
+            "lift-applied",
+            "drive-applied",
+            "status"
+          ],
+          "cobId": null,
+          "transmissionType": 1,
+          "inhibitTime": 0,
+          "eventTimerMs": 0
+        }
+      ]
+    }
+  }
+}

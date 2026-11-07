@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" role="img" aria-label="One Linux host with four containers, virtual CAN links and the editor"><style>.t{fill:#1c2430;font:13px system-ui,sans-serif}.s{fill:#5d6b7c;font:11px system-ui,sans-serif}.b{fill:#eef2f7;stroke:#5d6b7c;stroke-width:1.5}.a{fill:#dbe8fb;stroke:#2563c4;stroke-width:1.5}.r{fill:#fbe3e1;stroke:#c0312b;stroke-width:1.5}.l{stroke:#5d6b7c;stroke-width:2;fill:none}.k{stroke:#2563c4;stroke-width:2;fill:none}@media (prefers-color-scheme:dark){.t{fill:#e6ebf2}.s{fill:#97a4b5}.b{fill:#1b222b;stroke:#97a4b5}.a{fill:#1d3558;stroke:#6aa3f5}.r{fill:#4a1f1d;stroke:#ef6b63}.l{stroke:#97a4b5}.k{stroke:#6aa3f5}}</style>
+<title>The host</title>
+<rect x="20" y="20" width="560" height="320" rx="10" class="b" fill="none"/><text x="34" y="42" class="t">Linux host (a Pi, a PC, or a WSL 2 distribution)</text>
+<g><rect x="40" y="62" width="110" height="80" rx="8" class="a"/><text x="95" y="90" text-anchor="middle" class="t">chassis</text><text x="95" y="108" text-anchor="middle" class="s">runtime container</text></g>
+<g><rect x="165" y="62" width="110" height="80" rx="8" class="b"/><text x="220" y="90" text-anchor="middle" class="t">platform</text><text x="220" y="108" text-anchor="middle" class="s">+ GPIO, sim0</text></g>
+<g><rect x="290" y="62" width="110" height="80" rx="8" class="b"/><text x="345" y="90" text-anchor="middle" class="t">valves</text><text x="345" y="108" text-anchor="middle" class="s">+ GPIO, sim0</text></g>
+<g><rect x="415" y="62" width="110" height="80" rx="8" class="b"/><text x="470" y="90" text-anchor="middle" class="t">sensor</text><text x="470" y="108" text-anchor="middle" class="s">+ sim0</text></g>
+<path d="M95 142 V190 M220 142 V190 M345 142 V190 M470 142 V190" class="l"/><text x="530" y="170" class="s">vxcan pairs</text>
+<rect x="40" y="190" width="485" height="40" rx="8" class="k"/><text x="282" y="215" text-anchor="middle" class="t">cangw: every machine bus link forwards to every other</text>
+<rect x="40" y="260" width="230" height="60" rx="8" class="r"/><text x="155" y="285" text-anchor="middle" class="t">Machine panel (python3)</text><text x="155" y="303" text-anchor="middle" class="s">relay, hydraulics, sensors, GPIO</text>
+<path d="M155 260 V230" class="l"/><text x="300" y="295" class="s">gpio-sim lines and the sim0 buses</text>
+<rect x="620" y="130" width="120" height="80" rx="8" class="a"/><text x="680" y="165" text-anchor="middle" class="t">OpenPLC Editor</text><text x="680" y="183" text-anchor="middle" class="s">Linux, Windows, Mac</text>
+<path d="M525 100 H600 V160 H620" class="l"/><text x="540" y="92" class="s">ports 18443-18446</text>
+</svg>

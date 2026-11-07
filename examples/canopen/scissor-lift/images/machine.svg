@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 340" role="img" aria-label="The scissor lift and where each device sits"><style>.t{fill:#1c2430;font:13px system-ui,sans-serif}.s{fill:#5d6b7c;font:11px system-ui,sans-serif}.b{fill:#eef2f7;stroke:#5d6b7c;stroke-width:1.5}.a{fill:#dbe8fb;stroke:#2563c4;stroke-width:1.5}.r{fill:#fbe3e1;stroke:#c0312b;stroke-width:1.5}.l{stroke:#5d6b7c;stroke-width:2;fill:none}.k{stroke:#2563c4;stroke-width:2;fill:none}@media (prefers-color-scheme:dark){.t{fill:#e6ebf2}.s{fill:#97a4b5}.b{fill:#1b222b;stroke:#97a4b5}.a{fill:#1d3558;stroke:#6aa3f5}.r{fill:#4a1f1d;stroke:#ef6b63}.l{stroke:#97a4b5}.k{stroke:#6aa3f5}}</style>
+<title>The scissor lift</title>
+<line x1="20" y1="300" x2="620" y2="300" class="l"/>
+<rect x="200" y="272" width="240" height="26" rx="6" class="b"/>
+<circle cx="235" cy="300" r="15" class="b"/><circle cx="405" cy="300" r="15" class="b"/>
+<path d="M240 272 L400 200 M400 272 L240 200 M240 200 L400 128 M400 200 L240 128" class="l" stroke-width="6"/>
+<rect x="200" y="112" width="240" height="14" class="a"/><path d="M200 112 V70 H440 V112" class="k"/>
+<rect x="290" y="82" width="60" height="28" rx="4" class="b"/><text x="320" y="100" text-anchor="middle" class="s">box</text>
+<rect x="215" y="276" width="90" height="18" rx="3" class="a"/><text x="260" y="289" text-anchor="middle" class="s">chassis</text>
+<rect x="320" y="276" width="90" height="18" rx="3" class="b"/><text x="365" y="289" text-anchor="middle" class="s">valves</text>
+<rect x="420" y="190" width="44" height="18" rx="3" class="b"/><text x="442" y="203" text-anchor="middle" class="s">sensor</text>
+<line x1="250" y1="64" x2="290" y2="90" class="l"/><text x="20" y="56" class="t">Platform control box</text><text x="20" y="72" class="s">joystick, enable, lamps, horn</text>
+<line x1="365" y1="276" x2="500" y2="250" class="l"/><text x="505" y="244" class="t">Valve module</text><text x="505" y="260" class="s">lift and drive valves</text>
+<line x1="450" y1="199" x2="520" y2="150" class="l"/><text x="480" y="140" class="t">Tilt and load sensor</text>
+<line x1="300" y1="246" x2="260" y2="276" class="l"/><text x="20" y="236" class="t">Chassis controller</text><text x="20" y="252" class="s">the master: interlocks, e-stop, tilt alarm</text>
+</svg>
