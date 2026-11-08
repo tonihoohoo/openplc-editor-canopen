@@ -11,6 +11,7 @@
 
 import { useOpenPLCStore } from '@root/frontend/store'
 import { CreateLibraryManagerEditor } from '@root/frontend/store/slices/tabs/utils'
+import { useEffect } from 'react'
 
 import { WarningIcon } from '../../../assets/icons/interface/Warning'
 import { Modal, ModalContent, ModalTitle } from '../../_molecules/modal'
@@ -25,6 +26,11 @@ const MissingLibrariesModal = () => {
   const addModel = useOpenPLCStore((s) => s.editorActions.addModel)
   const setEditor = useOpenPLCStore((s) => s.editorActions.setEditor)
   const getEditorFromEditors = useOpenPLCStore((s) => s.editorActions.getEditorFromEditors)
+
+  // The system libraries can load after the project opened; nothing is missing any more then.
+  useEffect(() => {
+    if (isOpen && missing.length === 0) onOpenChange('missing-libraries', false)
+  }, [isOpen, missing.length, onOpenChange])
 
   const handleOpenManager = () => {
     const tabName = 'Library Manager'
