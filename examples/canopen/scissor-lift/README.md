@@ -44,8 +44,8 @@ Behaviour you can try:
 - `iproute2`, `util-linux` (`nsenter`), `can-utils` (`cangw`) and `python3`.
 - The kernel modules `vxcan`, `can-gw` and `gpio-sim`. Most distribution kernels have them.
 - The OpenPLC Editor with CANopen support (this fork) on the same machine or another one: a release
-  newer than `v4.3.3-canopen.2`, or a build of this branch. `v4.3.3-canopen.2` and older cannot compile
-  the slave projects ("Nothing produces %IW on this target").
+  from `v4.3.4-canopen.3` on, or a build of this branch. Older releases write an older CANopen
+  configuration version, which the example's runtime image refuses at upload.
 
 ![The host](images/host.svg)
 
