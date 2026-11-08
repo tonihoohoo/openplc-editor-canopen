@@ -44,8 +44,8 @@ Behaviour you can try:
 - `iproute2`, `util-linux` (`nsenter`), `can-utils` (`cangw`) and `python3`.
 - The kernel modules `vxcan`, `can-gw` and `gpio-sim`. Most distribution kernels have them.
 - The OpenPLC Editor with CANopen support (this fork) on the same machine or another one: a release
-  newer than `v4.3.3-canopen.2`, or a build of this branch. `v4.3.3-canopen.2` and older cannot compile
-  the slave projects ("Nothing produces %IW on this target").
+  from `v4.3.4-canopen.3` on, or a build of this branch. Older releases write an older CANopen
+  configuration version, which the example's runtime image refuses at upload.
 
 ![The host](images/host.svg)
 
@@ -63,7 +63,7 @@ The runtimes are at `127.0.0.10` (chassis controller), `127.0.0.11` (platform bo
 `18446`. When another runtime on the host already uses port 8443, `run.sh up` says so and publishes only
 the `18443` to `18446` ports; reach the runtimes from another machine with the helpers below. Each runtime needs a user once; the example uses `lift` with the password `lift-example`
 (set `SCISSOR_USER` and `SCISSOR_PASSWORD` to change them). The image is
-`ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.3`; set `SCISSOR_IMAGE` for another.
+`ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.4`; set `SCISSOR_IMAGE` for another.
 
 ### Open the editor
 
@@ -81,9 +81,9 @@ controller goes to `127.0.0.10`. Upload the three slaves first, then the master.
 
 The platform box starts without a node ID and a random serial number. The chassis controller's platform
 node is given its node ID over LSS, but the project does not know the box's serial yet. Open the master's
-Online tab and run the LSS search: it lists the box with its serial number. Enter that serial in the LSS
-settings of the platform node and upload the chassis controller again; from then on the master gives the
-box node 10 at every start. To start at once, "Give node ID" in the search result gives it node 10 now. `./run.sh swap` replaces the box
+Online tab and run the LSS search: it lists the box with its serial number. "Use as node 10..." in the
+search result puts that serial in the platform node and gives the box node 10 now. Upload the chassis
+controller again afterwards; from then on the master gives the box node 10 at every start. `./run.sh swap` replaces the box
 with a new one, so you can see a spare part being commissioned.
 
 ## The machine panel

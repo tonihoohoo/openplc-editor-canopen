@@ -192,6 +192,7 @@ class Machine:
         self.runtimes = {}
         self.relay_message = ""
         self.message = ""
+        self.action_lock = threading.Lock()
         devices = state["devices"]
         self.gpio = {dev: Gpio(devices[dev]) for dev in ("platform", "valves") if "sysfs" in devices.get(dev, {})}
         self.buses = {dev: CanBus(devices[dev]["sim"]) for dev in ("platform", "valves", "sensor") if "sim" in devices.get(dev, {})}
@@ -224,6 +225,7 @@ class Machine:
             self.inputs[name] = value
             if name in ("ground_estop", "platform_estop") and value:
                 self.latched = False
+                self.relay_message = ""
             return True
 
     # -------------------------------------------------------------- one simulation step
@@ -304,7 +306,8 @@ class Machine:
         if not self.run_script:
             self.message = "No run script given"
             return False
-        done = subprocess.run([self.run_script, *args], capture_output=True, text=True, check=False)
+        with self.action_lock:
+            done = subprocess.run([self.run_script, *args], capture_output=True, text=True, check=False)
         self.message = (done.stdout + done.stderr).strip().splitlines()[0] if (done.stdout + done.stderr).strip() else ""
         return done.returncode == 0
 

@@ -69,6 +69,7 @@ function setStick(x,y){knob.style.left=(67+x*67/1000)+'px';knob.style.top=(67-y*
 function move(e){const r=pad.getBoundingClientRect();let x=((e.clientX-r.left)/r.width*2-1)*1000,y=-((e.clientY-r.top)/r.height*2-1)*1000;x=Math.max(-1000,Math.min(1000,x));y=Math.max(-1000,Math.min(1000,y));setStick(x,y);}
 pad.onpointerdown=e=>{drag=true;pad.setPointerCapture(e.pointerId);move(e)};pad.onpointermove=e=>{if(drag)move(e)};pad.onpointerup=()=>{drag=false;setStick(0,0)};
 function pill(t,c){return '<span class="pill '+(c||'')+'">'+t+'</span>'}
+function nodeClass(n){const s=n.state||n.nmt;return n.warning?'warn':['operational','running'].includes(s)?'ok':['lost','failed','silent'].includes(s)?'bad':s==='booting'?'warn':''}
 const lampDef={PB_LAMP_READY:['Ready','on'],PB_LAMP_ESTOP:['E-stop','red'],PB_LAMP_TILT:['Tilt','amber'],PB_LAMP_LOAD:['Overload','amber'],PB_LAMP_FAULT:['Fault','red'],PB_BUZZER:['Buzzer','amber']};
 function draw(s){
   local=s.inputs;
@@ -88,7 +89,7 @@ function draw(s){
   for(const [dev,r] of Object.entries(s.runtimes)){
     if(!r.reachable){rows.push('<tr><td>'+dev+'</td><td>'+pill('offline','bad')+'</td><td>'+(r.error||'')+'</td></tr>');continue;}
     const det=[];
-    (r.nodes||[]).forEach(n=>det.push(n.name+': '+pill(n.state||n.nmt,n.warning?'warn':(n.state==='running'||n.nmt==='operational'?'ok':''))));
+    (r.nodes||[]).forEach(n=>det.push(n.name+': '+pill(n.state||n.nmt,nodeClass(n))));
     (r.slaves||[]).forEach(n=>det.push(n.name+': '+pill(n.state,n.state==='operational'?'ok':'')+(n.node_id_from?' ('+n.node_id_from+')':'')));
     rows.push('<tr><td>'+dev+'</td><td>'+pill(r.active?'program running':'no program',r.active?'ok':'warn')+'</td><td>'+det.join(' ')+'</td></tr>');
   }
