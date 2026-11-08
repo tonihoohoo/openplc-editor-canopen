@@ -98,6 +98,30 @@ sends the analog values as frames on a per-device simulation bus where a "Termin
 slave turns them into process data. Nothing about the machine logic is in the panel except the
 physics: the PLC programs only see inputs.
 
+### Screenshots
+
+![The machine panel with all nodes operational](images/screenshots/panel-idle-all-operational.png)
+
+The panel with the platform raised, and with a tilt alarm:
+
+![The machine panel with the platform raised](images/screenshots/panel-lifted.png)
+
+![The machine panel with a tilt alarm](images/screenshots/panel-tilt-alarm.png)
+
+The chassis controller's network in the editor, with the platform node's General tab:
+
+![The CANopen network of the chassis controller](images/screenshots/editor-network-nodes.png)
+
+The platform box as a CANopen slave: General, Data, PDOs and Status:
+
+![The platform box slave, General tab](images/screenshots/editor-platform-box-general.png)
+
+![The platform box slave, Data tab](images/screenshots/editor-platform-box-data.png)
+
+![The platform box slave, PDOs tab](images/screenshots/editor-platform-box-pdos.png)
+
+![The platform box slave, Status tab](images/screenshots/editor-platform-box-status.png)
+
 ## Checked with
 
 The projects compile and the master configuration validates with the editor's own checks. The example
