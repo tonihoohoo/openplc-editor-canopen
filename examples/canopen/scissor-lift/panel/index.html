@@ -17,7 +17,7 @@ button.on{background:var(--accent);border-color:var(--accent);color:var(--card)}
 .lamp{display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:12px}.lamp i{width:12px;height:12px;border-radius:50%;background:var(--line);display:inline-block}.lamp i.on{background:var(--ok)}.lamp i.on.red{background:var(--bad)}.lamp i.on.amber{background:var(--warn)}
 table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;padding:3px 6px;border-bottom:1px solid var(--line)}.pill{display:inline-block;margin:1px 0;padding:1px 7px;border-radius:9px;background:var(--line);white-space:nowrap}.pill.ok{background:var(--ok);color:var(--card)}.pill.bad{background:var(--bad);color:var(--card)}.pill.warn{background:var(--warn);color:var(--card)}
 #pad{width:160px;height:160px;border:1px solid var(--line);border-radius:8px;position:relative;touch-action:none;background:var(--bg)}#knob{width:26px;height:26px;border-radius:50%;background:var(--accent);position:absolute;left:67px;top:67px}
-#msg{color:var(--mute);min-height:1.4em;font-size:12px}.readout{display:flex;flex-wrap:wrap;gap:4px 18px;font-variant-numeric:tabular-nums}
+#msg,#relay_msg{color:var(--mute);min-height:1.4em;font-size:12px}.readout{display:flex;flex-wrap:wrap;gap:4px 18px;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -35,6 +35,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;p
 <section><h2>Emergency stop and safety relay</h2>
 <div class="row"><button class="danger" id="ground_estop">Ground e-stop</button><button class="danger" id="platform_estop">Platform e-stop</button><button id="reset">Reset relay</button></div>
 <div class="row"><span>Relay: <span class="pill" id="relay">open</span></span></div>
+<div id="relay_msg"></div>
 <p style="color:var(--mute);font-size:12px;margin:4px 0 0">Both e-stops are in series. The relay cuts the valve power. The PLCs only read its status.</p></section>
 <section><h2>Platform control box</h2>
 <div class="row"><div id="pad"><div id="knob"></div></div><div>
@@ -82,7 +83,7 @@ function draw(s){
   let d='';const n=3;for(let i=0;i<n;i++){const y1=190-(190-top)*i/n,y2=190-(190-top)*(i+1)/n;d+='<path d="M'+(260-lw)+' '+y1+' L'+(260+lw)+' '+y2+' M'+(260+lw)+' '+y1+' L'+(260-lw)+' '+y2+'"/>';}
   $('scissor').innerHTML=d;$('slope').setAttribute('transform','rotate('+(-s.inputs.slope)+' 260 215)');
   $('lamps').innerHTML=Object.entries(lampDef).map(([k,[t,c]])=>'<span class="lamp"><i class="'+(s.lamps[k]?'on '+c:'')+'"></i>'+t+'</span>').join('');
-  $('msg').textContent=s.message||'';
+  $('msg').textContent=s.message||'';$('relay_msg').textContent=s.relay_message||'';
   const rows=[];
   for(const [dev,r] of Object.entries(s.runtimes)){
     if(!r.reachable){rows.push('<tr><td>'+dev+'</td><td>'+pill('offline','bad')+'</td><td>'+(r.error||'')+'</td></tr>');continue;}

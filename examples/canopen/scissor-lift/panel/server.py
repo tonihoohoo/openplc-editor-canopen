@@ -190,6 +190,7 @@ class Machine:
         self.lamps = {}
         self.valve_lines = {}
         self.runtimes = {}
+        self.relay_message = ""
         self.message = ""
         devices = state["devices"]
         self.gpio = {dev: Gpio(devices[dev]) for dev in ("platform", "valves") if "sysfs" in devices.get(dev, {})}
@@ -206,9 +207,9 @@ class Machine:
         with self.lock:
             if not self.inputs["ground_estop"] and not self.inputs["platform_estop"]:
                 self.latched = True
-                self.message = "Safety relay reset"
+                self.relay_message = "Safety relay reset"
                 return True
-            self.message = "Release both emergency stops before the reset"
+            self.relay_message = "Release both emergency stops before the reset"
             return False
 
     def set_input(self, name, value):
@@ -287,6 +288,7 @@ class Machine:
                 "lamps": self.lamps,
                 "valves": self.valve_lines,
                 "runtimes": dict(self.runtimes),
+                "relay_message": self.relay_message,
                 "message": self.message,
             }
 

@@ -146,13 +146,16 @@ attach_device() {
 
 # Every machine bus link forwards to every other one; a frame is forwarded once. Only these rules
 # are added and removed; other gateway rules on the host are left alone. The kernel drops a rule
-# by itself when one of its links goes away.
+# by itself when one of its links goes away, so a device that comes back only needs its own rules
+# added, and the rest of the bus keeps running meanwhile.
+#   gateway_rules A|D [device]   add or delete the rules of every link, or only those of one device
 gateway_rules() {
-    local action="$1" a b
+    local action="$1" only="${2:-}" a b
     for a in "${DEVICES[@]}"; do
         ip link show "${BUS_LINK[$a]}" >/dev/null 2>&1 || continue
         for b in "${DEVICES[@]}"; do
             [ "$a" = "$b" ] && continue
+            [ -z "$only" ] || [ "$a" = "$only" ] || [ "$b" = "$only" ] || continue
             ip link show "${BUS_LINK[$b]}" >/dev/null 2>&1 || continue
             if [ "$action" = D ]; then
                 # Removes every copy of the rule, a few at most.
@@ -164,11 +167,6 @@ gateway_rules() {
             fi
         done
     done
-}
-
-reset_gateway() {
-    gateway_rules D
-    gateway_rules A
 }
 
 write_state() {
@@ -203,7 +201,7 @@ cmd_up() {
     for dev in "${!CHIP_LINES[@]}"; do make_chip "$dev"; done
     for dev in "${DEVICES[@]}"; do run_container "$dev"; done
     for dev in "${DEVICES[@]}"; do attach_device "$dev"; done
-    reset_gateway
+    gateway_rules A
     write_state
     trap - ERR
     cat <<EOF
@@ -233,7 +231,7 @@ cmd_stop() {
     need_root stop
     valid_device "$1"
     docker stop "$(container "$1")" >/dev/null
-    reset_gateway
+    gateway_rules D "$1"
     echo "$1 stopped."
 }
 
@@ -242,7 +240,7 @@ cmd_start() {
     valid_device "$1"
     docker start "$(container "$1")" >/dev/null
     attach_device "$1"
-    reset_gateway
+    gateway_rules A "$1"
     echo "$1 started."
 }
 
@@ -252,7 +250,7 @@ cmd_swap() {
     docker volume rm "$(volume platform)" >/dev/null 2>&1 || true
     run_container platform
     attach_device platform
-    reset_gateway
+    gateway_rules A platform
     echo "A new platform control box is on the bus without a node ID. Upload platform-box to 127.0.0.11"
     echo "again, then find it with the Online tab's search for devices without a node ID."
 }

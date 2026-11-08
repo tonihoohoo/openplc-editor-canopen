@@ -53,10 +53,12 @@ supply_ok := (valve_status AND 16#01) <> 0;
 coil_fault := (valve_status AND 16#02) <> 0;
 
 (* The safety relay cuts the valves by itself; the program only sees its status and keeps the
-   machine still until the stick has been in neutral after a reset. *)
-estop := NOT estop_healthy OR NOT supply_ok;
+   machine still until the stick has been in neutral after a reset. A node that is not operational
+   reports nothing: that is a fault (the Fault lamp below), not an emergency stop. *)
+base_ok := platform_state = 5 AND valves_state = 5;
+estop := (platform_state = 5 AND NOT estop_healthy) OR (valves_state = 5 AND NOT supply_ok);
 neutral := ABS(joy_x) < 50 AND ABS(joy_y) < 50;
-IF estop THEN
+IF estop OR NOT base_ok THEN
   need_neutral := TRUE;
 ELSIF neutral THEN
   need_neutral := FALSE;
@@ -94,7 +96,6 @@ start_valves(ENABLE := NOT tilt_alarm AND neutral AND valves_state = STOPPED, DE
 
 (* Moving needs the platform box and the valve module up, a healthy circuit, the enable switch and no fault. *)
 net(ENABLE := TRUE);
-base_ok := platform_state = 5 AND valves_state = 5;
 can_move := base_ok AND NOT estop AND NOT need_neutral AND enable_switch AND NOT valve_fault AND NOT coil_fault;
 lift_up_ok := sensor_state = 5 AND NOT overload AND NOT tilt_alarm;
 lift_sp := 0;

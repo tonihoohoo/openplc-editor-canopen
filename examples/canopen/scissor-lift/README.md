@@ -45,7 +45,9 @@ Behaviour you can try:
 - The kernel modules `vxcan`, `can-gw` and `gpio-sim`. Most distribution kernels have them. The stock
   WSL 2 kernel lacks `vxcan` and `gpio-sim`; `sudo ./wsl-modules.sh` builds them for your kernel
   (it needs `build-essential`, `git`, `bc`, `flex`, `bison` and the kernel headers' build tools).
-- The OpenPLC Editor with CANopen support (this fork) on the same machine or another one.
+- The OpenPLC Editor with CANopen support (this fork) on the same machine or another one: a release
+  newer than `v4.3.3-canopen.2`, or a build of this branch. `v4.3.3-canopen.2` and older cannot compile
+  the slave projects ("Nothing produces %IW on this target").
 
 ![The host](images/host.svg)
 
@@ -70,8 +72,11 @@ the `18443` to `18446` ports; reach the runtimes from another machine with the h
 - **Linux, the editor on the host:** use the addresses above.
 - **Mac:** `./mac-connect.sh user@host` adds loopback addresses and one SSH session that forwards them to
   the runtimes' ports `18443` to `18446` and the panel. `./mac-connect.sh --remove` takes them away.
-- **Windows:** in PowerShell run `.\connect.ps1`. It relays `127.0.0.10` to `127.0.0.13` port 8443 to the
-  published ports of the WSL distribution without administrator rights.
+- **Windows, the example in WSL 2:** in PowerShell run `.\connect.ps1`. It relays `127.0.0.10` to
+  `127.0.0.13` port 8443 to the published ports of the WSL distribution without administrator rights.
+- **Windows, the example on another Linux host:** `.\connect.ps1 user@host` opens one SSH session that
+  forwards the four addresses to the runtimes' ports `18443` to `18446` and the panel to
+  `http://127.0.0.1:8080`. It uses the OpenSSH client that comes with Windows.
 
 Open the four folders as projects in the editor and upload each to its address. The chassis
 controller goes to `127.0.0.10`. Upload the three slaves first, then the master.
