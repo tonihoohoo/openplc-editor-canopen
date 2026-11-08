@@ -475,9 +475,19 @@ revision columns:
 
 - a project node given its ID over LSS with the same serial number, vendor ID and product code
   ("serial matches"): **Give node ID 3** gives it that node's ID;
+- else project nodes that use LSS with the same vendor ID and product code but another serial number
+  ("other serial", a spare part): **Use as node 3...** (one button when one node fits, with a node
+  choice in the dialog when several do) lets the device take over that node, and **Add as new node...**
+  adds it as a node of its own;
 - else a device file of the project (any CANopen network) with the same vendor ID and product code
   ("not in project"): **Add as node...**;
 - else nothing: **Give node ID...**.
+
+**Use as node** opens *Replace device of node N*, which shows the node's serial number and the new one.
+It gives the node ID (*Give it node ID N now*, on by default) and then sets the node's LSS serial number
+and revision to the device's; if the request fails the project stays unchanged. Upload the project
+afterwards, so the master gives the ID at every start. When the node is running now, the dialog warns
+that the original device may still be on the bus.
 
 If the search stops early (after 64 devices, or because a device answered out of turn, which some
 devices do once found), the devices found so far stay in the list under the reason. Give them a node

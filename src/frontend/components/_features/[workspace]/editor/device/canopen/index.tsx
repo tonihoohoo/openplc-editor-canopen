@@ -37,6 +37,7 @@ import {
   type LssDevice,
   type LssMatch,
   lssNodeForDevice,
+  lssReplaceDevice,
   placeholderAddress,
   plcCycleUs,
   plcVariableUses,
@@ -312,6 +313,15 @@ const CanopenEditor = () => {
       return id
     },
     [store, deviceName, otherNetworks, commit],
+  )
+
+  const replaceLssDevice = useCallback(
+    (nodeKey: string, device: LssDevice) => commit((c) => lssReplaceDevice(c, nodeKey, device)),
+    [commit],
+  )
+  const runningNodes = useMemo(
+    () => new Set((live?.network?.nodes ?? []).filter((n) => n.state === 'operational').map((n) => n.node_id)),
+    [live],
   )
 
   const [exportTarget, setExportTarget] = useState<ExportTarget | null>(null)
@@ -595,6 +605,8 @@ const CanopenEditor = () => {
               expert={expert}
               onExpertChange={setExpert}
               onAdd={addLssNode}
+              onReplace={replaceLssDevice}
+              running={runningNodes}
             />
           </Tabs.Content>
         ) : null}

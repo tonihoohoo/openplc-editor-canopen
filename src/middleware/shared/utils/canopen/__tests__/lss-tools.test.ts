@@ -4,9 +4,11 @@ import type { CanopenConfig, CanopenNode } from '../../../ports/canopen-types'
 import {
   createCanopenOnline,
   type LssDevice,
+  lssFileMatchOfSpare,
   lssMatch,
   lssNodeForDevice,
   lssNodeIdChoices,
+  lssReplaceDevice,
   placeholderAddress,
   serviceBitrateNote,
 } from '..'
@@ -99,11 +101,29 @@ describe('matching a found device to the project', () => {
   it('prefers the node with the serial number, then a device file with the product', () => {
     const config = configWith(genericNode(2), lssNode(3, 0x1234))
     expect(lssMatch(deviceOf(config.nodes[1], 0x1234), config)).toEqual({ kind: 'node', node: config.nodes[1] })
-    const other = lssMatch(deviceOf(config.nodes[1], 0x9999), config)
-    expect(other.kind).toBe('file')
+    expect(lssMatch(deviceOf(config.nodes[0], 0x9999), config).kind).toBe('spare')
+    const plain = configWith(genericNode(2))
+    expect(lssMatch(deviceOf(plain.nodes[0], 0x9999), plain).kind).toBe('file')
     expect(lssMatch({ vendorId: 0x77, productCode: 1, revision: 0, serialNumber: 1 }, config)).toEqual({
       kind: 'none',
     })
+  })
+
+  it('offers the LSS nodes of the product when the serial number is new', () => {
+    const config = configWith(lssNode(3, 0x1234), lssNode(4, 0x5555))
+    const match = lssMatch(deviceOf(config.nodes[0], 0x9999), config)
+    expect(match).toEqual({ kind: 'spare', nodes: [config.nodes[0], config.nodes[1]] })
+    if (match.kind === 'spare') expect(lssFileMatchOfSpare(match).kind).toBe('file')
+    expect(lssMatch(deviceOf(config.nodes[1], 0x5555), config)).toEqual({ kind: 'node', node: config.nodes[1] })
+  })
+
+  it('puts the serial number and revision of a found device on the chosen node only', () => {
+    const config = configWith(lssNode(3, 0x1234), lssNode(4, 0x5555))
+    const device = { ...deviceOf(config.nodes[0], 0x9999), revision: 7 }
+    const next = lssReplaceDevice(config, config.nodes[0].id, device)
+    expect(next.nodes[0].lss).toEqual({ enabled: true, serialNumber: 0x9999, revision: 7, store: false })
+    expect(next.nodes[1]).toBe(config.nodes[1])
+    expect(lssReplaceDevice(config, 'missing', device)).toEqual(config)
   })
 
   it('looks in the other networks for a device file', () => {
