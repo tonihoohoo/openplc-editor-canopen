@@ -24,7 +24,7 @@ CANopen:
 - Nodes from EDS, DCF, XDD and XDC files with a CiA 306 / CiA 311 check, and export to EDS, DCF, XDD, XDC, DBC and HTML: [docs/canopen.md](docs/canopen.md#device-files)
 - Node startup and supervision options, startup SDOs and their refusal policies: [docs/canopen.md](docs/canopen.md#startup-and-supervision-options)
 - Node IDs given by the master over LSS (CiA 305) at every start: [docs/canopen.md](docs/canopen.md#node-id-over-lss)
-- Find devices without a node ID over LSS, give one an ID or set its bit rate: [docs/canopen.md](docs/canopen.md#devices-without-node-id-lss)
+- Find devices without a node ID over LSS, give one an ID or set its bit rate, or let a spare part with a new serial number take over an LSS node: [docs/canopen.md](docs/canopen.md#devices-without-node-id-lss)
 - Live status of the bus and the nodes while connected: [docs/canopen.md](docs/canopen.md#live-status)
 - Online SDO and NMT tools and service mode: [docs/canopen.md](docs/canopen.md#online-tools)
 - The `canopen` function block library (CiA 405 names) for SDO, NMT and node control from the PLC program: [docs/canopen.md](docs/canopen.md#plc-function-blocks)

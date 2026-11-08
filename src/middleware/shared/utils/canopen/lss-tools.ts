@@ -7,9 +7,13 @@ import type { CanopenConfig, CanopenEdsInfo, CanopenNode } from '../../ports/can
 import { type AllocateAddress, createCanopenNode, nodeNameFromEds, uniqueNodeName } from './model'
 import type { LssDevice } from './online'
 
-/** What a found device matches: a project node given over LSS, a device file of the project, or nothing. */
+/**
+ * What a found device matches: a project node given its ID over LSS, LSS nodes of the project with the
+ * same product but another serial number (a spare part), a device file of the project, or nothing.
+ */
 export type LssMatch =
   | { kind: 'node'; node: CanopenNode }
+  | { kind: 'spare'; nodes: CanopenNode[] }
   | { kind: 'file'; eds: CanopenEdsInfo; fileName: string }
   | { kind: 'none' }
 
@@ -18,7 +22,8 @@ function sameProduct(eds: CanopenEdsInfo, device: LssDevice): boolean {
 }
 
 /**
- * The project node with this LSS serial number, vendor ID and product code; else a device file of a
+ * The project node with this LSS serial number, vendor ID and product code; else the LSS nodes with the
+ * device's vendor ID and product code (it may replace one of them); else a device file of a
  * project node (any CANopen network of @p others too) with the device's vendor ID and product code.
  */
 export function lssMatch(device: LssDevice, config: CanopenConfig, others: readonly CanopenConfig[] = []): LssMatch {
@@ -26,6 +31,8 @@ export function lssMatch(device: LssDevice, config: CanopenConfig, others: reado
     (n) => n.lss?.enabled === true && n.lss.serialNumber === device.serialNumber && sameProduct(n.eds, device),
   )
   if (node) return { kind: 'node', node }
+  const spares = config.nodes.filter((n) => n.lss?.enabled === true && sameProduct(n.eds, device))
+  if (spares.length > 0) return { kind: 'spare', nodes: spares }
   for (const c of [config, ...others]) {
     const withFile = c.nodes.find((n) => sameProduct(n.eds, device))
     if (withFile)
@@ -37,8 +44,27 @@ export function lssMatch(device: LssDevice, config: CanopenConfig, others: reado
 /** The name a found device is listed by: the product name of the device file it matches. */
 export function lssDeviceName(match: LssMatch): string {
   if (match.kind === 'node') return match.node.eds.productName
+  if (match.kind === 'spare') return match.nodes[0].eds.productName
   if (match.kind === 'file') return match.eds.productName
   return 'Unknown device'
+}
+
+/** The device-file match behind a spare part, for adding the device as a new node instead. */
+export function lssFileMatchOfSpare(match: Extract<LssMatch, { kind: 'spare' }>): Extract<LssMatch, { kind: 'file' }> {
+  const { eds } = match.nodes[0]
+  return { kind: 'file', eds, fileName: eds.source?.fileName ?? eds.productName }
+}
+
+/** The config with the device's serial number and revision as those of the LSS node @p nodeKey (its `id`). */
+export function lssReplaceDevice(config: CanopenConfig, nodeKey: string, device: LssDevice): CanopenConfig {
+  return {
+    ...config,
+    nodes: config.nodes.map((n) =>
+      n.id === nodeKey && n.lss
+        ? { ...n, lss: { ...n.lss, serialNumber: device.serialNumber, revision: device.revision } }
+        : n,
+    ),
+  }
 }
 
 const hex8 = (v: number): string => `0x${v.toString(16).toUpperCase().padStart(8, '0')}`

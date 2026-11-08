@@ -8,6 +8,7 @@ import {
   lssAddressText,
   type LssDevice,
   lssDeviceName,
+  lssFileMatchOfSpare,
   type LssMatch,
   lssMatch,
   lssNodeIdChoices,
@@ -36,6 +37,8 @@ export interface LssGiveRequest {
   store: boolean
   /** Add the device to the project as a node with the matched device file's description. */
   add: boolean
+  /** Set the device's serial number as that of this project node (its `id`); null for no replacing. */
+  replace: string | null
   /** Also set and store this bit rate (service mode only); null leaves it. */
   bitrate: number | null
 }
@@ -62,13 +65,26 @@ type LssPanelProps = {
     nodeId: number | null,
     store: boolean,
   ) => number | null
+  /** Makes the device's serial number and revision those of the LSS node @p nodeKey (its `id`). */
+  onReplace: (nodeKey: string, device: LssDevice) => void
+  /** The node IDs of the network that are operational now. */
+  running: ReadonlySet<number>
 }
 
 /**
  * "Devices without node ID (LSS)" on the network's Online tab: an LSS search, what each device found
  * matches in the project, and giving it a node ID.
  */
-export const LssPanel = ({ online, config, others, expert, onExpertChange, onAdd }: LssPanelProps) => {
+export const LssPanel = ({
+  online,
+  config,
+  others,
+  expert,
+  onExpertChange,
+  onAdd,
+  onReplace,
+  running,
+}: LssPanelProps) => {
   const [search, setSearch] = useState<Search>({ state: 'idle' })
   const [devices, setDevices] = useState<LssDevice[]>([])
   const [given, setGiven] = useState<ReadonlyMap<string, string>>(new Map())
@@ -117,6 +133,10 @@ export const LssPanel = ({ online, config, others, expert, onExpertChange, onAdd
         if (!b.ok) return `${text}, but the bit rate was not set: ${b.message}`
         text += `; ${kbit(request.bitrate)} stored, taken at its next reset or power-off`
       }
+    }
+    if (request.replace !== null) {
+      onReplace(request.replace, device)
+      text += text ? '; the project has its serial number now' : 'The project has its serial number now'
     }
     if (request.add && match.kind === 'file') {
       const added = onAdd(device, match, request.nodeId, request.store)
@@ -236,19 +256,35 @@ export const LssPanel = ({ online, config, others, expert, onExpertChange, onAdd
                         {done}
                       </span>
                     ) : (
-                      <button
-                        type='button'
-                        className={smallButtonClassName}
-                        disabled={match.kind !== 'file' && !online.ready}
-                        onClick={() => setGiving({ device: d, match })}
-                        data-testid='canopen-lss-give'
-                      >
-                        {match.kind === 'node'
-                          ? `Give node ID ${match.node.nodeId}`
-                          : match.kind === 'file'
-                            ? 'Add as node...'
-                            : 'Give node ID...'}
-                      </button>
+                      <span className='inline-flex gap-1.5'>
+                        <button
+                          type='button'
+                          className={smallButtonClassName}
+                          disabled={match.kind !== 'file' && match.kind !== 'spare' && !online.ready}
+                          onClick={() => setGiving({ device: d, match })}
+                          data-testid='canopen-lss-give'
+                        >
+                          {match.kind === 'node'
+                            ? `Give node ID ${match.node.nodeId}`
+                            : match.kind === 'spare'
+                              ? match.nodes.length === 1
+                                ? `Use as node ${match.nodes[0].nodeId}...`
+                                : 'Use as node...'
+                              : match.kind === 'file'
+                                ? 'Add as node...'
+                                : 'Give node ID...'}
+                        </button>
+                        {match.kind === 'spare' ? (
+                          <button
+                            type='button'
+                            className={smallButtonClassName}
+                            onClick={() => setGiving({ device: d, match: lssFileMatchOfSpare(match) })}
+                            data-testid='canopen-lss-add-new'
+                          >
+                            Add as new node...
+                          </button>
+                        ) : null}
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -269,6 +305,7 @@ export const LssPanel = ({ online, config, others, expert, onExpertChange, onAdd
           serviceOpen={online.service.open && expert}
           expert={expert}
           canGive={online.ready}
+          running={running}
           busBitrate={online.service.bitrate ?? config.network.bitrate}
           onCancel={() => setGiving(null)}
           onGive={async (request) => {
@@ -294,6 +331,19 @@ const MatchCell = ({ match }: { match: LssMatch }) => {
         </span>
       </span>
     )
+  if (match.kind === 'spare')
+    return (
+      <span className='inline-flex items-center gap-1.5'>
+        <span>
+          {match.nodes.length === 1
+            ? `node ${match.nodes[0].nodeId} ${match.nodes[0].name}`
+            : `${match.nodes.length} nodes of this product`}
+        </span>
+        <span className='rounded bg-amber-50 px-1 text-[10px] text-amber-700 dark:bg-amber-950 dark:text-amber-300'>
+          other serial
+        </span>
+      </span>
+    )
   if (match.kind === 'file')
     return (
       <span className='rounded bg-amber-50 px-1 text-[10px] text-amber-700 dark:bg-amber-950 dark:text-amber-300'>
@@ -313,6 +363,8 @@ type GiveNodeIdDialogProps = {
   canGive: boolean
   /** The expert view: the full LSS address under the title. */
   expert: boolean
+  /** The node IDs of the network that are operational now. */
+  running: ReadonlySet<number>
   /** The bit rate the bus runs at now (bit/s; 0 for the interface's own). */
   busBitrate: number
   onCancel: () => void
@@ -331,19 +383,24 @@ export const GiveNodeIdDialog = ({
   serviceOpen,
   canGive,
   expert,
+  running,
   busBitrate,
   onCancel,
   onGive,
 }: GiveNodeIdDialogProps) => {
   const choices = useMemo(() => lssNodeIdChoices(config), [config])
-  const fixed: CanopenNode | null = match.kind === 'node' ? match.node : null
-  const [nodeId, setNodeId] = useState<number>(fixed?.nodeId ?? choices.free[0] ?? choices.taken[0] ?? 1)
+  const replacing = match.kind === 'spare'
+  const [spareKey, setSpareKey] = useState(match.kind === 'spare' ? match.nodes[0].id : '')
+  const spare: CanopenNode | null = match.kind === 'spare' ? (match.nodes.find((n) => n.id === spareKey) ?? null) : null
+  const fixed: CanopenNode | null = match.kind === 'node' ? match.node : spare
+  const [pickedId, setNodeId] = useState<number>(fixed?.nodeId ?? choices.free[0] ?? choices.taken[0] ?? 1)
+  const nodeId = spare ? spare.nodeId : pickedId
   const [store, setStore] = useState(fixed?.lss?.store ?? false)
   const adding = match.kind === 'file'
   /** A device file without LSS support makes a node with a fixed ID, which it must be given and keep. */
   const mustGive = adding && !match.eds.lssSupported
   const [giveNow, setGiveNow] = useState(canGive)
-  const give = !adding || giveNow || mustGive
+  const give = !(adding || replacing) || giveNow || mustGive
   const [bitrate, setBitrate] = useState<number | null>(null)
   const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -356,7 +413,9 @@ export const GiveNodeIdDialog = ({
   const bitrateChange = give && bitrate !== null && bitrate !== busBitrate
   const label = adding
     ? `Add node ${nodeId}`
-    : `Give node ID ${nodeId}${bitrateChange ? ` and set ${kbit(bitrate)}` : ''}`
+    : replacing
+      ? `Use as node ${nodeId}`
+      : `Give node ID ${nodeId}${bitrateChange ? ` and set ${kbit(bitrate)}` : ''}`
   const blocked = busy || (bitrateChange && !confirmed) || (give && !canGive)
 
   return (
@@ -367,7 +426,9 @@ export const GiveNodeIdDialog = ({
         data-testid='canopen-lss-give-dialog'
         aria-describedby={undefined}
       >
-        <ModalTitle className='text-base font-semibold'>{adding ? 'Add as node' : 'Give node ID'}</ModalTitle>
+        <ModalTitle className='text-base font-semibold'>
+          {adding ? 'Add as node' : replacing ? `Replace device of node ${nodeId}` : 'Give node ID'}
+        </ModalTitle>
         <p className='text-xs text-neutral-500 dark:text-neutral-400'>
           {lssDeviceName(match)}, serial <span className='font-mono'>{hex(device.serialNumber, 8)}</span>
         </p>
@@ -376,46 +437,86 @@ export const GiveNodeIdDialog = ({
             {lssAddressText(device)}
           </p>
         ) : null}
-        <label className='flex flex-col gap-1'>
-          <span className={labelClassName}>Node ID</span>
-          <select
-            className={cn(inputClassName, 'w-[140px]')}
-            value={nodeId}
-            disabled={busy}
-            onChange={(e) => setNodeId(Number(e.target.value))}
-            data-testid='canopen-lss-node-id'
-          >
-            {fixed ? <option value={fixed.nodeId}>{fixed.nodeId}</option> : null}
-            <optgroup label='Free'>
-              {choices.free.map((id) => (
-                <option key={id} value={id}>
-                  {id}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label='Used by the project'>
-              {choices.taken
-                .filter((id) => id !== fixed?.nodeId)
-                .map((id) => (
+        {spare ? (
+          <div className='flex flex-col gap-1' data-testid='canopen-lss-replace'>
+            {match.kind === 'spare' && match.nodes.length > 1 ? (
+              <label className='flex flex-col gap-1'>
+                <span className={labelClassName}>Node</span>
+                <select
+                  className={cn(inputClassName, 'w-full')}
+                  value={spareKey}
+                  disabled={busy}
+                  onChange={(e) => {
+                    const next = match.nodes.find((n) => n.id === e.target.value)
+                    setSpareKey(e.target.value)
+                    setStore(next?.lss?.store ?? false)
+                  }}
+                  data-testid='canopen-lss-spare-node'
+                >
+                  {match.nodes.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {`Node ${n.nodeId} ${n.name}, serial ${hex(n.lss?.serialNumber ?? 0, 8)}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <p className='text-xs text-neutral-850 dark:text-neutral-200' data-testid='canopen-lss-serials'>
+              Node {spare.nodeId} ({spare.name}): serial{' '}
+              <span className='font-mono'>{hex(spare.lss?.serialNumber ?? 0, 8)}</span> becomes{' '}
+              <span className='font-mono'>{hex(device.serialNumber, 8)}</span>
+            </p>
+            <span className={hintClassName}>
+              Upload the project afterwards, so the master gives the node ID at every start.
+            </span>
+            {running.has(spare.nodeId) ? (
+              <span className='text-[10px] text-amber-700 dark:text-amber-400' data-testid='canopen-lss-running'>
+                Node {spare.nodeId} is running now. The original device may still be on the bus.
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          <label className='flex flex-col gap-1'>
+            <span className={labelClassName}>Node ID</span>
+            <select
+              className={cn(inputClassName, 'w-[140px]')}
+              value={nodeId}
+              disabled={busy}
+              onChange={(e) => setNodeId(Number(e.target.value))}
+              data-testid='canopen-lss-node-id'
+            >
+              {fixed ? <option value={fixed.nodeId}>{fixed.nodeId}</option> : null}
+              <optgroup label='Free'>
+                {choices.free.map((id) => (
                   <option key={id} value={id}>
                     {id}
                   </option>
                 ))}
-            </optgroup>
-          </select>
-          <span className={hintClassName}>
-            {fixed
-              ? `Node ${fixed.nodeId} (${fixed.name}) of the project has this serial number. `
-              : 'Free IDs first. '}
-            {takenText}
-          </span>
-          {takenByProject ? (
-            <span className='text-[10px] text-amber-700 dark:text-amber-400'>
-              Another node of the project uses node ID {nodeId}.
+              </optgroup>
+              <optgroup label='Used by the project'>
+                {choices.taken
+                  .filter((id) => id !== fixed?.nodeId)
+                  .map((id) => (
+                    <option key={id} value={id}>
+                      {id}
+                    </option>
+                  ))}
+              </optgroup>
+            </select>
+            <span className={hintClassName}>
+              {fixed
+                ? `Node ${fixed.nodeId} (${fixed.name}) of the project has this serial number. `
+                : 'Free IDs first. '}
+              {takenText}
             </span>
-          ) : null}
-        </label>
-        {adding ? (
+            {takenByProject ? (
+              <span className='text-[10px] text-amber-700 dark:text-amber-400'>
+                Another node of the project uses node ID {nodeId}.
+              </span>
+            ) : null}
+          </label>
+        )}
+        {adding || replacing ? (
           <Check
             checked={give}
             disabled={busy || mustGive || !canGive}
@@ -431,14 +532,22 @@ export const GiveNodeIdDialog = ({
             testId='canopen-lss-give-now'
           />
         ) : null}
-        <Check
-          checked={give && (store || mustGive)}
-          disabled={busy || !give || mustGive}
-          onChange={setStore}
-          label='Also store the node ID in the device'
-          hint='Off: given again at every start. On: the device keeps it, also with another master.'
-          testId='canopen-lss-store'
-        />
+        {!give && spare ? (
+          <span className={hintClassName} data-testid='canopen-lss-store-setting'>
+            {spare.lss?.store
+              ? 'The node setting stays: the master gives the node ID at every start and the device stores it.'
+              : 'The node setting stays: the master gives the node ID at every start and the device does not store it.'}
+          </span>
+        ) : (
+          <Check
+            checked={give && (store || mustGive)}
+            disabled={busy || !give || mustGive}
+            onChange={setStore}
+            label='Also store the node ID in the device'
+            hint='Off: given again at every start. On: the device keeps it, also with another master.'
+            testId='canopen-lss-store'
+          />
+        )}
         {serviceOpen && give ? (
           <div className='flex flex-col gap-1 rounded-md border border-neutral-200 p-3 dark:border-neutral-800'>
             <span className={labelClassName}>Bit rate (service mode)</span>
@@ -496,6 +605,7 @@ export const GiveNodeIdDialog = ({
                 give,
                 store: give && (store || mustGive),
                 add: adding,
+                replace: replacing ? spareKey : null,
                 bitrate: bitrateChange ? bitrate : null,
               }).then((e) => {
                 setBusy(false)
