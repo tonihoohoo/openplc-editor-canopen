@@ -1,9 +1,10 @@
 import { act, render, screen } from '@testing-library/react'
 
+import type { SystemLibrary } from '../../../../../middleware/shared/ports/library-types'
 import { createStoreWrapper, createTestStore } from '../../../../store/testing'
 import { MissingLibrariesModal } from '../missing-libraries-modal'
 
-const canopen = { name: 'canopen', version: '1.0.0', pous: [] }
+const canopen: SystemLibrary = { name: 'canopen', author: 'test', version: '1.0.0', stPath: '', cPath: '', pous: [] }
 
 function openWithMissingLibrary() {
   const store = createTestStore()
