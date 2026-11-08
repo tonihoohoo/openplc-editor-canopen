@@ -532,14 +532,22 @@ export const GiveNodeIdDialog = ({
             testId='canopen-lss-give-now'
           />
         ) : null}
-        <Check
-          checked={give && (store || mustGive)}
-          disabled={busy || !give || mustGive}
-          onChange={setStore}
-          label='Also store the node ID in the device'
-          hint='Off: given again at every start. On: the device keeps it, also with another master.'
-          testId='canopen-lss-store'
-        />
+        {!give && spare ? (
+          <span className={hintClassName} data-testid='canopen-lss-store-setting'>
+            {spare.lss?.store
+              ? 'The node setting stays: the master gives the node ID at every start and the device stores it.'
+              : 'The node setting stays: the master gives the node ID at every start and the device does not store it.'}
+          </span>
+        ) : (
+          <Check
+            checked={give && (store || mustGive)}
+            disabled={busy || !give || mustGive}
+            onChange={setStore}
+            label='Also store the node ID in the device'
+            hint='Off: given again at every start. On: the device keeps it, also with another master.'
+            testId='canopen-lss-store'
+          />
+        )}
         {serviceOpen && give ? (
           <div className='flex flex-col gap-1 rounded-md border border-neutral-200 p-3 dark:border-neutral-800'>
             <span className={labelClassName}>Bit rate (service mode)</span>

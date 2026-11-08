@@ -233,6 +233,17 @@ describe('CANopen LSS tools', () => {
     )
   })
 
+  it('shows the node store setting when a replacement is not given now', async () => {
+    await renderEditor()
+    await find()
+    fireEvent.click(screen.getByRole('button', { name: 'Use as node 3...' }))
+    const dialog = screen.getByTestId('canopen-lss-give-dialog')
+    expect(within(dialog).getByTestId('canopen-lss-store')).toBeTruthy()
+    fireEvent.click(within(dialog).getByTestId('canopen-lss-give-now'))
+    expect(within(dialog).queryByTestId('canopen-lss-store')).toBeNull()
+    expect(within(dialog).getByTestId('canopen-lss-store-setting').textContent).toContain('does not store it')
+  })
+
   it('leaves the project unchanged when the node ID cannot be given', async () => {
     await renderEditor({ failGive: true })
     await find()
