@@ -260,7 +260,7 @@ const ObjectRow = ({
           <ObjectNumberField config={config} object={object} onPlace={(place) => change(place)} />
         </td>
         <td className={cellClassName}>
-          <div className='flex items-start gap-1'>
+          <div className='flex min-w-[150px] items-start gap-1'>
             {packed ? (
               <button
                 type='button'
@@ -726,7 +726,7 @@ const BitRow = ({ object, bit, value, commit, aliasProblem, columns }: BitRowPro
       </td>
       <td className={cellClassName}>
         <TextField
-          className='ml-6'
+          className='ml-6 min-w-[126px]'
           hideLabel
           label={`Name of bit ${bit}`}
           value={value.name}
@@ -892,7 +892,7 @@ const ObjectTable = ({
         <p className={cn(hintClassName, 'py-2 text-xs')}>No objects yet.</p>
       ) : (
         <div className='overflow-x-auto'>
-          <table className='w-full min-w-[760px] border-collapse'>
+          <table className={cn('w-full border-collapse', fromMaster ? 'min-w-[1140px]' : 'min-w-[980px]')}>
             <thead>
               <tr>
                 <th className={headClassName}>Object</th>
