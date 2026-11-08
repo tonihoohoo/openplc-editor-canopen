@@ -1,22 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 340" role="img" aria-label="The scissor lift and where each device sits"><style>.t{fill:#1c2430;font:13px system-ui,sans-serif}.s{fill:#5d6b7c;font:11px system-ui,sans-serif}.b{fill:#eef2f7;stroke:#5d6b7c;stroke-width:1.5}.a{fill:#dbe8fb;stroke:#2563c4;stroke-width:1.5}.r{fill:#fbe3e1;stroke:#c0312b;stroke-width:1.5}.l{stroke:#5d6b7c;stroke-width:2;fill:none}.k{stroke:#2563c4;stroke-width:2;fill:none}.d{fill:#5d6b7c}@media (prefers-color-scheme:dark){.t{fill:#e6ebf2}.s{fill:#97a4b5}.b{fill:#1b222b;stroke:#97a4b5}.a{fill:#1d3558;stroke:#6aa3f5}.r{fill:#4a1f1d;stroke:#ef6b63}.l{stroke:#97a4b5}.k{stroke:#6aa3f5}.d{fill:#97a4b5}}</style>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 340" role="img" aria-label="The scissor lift and where each device sits"><style>.t{fill:#1c2430;font:13px system-ui,sans-serif}.s{fill:#5d6b7c;font:11px system-ui,sans-serif}.b{fill:#eef2f7;stroke:#5d6b7c;stroke-width:1.5}.a{fill:#dbe8fb;stroke:#2563c4;stroke-width:1.5}.l{stroke:#5d6b7c;stroke-width:1.5;fill:none}.g{stroke:#5d6b7c;stroke-width:2;fill:none}.m{stroke:#8794a6;stroke-width:6;stroke-linecap:round;fill:none}.k{stroke:#2563c4;stroke-width:2.5;fill:none}@media (prefers-color-scheme:dark){.t{fill:#e6ebf2}.s{fill:#97a4b5}.b{fill:#1b222b;stroke:#97a4b5}.a{fill:#1d3558;stroke:#6aa3f5}.l,.g{stroke:#97a4b5}.m{stroke:#6d7a8c}.k{stroke:#6aa3f5}}</style>
 <title>The scissor lift</title>
-<line x1="20" y1="300" x2="700" y2="300" class="l"/>
-<rect x="260" y="272" width="240" height="26" rx="6" class="b"/>
-<circle cx="295" cy="300" r="15" class="b"/><circle cx="465" cy="300" r="15" class="b"/>
-<path d="M300 272 L460 200 M460 272 L300 200 M300 200 L460 128 M460 200 L300 128" class="l" stroke-width="6"/>
-<rect x="260" y="112" width="240" height="14" class="a"/><path d="M260 112 V70 H500 V112" class="k"/>
-<line x1="500" y1="96" x2="508" y2="96" class="l"/>
-<rect x="508" y="84" width="48" height="24" rx="4" class="b"/><text x="532" y="100" text-anchor="middle" class="s">box</text>
-<line x1="532" y1="84" x2="532" y2="62" class="l"/><circle cx="532" cy="84" r="2.5" class="d"/>
-<text x="520" y="40" class="t">Platform control box</text><text x="520" y="56" class="s">joystick, enable, lamps, horn</text>
-<rect x="275" y="276" width="90" height="18" rx="3" class="a"/><text x="320" y="289" text-anchor="middle" class="s">chassis</text>
-<rect x="380" y="276" width="90" height="18" rx="3" class="b"/><text x="425" y="289" text-anchor="middle" class="s">valves</text>
-<line x1="460" y1="200" x2="472" y2="200" class="l"/>
-<rect x="472" y="190" width="46" height="20" rx="3" class="b"/><text x="495" y="204" text-anchor="middle" class="s">sensor</text>
-<line x1="518" y1="200" x2="535" y2="200" class="l"/><circle cx="518" cy="200" r="2.5" class="d"/>
-<text x="540" y="196" class="t">Tilt and load sensor</text>
-<line x1="470" y1="278" x2="515" y2="278" class="l"/><circle cx="470" cy="278" r="2.5" class="d"/>
-<text x="520" y="266" class="t">Valve module</text><text x="520" y="284" class="s">lift and drive valves</text>
-<line x1="252" y1="278" x2="275" y2="278" class="l"/><circle cx="275" cy="278" r="2.5" class="d"/>
-<text x="20" y="266" class="t">Chassis controller</text><text x="20" y="284" class="s">the master: interlocks, e-stop, tilt alarm</text>
+<line x1="20" y1="310" x2="620" y2="310" class="g"/>
+<path d="M245 256 L395 191 M395 256 L245 191 M245 191 L395 126 M395 191 L245 126" class="m"/>
+<circle cx="240" cy="295" r="15" class="b"/><circle cx="400" cy="295" r="15" class="b"/>
+<rect x="200" y="256" width="240" height="26" rx="6" class="b"/>
+<rect x="210" y="260" width="100" height="18" rx="3" class="a"/><text x="260" y="273" text-anchor="middle" class="s">chassis</text>
+<rect x="330" y="260" width="100" height="18" rx="3" class="b"/><text x="380" y="273" text-anchor="middle" class="s">valves</text>
+<rect x="200" y="112" width="240" height="14" class="a"/><path d="M200 112 V72 H440 V112" class="k"/>
+<rect x="290" y="48" width="60" height="24" rx="4" class="b"/><text x="320" y="64" text-anchor="middle" class="s">box</text>
+<rect x="400" y="130" width="46" height="16" rx="3" class="b"/><text x="423" y="142" text-anchor="middle" class="s">sensor</text>
+<text x="20" y="50" class="t">Platform control box</text><text x="20" y="66" class="s">joystick, enable, lamps, horn</text>
+<path d="M170 60 H290" class="l"/>
+<text x="480" y="134" class="t">Tilt and load sensor</text><text x="480" y="150" class="s">tilt, height, load</text>
+<path d="M446 138 H474" class="l"/>
+<text x="20" y="226" class="t">Chassis controller</text><text x="20" y="242" class="s">the master: interlocks and alarms</text>
+<path d="M60 248 V269 H210" class="l"/>
+<text x="480" y="226" class="t">Valve module</text><text x="480" y="242" class="s">lift and drive valves</text>
+<path d="M500 248 V269 H430" class="l"/>
 </svg>
