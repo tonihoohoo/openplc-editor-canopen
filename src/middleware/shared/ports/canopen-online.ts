@@ -24,6 +24,7 @@ export type CanopenRequest =
     }
   | { op: 'service_close' }
   | { op: 'slave_lss_forget'; slave: string }
+  | { op: 'slave_settings_forget'; slave: string }
   | { op: 'lss'; network: number; action: 'find' }
   | ({ op: 'lss'; network: number; action: 'set_id'; node_id: number; store: boolean } & CanopenLssAddressFields)
   | ({ op: 'lss'; network: number; action: 'set_bitrate'; bitrate: number } & CanopenLssAddressFields)

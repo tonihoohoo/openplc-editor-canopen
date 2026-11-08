@@ -96,6 +96,7 @@ describe('CANopen slave model', () => {
       masterWatch: { timeMs: 0 },
       onPlcStop: 'hold',
       startAlone: false,
+      storeSettings: false,
       objects: [],
     })
     expect(c.pdos).toEqual({ rpdos: [], tpdos: [] })
@@ -179,11 +180,11 @@ describe('CANopen slave model', () => {
     expect(generateCanopenConfig([], null, [server({ ...io(), enabled: false })])).toBeNull()
   })
 
-  it('writes the slave under devices with format version 12', () => {
+  it('writes the slave under devices with format version 13', () => {
     const text = generateCanopenConfig([], null, [server(io())])
     expect(text).not.toBeNull()
     const json = JSON.parse(text ?? '{}') as { version: number; networks: unknown[]; devices: unknown[] }
-    expect(json.version).toBe(12)
+    expect(json.version).toBe(13)
     expect(json.networks).toEqual([])
     expect(json.devices).toEqual(slaveDevicesOut([server(io())]))
     expect(json.devices[0]).toMatchObject({
@@ -194,6 +195,7 @@ describe('CANopen slave model', () => {
       master_watch: null,
       on_plc_stop: 'hold',
       on_plc_stop_state: 'none',
+      store_settings: false,
       objects: expect.arrayContaining([
         {
           index: 0x2000,
@@ -349,6 +351,31 @@ describe('CANopen slave device file', () => {
     const stopped = parseEds(buildSlaveExport('io', { ...io(), onPlcStopState: 'stopped' }, 'eds', now).text, 'x.eds')
     expect(stopped.objects.find((o) => o.index === 0x1029 && o.subIndex === 2)?.defaultValue).toBe('2')
     expect(stopped.objects.find((o) => o.index === 0x1029 && o.subIndex === 0)?.defaultValue).toBe('2')
+  })
+
+  it('lists 0x1010 and 0x1011 only when the slave keeps the settings a master saves', () => {
+    const subs = (storeSettings: boolean, index: number) =>
+      parseEds(buildSlaveExport('io', { ...io(), storeSettings }, 'eds', now).text, 'x.eds')
+        .objects.filter((o) => o.index === index)
+        .map((o) => [o.subIndex, o.access, o.defaultValue])
+    for (const format of ['eds', 'xdd'] as const) {
+      const file = buildSlaveExport('io', { ...io(), storeSettings: true }, format, now)
+      expect(file.errors).toEqual([])
+      expect(file.warnings).toEqual([])
+    }
+    expect(subs(false, 0x1010)).toEqual([])
+    expect(subs(false, 0x1011)).toEqual([])
+    for (const index of [0x1010, 0x1011])
+      expect(subs(true, index)).toEqual([
+        [0, 'const', '3'],
+        [1, 'rw', '1'],
+        [2, 'rw', '1'],
+        [3, 'rw', '1'],
+      ])
+    const json = JSON.parse(generateCanopenConfig([], null, [server({ ...io(), storeSettings: true })]) ?? '{}') as {
+      devices: { store_settings: boolean }[]
+    }
+    expect(json.devices[0].store_settings).toBe(true)
   })
 
   it('marks LSS support and the fixed serial number in the EDS and XDD when LSS is on', () => {

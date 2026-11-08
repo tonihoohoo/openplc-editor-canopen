@@ -259,6 +259,15 @@ export const CanopenSlaveLssStatusSchema = z.object({
   stored_bitrate: count.optional(),
 })
 
+/** The settings a master saved into a slave that keeps them (0x1010). */
+export const CanopenSlaveStoredSettingsSchema = z.object({
+  comm: z.boolean(),
+  app: z.boolean(),
+  entries: count,
+  /** Wall time of the last save, in milliseconds since 1970. */
+  time: z.number(),
+})
+
 /**
  * One CANopen slave of the runtime. The fields after `tx_frames` are absent from runtimes before the
  * slave Online tab; `bus` tells whether a runtime sends them.
@@ -279,6 +288,8 @@ export const CanopenSlaveStatusSchema = z.object({
   tx_frames: count,
   serial: count.optional(),
   lss: CanopenSlaveLssStatusSchema.optional(),
+  /** Sent while the slave keeps saved settings: null when nothing is saved. */
+  stored_settings: CanopenSlaveStoredSettingsSchema.nullable().optional(),
   bus: CanopenBusStatusSchema.optional(),
   since: z.number().optional(),
   nmt_by: CanopenSlaveNmtBySchema.optional(),

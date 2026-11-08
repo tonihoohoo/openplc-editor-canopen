@@ -525,6 +525,23 @@ const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, on
         </div>
       </div>
 
+      {expert || config.storeSettings ? (
+        <div className={cardClassName} data-testid='canopen-slave-settings-card'>
+          <h3 className={headingClassName}>Saved settings</h3>
+          <CheckboxField
+            label='Keep settings a master saves'
+            expertTag={!expert}
+            checked={config.storeSettings}
+            hint={
+              config.storeSettings
+                ? "A master can save the PDO, heartbeat and parameter settings with 0x1010 and remove them with 0x1011. They replace the project's values until removed or forgotten on the Status tab"
+                : 'Off: the master writes its settings again at every boot, and 0x1010 and 0x1011 do not exist'
+            }
+            onChange={(storeSettings) => onChange({ storeSettings })}
+          />
+        </div>
+      ) : null}
+
       <div className={cardClassName} data-slave-where='identity'>
         <h3 className={headingClassName}>Identity</h3>
         <div className='grid max-w-[640px] grid-cols-2 gap-4'>

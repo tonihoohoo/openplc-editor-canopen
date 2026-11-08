@@ -461,6 +461,8 @@ export interface CanopenSlaveConfig {
   onPlcStopState: CanopenSlaveOnPlcStopState
   /** Goes operational by itself after its boot-up, without the master's NMT start. */
   startAlone: boolean
+  /** A master can save the slave's settings with 0x1010 and remove them with 0x1011. */
+  storeSettings: boolean
   /** Absent in projects made before LSS: LSS off. */
   lss?: CanopenSlaveLss
   objects: CanopenSlaveObject[]

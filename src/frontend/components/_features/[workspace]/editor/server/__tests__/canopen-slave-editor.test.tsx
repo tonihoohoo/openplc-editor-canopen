@@ -155,6 +155,25 @@ describe('CanopenSlaveEditor', () => {
     ).toBeTruthy()
   })
 
+  it('keeps the settings a master saves behind the expert view, and stays visible once on', () => {
+    expect(screen.queryByLabelText('Keep settings a master saves')).toBeNull()
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
+    const keep = screen.getByLabelText('Keep settings a master saves')
+    expect(keep).toHaveProperty('checked', false)
+    expect(screen.getByTestId('canopen-slave-settings-card').textContent).toContain('0x1010 and 0x1011 do not exist')
+    fireEvent.click(keep)
+    expect(config()?.storeSettings).toBe(true)
+    expect(screen.getByTestId('canopen-slave-settings-card').textContent).toContain('replace the project')
+    // On, it stays in the basic view with the expert mark.
+    fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
+    expect(screen.getByTestId('canopen-slave-settings-card').textContent).toContain(
+      'Keep settings a master savesexpert',
+    )
+    fireEvent.click(screen.getByLabelText('Keep settings a master saves'))
+    expect(config()?.storeSettings).toBe(false)
+    expect(screen.queryByTestId('canopen-slave-settings-card')).toBeNull()
+  })
+
   it('counts the objects and PDOs in use in the tab names', () => {
     expect(tabNamed('Data').textContent).toBe('Data (0)')
     expect(tabNamed('PDOs').textContent).toBe('PDOs (0)')

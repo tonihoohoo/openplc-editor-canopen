@@ -709,7 +709,7 @@ master) whose eight bits are separate BOOL addresses in the program, as CiA 401 
   per bit and the names of the bits that are on.
 - The EDS describes it as UNSIGNED8. The XDD names the bits through a struct data type, so a master
   network that adds the XDD shows the bit names in its DBC and HTML exports.
-- `conf/canopen.json` (version 12) lists the eight locations in the object's `bits` in place of
+- `conf/canopen.json` (version 13) lists the eight locations in the object's `bits` in place of
   `location`.
 
 ### XDD details of the slave
@@ -803,13 +803,29 @@ and then removes the stored values (request `slave_lss_forget`, runtimes that li
 feature); the slave restarts with the project's node ID and bit rate. The tab compares the PDO COB-IDs
 at the node ID in use, so a node ID from the master is not shown as a change.
 
+### Settings a master saves
+
+In the expert view the General tab's **Saved settings** card has **Keep settings a master saves**
+(off by default; on, it stays visible in the basic view, marked as expert). On, the slave has the
+objects 0x1010 (store parameters) and 0x1011 (restore default parameters), which the exported EDS
+or XDD lists, and a master can save the slave's PDO, heartbeat and error behaviour settings
+(communication) and the parameters it wrote (application) on the runtime device. Saved values win
+over the project's at every start, reset node and upload, until a master removes them with
+0x1011 (the project's values return at the next reset node) or they are forgotten. A change to the
+slave in the project makes the runtime ignore values saved for the old version. Off, the objects do
+not exist and a master writes its settings again at every boot.
+
+On the Status tab the **Saved settings** card of a running slave shows which areas are saved, the
+number of values and when. **Forget stored settings...** asks first and then removes them (request
+`slave_settings_forget`); the slave restarts with the project's values.
+
 **Run this slave** turns it off without losing its objects and addresses. **Export...** (EDS or XDD)
 writes the slave's device file from the same description the runtime builds its object dictionary
 from, checks it (CiA 306 or CiA 311) and suggests the next revision when the objects or PDOs changed
 since the last export, so a master that imported the old file is not fed the wrong layout. A master
 project imports the file like any other node's.
 
-At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 12);
+At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 13);
 the file is written when only a slave is on. The checks that stop the build name the slave and the
 field or object.
 
@@ -881,7 +897,7 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   output, EDS and XDD export read back), `slave-e2e-fixture.test.ts` and the page in
   `.../editor/server/__tests__/canopen-slave-editor.test.tsx`; the Status tab in `slave-online.test.ts`
   (decoding, changed settings, notices, event texts) and `canopen-slave-online.test.tsx`, and its key
-  views (running, changed by the master, PLC stopped, master lost, LSS and Forget, not running) in
+  views (running, changed by the master, PLC stopped, master lost, LSS and Forget, saved settings and Forget, not running) in
   `e2e/canopen-slave-online.spec.ts`.
 - Unit: `src/middleware/shared/utils/canopen/__tests__/` (parser, CiA 306 check with the fixtures in
   `fixtures/cia306/`, DCF import and export, XDD and XDC reading, the CiA 311 check with the fixtures

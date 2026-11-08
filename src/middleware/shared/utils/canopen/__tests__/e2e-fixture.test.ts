@@ -53,7 +53,7 @@ describe('the end-to-end LSS project', () => {
     expect(validateCanopenProject([device])).toEqual([])
     const conf: unknown = JSON.parse(generateCanopenConfig([device]) ?? '')
     expect(conf).toMatchObject({
-      version: 12,
+      version: 13,
       networks: [
         {
           interface: 'vcan0',
