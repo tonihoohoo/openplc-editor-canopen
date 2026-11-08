@@ -43,8 +43,10 @@ Behaviour you can try:
 - Docker Engine (inside the WSL distribution on Windows; Docker Desktop is not supported).
 - `iproute2`, `util-linux` (`nsenter`), `can-utils` (`cangw`) and `python3`.
 - The kernel modules `vxcan`, `can-gw` and `gpio-sim`. Most distribution kernels have them. The stock
-  WSL 2 kernel lacks `vxcan` and `gpio-sim`; `sudo ./wsl-modules.sh` builds them for your kernel
-  (it needs `build-essential`, `git`, `bc`, `flex`, `bison` and the kernel headers' build tools).
+  WSL 2 kernel lacks `vxcan` and `gpio-sim`. `sudo ./wsl-modules.sh` builds `vxcan` for your kernel, but
+  `gpio-sim` needs the kernel's interrupt simulator (`CONFIG_IRQ_SIM`), which the stock WSL 2 kernel
+  does not have, so on WSL 2 the example needs a custom kernel with `CONFIG_IRQ_SIM`, `CONFIG_GPIO_SIM`
+  and `CONFIG_CAN_VXCAN` (set through `kernel=` in `.wslconfig`).
 - The OpenPLC Editor with CANopen support (this fork) on the same machine or another one: a release
   newer than `v4.3.3-canopen.2`, or a build of this branch. `v4.3.3-canopen.2` and older cannot compile
   the slave projects ("Nothing produces %IW on this target").
@@ -108,7 +110,7 @@ The projects compile and the master configuration validates with the editor's ow
 ran on a Raspberry Pi 5 (64-bit Raspberry Pi OS) with the projects uploaded from the editor on
 Windows over an SSH tunnel: lift, lower and drive, both emergency stops and the relay reset, the tilt alarm
 with its restart, overload, the coil fault, stopping and starting a device, and replacing the platform box.
-The run on WSL 2 is recorded here once it has been done.
+The run on WSL 2 has not been done: the stock WSL 2 kernel cannot load `gpio-sim`.
 
 ## Files
 
