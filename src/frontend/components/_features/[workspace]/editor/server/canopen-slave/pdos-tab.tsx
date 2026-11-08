@@ -182,72 +182,74 @@ const ObjectTable = ({ config, objects, pdo, pdos, emptyText, commit }: ObjectTa
     if (object) commit((c) => placeSlaveObject(c, object.id, to))
   }
   return (
-    <table className='w-full table-fixed text-left text-xs'>
-      <thead className='text-neutral-500 dark:text-neutral-400'>
-        <tr>
-          <th className='w-[24px] py-1' />
-          <th className='w-[80px] py-1 font-medium'>Object</th>
-          <th className='py-1 font-medium'>Name</th>
-          <th className='w-[100px] py-1 font-medium'>Type</th>
-          <th className='w-[90px] py-1 font-medium'>Address</th>
-          <th className='w-[150px] py-1 font-medium'>Alias</th>
-          <th className='w-[100px] py-1' />
-        </tr>
-      </thead>
-      <SortableBody ids={objects.map((o) => o.id)} onMove={move} className='text-neutral-850 dark:text-neutral-300'>
-        {objects.length === 0 ? (
+    <div className='overflow-x-auto'>
+      <table className='w-full min-w-[820px] table-fixed text-left text-xs'>
+        <thead className='text-neutral-500 dark:text-neutral-400'>
           <tr>
-            <td colSpan={7} className={cn(hintClassName, 'py-2')}>
-              {emptyText}
-            </td>
+            <th className='w-[24px] py-1' />
+            <th className='w-[80px] py-1 font-medium'>Object</th>
+            <th className='py-1 font-medium'>Name</th>
+            <th className='w-[100px] py-1 font-medium'>Type</th>
+            <th className='w-[90px] py-1 font-medium'>Address</th>
+            <th className='w-[150px] py-1 font-medium'>Alias</th>
+            <th className='w-[100px] py-1' />
           </tr>
-        ) : null}
-        {objects.map((object, i) => (
-          <SortableRow
-            key={object.id}
-            id={object.id}
-            name={object.name}
-            disabled={pdo === null}
-            className='border-t border-neutral-100 dark:border-neutral-800'
-            testId={`canopen-slave-pdo-object-${object.id}`}
-          >
-            <td className='py-1 font-mono'>{objectRef(object.index, object.subIndex)}</td>
-            <td
-              className='py-1 pr-2 [overflow-wrap:anywhere]'
-              title={isSlavePacked(object) ? (object.bits ?? []).map((b) => b.name).join(', ') : undefined}
+        </thead>
+        <SortableBody ids={objects.map((o) => o.id)} onMove={move} className='text-neutral-850 dark:text-neutral-300'>
+          {objects.length === 0 ? (
+            <tr>
+              <td colSpan={7} className={cn(hintClassName, 'py-2')}>
+                {emptyText}
+              </td>
+            </tr>
+          ) : null}
+          {objects.map((object, i) => (
+            <SortableRow
+              key={object.id}
+              id={object.id}
+              name={object.name}
+              disabled={pdo === null}
+              className='border-t border-neutral-100 dark:border-neutral-800'
+              testId={`canopen-slave-pdo-object-${object.id}`}
             >
-              {object.name}
-            </td>
-            <td className='py-1'>{typeText(object)}</td>
-            <td className='py-1 font-mono'>{slaveAddressText(object)}</td>
-            <td className='py-1 pr-2 [overflow-wrap:anywhere]'>
-              {object.alias ? object.alias : <span className={hintClassName}>-</span>}
-            </td>
-            <td className='py-1'>
-              <div className='flex h-[30px] items-center justify-end'>
-                <MoveToMenu config={config} object={object} from={pdo} pdos={pdos} commit={commit} />
-                {pdo ? <MoveButtons name={object.name} index={i} count={objects.length} onMove={move} /> : null}
-                <button
-                  type='button'
-                  aria-label={
-                    pdo
-                      ? `Take ${object.name} out of ${slavePdoName(pdo.direction, pdo.number)}`
-                      : `Make ${object.name} SDO only`
-                  }
-                  title={pdo ? 'Take it out; the master can still map it' : 'Make it SDO only'}
-                  onClick={() =>
-                    commit((c) => (pdo ? leaveSlaveObjectToMaster(c, object.id) : makeSdoOnly(c, object.id)))
-                  }
-                  className={iconButtonClassName}
-                >
-                  <TrashIcon className='h-4 w-4' />
-                </button>
-              </div>
-            </td>
-          </SortableRow>
-        ))}
-      </SortableBody>
-    </table>
+              <td className='py-1 font-mono'>{objectRef(object.index, object.subIndex)}</td>
+              <td
+                className='py-1 pr-2 [overflow-wrap:anywhere]'
+                title={isSlavePacked(object) ? (object.bits ?? []).map((b) => b.name).join(', ') : undefined}
+              >
+                {object.name}
+              </td>
+              <td className='py-1'>{typeText(object)}</td>
+              <td className='py-1 font-mono'>{slaveAddressText(object)}</td>
+              <td className='py-1 pr-2 [overflow-wrap:anywhere]'>
+                {object.alias ? object.alias : <span className={hintClassName}>-</span>}
+              </td>
+              <td className='py-1'>
+                <div className='flex h-[30px] items-center justify-end'>
+                  <MoveToMenu config={config} object={object} from={pdo} pdos={pdos} commit={commit} />
+                  {pdo ? <MoveButtons name={object.name} index={i} count={objects.length} onMove={move} /> : null}
+                  <button
+                    type='button'
+                    aria-label={
+                      pdo
+                        ? `Take ${object.name} out of ${slavePdoName(pdo.direction, pdo.number)}`
+                        : `Make ${object.name} SDO only`
+                    }
+                    title={pdo ? 'Take it out; the master can still map it' : 'Make it SDO only'}
+                    onClick={() =>
+                      commit((c) => (pdo ? leaveSlaveObjectToMaster(c, object.id) : makeSdoOnly(c, object.id)))
+                    }
+                    className={iconButtonClassName}
+                  >
+                    <TrashIcon className='h-4 w-4' />
+                  </button>
+                </div>
+              </td>
+            </SortableRow>
+          ))}
+        </SortableBody>
+      </table>
+    </div>
   )
 }
 
