@@ -243,4 +243,52 @@ describe('the slave Status tab', () => {
       expect(within(card).queryByRole('button')).toBeNull()
     })
   })
+  describe('with saved settings', () => {
+    const saved = { comm: true, app: false, entries: 24, time: SLAVE_NOW - 60000 }
+    const keepConfig = (): CanopenSlaveConfig => ({ ...slaveConfig(), storeSettings: true })
+
+    it('shows what a master saved, and forgets it after a confirm', async () => {
+      const sent: CanopenRequest[] = []
+      await show(inactive([slaveStatus(SLAVE_NOW, { stored_settings: saved })]), keepConfig(), true, (r) => {
+        sent.push(r)
+        return ok({ ok: true })
+      })
+      const card = screen.getByTestId('canopen-slave-online-settings')
+      expect(screen.getByTestId('canopen-slave-settings-comm').textContent).toBe('Saved')
+      expect(screen.getByTestId('canopen-slave-settings-app').textContent).toBe('Not saved')
+      expect(screen.getByTestId('canopen-slave-settings-entries').textContent).toBe('24')
+      expect(screen.getByTestId('canopen-slave-settings-note').textContent).toContain('replace the project')
+      fireEvent.click(within(card).getByRole('button', { name: 'Forget stored settings...' }))
+      expect(sent).toEqual([])
+      const ask = within(card).getByRole('alertdialog')
+      expect(ask.textContent).toContain("restarts with the project's values")
+      fireEvent.click(within(ask).getByRole('button', { name: 'Forget' }))
+      await flush()
+      expect(sent).toEqual([{ op: 'slave_settings_forget', slave: NAME }])
+      expect(within(card).queryByRole('alert')).toBeNull()
+    })
+
+    it('says nothing is saved, shows a refusal, and is absent with the switch off', async () => {
+      await show(inactive([slaveStatus(SLAVE_NOW, { stored_settings: null })]), keepConfig())
+      const card = screen.getByTestId('canopen-slave-online-settings')
+      expect(screen.getByTestId('canopen-slave-settings-note').textContent).toContain('Nothing is saved')
+      expect(within(card).queryByRole('button')).toBeNull()
+      cleanup()
+      store = createTestStore()
+      await show(inactive([slaveStatus(SLAVE_NOW, { stored_settings: saved })]), keepConfig(), true, () =>
+        ok({ error: 'settings_off' }),
+      )
+      const again = screen.getByTestId('canopen-slave-online-settings')
+      fireEvent.click(within(again).getByRole('button', { name: 'Forget stored settings...' }))
+      fireEvent.click(within(again).getByRole('button', { name: 'Forget' }))
+      await flush()
+      expect(within(again).getByRole('alert').textContent).toBe(
+        'Cannot forget the stored settings: saving settings is off in the slave the runtime runs.',
+      )
+      cleanup()
+      store = createTestStore()
+      await show(inactive([slaveStatus(SLAVE_NOW, { stored_settings: saved })]), slaveConfig())
+      expect(screen.queryByTestId('canopen-slave-online-settings')).toBeNull()
+    })
+  })
 })

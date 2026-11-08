@@ -693,6 +693,7 @@ const CanopenSlaveConfigSchema = z.object({
   onPlcStop: z.enum(['hold', 'zero']),
   onPlcStopState: z.enum(['none', 'pre_operational', 'stopped']).default('none'),
   startAlone: z.boolean(),
+  storeSettings: z.boolean().default(false),
   lss: z
     .object({
       enabled: z.boolean(),

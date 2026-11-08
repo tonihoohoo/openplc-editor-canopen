@@ -455,6 +455,88 @@ export const LssCard = ({
   )
 }
 
+/**
+ * The settings a master saved into the running slave (0x1010): which areas are saved, how many
+ * values and when, and Forget. Without @p onForget it only shows.
+ */
+export const SettingsCard = ({
+  slave,
+  onForget,
+}: {
+  slave: CanopenSlaveStatus
+  onForget?: () => Promise<string | null>
+}) => {
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  if (slave.stored_settings === undefined) return null
+  const stored = slave.stored_settings
+  const forget = () => {
+    if (!onForget) return
+    setBusy(true)
+    setError(null)
+    onForget()
+      .then(setError)
+      .catch((e: unknown) => setError(String(e)))
+      .finally(() => setBusy(false))
+  }
+  return (
+    <div className={cardClassName} data-testid='canopen-slave-online-settings'>
+      <h4 className={headingClassName}>Saved settings</h4>
+      {stored ? (
+        <div className='grid grid-cols-2 gap-4 lg:grid-cols-4'>
+          <Fact
+            label='Communication'
+            value={<span data-testid='canopen-slave-settings-comm'>{stored.comm ? 'Saved' : 'Not saved'}</span>}
+          >
+            PDOs, heartbeat, error behavior
+          </Fact>
+          <Fact
+            label='Application'
+            value={<span data-testid='canopen-slave-settings-app'>{stored.app ? 'Saved' : 'Not saved'}</span>}
+          >
+            Parameters from the master
+          </Fact>
+          <Fact label='Values' value={<span data-testid='canopen-slave-settings-entries'>{stored.entries}</span>} />
+          <Fact
+            label='Saved'
+            value={<span data-testid='canopen-slave-settings-time'>{new Date(stored.time).toLocaleString()}</span>}
+          />
+        </div>
+      ) : null}
+      <div className='mt-3 flex flex-wrap items-center justify-between gap-3'>
+        <p className={hintClassName} data-testid='canopen-slave-settings-note'>
+          {stored
+            ? "Saved on the runtime by a master. They replace the project's values at every start and upload until removed."
+            : "Nothing is saved on the runtime: the slave starts with the project's values."}
+        </p>
+        {onForget ? (
+          <button
+            type='button'
+            className={secondaryButtonClassName}
+            disabled={!stored || busy}
+            onClick={() =>
+              setConfirm({
+                text: "Forget the settings a master saved? The slave restarts with the project's values.",
+                label: 'Forget',
+                action: forget,
+              })
+            }
+          >
+            Forget stored settings...
+          </button>
+        ) : null}
+      </div>
+      <ConfirmBar confirm={confirm} onClose={() => setConfirm(null)} />
+      {error ? (
+        <p role='alert' className='mt-2 text-xs text-red-600 dark:text-red-400'>
+          Cannot forget the stored settings: {error}.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 const Events = ({ slave, config }: { slave: CanopenSlaveStatus; config: CanopenSlaveConfig }) => {
   const events = slave.events ?? []
   return (
@@ -486,11 +568,14 @@ export const OnlineTab = ({
   config,
   live,
   lssSlot,
+  settingsSlot,
 }: {
   config: CanopenSlaveConfig
   live: CanopenSlaveLiveStatus | null
   /** Cards shown under the state strip, such as the slave's LSS state. */
   lssSlot?: ReactNode
+  /** The card with the settings a master saved. */
+  settingsSlot?: ReactNode
 }) => {
   const slave = live?.slave ?? null
   const changeList = useMemo(() => (slave ? slaveChanges(config, slave) : []), [config, slave])
@@ -525,6 +610,7 @@ export const OnlineTab = ({
         <>
           <StateStrip slave={slave} now={now} changes={changes} />
           {lssSlot}
+          {settingsSlot}
           <PdosInUse slave={slave} config={config} now={now} changes={changeList} />
           <Values slave={slave} config={config} changes={changes} />
           <Events slave={slave} config={config} />

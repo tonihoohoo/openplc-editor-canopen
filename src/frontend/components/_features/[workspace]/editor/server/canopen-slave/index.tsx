@@ -44,7 +44,7 @@ import { compactCardClassName, hintClassName, secondaryButtonClassName } from '.
 import { DataTab } from './data-tab'
 import { GeneralTab } from './general-tab'
 import { SlaveImportDialog } from './import-dialog'
-import { LssCard, OnlineTab } from './online-tab'
+import { LssCard, OnlineTab, SettingsCard } from './online-tab'
 import { PdosTab } from './pdos-tab'
 import { SlaveProblemList, slaveProblemTarget } from './problem-list'
 
@@ -303,6 +303,16 @@ const CanopenSlaveEditor = () => {
     refresh?.()
     return result.ok ? null : result.message
   }, [send, name, refresh])
+  const forgetSettings = useCallback(async (): Promise<string | null> => {
+    if (!send) return 'the runtime does not offer this request'
+    const result = await createCanopenOnline(send).forgetSlaveSettings(name)
+    refresh?.()
+    return result.ok ? null : result.message
+  }, [send, name, refresh])
+  const settingsSlot =
+    config.storeSettings && live?.slave ? (
+      <SettingsCard slave={live.slave} onForget={send ? forgetSettings : undefined} />
+    ) : null
   const lssSlot = live?.slave?.lss ? (
     <LssCard
       slave={live.slave}
@@ -454,7 +464,7 @@ const CanopenSlaveEditor = () => {
           <PdosTab config={config} problems={problems} commit={commit} shown={shownPdo} />
         </Tabs.Content>
         <Tabs.Content value='status' className='data-[state=inactive]:hidden'>
-          <OnlineTab config={config} live={live} lssSlot={lssSlot} />
+          <OnlineTab config={config} live={live} lssSlot={lssSlot} settingsSlot={settingsSlot} />
         </Tabs.Content>
       </Tabs.Root>
 

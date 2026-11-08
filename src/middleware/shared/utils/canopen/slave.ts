@@ -106,6 +106,7 @@ export function defaultCanopenSlaveConfig(projectName = ''): CanopenSlaveConfig 
     onPlcStop: 'hold',
     onPlcStopState: 'none',
     startAlone: false,
+    storeSettings: false,
     objects: [],
     pdos: { rpdos: [], tpdos: [] },
   }
@@ -856,6 +857,7 @@ export function slaveDevicesOut(servers: readonly PLCServer[] | undefined): obje
       on_plc_stop: config.onPlcStop,
       on_plc_stop_state: config.onPlcStopState,
       start_alone: config.startAlone,
+      store_settings: config.storeSettings,
       lss: lssOut(config),
       objects: config.objects.map((o) => {
         const base = {
@@ -1089,6 +1091,24 @@ function commObject(
   }
 }
 
+/** 0x1010 and 0x1011 of a slave that keeps the settings a master saves: sub 1 all, 2 communication, 3 application. */
+function storeObjects(): CanopenObject[] {
+  const out: CanopenObject[] = []
+  for (const [index, parent, what] of [
+    [0x1010, 'Store parameters', 'Save'],
+    [0x1011, 'Restore default parameters', 'Restore'],
+  ] as const) {
+    out.push(commObject(index, 0, 'Highest sub-index supported', 'UNSIGNED8', 'const', '3', parent))
+    for (const [sub, area] of [
+      [1, 'all parameters'],
+      [2, 'communication parameters'],
+      [3, 'application parameters'],
+    ] as const)
+      out.push(commObject(index, sub, `${what} ${area}`, 'UNSIGNED32', 'rw', '1', parent))
+  }
+  return out
+}
+
 function pdoParameters(layout: SlavePdoLayout): CanopenObject[] {
   const out: CanopenObject[] = []
   for (const direction of ['from_master', 'to_master'] as const) {
@@ -1176,6 +1196,7 @@ export function slaveDeviceInfo(name: string, config: CanopenSlaveConfig, fileNa
     ...(config.softwareVersion !== ''
       ? [commObject(0x100a, 0, 'Manufacturer software version', 'VISIBLE_STRING', 'const', config.softwareVersion)]
       : []),
+    ...(config.storeSettings ? storeObjects() : []),
     commObject(0x1014, 0, 'COB-ID EMCY', 'UNSIGNED32', 'rw', '$NODEID+0x80'),
     commObject(0x1016, 0, 'Highest sub-index supported', 'UNSIGNED8', 'const', '1', 'Consumer heartbeat time'),
     commObject(

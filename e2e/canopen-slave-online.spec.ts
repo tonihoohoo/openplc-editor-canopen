@@ -4,11 +4,12 @@
 /**
  * The CANopen slave's Status tab against a fake runtime that reports the slave: running, with
  * settings the master changed, with the PLC stopped, with the master lost, with a node ID an LSS
- * master stored and Forget, and the states with nothing live to show.
+ * master stored and Forget, with settings a master saved and Forget, and the states with nothing
+ * live to show.
  *
  * Needs a production build plus the preload copy; see "Electron e2e" in CLAUDE.md. Port 8443 must be free.
  */
-import { copyFileSync, mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -22,6 +23,18 @@ import { connectRuntime, launch, PROJECT_NAME, quitApp, writeEthercatProject } f
 
 const SLAVE_EDITOR = 'CANopen slave editor container'
 
+/** The project's slave from the fixture, with @p fields changed. */
+function copyFixtureSlave(project: string, fields: Record<string, unknown>): void {
+  const from = join(__dirname, 'fixtures', 'canopen-slave', 'project', 'devices', 'servers', 'slave.json')
+  const server: Record<string, unknown> = JSON.parse(readFileSync(from, 'utf-8'))
+  const config = server.canopenSlaveConfig
+  if (typeof config !== 'object' || config === null) throw new Error('The fixture has no slave settings')
+  writeFileSync(
+    join(project, 'devices', 'servers', 'slave.json'),
+    JSON.stringify({ ...server, canopenSlaveConfig: { ...config, ...fields } }, null, 2),
+  )
+}
+
 const STATION = {
   bus: join('canopen-empty', 'canopen_1.json'),
   program: 'PROGRAM main\n  VAR\n    setpoint AT %IW0 : INT;\n  END_VAR\nEND_PROGRAM\n',
@@ -30,7 +43,17 @@ const STATION = {
 /** A fixed runtime clock, so the times the tab shows are the same in every run. */
 const NOW = Date.UTC(2026, 10, 5, 7, 31, 10)
 
-type View = 'running' | 'changed' | 'program' | 'stopped' | 'lost' | 'lss' | 'lss-forgotten' | 'absent'
+type View =
+  | 'saved'
+  | 'saved-forgotten'
+  | 'running'
+  | 'changed'
+  | 'program'
+  | 'stopped'
+  | 'lost'
+  | 'lss'
+  | 'lss-forgotten'
+  | 'absent'
 
 const LSS = {
   state: 'waiting',
@@ -141,6 +164,10 @@ function body(view: View, now: number) {
         slave({ node_id: 12, serial: 0x5a17c3e1, pdos, lss: { ...LSS, node_id_from: 'stored', stored_node_id: 12 } }),
       ])
     }
+    case 'saved':
+      return status([slave({ stored_settings: { comm: true, app: false, entries: 31, time: now - 90000 } })])
+    case 'saved-forgotten':
+      return status([slave({ stored_settings: null })])
     case 'lss-forgotten':
       return status([slave({ serial: 0x5a17c3e1, lss: { ...LSS, node_id_from: 'project' } })])
     case 'absent':
@@ -153,7 +180,11 @@ async function slaveKeyView(page: Page, name: string): Promise<void> {
   await keyView(
     page,
     name,
-    [page.getByTestId('canopen-slave-online-since'), page.getByTestId('canopen-slave-online-time')],
+    [
+      page.getByTestId('canopen-slave-online-since'),
+      page.getByTestId('canopen-slave-online-time'),
+      page.getByTestId('canopen-slave-settings-time'),
+    ],
     SLAVE_EDITOR,
   )
 }
@@ -177,10 +208,7 @@ test('the slave Status tab shows the running slave and what the master changed',
     STATION,
   )
   mkdirSync(join(project, 'devices', 'servers'), { recursive: true })
-  copyFileSync(
-    join(__dirname, 'fixtures', 'canopen-slave', 'project', 'devices', 'servers', 'slave.json'),
-    join(project, 'devices', 'servers', 'slave.json'),
-  )
+  copyFixtureSlave(project, {})
   const { app, page } = await launch(userData)
   await windowSize(app, 1600, 1000)
   try {
@@ -261,6 +289,54 @@ test('the slave Status tab shows the running slave and what the master changed',
     await expect(notice).toContainText('The runtime does not run this slave.', { timeout: 10000 })
     await expect(state).toHaveCount(0)
     await slaveKeyView(page, 'slave-online-not-running')
+  } finally {
+    await quitApp(app, page)
+    runtime.close()
+  }
+})
+
+test('the slave Status tab shows the settings a master saved and forgets them', async () => {
+  test.setTimeout(300000)
+  let view: View = 'saved'
+  const requests: unknown[] = []
+  const runtime = fakeRuntime({
+    features: ['status'],
+    status: () => body(view, NOW),
+    request: (r) => {
+      requests.push(r)
+      view = 'saved-forgotten'
+      return { ok: true }
+    },
+  })
+  const { project, userData } = writeEthercatProject(
+    join(tmpdir(), 'openplc-e2e-canopen-slave-settings'),
+    '127.0.0.1',
+    STATION,
+  )
+  mkdirSync(join(project, 'devices', 'servers'), { recursive: true })
+  copyFixtureSlave(project, { storeSettings: true })
+  const { app, page } = await launch(userData)
+  await windowSize(app, 1600, 1000)
+  try {
+    await page.getByText(PROJECT_NAME, { exact: true }).first().click({ timeout: 30000 })
+    await connectRuntime(page, 'e2e', 'e2e')
+    await page.getByText('slave', { exact: true }).first().click({ timeout: 30000 })
+    await page.getByRole('tab', { name: 'Status', exact: true }).click()
+    const card = page.getByTestId('canopen-slave-online-settings')
+    await expect(page.getByTestId('canopen-slave-settings-entries')).toHaveText('31', { timeout: 30000 })
+    await expect(page.getByTestId('canopen-slave-settings-comm')).toHaveText('Saved')
+    await expect(page.getByTestId('canopen-slave-settings-app')).toHaveText('Not saved')
+    await card.scrollIntoViewIfNeeded()
+    await slaveKeyView(page, 'slave-online-settings')
+    await card.getByRole('button', { name: 'Forget stored settings...' }).click()
+    await expect(card.getByRole('alertdialog')).toContainText("restarts with the project's values")
+    await slaveKeyView(page, 'slave-online-settings-forget')
+    await card.getByRole('button', { name: 'Forget', exact: true }).click()
+    await expect(page.getByTestId('canopen-slave-settings-note')).toContainText('Nothing is saved', {
+      timeout: 10000,
+    })
+    expect(requests).toEqual([{ op: 'slave_settings_forget', slave: 'slave' }])
+    await slaveKeyView(page, 'slave-online-settings-empty')
   } finally {
     await quitApp(app, page)
     runtime.close()

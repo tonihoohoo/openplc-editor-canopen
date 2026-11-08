@@ -75,6 +75,17 @@ describe('createCanopenOnline', () => {
     })
   })
 
+  it('asks the runtime to forget the settings a master saved into a slave', async () => {
+    const route = fakeRoute([{ ok: true }, { error: 'settings_off' }])
+    const online = createCanopenOnline(route.send, noSleep)
+    await expect(online.forgetSlaveSettings('slave')).resolves.toEqual({ ok: true, bytes: [] })
+    expect(route.sent).toEqual([{ op: 'slave_settings_forget', slave: 'slave' }])
+    expect(await online.forgetSlaveSettings('slave')).toMatchObject({
+      ok: false,
+      message: 'saving settings is off in the slave the runtime runs',
+    })
+  })
+
   it('turns refusals, failed jobs and transport errors into messages', async () => {
     const online = createCanopenOnline(
       fakeRoute([

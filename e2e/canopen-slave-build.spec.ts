@@ -214,7 +214,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 12,
+      version: 13,
       networks: [{ interface: 'can0', nodes: [{ node_id: 1 }] }],
       devices: [
         {
@@ -338,6 +338,13 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await page.getByTestId('canopen-slave-lss').evaluate((el) => el.scrollIntoView({ block: 'start' }))
     await slaveKeyView(page, 'slave-lss-wait')
 
+    await page.getByRole('switch', { name: 'Expert view' }).check()
+    await page.getByLabel('Keep settings a master saves', { exact: true }).check()
+    await page.getByTestId('canopen-slave-settings-card').evaluate((el) => el.scrollIntoView({ block: 'center' }))
+    await slaveKeyView(page, 'slave-general-saved-settings')
+    await page.getByRole('switch', { name: 'Expert view' }).uncheck()
+    await expect(page.getByLabel('Keep settings a master saves', { exact: true })).toBeVisible()
+
     await page.getByRole('button', { name: 'Export...', exact: true }).click()
     const dialog = page.getByTestId('canopen-export-dialog')
     await expect(dialog.getByTestId('canopen-export-check')).toContainText('CiA 306 OK')
@@ -351,11 +358,12 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 12,
+      version: 13,
       devices: [
         {
           name: 'slave',
           node_id: 5,
+          store_settings: true,
           lss: { enabled: true, wait_for_master: true, serial: 0x17, bitrate_change: false },
         },
       ],
@@ -442,7 +450,7 @@ test('a CANopen slave byte packed as 8 bits: bit rows, aliases, defaults, the PD
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 12,
+      version: 13,
       devices: [
         {
           name: 'slave',
