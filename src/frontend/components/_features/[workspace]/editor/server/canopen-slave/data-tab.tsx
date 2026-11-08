@@ -892,7 +892,7 @@ const ObjectTable = ({
         <p className={cn(hintClassName, 'py-2 text-xs')}>No objects yet.</p>
       ) : (
         <div className='overflow-x-auto'>
-          <table className='w-full min-w-[1180px] border-collapse'>
+          <table className={cn('w-full border-collapse', fromMaster ? 'min-w-[1180px]' : 'min-w-[1020px]')}>
             <thead>
               <tr>
                 <th className={headClassName}>Object</th>
