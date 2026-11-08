@@ -63,7 +63,7 @@ The runtimes are at `127.0.0.10` (chassis controller), `127.0.0.11` (platform bo
 `18446`. When another runtime on the host already uses port 8443, `run.sh up` says so and publishes only
 the `18443` to `18446` ports; reach the runtimes from another machine with the helpers below. Each runtime needs a user once; the example uses `lift` with the password `lift-example`
 (set `SCISSOR_USER` and `SCISSOR_PASSWORD` to change them). The image is
-`ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.3`; set `SCISSOR_IMAGE` for another.
+`ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.4`; set `SCISSOR_IMAGE` for another.
 
 ### Open the editor
 
@@ -83,7 +83,7 @@ The platform box starts without a node ID and a random serial number. The chassi
 node is given its node ID over LSS, but the project does not know the box's serial yet. Open the master's
 Online tab and run the LSS search: it lists the box with its serial number. Enter that serial in the LSS
 settings of the platform node and upload the chassis controller again; from then on the master gives the
-box node 10 at every start. To start at once, "Give node ID" in the search result gives it node 10 now. `./run.sh swap` replaces the box
+box node 10 at every start. To start at once, the search result's "Use as node 10..." gives it node 10 now and stores its serial number in the project. `./run.sh swap` replaces the box
 with a new one, so you can see a spare part being commissioned.
 
 ## The machine panel

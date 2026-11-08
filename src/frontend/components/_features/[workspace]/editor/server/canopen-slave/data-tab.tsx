@@ -259,7 +259,7 @@ const ObjectRow = ({
         <td className={cn(cellClassName, 'w-[104px]')}>
           <ObjectNumberField config={config} object={object} onPlace={(place) => change(place)} />
         </td>
-        <td className={cellClassName}>
+        <td className={cn(cellClassName, 'min-w-[180px]')}>
           <div className='flex items-start gap-1'>
             {packed ? (
               <button
@@ -892,7 +892,7 @@ const ObjectTable = ({
         <p className={cn(hintClassName, 'py-2 text-xs')}>No objects yet.</p>
       ) : (
         <div className='overflow-x-auto'>
-          <table className='w-full min-w-[760px] border-collapse'>
+          <table className='w-full min-w-[1180px] border-collapse'>
             <thead>
               <tr>
                 <th className={headClassName}>Object</th>
