@@ -39,6 +39,7 @@ CANopen:
 - Import of an EDS, DCF, XDD or XDC into the CANopen slave: replace the slave or add objects, with a list of what it cannot take: [docs/canopen.md](docs/canopen.md#importing-a-device-file-into-the-slave)
 - Guided object numbers on the CANopen slave's Data tab: a group menu, a reason for each refused range, a warning for an object in the other direction's group and type limits as range hints: [docs/canopen.md](docs/canopen.md#canopen-slave)
 - Upload refused to a runtime without CANopen support: [docs/canopen.md](docs/canopen.md#installing-a-release-and-the-runtime-check)
+- A scissor lift example: four OpenPLC projects (a master and three slaves), a safety relay and an interactive machine panel on one simulated CAN bus: [examples/canopen/scissor-lift](examples/canopen/scissor-lift/README.md)
 
 Editor:
 

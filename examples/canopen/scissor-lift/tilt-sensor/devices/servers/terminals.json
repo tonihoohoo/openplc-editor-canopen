@@ -1,0 +1,85 @@
+{
+  "name": "terminals",
+  "protocol": "canopen-slave",
+  "canopenSlaveConfig": {
+    "enabled": true,
+    "interface": "sim0",
+    "bitrate": 0,
+    "nodeId": 2,
+    "priority": 90,
+    "vendorName": "OpenPLC example",
+    "deviceName": "Terminals (simulation)",
+    "softwareVersion": "1.0",
+    "hardwareVersion": "HW 1",
+    "productText": "Tilt, height and load from the machine panel.",
+    "orderNumber": "SL-902",
+    "vendorId": 43981,
+    "productCode": 902,
+    "revision": 65536,
+    "heartbeatMs": 100,
+    "masterWatch": {
+      "nodeId": 1,
+      "timeMs": 0
+    },
+    "onMasterLost": "no_change",
+    "onPlcStop": "hold",
+    "onPlcStopState": "none",
+    "startAlone": true,
+    "objects": [
+      {
+        "id": "raw-tilt",
+        "index": 8192,
+        "subIndex": 1,
+        "name": "Raw tilt",
+        "dataType": "INTEGER16",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IW8",
+        "defaultValue": "0",
+        "unit": "\u00b0",
+        "multiplier": 0.01
+      },
+      {
+        "id": "raw-height",
+        "index": 8192,
+        "subIndex": 2,
+        "name": "Raw height",
+        "dataType": "UNSIGNED16",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IW9",
+        "defaultValue": "0",
+        "unit": "mm"
+      },
+      {
+        "id": "raw-load",
+        "index": 8192,
+        "subIndex": 3,
+        "name": "Raw load",
+        "dataType": "UNSIGNED16",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IW10",
+        "defaultValue": "0",
+        "unit": "kg"
+      }
+    ],
+    "pdos": {
+      "rpdos": [
+        {
+          "number": 1,
+          "objects": [
+            "raw-tilt",
+            "raw-height",
+            "raw-load"
+          ],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 0,
+          "eventTimerMs": 0
+        }
+      ],
+      "tpdos": []
+    }
+  }
+}

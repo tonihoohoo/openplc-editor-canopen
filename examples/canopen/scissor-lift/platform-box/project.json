@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "name": "platform-box",
+    "type": "plc-project"
+  },
+  "data": {
+    "dataTypes": [],
+    "pous": [],
+    "configuration": {
+      "resource": {
+        "tasks": [
+          {
+            "name": "task0",
+            "triggering": "Cyclic",
+            "interval": "T#20ms",
+            "priority": 1
+          }
+        ],
+        "instances": [
+          {
+            "name": "instance0",
+            "program": "main",
+            "task": "task0"
+          }
+        ],
+        "globalVariables": []
+      }
+    },
+    "libraries": [
+      {
+        "name": "linux_io",
+        "version": "1.0.0"
+      }
+    ],
+    "debugVariables": {
+      "global": [],
+      "pous": {}
+    }
+  }
+}

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Writes docs_only=true to $GITHUB_OUTPUT when the pull request changes only Markdown files or
-# files under docs/, so the test jobs can be skipped. It is also true when the latest push changed only
+# files under docs/ or examples/, so the test jobs can be skipped. It is also true when the latest push changed only
 # files under e2e/, the base has not moved and the previous run of this workflow for the branch passed
 # (its ci-base artifact holds that run's head and base). Any other event writes docs_only=false.
 # Needs GH_TOKEN, GITHUB_REPOSITORY, and on pull requests PR_NUMBER, HEAD_REF, HEAD_SHA, BASE_SHA.
@@ -34,7 +34,7 @@ if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ]; then
         docs_only=true
         while IFS= read -r file; do
             case "$file" in
-                *.md | docs/*) ;;
+                *.md | docs/* | examples/*) ;;
                 *) docs_only=false ;;
             esac
         done <<<"$files"
