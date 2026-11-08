@@ -28,7 +28,8 @@ height := raw_height;
 tick(IN := NOT tick.Q, PT := T#1s);
 IF tick.Q THEN seconds := seconds + 1; END_IF;
 
-(* Load over the limit is an emergency of the program; the master reads it. *)
-overload(SLAVE := sensor, ENABLE := load > load_limit, ERRORCODE := 16#3200, INFO := UINT_TO_UDINT(load));
+(* Load over the limit is an emergency of the program; the master reads it. INFO carries the limit,
+   which stays constant, so the emergency is sent once when it starts and reset once when it ends. *)
+overload(SLAVE := sensor, ENABLE := load > load_limit, ERRORCODE := 16#3200, INFO := UINT_TO_UDINT(load_limit));
 
 END_PROGRAM
