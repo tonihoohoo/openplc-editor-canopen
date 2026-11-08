@@ -13,7 +13,7 @@
 set -Eeuo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE="${SCISSOR_IMAGE:-ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.3}"
+IMAGE="${SCISSOR_IMAGE:-ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.4}"
 STATE_DIR="${SCISSOR_STATE_DIR:-/run/scissor-lift}"
 USER_NAME="${SCISSOR_USER:-lift}"
 USER_PASSWORD="${SCISSOR_PASSWORD:-lift-example}"
