@@ -39,14 +39,10 @@ Behaviour you can try:
 
 ## What you need
 
-- A Linux host: a Raspberry Pi 4 or 5, a PC, or a WSL 2 distribution. Run the commands as root.
-- Docker Engine (inside the WSL distribution on Windows; Docker Desktop is not supported).
+- A Linux host: a Raspberry Pi 4 or 5, or a PC (also a Linux virtual machine). Run the commands as root.
+- Docker Engine.
 - `iproute2`, `util-linux` (`nsenter`), `can-utils` (`cangw`) and `python3`.
-- The kernel modules `vxcan`, `can-gw` and `gpio-sim`. Most distribution kernels have them. The stock
-  WSL 2 kernel lacks `vxcan` and `gpio-sim`. `sudo ./wsl-modules.sh` builds `vxcan` for your kernel, but
-  `gpio-sim` needs the kernel's interrupt simulator (`CONFIG_IRQ_SIM`), which the stock WSL 2 kernel
-  does not have, so on WSL 2 the example needs a custom kernel with `CONFIG_IRQ_SIM`, `CONFIG_GPIO_SIM`
-  and `CONFIG_CAN_VXCAN` (set through `kernel=` in `.wslconfig`).
+- The kernel modules `vxcan`, `can-gw` and `gpio-sim`. Most distribution kernels have them.
 - The OpenPLC Editor with CANopen support (this fork) on the same machine or another one: a release
   newer than `v4.3.3-canopen.2`, or a build of this branch. `v4.3.3-canopen.2` and older cannot compile
   the slave projects ("Nothing produces %IW on this target").
@@ -74,9 +70,7 @@ the `18443` to `18446` ports; reach the runtimes from another machine with the h
 - **Linux, the editor on the host:** use the addresses above.
 - **Mac:** `./mac-connect.sh user@host` adds loopback addresses and one SSH session that forwards them to
   the runtimes' ports `18443` to `18446` and the panel. `./mac-connect.sh --remove` takes them away.
-- **Windows, the example in WSL 2:** in PowerShell run `.\connect.ps1`. It relays `127.0.0.10` to
-  `127.0.0.13` port 8443 to the published ports of the WSL distribution without administrator rights.
-- **Windows, the example on another Linux host:** `.\connect.ps1 user@host` opens one SSH session that
+- **Windows, the example on a Linux host or virtual machine:** `.\connect.ps1 user@host` opens one SSH session that
   forwards the four addresses to the runtimes' ports `18443` to `18446` and the panel to
   `http://127.0.0.1:8080`. It uses the OpenSSH client that comes with Windows.
 
@@ -110,7 +104,6 @@ The projects compile and the master configuration validates with the editor's ow
 ran on a Raspberry Pi 5 (64-bit Raspberry Pi OS) with the projects uploaded from the editor on
 Windows over an SSH tunnel: lift, lower and drive, both emergency stops and the relay reset, the tilt alarm
 with its restart, overload, the coil fault, stopping and starting a device, and replacing the platform box.
-The run on WSL 2 has not been done: the stock WSL 2 kernel cannot load `gpio-sim`.
 
 ## Files
 
@@ -120,5 +113,5 @@ The run on WSL 2 has not been done: the stock WSL 2 kernel cannot load `gpio-sim
 | `device-files/` | EDS files exported from the slaves |
 | `run.sh` | create, inspect and remove the example |
 | `panel/` | the machine panel (Python standard library and one HTML page) |
-| `wsl-modules.sh`, `connect.ps1`, `mac-connect.sh` | helpers for WSL 2, Windows and Mac |
+| `connect.ps1`, `mac-connect.sh` | helpers to reach the runtimes from Windows and Mac |
 | `images/` | the drawings above |

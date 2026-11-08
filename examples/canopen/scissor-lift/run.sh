@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs the scissor lift example on one Linux host (or in a WSL 2 distribution with Docker Engine):
+# Runs the scissor lift example on one Linux host:
 # four OpenPLC runtimes in containers on one virtual CAN bus, simulated GPIO chips for the
 # digital terminals and the machine panel. Run as root. See README.md.
 #
@@ -50,12 +50,10 @@ check_host() {
     if [ "${#missing[@]}" -gt 0 ]; then
         die "missing commands: ${missing[*]} (docker, iproute2, util-linux, can-utils and python3 are needed)"
     fi
-    local mod hint
+    local mod
     for mod in vxcan can-gw gpio-sim; do
         if ! modprobe "$mod" 2>/dev/null; then
-            hint="install the kernel's extra modules"
-            [ -r /proc/sys/kernel/osrelease ] && grep -qi microsoft /proc/sys/kernel/osrelease && hint="run wsl-modules.sh"
-            die "the kernel module $mod is missing: $hint"
+            die "the kernel module $mod is missing: install the kernel's extra modules"
         fi
     done
     mountpoint -q "$CONFIGFS" || mount -t configfs none "$CONFIGFS" 2>/dev/null || true
