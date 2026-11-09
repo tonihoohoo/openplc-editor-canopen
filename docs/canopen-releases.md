@@ -28,11 +28,12 @@ The workflow refuses a commit that is not on `canopen` (which only takes pull re
 checks passed), a tag that does not match `package.json` or already exists, and notes that fail the
 banned-word check. It then builds six installers in parallel: macOS Intel and Apple silicon, Windows
 x64 and arm64, Linux x64 and arm64 AppImages. They keep upstream's file names, so the update notice
-picks them. Each macOS disk image is checked with `hdiutil verify` and `.github/scripts/check_dmg.py`
-(trailer, data checksum, every compressed chunk) and rebuilt up to three times when damaged; the
-publish job checks the images again before it releases them. After all six are built it creates the
-tag (when started by hand) and the GitHub Release with `SHA256SUMS.txt`, the fork's commits since the
-previous release and a link to the source at the tag.
+picks them. Each macOS job keeps only the disk image of its own architecture, checks it with
+`hdiutil verify` and `.github/scripts/check_dmg.py` (trailer, data checksum, every compressed chunk)
+and rebuilds it up to three times when damaged; the publish job checks the images again before it
+releases them. After all six are built it creates the tag (when started by hand) and the GitHub
+Release with `SHA256SUMS.txt`, the fork's commits since the previous release and a link to the
+source at the tag.
 
 The installers are unsigned. The macOS app is signed ad hoc and not notarized: users allow it once in
 System Settings, Privacy and Security (**Open Anyway**). Windows shows SmartScreen (**More info**,

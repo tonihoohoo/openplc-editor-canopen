@@ -169,14 +169,16 @@ jobs:
           ARCH: ${{ endsWith(matrix.name, 'arm64') && 'arm64' || 'x64' }}
         run: |
           npx electron-builder --mac --"$ARCH" --publish never
+          # electron-builder.json builds both architectures. Both jobs uploading both images made
+          # the publish job write each image twice at once, which damaged it, so each job keeps its own.
+          if [ "$ARCH" = arm64 ]; then rm -rf release/build/mac; else rm -rf release/build/mac-arm64; fi
           for app in release/build/mac*/"OpenPLC Editor.app"; do
             codesign --force --deep --sign - "$app"
             codesign --verify --deep --strict "$app"
           done
           brew install create-dmg
           chmod +x ./create_dmg.sh
-          # Images built on the runner have come out damaged now and then, so each is verified
-          # and rebuilt up to three times.
+          # Verified, and rebuilt up to three times if damaged.
           for attempt in 1 2 3; do
             rm -f OpenPLC_Editor_*.dmg
             ./create_dmg.sh "$VERSION"
@@ -190,6 +192,7 @@ jobs:
             echo "::warning::damaged disk image on attempt $attempt"
             if [ "$attempt" = 3 ]; then exit 1; fi
           done
+          [ "$(ls OpenPLC_Editor_*.dmg | wc -l)" -eq 1 ] || { echo "::error::expected one disk image"; exit 1; }
           mkdir -p out && mv OpenPLC_Editor_*.dmg out/
 
       - name: Package (Windows)
