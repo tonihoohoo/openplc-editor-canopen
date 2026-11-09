@@ -30,8 +30,8 @@ Behaviour you can try:
 - Hold the enable switch and move the stick: up and down lift the platform; in drive mode the stick
   drives forward and back and steers left and right. The valve module ramps a command up gently
   and down quickly, and the platform box's display says what the machine does or why it stays still.
-- The platform rises in about 40 s and comes down in about 35 s, slower near the bottom, as on a
-  real scissor lift. Lowering through 2 m stops with the buzzer on: release the stick and push it
+- The platform rises in about 40 s and comes down in about 45 s with the descent stop, slower near
+  the bottom, as on a real scissor lift. Lowering through 2 m stops with the buzzer on: release the stick and push it
   down again to go on, at half speed below that height.
 - The machine drives at full speed when stowed and at a fifth of it when raised.
 - A tilt above 3.00 degrees with the platform raised blocks lifting and driving and sounds the
@@ -133,7 +133,7 @@ run `sudo ./run.sh down` and, on Windows, `multipass delete lift --purge`.
 Open the four folders as projects in the editor and upload each to its address. The chassis
 controller goes to `127.0.0.10`. Upload the three slaves first, then the master.
 
-An upload does not start the PLC: after uploading each project, start its PLC in the editor (Device, Start PLC) or with the Start PLC button in the panel's runtime table. `./run.sh status` shows `plc=RUNNING` for every runtime when they all run.
+If a PLC is not running after its upload, start it in the editor (Device, Start PLC) or with the Start PLC button in the panel's runtime table. `./run.sh status` shows `plc=RUNNING` for every runtime when they all run.
 
 ### Commission the platform box
 
