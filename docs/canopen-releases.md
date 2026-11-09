@@ -21,14 +21,18 @@ release is `v4.3.4-canopen.1`.
   above the list of changes; leave the version empty to get the next N. **Dry run** builds the
   installers without creating a tag or a release.
 - **By tag**: `git tag v4.3.3-canopen.2 origin/canopen && git push origin v4.3.3-canopen.2`.
-- A pull request that changes the workflow or `.github/scripts/canopen_release.py` runs it as a dry run.
+- A pull request that changes the workflow, `.github/scripts/canopen_release.py` or
+  `.github/scripts/check_dmg.py` runs it as a dry run.
 
 The workflow refuses a commit that is not on `canopen` (which only takes pull requests whose required
 checks passed), a tag that does not match `package.json` or already exists, and notes that fail the
 banned-word check. It then builds six installers in parallel: macOS Intel and Apple silicon, Windows
 x64 and arm64, Linux x64 and arm64 AppImages. They keep upstream's file names, so the update notice
-picks them. After all six are built it creates the tag (when started by hand) and the GitHub Release
-with `SHA256SUMS.txt`, the fork's commits since the previous release and a link to the source at the tag.
+picks them. Each macOS disk image is checked with `hdiutil verify` and `.github/scripts/check_dmg.py`
+(trailer, data checksum, every compressed chunk) and rebuilt up to three times when damaged; the
+publish job checks the images again before it releases them. After all six are built it creates the
+tag (when started by hand) and the GitHub Release with `SHA256SUMS.txt`, the fork's commits since the
+previous release and a link to the source at the tag.
 
 The installers are unsigned. The macOS app is signed ad hoc and not notarized: users allow it once in
 System Settings, Privacy and Security (**Open Anyway**). Windows shows SmartScreen (**More info**,
