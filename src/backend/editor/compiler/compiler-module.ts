@@ -180,6 +180,7 @@ import JSZip from 'jszip'
 
 import type { ThirdPartyLibraryRequest } from '../../../middleware/shared/ports/compiler-platform-port'
 import type { PersistentStorageSettings, PlatformOption } from '../../../middleware/shared/ports/types'
+import { canopenProgramSt } from '../../../middleware/shared/utils/canopen'
 import { BoardInfoResolver } from '../../shared/hardware/board-info-resolver'
 import { findVppDeviceByBoardName } from '../../shared/hardware/find-vpp-device'
 import { persistentStorageSchema } from '../../shared/types/PLC/devices/configuration'
@@ -3133,7 +3134,10 @@ class CompilerModule {
         if (result.programSt === null || result.errors.length > 0) {
           return { ok: false, error: result.errors.join('\n') || 'Failed to generate Structured Text' }
         }
-        return { ok: true, programSt: result.programSt }
+        // Same source as the program build, or the debug map's MD5 never matches the target.
+        const canopenSt = canopenProgramSt(result.programSt, projectData)
+        if (!canopenSt.ok) return { ok: false, error: canopenSt.error }
+        return { ok: true, programSt: canopenSt.programSt }
       } catch (error) {
         return { ok: false, error: `st-transpiler failed: ${getErrorMessage(error)}` }
       }
