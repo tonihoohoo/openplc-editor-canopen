@@ -87,10 +87,11 @@ IF valves_emcy.CONFIRM THEN
 END_IF;
 
 (* A valve fault takes the valve module out of operation over NMT; pre-operational still sends
-   emergencies. It is started again once the fault is cleared and the stick is in neutral. *)
+   emergencies. It is started again once the fault is cleared and the stick is in neutral. The state
+   byte is the node's NMT state as it reports it: 127 is pre-operational. *)
 isolate_valves(ENABLE := valve_fault AND valves_state = OPERATIONAL, DEVICE := valves, STATE := ENTER_PRE_OPERATIONAL);
-IF isolate_valves.CONFIRM THEN isolated := TRUE; END_IF;
-start_valves(ENABLE := isolated AND NOT valve_fault AND neutral AND valves_state = PRE_OPERATIONAL,
+IF valve_fault AND valves_state = OPERATIONAL THEN isolated := TRUE; END_IF;
+start_valves(ENABLE := isolated AND NOT valve_fault AND neutral AND valves_state = 127,
              DEVICE := valves, STATE := START_REMOTE_NODE);
 IF isolated AND valves_state = OPERATIONAL AND NOT valve_fault THEN isolated := FALSE; END_IF;
 

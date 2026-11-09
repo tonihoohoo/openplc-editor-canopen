@@ -201,6 +201,7 @@ class Runtime:
 
     def status(self):
         try:
+            logged_in = self.token is not None
             self._login()
             out = summarize(self._call("/api/canopen/status"))
             answer = self._call("/api/status?include_stats=true")
@@ -210,6 +211,8 @@ class Runtime:
         except urllib.error.HTTPError as exc:
             self.token = None
             if exc.code == 401:
+                if logged_in:  # an expired token: log in again
+                    return self.status()
                 return {"reachable": False, "error": "no user yet: create the user in the editor first"}
             return {"reachable": False, "error": str(exc)}
         except (OSError, ValueError, KeyError) as exc:
