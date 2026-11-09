@@ -65,6 +65,54 @@ the `18443` to `18446` ports; reach the runtimes from another machine with the h
 (set `SCISSOR_USER` and `SCISSOR_PASSWORD` to change them). The image is
 `ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.4`; set `SCISSOR_IMAGE` for another.
 
+### Windows: a virtual machine with Multipass
+
+Windows has no CAN gateway or GPIO simulator kernel modules, and the stock WSL 2 kernel lacks `gpio-sim`, so
+run the example in a small Ubuntu virtual machine and keep the editor on Windows. This needs Windows Pro,
+Enterprise or Education, because Multipass uses Hyper-V.
+
+1. Turn Hyper-V on once, in an administrator PowerShell, and restart:
+   `Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All`. Virtualization must be on in the BIOS.
+2. Install Multipass: `winget install Canonical.Multipass`, then open a new PowerShell.
+3. Create the machine and an SSH key for it:
+
+   ```powershell
+   multipass launch 24.04 --name lift --cpus 2 --memory 4G --disk 20G
+   ssh-keygen -t ed25519 -f $HOME\.ssh\lift -N '""'
+   multipass transfer $HOME\.ssh\lift.pub lift:/tmp/lift.pub
+   multipass exec lift -- bash -c "cat /tmp/lift.pub >> /home/ubuntu/.ssh/authorized_keys"
+   multipass info lift
+   ```
+
+   Note the IPv4 address of the machine (`IP` below).
+4. In the machine (`multipass shell lift`) install what the example needs and start it:
+
+   ```bash
+   curl -fsSL https://get.docker.com | sudo sh
+   sudo apt-get install -y can-utils iproute2 util-linux python3 git linux-modules-extra-$(uname -r)
+   sudo modprobe -a vxcan can-gw gpio-sim && echo MODULES-OK
+   git clone --depth 1 -b canopen https://github.com/tonihoohoo/openplc-editor-canopen.git
+   cd openplc-editor-canopen/examples/canopen/scissor-lift
+   sudo ./run.sh up
+   sudo ./run.sh panel
+   ```
+
+   If `MODULES-OK` does not print, run `sudo apt-get install -y linux-generic`, restart the machine and run
+   the `modprobe` line again. The panel keeps running in this window.
+5. In Windows, in the `examples\canopen\scissor-lift` folder, tell SSH about the key and open the tunnel:
+
+   ```powershell
+   Add-Content $HOME\.ssh\config "`nHost IP`n  User ubuntu`n  IdentityFile ~/.ssh/lift"
+   ssh ubuntu@IP exit
+   powershell -ExecutionPolicy Bypass -File .\connect.ps1 ubuntu@IP
+   ```
+
+   Leave that window open. The panel is then at `http://127.0.0.1:8080`.
+
+Then upload the four projects as below. To watch the bus in the machine, run
+`sudo candump -tz vxlift-ch vxlift-pb vxlift-vm vxlift-sn`. To remove everything, stop the panel,
+run `sudo ./run.sh down` and, on Windows, `multipass delete lift --purge`.
+
 ### Open the editor
 
 - **Linux, the editor on the host:** use the addresses above.
