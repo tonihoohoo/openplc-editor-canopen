@@ -516,6 +516,10 @@ starts (plugins of this release onwards); with an older plugin they look it up o
 plugin is found, only one call in 1024 looks for it again, so no scan waits for the system's library
 loader.
 
+A build includes only the blocks the project uses: a block whose name appears nowhere in the project's
+POUs, global variables or data types is left out, so an enabled library adds no build time until a
+block is used.
+
 | Block                                 | What it does                                                       |
 | ------------------------------------- | ------------------------------------------------------------------ |
 | `SDO_READ4`, `SDO_WRITE4`             | Read or write an object of 1 to 4 bytes (`DATA : DWORD`)           |

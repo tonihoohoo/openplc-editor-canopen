@@ -532,6 +532,27 @@ describe('createEditorCompilerAdapter', () => {
       }
     }
 
+    /** The project with a global instance of each block, so the build counts the blocks as used. */
+    const using = (projectData: PLCProjectData, ...blocks: string[]): PLCProjectData => ({
+      ...projectData,
+      configurations: {
+        ...projectData.configurations,
+        resource: {
+          ...projectData.configurations.resource,
+          globalVariables: [
+            ...projectData.configurations.resource.globalVariables,
+            ...blocks.map((block) => ({
+              name: `${block.toLowerCase()}0`,
+              class: 'global' as const,
+              type: { definition: 'derived' as const, value: block },
+              location: '',
+              documentation: '',
+            })),
+          ],
+        },
+      },
+    })
+
     const compileWith = async (projectData: PLCProjectData, boardTarget = 'Arduino Mega') => {
       const promise = adapter.compileProgram({ projectData, boardTarget, projectPath: '/p' }, () => {})
       await flushMicrotasks()
@@ -549,10 +570,10 @@ describe('createEditorCompilerAdapter', () => {
       // The adapter must graft a `Driver` POU in before building the
       // IPC payload, so the program build's c_blocks.h / code.cpp generation
       // picks the C++ source up — exactly as it would for a user-authored block.
-      const projectWithLib: PLCProjectData = {
-        ...mockProjectData,
-        libraries: [{ name: 'motor_lib', version: '1.0.0' }],
-      }
+      const projectWithLib = using(
+        { ...mockProjectData, libraries: [{ name: 'motor_lib', version: '1.0.0' }] },
+        'Driver',
+      )
       ;(window.bridge.loadAllLibraries as jest.Mock).mockResolvedValue([nativeArchive('motor_lib', 'Driver', 'cpp')])
 
       const ipcProjectData = await compileWith(projectWithLib)
@@ -563,10 +584,7 @@ describe('createEditorCompilerAdapter', () => {
     })
 
     it("grafts an enabled library's Python block too", async () => {
-      const projectWithLib: PLCProjectData = {
-        ...mockProjectData,
-        libraries: [{ name: 'py_lib', version: '1.0.0' }],
-      }
+      const projectWithLib = using({ ...mockProjectData, libraries: [{ name: 'py_lib', version: '1.0.0' }] }, 'Scale')
       ;(window.bridge.loadAllLibraries as jest.Mock).mockResolvedValue([nativeArchive('py_lib', 'Scale', 'python')])
 
       // Runtime v4, not Arduino Mega: a Python block on an arduino-cli target is
@@ -577,10 +595,11 @@ describe('createEditorCompilerAdapter', () => {
     })
 
     it("skips native blocks from libraries that are not on the project's enabled list", async () => {
-      const projectWithLib: PLCProjectData = {
-        ...mockProjectData,
-        libraries: [{ name: 'enabled_lib', version: '1.0.0' }],
-      }
+      const projectWithLib = using(
+        { ...mockProjectData, libraries: [{ name: 'enabled_lib', version: '1.0.0' }] },
+        'OK',
+        'Leak',
+      )
       ;(window.bridge.loadAllLibraries as jest.Mock).mockResolvedValue([
         nativeArchive('enabled_lib', 'OK', 'cpp'),
         // Installed but not enabled — must not leak into the build.
@@ -591,6 +610,20 @@ describe('createEditorCompilerAdapter', () => {
       const pouNames = ipcProjectData.pous.map((p) => p.data.name)
       expect(pouNames).toContain('OK')
       expect(pouNames).not.toContain('Leak')
+    })
+    it('leaves out a native block the project does not use', async () => {
+      const projectWithLib = using(
+        { ...mockProjectData, libraries: [{ name: 'motor_lib', version: '1.0.0' }] },
+        'Driver',
+      )
+      ;(window.bridge.loadAllLibraries as jest.Mock).mockResolvedValue([
+        nativeArchive('motor_lib', 'Driver', 'cpp'),
+        nativeArchive('motor_lib', 'Unused', 'cpp'),
+      ])
+
+      const pouNames = (await compileWith(projectWithLib)).pous.map((p) => p.data.name)
+      expect(pouNames).toContain('Driver')
+      expect(pouNames).not.toContain('Unused')
     })
   })
 

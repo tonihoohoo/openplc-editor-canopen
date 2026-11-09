@@ -49,6 +49,7 @@ Editor:
 - A function block dragged from the library into ST gets its outputs too: [docs/st-calls.md](docs/st-calls.md#library-drop)
 - Documentation in ST hovers and in the suggestion details: [docs/st-calls.md](docs/st-calls.md#documentation-in-st)
 - Language server suggestions show their own icons (upstream showed most with the wrong icon): [docs/st-calls.md](docs/st-calls.md#suggestion-icons)
+- A build includes only the C++ blocks of a library that the project uses (upstream builds every block of an enabled library): [docs/canopen.md](docs/canopen.md#plc-function-blocks)
 
 Linux I/O:
 

@@ -19,6 +19,7 @@ import {
   findLibrariesMissingNativeSources,
   injectLibraryBlocks,
 } from '../../../backend/shared/library/inject-library-blocks'
+import { selectUsedLibraryArchives } from '../../../backend/shared/library/select-used-library-blocks'
 import { preprocessPous } from '../../../backend/shared/utils/PLC/preprocess-pous'
 import type { CompileProgramArgs } from '../../shared/ports/compiler-port'
 import type { StlibArchiveDTO } from '../../shared/ports/library-port'
@@ -147,7 +148,7 @@ export async function compileProgramFlow(
     return { success: false, error }
   }
 
-  const dataWithLibCpp = injectLibraryBlocks(args.projectData, archives)
+  const dataWithLibCpp = injectLibraryBlocks(args.projectData, selectUsedLibraryArchives(args.projectData, archives))
 
   // Preprocess POUs (comment wrapping, Python->ST stubs, C++ validation/ST generation)
   const {
