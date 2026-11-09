@@ -15,7 +15,7 @@
     "orderNumber": "SL-10",
     "vendorId": 43981,
     "productCode": 10,
-    "revision": 65536,
+    "revision": 131072,
     "heartbeatMs": 100,
     "masterWatch": {
       "nodeId": 1,
@@ -73,6 +73,19 @@
         "group": "Display"
       },
       {
+        "id": "display",
+        "index": 8192,
+        "subIndex": 2,
+        "name": "Display code",
+        "dataType": "UNSIGNED8",
+        "direction": "from_master",
+        "exchange": "pdo",
+        "iecLocation": "%IB0",
+        "defaultValue": "0",
+        "group": "Display",
+        "description": "What the display shows: 0 ready, 1 e-stop, 2 safety relay off, 3 enable not held, 4 stick not in neutral, 5 tilt, 6 overload, 7 descent stop, 8 valve fault, 9 node missing, 10 lifting, 11 lowering, 12 driving."
+      },
+      {
         "id": "joy-x",
         "index": 8448,
         "subIndex": 1,
@@ -82,7 +95,7 @@
         "exchange": "pdo",
         "iecLocation": "%QW0",
         "defaultValue": "0",
-        "unit": "\u2030",
+        "unit": "‰",
         "group": "Controls",
         "description": "Joystick sideways, -1000 to 1000 per mille."
       },
@@ -96,7 +109,7 @@
         "exchange": "pdo",
         "iecLocation": "%QW1",
         "defaultValue": "0",
-        "unit": "\u2030",
+        "unit": "‰",
         "group": "Controls",
         "description": "Joystick forward and back, or up and down, -1000 to 1000 per mille."
       },
@@ -152,7 +165,8 @@
         {
           "number": 1,
           "objects": [
-            "lamps"
+            "lamps",
+            "display"
           ],
           "cobId": null,
           "transmissionType": 255,

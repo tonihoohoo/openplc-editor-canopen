@@ -15,7 +15,7 @@
     "orderNumber": "SL-20",
     "vendorId": 43981,
     "productCode": 20,
-    "revision": 65536,
+    "revision": 131072,
     "heartbeatMs": 100,
     "masterWatch": {
       "nodeId": 1,
@@ -36,7 +36,7 @@
         "exchange": "pdo",
         "iecLocation": "%IW0",
         "defaultValue": "0",
-        "unit": "\u2030",
+        "unit": "‰",
         "group": "Setpoints",
         "description": "Lift speed, -1000 (down) to 1000 (up) per mille."
       },
@@ -50,7 +50,7 @@
         "exchange": "pdo",
         "iecLocation": "%IW1",
         "defaultValue": "0",
-        "unit": "\u2030",
+        "unit": "‰",
         "group": "Setpoints",
         "description": "Drive speed, -1000 (reverse) to 1000 (forward) per mille."
       },
@@ -75,11 +75,11 @@
             "iecLocation": "%IX0.1"
           },
           {
-            "name": "Spare 2",
+            "name": "Steer left",
             "iecLocation": "%IX0.2"
           },
           {
-            "name": "Spare 3",
+            "name": "Steer right",
             "iecLocation": "%IX0.3"
           },
           {
@@ -104,17 +104,33 @@
         "id": "ramp",
         "index": 8192,
         "subIndex": 4,
-        "name": "Ramp time",
+        "name": "Ramp-up time",
         "dataType": "UNSIGNED16",
         "direction": "from_master",
         "exchange": "sdo",
         "iecLocation": "%IW2",
-        "defaultValue": "1000",
+        "defaultValue": "1200",
         "min": "100",
         "max": "5000",
         "unit": "ms",
         "group": "Parameters",
         "description": "Time a setpoint takes to go from zero to full."
+      },
+      {
+        "id": "ramp-down",
+        "index": 8192,
+        "subIndex": 5,
+        "name": "Ramp-down time",
+        "dataType": "UNSIGNED16",
+        "direction": "from_master",
+        "exchange": "sdo",
+        "iecLocation": "%IW3",
+        "defaultValue": "300",
+        "min": "50",
+        "max": "2000",
+        "unit": "ms",
+        "group": "Parameters",
+        "description": "Time a setpoint takes to go from full back to zero."
       },
       {
         "id": "lift-applied",
@@ -126,7 +142,7 @@
         "exchange": "pdo",
         "iecLocation": "%QW0",
         "defaultValue": "0",
-        "unit": "\u2030",
+        "unit": "‰",
         "group": "Feedback"
       },
       {
@@ -139,7 +155,7 @@
         "exchange": "pdo",
         "iecLocation": "%QW1",
         "defaultValue": "0",
-        "unit": "\u2030",
+        "unit": "‰",
         "group": "Feedback"
       },
       {
@@ -214,7 +230,7 @@
           "cobId": null,
           "transmissionType": 1,
           "inhibitTime": 0,
-          "eventTimerMs": 100
+          "eventTimerMs": 200
         }
       ],
       "tpdos": [

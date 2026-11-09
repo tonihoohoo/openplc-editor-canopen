@@ -39,7 +39,7 @@
           "deviceType": 0,
           "vendorId": 43981,
           "productCode": 10,
-          "revision": 65536,
+          "revision": 131072,
           "rxPdoCount": 16,
           "txPdoCount": 16,
           "unsupportedBitrates": [],
@@ -282,7 +282,7 @@
               "dataType": "UNSIGNED32",
               "access": "ro",
               "pdoMapping": false,
-              "defaultValue": "0x00010000",
+              "defaultValue": "0x00020000",
               "parentName": "Identity object"
             },
             {
@@ -1002,7 +1002,7 @@
               "dataType": "UNSIGNED8",
               "access": "rw",
               "pdoMapping": false,
-              "defaultValue": "1",
+              "defaultValue": "2",
               "parentName": "RPDO 1 mapping parameter"
             },
             {
@@ -1022,7 +1022,7 @@
               "dataType": "UNSIGNED32",
               "access": "rw",
               "pdoMapping": false,
-              "defaultValue": "0x00000000",
+              "defaultValue": "0x20000208",
               "parentName": "RPDO 1 mapping parameter"
             },
             {
@@ -5002,13 +5002,23 @@
               "dataType": "UNSIGNED8",
               "access": "const",
               "pdoMapping": false,
-              "defaultValue": "1",
+              "defaultValue": "2",
               "parentName": "From the master 0x2000"
             },
             {
               "index": 8192,
               "subIndex": 1,
               "name": "Lamps",
+              "dataType": "UNSIGNED8",
+              "access": "rw",
+              "pdoMapping": true,
+              "defaultValue": "0",
+              "parentName": "From the master 0x2000"
+            },
+            {
+              "index": 8192,
+              "subIndex": 2,
+              "name": "Display code",
               "dataType": "UNSIGNED8",
               "access": "rw",
               "pdoMapping": true,
@@ -5059,7 +5069,7 @@
           "source": {
             "format": "eds",
             "fileName": "Platform_control_box.eds",
-            "sha256": "79af16b4cba64fc03ccb66255c2b345e60cd64e880170d360d1196bcd6c689c2"
+            "sha256": "9de739eee0bab821251d91ef76f0d661c73e3c8c162e774fc2935fc9ef5eef90"
           }
         },
         "checkVendorId": true,
@@ -5071,7 +5081,7 @@
         "enabled": true,
         "restoreDefaults": 0,
         "supervision": "heartbeat",
-        "heartbeatConsumerMs": 150,
+        "heartbeatConsumerMs": 300,
         "heartbeatProducerMs": 100,
         "guardTimeMs": 1000,
         "lifeTimeFactor": 3,
@@ -5160,6 +5170,15 @@
                 "dataType": "UNSIGNED8",
                 "iecLocation": "%QB0",
                 "alias": "platform_lamps"
+              },
+              {
+                "channelId": "ch-15",
+                "index": 8192,
+                "subIndex": 2,
+                "name": "Display code",
+                "dataType": "UNSIGNED8",
+                "iecLocation": "%QB3",
+                "alias": "platform_display"
               }
             ]
           }
@@ -5183,7 +5202,7 @@
           "deviceType": 0,
           "vendorId": 43981,
           "productCode": 20,
-          "revision": 65536,
+          "revision": 131072,
           "rxPdoCount": 16,
           "txPdoCount": 16,
           "unsupportedBitrates": [],
@@ -5425,7 +5444,7 @@
               "dataType": "UNSIGNED32",
               "access": "ro",
               "pdoMapping": false,
-              "defaultValue": "0x00010000",
+              "defaultValue": "0x00020000",
               "parentName": "Identity object"
             },
             {
@@ -5535,7 +5554,7 @@
               "dataType": "UNSIGNED16",
               "access": "rw",
               "pdoMapping": false,
-              "defaultValue": "100",
+              "defaultValue": "200",
               "parentName": "RPDO 1 communication parameter"
             },
             {
@@ -10145,7 +10164,7 @@
               "dataType": "UNSIGNED8",
               "access": "const",
               "pdoMapping": false,
-              "defaultValue": "4",
+              "defaultValue": "5",
               "parentName": "From the master 0x2000"
             },
             {
@@ -10181,14 +10200,26 @@
             {
               "index": 8192,
               "subIndex": 4,
-              "name": "Ramp time",
+              "name": "Ramp-up time",
               "dataType": "UNSIGNED16",
               "access": "rw",
               "pdoMapping": false,
-              "defaultValue": "1000",
+              "defaultValue": "1200",
               "parentName": "From the master 0x2000",
               "lowLimit": "100",
               "highLimit": "5000"
+            },
+            {
+              "index": 8192,
+              "subIndex": 5,
+              "name": "Ramp-down time",
+              "dataType": "UNSIGNED16",
+              "access": "rw",
+              "pdoMapping": false,
+              "defaultValue": "300",
+              "parentName": "From the master 0x2000",
+              "lowLimit": "50",
+              "highLimit": "2000"
             },
             {
               "index": 8448,
@@ -10244,7 +10275,7 @@
           "source": {
             "format": "eds",
             "fileName": "Valve_module.eds",
-            "sha256": "d896c5ad880311ac48c91dc9ccb0686499bd9542aa52c59691272d5e3aef5dfa"
+            "sha256": "41f15f154bf535984d658360e8a0d8d49d6c3132f0c89fc229f310c977a0fefe"
           }
         },
         "checkVendorId": true,
@@ -10256,7 +10287,7 @@
         "enabled": true,
         "restoreDefaults": 0,
         "supervision": "heartbeat",
-        "heartbeatConsumerMs": 150,
+        "heartbeatConsumerMs": 300,
         "heartbeatProducerMs": 100,
         "guardTimeMs": 1000,
         "lifeTimeFactor": 3,
@@ -10335,7 +10366,7 @@
             "eventTimerMs": 0,
             "inhibitTime": 0,
             "receiveTimeoutMs": 0,
-            "deadlineMs": 100,
+            "deadlineMs": 200,
             "entries": [
               {
                 "channelId": "ch-8",
@@ -10373,7 +10404,14 @@
             "index": 8192,
             "subIndex": 4,
             "dataType": "UNSIGNED16",
-            "value": "800"
+            "value": "1200"
+          },
+          {
+            "id": "sdo-ramp-down",
+            "index": 8192,
+            "subIndex": 5,
+            "dataType": "UNSIGNED16",
+            "value": "200"
           }
         ]
       },
@@ -15463,7 +15501,7 @@
         "enabled": true,
         "restoreDefaults": 0,
         "supervision": "heartbeat",
-        "heartbeatConsumerMs": 150,
+        "heartbeatConsumerMs": 300,
         "heartbeatProducerMs": 100,
         "guardTimeMs": 1000,
         "lifeTimeFactor": 3,
@@ -20533,7 +20571,7 @@
         "enabled": false,
         "restoreDefaults": 0,
         "supervision": "heartbeat",
-        "heartbeatConsumerMs": 150,
+        "heartbeatConsumerMs": 300,
         "heartbeatProducerMs": 100,
         "guardTimeMs": 1000,
         "lifeTimeFactor": 3,
