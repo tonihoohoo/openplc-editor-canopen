@@ -18,6 +18,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -151,10 +152,23 @@ class Runtime:
         try:
             if self.token is None:
                 self.token = self._call("/api/login", {"username": self.user, "password": self.password})["access_token"]
-            return summarize(self._call("/api/canopen/status"))
+            out = summarize(self._call("/api/canopen/status"))
+            out["plc"] = plc_state(self._call("/api/status"))
+            return out
+        except urllib.error.HTTPError as exc:
+            self.token = None
+            if exc.code == 401:
+                return {"reachable": False, "error": "no user yet: create the user in the editor first"}
+            return {"reachable": False, "error": str(exc)}
         except (OSError, ValueError, KeyError) as exc:
             self.token = None
             return {"reachable": False, "error": str(exc)}
+
+
+def plc_state(answer):
+    """The PLC state from the runtime's status answer, such as RUNNING, STOPPED or EMPTY."""
+    text = str(answer.get("status", "")).strip()
+    return text.split(":", 1)[-1].upper() if text else "UNKNOWN"
 
 
 def summarize(status):
@@ -360,7 +374,7 @@ def print_status(state):
         if not status["reachable"]:
             print("%-9s not reachable (%s)" % (dev, status["error"]))
             continue
-        print("%-9s active=%s" % (dev, status["active"]))
+        print("%-9s plc=%s canopen=%s" % (dev, status["plc"], "active" if status["active"] else "idle"))
         for node in status["nodes"]:
             print("            node %-10s %-12s nmt=%s" % (node["name"], node["state"], node["nmt"]))
         for slave in status["slaves"]:
