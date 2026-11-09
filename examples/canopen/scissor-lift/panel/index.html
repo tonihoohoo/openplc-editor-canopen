@@ -16,6 +16,7 @@ section{background:var(--card);border:1px solid var(--line);border-radius:8px;pa
 .wide{grid-column:1/-1}.stack{display:grid;gap:12px;min-width:0}
 button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;touch-action:manipulation}button:hover{border-color:var(--accent)}button:disabled{opacity:.5;cursor:default}
 button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+button.on kbd{color:#fff;border-color:rgba(255,255,255,.7)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}label{display:flex;gap:8px;align-items:center}input[type=range]{flex:1;min-width:100px}
 kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;color:var(--mute)}
 .lamp{display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:12px}.lamp i{width:13px;height:13px;border-radius:50%;background:var(--line);display:inline-block;border:1px solid var(--steel)}.lamp i.on{background:var(--ok)}.lamp i.on.red{background:var(--bad)}.lamp i.on.amber{background:var(--warn)}
@@ -166,7 +167,9 @@ const wheels=[],marks=[];
 for(const wx of [380,520]){const w=el('g',{},$('wheels'));el('circle',{cx:0,cy:0,r:20,fill:'var(--ink)'},w);el('circle',{cx:0,cy:0,r:9,fill:'var(--steel)'},w);
  for(let i=0;i<3;i++)el('line',{x1:0,y1:0,x2:0,y2:-17,stroke:'var(--steel)','stroke-width':3,transform:'rotate('+i*120+')'},w);wheels.push({g:w,x:wx});}
 for(let i=0;i<40;i++){const g=el('g',{},$('marks'));el('line',{x1:0,y1:GROUND,x2:0,y2:GROUND+18,stroke:'var(--earth2)','stroke-width':4},g);marks.push(g);}
-const posts=[];for(let i=0;i<8;i++){const g=el('g',{},$('marks'));el('rect',{x:-6,y:GROUND-110,width:12,height:110,fill:'var(--steel)',opacity:.55},g);el('rect',{x:-6,y:GROUND-110,width:12,height:16,fill:'var(--bad)',opacity:.7},g);const t=el('text',{x:-14,y:GROUND+48,'font-size':20,fill:'var(--mute)'},g);posts.push({g,t});}
+let sceneHalf=450;function measureScene(){const r=$('scene').getBoundingClientRect(),k=Math.min(r.width/900,r.height/1180);if(k>0)sceneHalf=r.width/k/2;}
+window.addEventListener('resize',measureScene);measureScene();
+const posts=[];for(let i=0;i<8;i++){const g=el('g',{},$('marks'));el('rect',{x:-6,y:GROUND-110,width:12,height:110,fill:'var(--steel)',opacity:.55},g);el('rect',{x:-6,y:GROUND-110,width:12,height:16,fill:'var(--bad)',opacity:.7},g);const t=el('text',{x:0,y:GROUND+48,'font-size':20,fill:'var(--mute)','text-anchor':'middle'},g);posts.push({g,t});}
 
 // ---- scene: per frame
 const shown={floor:FLOOR0,odo:0,heading:0,x:0,y:0,tilt:0,wheel:0};
@@ -187,7 +190,7 @@ function drawScene(){const t=target();if(!t)return;const k=0.35;
  $('world').setAttribute('transform','rotate('+(-(S?S.inputs.slope:0))+' '+CX+' '+GROUND+')');
  const off=-shown.odo*PX;
  marks.forEach((g,i)=>{const x=((i*100+off)%4000+4000)%4000-1500;g.setAttribute('transform','translate('+x+' 0)')});
- posts.forEach((p,i)=>{const pos=Math.floor(shown.odo/5)*5+(i-3)*5,x=CX+(pos-shown.odo)*PX;p.g.setAttribute('transform','translate('+x+' 0)');p.t.textContent=pos+' m'});
+ posts.forEach((p,i)=>{const pos=Math.floor(shown.odo/5)*5+(i-3)*5,x=CX+(pos-shown.odo)*PX;p.g.setAttribute('transform','translate('+x+' 0)');p.t.textContent=pos+' m';p.t.style.visibility=Math.abs(x-450)>sceneHalf-45?'hidden':'visible'});
  wheels.forEach(w=>w.g.setAttribute('transform','translate('+w.x+' 1080) rotate('+(shown.odo/0.2*180/Math.PI)+')'));
  $('heightmark').setAttribute('transform','translate(688 '+floorY+')');$('heighttext').textContent=f.toFixed(2)+' m';
  // top view: 8 px per metre, machine in the middle, x right and y up

@@ -179,11 +179,15 @@ physics: the PLC programs only see inputs.
 
 ### Screenshots
 
-![The machine panel with all nodes operational](images/screenshots/panel-idle-all-operational.png)
+![The machine panel with all nodes operational](images/screenshots/panel-stowed-all-operational.png)
 
-The panel with the platform raised, and with a tilt alarm:
+The panel while lifting, at the descent stop, while driving and steering, and with a tilt alarm:
 
-![The machine panel with the platform raised](images/screenshots/panel-lifted.png)
+![The machine panel while lifting](images/screenshots/panel-lifting.png)
+
+![The machine panel at the descent stop](images/screenshots/panel-descent-stop.png)
+
+![The machine panel while driving and steering](images/screenshots/panel-driving.png)
 
 ![The machine panel with a tilt alarm](images/screenshots/panel-tilt-alarm.png)
 
@@ -204,9 +208,11 @@ The platform box as a CANopen slave: General, Data, PDOs and Status:
 ## Checked with
 
 The projects compile and the master configuration validates with the editor's own checks. The example
-ran on a Raspberry Pi 5 (64-bit Raspberry Pi OS) with the projects uploaded from the editor on
-Windows over an SSH tunnel: lift, lower and drive, both emergency stops and the relay reset, the tilt alarm
-with its restart, overload, the coil fault, stopping and starting a device, and replacing the platform box.
+ran on a Raspberry Pi 5 (64-bit Raspberry Pi OS) with the projects uploaded from the editor over an SSH
+tunnel: lift, lower through the descent stop, drive and steer stowed and raised, both emergency stops
+and the relay reset, the tilt alarm, overload, the coil fault and its recovery, stopping and starting a
+device, commissioning the platform box over LSS, and 30 minutes of mixed use with no PLC error, no task
+overrun and no node lost.
 
 ## Files
 
