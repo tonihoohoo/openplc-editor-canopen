@@ -77,6 +77,8 @@ the `18443` to `18446` ports; reach the runtimes from another machine with the h
 Open the four folders as projects in the editor and upload each to its address. The chassis
 controller goes to `127.0.0.10`. Upload the three slaves first, then the master.
 
+An upload does not start the PLC: after uploading each project, start its PLC in the editor (Device, Start PLC). `./run.sh status` shows `plc=RUNNING` for every runtime when they all run.
+
 ### Commission the platform box
 
 The platform box starts without a node ID and a random serial number. The chassis controller's platform

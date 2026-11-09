@@ -91,10 +91,11 @@ function draw(s){
     const det=[];
     (r.nodes||[]).forEach(n=>det.push(n.name+': '+pill(n.state||n.nmt,stateClass(n))));
     (r.slaves||[]).forEach(n=>det.push(n.name+': '+pill(n.state,n.state==='operational'?'ok':'')+(n.node_id_from?' ('+n.node_id_from+')':'')));
-    rows.push('<tr><td>'+dev+'</td><td>'+pill(r.active?'program running':'no program',r.active?'ok':'warn')+'</td><td>'+det.join(' ')+'</td></tr>');
+    rows.push('<tr><td>'+dev+'</td><td>'+pill(plcText(r.plc),r.plc==='RUNNING'?'ok':'warn')+'</td><td>'+det.join(' ')+'</td></tr>');
   }
   $('rt').innerHTML=rows.join('');
 }
+function plcText(p){return p==='RUNNING'?'program running':p==='EMPTY'?'no program':p==='STOPPED'?'PLC stopped':(p||'unknown').toLowerCase()}
 async function tick(){try{draw(await (await fetch('/api/state')).json())}catch(e){}setTimeout(tick,300)}
 tick();
 </script>
