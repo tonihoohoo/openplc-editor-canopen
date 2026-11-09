@@ -5,7 +5,7 @@ FileRevision=0
 EDSVersion=4.0
 Description=Platform control box (written from Platform_control_box.eds)
 CreationTime=12:00PM
-CreationDate=11-07-2026
+CreationDate=11-09-2026
 CreatedBy=OpenPLC Editor
 
 [DeviceInfo]
@@ -13,7 +13,7 @@ VendorName=OpenPLC example
 VendorNumber=0x0000ABCD
 ProductName=Platform control box
 ProductNumber=0x0000000A
-RevisionNumber=0x00010000
+RevisionNumber=0x00020000
 OrderCode=SL-10
 BaudRate_10=1
 BaudRate_20=1
@@ -334,7 +334,7 @@ ParameterName=Revision number
 ObjectType=0x7
 DataType=0x0007
 AccessType=ro
-DefaultValue=0x00010000
+DefaultValue=0x00020000
 PDOMapping=0
 
 [1018sub4]
@@ -1005,7 +1005,7 @@ ParameterName=Number of mapped objects
 ObjectType=0x7
 DataType=0x0005
 AccessType=rw
-DefaultValue=1
+DefaultValue=2
 PDOMapping=0
 
 [1600sub1]
@@ -1021,7 +1021,7 @@ ParameterName=Mapped object 2
 ObjectType=0x7
 DataType=0x0007
 AccessType=rw
-DefaultValue=0x00000000
+DefaultValue=0x20000208
 PDOMapping=0
 
 [1600sub3]
@@ -4438,18 +4438,26 @@ PDOMapping=0
 [2000]
 ParameterName=From the master 0x2000
 ObjectType=0x8
-SubNumber=2
+SubNumber=3
 
 [2000sub0]
 ParameterName=Highest sub-index supported
 ObjectType=0x7
 DataType=0x0005
 AccessType=const
-DefaultValue=1
+DefaultValue=2
 PDOMapping=0
 
 [2000sub1]
 ParameterName=Lamps
+ObjectType=0x7
+DataType=0x0005
+AccessType=rw
+DefaultValue=0
+PDOMapping=1
+
+[2000sub2]
+ParameterName=Display code
 ObjectType=0x7
 DataType=0x0005
 AccessType=rw

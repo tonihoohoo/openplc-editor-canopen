@@ -5,7 +5,7 @@ FileRevision=0
 EDSVersion=4.0
 Description=Valve module (written from Valve_module.eds)
 CreationTime=12:00PM
-CreationDate=11-07-2026
+CreationDate=11-09-2026
 CreatedBy=OpenPLC Editor
 
 [DeviceInfo]
@@ -13,7 +13,7 @@ VendorName=OpenPLC example
 VendorNumber=0x0000ABCD
 ProductName=Valve module
 ProductNumber=0x00000014
-RevisionNumber=0x00010000
+RevisionNumber=0x00020000
 OrderCode=SL-20
 BaudRate_10=1
 BaudRate_20=1
@@ -334,7 +334,7 @@ ParameterName=Revision number
 ObjectType=0x7
 DataType=0x0007
 AccessType=ro
-DefaultValue=0x00010000
+DefaultValue=0x00020000
 PDOMapping=0
 
 [1018sub4]
@@ -437,7 +437,7 @@ ParameterName=Event timer
 ObjectType=0x7
 DataType=0x0006
 AccessType=rw
-DefaultValue=100
+DefaultValue=200
 PDOMapping=0
 
 [1401]
@@ -4438,14 +4438,14 @@ PDOMapping=0
 [2000]
 ParameterName=From the master 0x2000
 ObjectType=0x9
-SubNumber=5
+SubNumber=6
 
 [2000sub0]
 ParameterName=Highest sub-index supported
 ObjectType=0x7
 DataType=0x0005
 AccessType=const
-DefaultValue=4
+DefaultValue=5
 PDOMapping=0
 
 [2000sub1]
@@ -4473,13 +4473,23 @@ DefaultValue=0
 PDOMapping=1
 
 [2000sub4]
-ParameterName=Ramp time
+ParameterName=Ramp-up time
 ObjectType=0x7
 DataType=0x0006
 AccessType=rw
-DefaultValue=1000
+DefaultValue=1200
 LowLimit=100
 HighLimit=5000
+PDOMapping=0
+
+[2000sub5]
+ParameterName=Ramp-down time
+ObjectType=0x7
+DataType=0x0006
+AccessType=rw
+DefaultValue=300
+LowLimit=50
+HighLimit=2000
 PDOMapping=0
 
 [2100]

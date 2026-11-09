@@ -12,7 +12,7 @@
           {
             "name": "task0",
             "triggering": "Cyclic",
-            "interval": "T#10ms",
+            "interval": "T#20ms",
             "priority": 1
           }
         ],

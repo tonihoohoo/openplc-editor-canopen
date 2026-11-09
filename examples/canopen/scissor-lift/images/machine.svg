@@ -15,6 +15,6 @@
 <path d="M446 138 H474" class="l"/>
 <text x="20" y="226" class="t">Chassis controller</text><text x="20" y="242" class="s">the master: interlocks and alarms</text>
 <path d="M60 248 V269 H210" class="l"/>
-<text x="480" y="226" class="t">Valve module</text><text x="480" y="242" class="s">lift and drive valves</text>
+<text x="480" y="226" class="t">Valve module</text><text x="480" y="242" class="s">lift, drive and steering valves</text>
 <path d="M500 248 V269 H430" class="l"/>
 </svg>

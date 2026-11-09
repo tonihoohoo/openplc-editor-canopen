@@ -5,99 +5,251 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scissor lift machine panel</title>
 <style>
-:root{--bg:#f5f6f8;--card:#fff;--ink:#1c2430;--mute:#5d6b7c;--line:#d5dbe3;--ok:#1a8a4a;--warn:#c27a00;--bad:#c0312b;--accent:#2563c4;--steel:#8794a6}
-@media (prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1b222b;--ink:#e6ebf2;--mute:#97a4b5;--line:#2e3846;--ok:#4cc27d;--warn:#e0a030;--bad:#ef6b63;--accent:#6aa3f5;--steel:#6d7a8c}}
+:root{--bg:#f2f4f7;--card:#fff;--ink:#1c2430;--mute:#5d6b7c;--line:#d5dbe3;--ok:#1a8a4a;--warn:#b86e00;--bad:#c0312b;--accent:#2563c4;--steel:#7d8a9c;--sky:#e6eef8;--earth:#c9bfae;--earth2:#a89a84;--deck:#e2a400;--lcd:#c8d8b0;--lcdink:#1f2a12}
+@media (prefers-color-scheme:dark){:root{--bg:#11151b;--card:#1a2129;--ink:#e6ebf2;--mute:#97a4b5;--line:#2e3846;--ok:#4cc27d;--warn:#e0a030;--bad:#ef6b63;--accent:#6aa3f5;--steel:#8794a6;--sky:#16202c;--earth:#3a342b;--earth2:#4a4236;--deck:#d79c00;--lcd:#2b3a20;--lcdink:#c9f59a}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,sans-serif}
-header{padding:12px 16px;border-bottom:1px solid var(--line)}h1{font-size:18px;margin:0}header p{margin:2px 0 0;color:var(--mute);font-size:12px}
-main{display:grid;gap:12px;padding:12px 16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
-section{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px}h2{font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute)}
-.wide{grid-column:1/-1}button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}button:hover{border-color:var(--accent)}
-button.on{background:var(--accent);border-color:var(--accent);color:var(--card)}button.danger.on{background:var(--bad);border-color:var(--bad)}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}label{display:flex;gap:6px;align-items:center}input[type=range]{flex:1;min-width:120px}
-.lamp{display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:12px}.lamp i{width:12px;height:12px;border-radius:50%;background:var(--line);display:inline-block}.lamp i.on{background:var(--ok)}.lamp i.on.red{background:var(--bad)}.lamp i.on.amber{background:var(--warn)}
-table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;padding:3px 6px;border-bottom:1px solid var(--line)}.pill{display:inline-block;margin:1px 0;padding:1px 7px;border-radius:9px;background:var(--line);white-space:nowrap}.pill.ok{background:var(--ok);color:var(--card)}.pill.bad{background:var(--bad);color:var(--card)}.pill.warn{background:var(--warn);color:var(--card)}
-#pad{width:160px;height:160px;border:1px solid var(--line);border-radius:8px;position:relative;touch-action:none;background:var(--bg)}#knob{width:26px;height:26px;border-radius:50%;background:var(--accent);position:absolute;left:67px;top:67px}
-#msg,#relay_msg{color:var(--mute);min-height:1.4em;font-size:12px}.readout{display:flex;flex-wrap:wrap;gap:4px 18px;font-variant-numeric:tabular-nums}
+header{padding:10px 16px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline}h1{font-size:18px;margin:0}header p{margin:0;color:var(--mute);font-size:12px}
+#offline{display:none;background:var(--bad);color:#fff;padding:6px 16px;font-size:13px}#offline.on{display:block}
+main{display:grid;gap:12px;padding:12px 16px;grid-template-columns:minmax(0,2fr) minmax(300px,1fr);align-items:start}
+@media (max-width:900px){main{grid-template-columns:minmax(0,1fr)}}
+section{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;min-width:0}h2{font-size:12px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute)}
+.wide{grid-column:1/-1}.stack{display:grid;gap:12px;min-width:0}
+button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;touch-action:manipulation}button:hover{border-color:var(--accent)}button:disabled{opacity:.5;cursor:default}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}label{display:flex;gap:8px;align-items:center}input[type=range]{flex:1;min-width:100px}
+kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;color:var(--mute)}
+.lamp{display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:12px}.lamp i{width:13px;height:13px;border-radius:50%;background:var(--line);display:inline-block;border:1px solid var(--steel)}.lamp i.on{background:var(--ok)}.lamp i.on.red{background:var(--bad)}.lamp i.on.amber{background:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mute);font-weight:600}
+.tablewrap{overflow-x:auto}.tablewrap table{min-width:640px}td button{white-space:nowrap;padding:3px 8px;font-size:12px}
+.pill{display:inline-block;margin:1px 2px 1px 0;padding:1px 7px;border-radius:9px;background:var(--line);white-space:nowrap}.pill.ok{background:var(--ok);color:#fff}.pill.bad{background:var(--bad);color:#fff}.pill.warn{background:var(--warn);color:#fff}
+.small{font-size:12px;color:var(--mute)}.num{font-variant-numeric:tabular-nums}
+#scene{width:100%;height:auto;max-height:calc(100vh - 150px);min-height:280px;display:block;background:var(--sky);border-radius:6px}
+.readout{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:4px 14px;margin-top:8px;font-variant-numeric:tabular-nums}.readout div{display:flex;justify-content:space-between;gap:6px;border-bottom:1px dotted var(--line)}.readout span{color:var(--mute)}
+.lcd{background:var(--lcd);color:var(--lcdink);font:600 15px ui-monospace,monospace;border-radius:6px;padding:8px 10px;min-height:2.6em;border:2px solid var(--steel)}
+.box{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start}
+#pad{width:170px;height:170px;border:2px solid var(--steel);border-radius:50%;position:relative;touch-action:none;background:radial-gradient(circle,var(--bg) 0 60%,var(--line) 100%);cursor:grab}#knob{width:34px;height:34px;border-radius:50%;background:var(--ink);position:absolute;left:68px;top:68px;pointer-events:none;box-shadow:0 2px 4px #0006}
+#pad::after{content:"";position:absolute;left:50%;top:8px;bottom:8px;border-left:1px dashed var(--steel)}#pad::before{content:"";position:absolute;top:50%;left:8px;right:8px;border-top:1px dashed var(--steel)}
+#enable{width:100%;padding:12px 8px;font-weight:600;user-select:none;-webkit-user-select:none}#enable.on{background:var(--ok);border-color:var(--ok)}
+.estop{width:92px;height:92px;border-radius:50%;border:8px solid #e8c300;background:radial-gradient(circle at 40% 35%,#ff6a5c,#c0231b 70%);color:#fff;font-weight:700;font-size:11px;line-height:1.15;padding:0;box-shadow:0 4px 0 #7a1510}
+.estop.on{transform:translateY(3px);box-shadow:0 1px 0 #7a1510;filter:saturate(1.3)}.estop:hover{border-color:#f0d000}
+.estopwrap{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--mute);text-align:center;width:110px}
+#actionmsg{min-height:1.4em}
 </style>
 </head>
 <body>
-<header><h1>Scissor lift machine panel</h1><p>A demonstration, not a safety system. The safety relay below is simulated.</p></header>
+<div id="offline">The panel server is not answering. Is <code>run.sh panel</code> still running?</div>
+<header><h1>Scissor lift machine panel</h1><p>A demonstration, not a safety system. The safety relay is simulated.</p></header>
 <main>
-<section class="wide"><h2>Machine</h2>
-<div class="readout"><span id="tHeight">Height</span><span id="tTilt">Tilt</span><span id="tLoad">Load</span><span id="tTravel">Travel</span><span id="tRelay">Safety relay</span></div>
-<svg id="machine" viewBox="0 36 520 214" width="100%" style="max-height:290px">
- <g id="slope"><line x1="-100" y1="230" x2="620" y2="230" stroke="var(--steel)" stroke-width="2" id="ground"/><rect x="150" y="190" width="220" height="24" rx="5" fill="var(--steel)"/>
- <circle cx="180" cy="216" r="14" fill="var(--ink)"/><circle cx="340" cy="216" r="14" fill="var(--ink)"/>
- <g id="scissor" stroke="var(--steel)" stroke-width="4" stroke-linecap="round" fill="none"></g>
- <rect id="deck" x="150" y="100" width="220" height="10" fill="var(--accent)"/>
- <rect id="rail" x="150" y="70" width="220" height="30" fill="none" stroke="var(--accent)" stroke-width="3"/></g>
-</svg></section>
-<section><h2>Emergency stop and safety relay</h2>
-<div class="row"><button class="danger" id="ground_estop">Ground e-stop</button><button class="danger" id="platform_estop">Platform e-stop</button><button id="reset">Reset relay</button></div>
-<div class="row"><span>Relay: <span class="pill" id="relay">open</span></span></div>
-<div id="relay_msg"></div>
-<p style="color:var(--mute);font-size:12px;margin:4px 0 0">Both e-stops are in series. The relay cuts the valve power. The PLCs only read its status.</p></section>
+<section><h2>Machine</h2>
+<svg id="scene" viewBox="0 0 900 1180" preserveAspectRatio="xMidYMax meet" aria-label="Side view of the scissor lift, drawn to scale">
+ <defs><pattern id="hatch" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M0 24L24 0" stroke="var(--earth2)" stroke-width="3"/></pattern></defs>
+ <g id="world">
+  <rect x="-2000" y="1100" width="4900" height="400" fill="var(--earth)"/>
+  <rect x="-2000" y="1100" width="4900" height="400" fill="url(#hatch)" opacity=".35"/>
+  <line x1="-2000" y1="1100" x2="2900" y2="1100" stroke="var(--steel)" stroke-width="3"/>
+  <g id="marks"></g>
+  <g id="machine">
+   <g id="upper"><g id="arms" stroke="var(--steel)" stroke-width="9" stroke-linecap="round" fill="none"></g>
+    <g id="platform"><rect id="deck" x="315" y="0" width="270" height="15" fill="var(--deck)"/>
+     <g id="rail" stroke="var(--deck)" stroke-width="5" fill="none"><path id="railpath" d=""/></g>
+     <g id="person" fill="var(--ink)"><circle id="phead" r="11"/><path id="pbody" stroke="var(--ink)" stroke-width="9" stroke-linecap="round" fill="none"/></g></g></g>
+   <rect id="chassis" x="325" y="1000" width="250" height="55" rx="6" fill="var(--steel)"/>
+   <rect x="345" y="1008" width="60" height="22" rx="3" fill="var(--card)" opacity=".5"/>
+   <g id="wheels"></g>
+  </g>
+ </g>
+ <g id="ruler" font-size="22" fill="var(--mute)"></g>
+ <g id="heightmark"><path d="M 0 0 l -18 -10 v 20 z" fill="var(--accent)"/><text id="heighttext" x="-24" y="8" font-size="24" fill="var(--accent)" font-weight="700" text-anchor="end"></text></g>
+ <g transform="translate(16 16)"><rect width="230" height="230" rx="8" fill="var(--card)" stroke="var(--line)" opacity=".92"/>
+  <svg x="0" y="0" width="230" height="230" viewBox="-115 -115 230 230"><g id="topgrid" stroke="var(--line)" stroke-width="1"></g><polyline id="toppath" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4 3"/>
+   <g id="topmachine"><rect x="-7.5" y="-3.6" width="15" height="7.2" rx="1.5" fill="var(--steel)"/><rect id="wheelL" x="2.5" y="-4.6" width="3.5" height="1.6" fill="var(--ink)"/><rect id="wheelR" x="2.5" y="3" width="3.5" height="1.6" fill="var(--ink)"/><path d="M 5 0 l -3 -2 v 4 z" fill="var(--deck)"/></g></svg>
+  <text x="10" y="222" font-size="13" fill="var(--mute)">Top view, path driven</text></g>
+</svg>
+<div class="readout">
+ <div><span>Platform floor</span><b id="rFloor"></b></div><div><span>Lift above stowed</span><b id="rLift"></b></div><div><span>Working height</span><b id="rWork"></b></div>
+ <div><span>Tilt</span><b id="rTilt"></b></div><div><span>Load (cell)</span><b id="rLoad"></b></div><div><span>Speed</span><b id="rSpeed"></b></div>
+ <div><span>Travel</span><b id="rTravel"></b></div><div><span>Front wheels</span><b id="rWheel"></b></div><div><span>Pump</span><b id="rPump"></b></div>
+</div></section>
+
+<div class="stack">
 <section><h2>Platform control box</h2>
-<div class="row"><div id="pad"><div id="knob"></div></div><div>
-<div class="row"><button id="enable">Enable switch</button></div><div class="row"><button id="drive_mode">Drive mode</button></div>
-<div class="row"><button id="horn">Horn</button><button id="light">Work light</button></div></div></div>
-<div id="lamps" class="row"></div></section>
+<div class="lcd" id="lcd" aria-live="polite">-</div>
+<div class="row" id="lamps"></div>
+<div class="box">
+ <div><div id="pad" title="Drag the stick, or use the arrow keys"><div id="knob"></div></div><div class="small" style="text-align:center;margin-top:4px">Stick <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></div></div>
+ <div style="display:grid;gap:8px">
+  <button id="enable" title="Hold while moving">Hold to enable <kbd>Space</kbd></button>
+  <button id="drive_mode">Drive mode <kbd>D</kbd></button>
+  <div class="row" style="margin:0"><button id="horn">Horn <kbd>H</kbd></button><button id="light">Work light <kbd>L</kbd></button></div>
+  <div class="estopwrap"><button class="estop" id="platform_estop" title="Press to latch, press again to release">STOP</button><span id="pe_text">Platform e-stop <kbd>E</kbd></span></div>
+ </div></div>
+<p class="small" style="margin:6px 0 0">Up and down lift, or drive forward and back in drive mode; left and right steer while driving.</p>
+</section>
+<section><h2>Ground controls and safety relay</h2>
+<div class="row" style="align-items:flex-start"><div class="estopwrap"><button class="estop" id="ground_estop" title="Press to latch, press again to release">STOP</button><span id="ge_text">Ground e-stop</span></div>
+ <div style="flex:1;min-width:140px"><div class="row">Relay <span class="pill" id="relay">open</span></div><div class="row"><button id="reset">Reset relay <kbd>R</kbd></button></div><div class="small" id="relay_msg"></div></div></div>
+<p class="small" style="margin:4px 0 0">Both e-stops are in series. The relay cuts the valve power. The PLCs only read its status.</p></section>
 <section><h2>Machine conditions</h2>
-<div class="row"><label style="flex:1">Slope <input type="range" id="slope_in" min="-8" max="8" step="0.1"><span id="slope_v"></span></label></div>
-<div class="row"><label style="flex:1">Load <input type="range" id="load_in" min="0" max="700" step="10"><span id="load_v"></span></label></div>
+<div class="row"><label style="flex:1">Slope <input type="range" id="slope_in" min="-8" max="8" step="0.1"><span id="slope_v" class="num"></span></label></div>
+<div class="row"><label style="flex:1">Load <input type="range" id="load_in" min="0" max="700" step="10"><span id="load_v" class="num"></span></label></div>
 <div class="row"><button id="coil_fault">Valve coil fault</button></div></section>
-<section><h2>Scenarios</h2>
-<div class="row"><button data-act="stop:valves">Stop valve module</button><button data-act="start:valves">Start valve module</button></div>
-<div class="row"><button data-act="stop:sensor">Stop sensor</button><button data-act="start:sensor">Start sensor</button></div>
-<div class="row"><button data-act="stop:platform">Stop platform box</button><button data-act="start:platform">Start platform box</button></div>
-<div class="row"><button data-act="swap:">Replace platform box (new serial)</button></div><div id="msg"></div></section>
-<section class="wide"><h2>Runtimes</h2><table><thead><tr><th>Runtime</th><th>State</th><th>Detail</th></tr></thead><tbody id="rt"></tbody></table></section>
+</div>
+
+<section class="wide"><h2>Runtimes</h2><div class="tablewrap"><table><thead><tr><th>Device</th><th>PLC</th><th>Scan</th><th>CANopen</th></tr></thead><tbody id="rt"></tbody></table></div>
+<h2 style="margin-top:14px">Scenarios</h2>
+<div class="row"><button data-act="stop:valves">Stop valve module</button><button data-act="start:valves">Start valve module</button>
+<button data-act="stop:sensor">Stop sensor</button><button data-act="start:sensor">Start sensor</button>
+<button data-act="stop:platform">Stop platform box</button><button data-act="start:platform">Start platform box</button>
+<button data-act="stop:chassis">Stop chassis controller</button><button data-act="start:chassis">Start chassis controller</button>
+<button data-act="swap:">Replace platform box (new serial)</button></div><div class="small" id="actionmsg"></div></section>
 </main>
 <script>
+'use strict';
 const $=id=>document.getElementById(id);
-const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).catch(()=>{});
+const FLOOR0=1.2,ARM=2.4,STAGES=4,SIN0=0.02,GROUND=1100,CX=450,PX=100;
+let S=null,got=0,R={},path=[],busy=false;
+
+// ---- stick and enable: one request with both axes, newest wins
+const session=Math.random().toString(36).slice(2);let seq=0,stick={x:0,y:0},enableHeld=false,lastSent=0,dirty=false;
+function sendStick(){seq++;lastSent=performance.now();dirty=false;post('/api/stick',{x:Math.round(stick.x),y:Math.round(stick.y),seq,session,enable:enableHeld});}
+function setStick(x,y){stick.x=Math.max(-1000,Math.min(1000,x));stick.y=Math.max(-1000,Math.min(1000,y));dirty=true;drawKnob();}
+function neutral(){keys.clear();setStick(0,0);sendStick();}
+function drawKnob(){$('knob').style.left=(68+stick.x*68/1000)+'px';$('knob').style.top=(68-stick.y*68/1000)+'px';}
+const pad=$('pad');let dragging=false;
+function padMove(e){const r=pad.getBoundingClientRect();let x=((e.clientX-r.left)/r.width*2-1)*1000,y=-((e.clientY-r.top)/r.height*2-1)*1000;const m=Math.hypot(x,y);if(m>1000){x*=1000/m;y*=1000/m}setStick(x,y);}
+pad.addEventListener('pointerdown',e=>{dragging=true;pad.setPointerCapture(e.pointerId);padMove(e);sendStick();});
+pad.addEventListener('pointermove',e=>{if(dragging)padMove(e)});
+for(const ev of ['pointerup','pointercancel','lostpointercapture'])pad.addEventListener(ev,()=>{if(dragging){dragging=false;neutral();}});
+function setEnable(on){if(enableHeld===on)return;enableHeld=on;$('enable').classList.toggle('on',on);sendStick();}
+const en=$('enable');en.addEventListener('pointerdown',e=>{en.setPointerCapture(e.pointerId);setEnable(true)});
+for(const ev of ['pointerup','pointercancel','lostpointercapture'])en.addEventListener(ev,()=>setEnable(false));
+window.addEventListener('blur',()=>{setEnable(false);neutral();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){setEnable(false);neutral();}});
+
+// ---- keyboard: arrows move the stick (0.5 s to full), space holds enable
+const keys=new Set();
+function typing(e){const t=e.target;return t&&(t.tagName==='INPUT'&&t.type!=='range'||t.tagName==='TEXTAREA')}
+window.addEventListener('keydown',e=>{if(typing(e)||e.ctrlKey||e.metaKey||e.altKey)return;const k=e.key;
+ if(k.startsWith('Arrow')){keys.add(k);e.preventDefault();return}
+ if(k===' '){e.preventDefault();setEnable(true);return}
+ if(e.repeat)return;
+ const kk=k.toLowerCase();
+ if(kk==='d')toggle('drive_mode');else if(kk==='e')toggle('platform_estop');else if(kk==='r')post('/api/action',{name:'reset'});
+ else if(kk==='h')post('/api/input',{name:'horn',value:true});else if(kk==='l')toggle('light');});
+window.addEventListener('keyup',e=>{const k=e.key;if(k.startsWith('Arrow')){keys.delete(k);if(!keys.size&&!dragging)neutral();return}
+ if(k===' ')setEnable(false);if(k.toLowerCase()==='h')post('/api/input',{name:'horn',value:false});});
+function keyStick(dt){if(!keys.size||dragging)return;const step=2000*dt;let {x,y}=stick;
+ const ax=(keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0),ay=(keys.has('ArrowUp')?1:0)-(keys.has('ArrowDown')?1:0);
+ x=ax?x+ax*step:0;y=ay?y+ay*step:0;if(ax&&Math.sign(x)!==ax)x=0;if(ay&&Math.sign(y)!==ay)y=0;setStick(x,y);}
+
+// ---- other inputs
 let local={};
-for(const id of ['ground_estop','platform_estop','enable','drive_mode','horn','light','coil_fault']){
-  $(id).onclick=()=>post('/api/input',{name:id,value:!(local[id])});
-}
+function toggle(id){post('/api/input',{name:id,value:!local[id]})}
+for(const id of ['ground_estop','platform_estop','drive_mode','light','coil_fault'])$(id).onclick=()=>toggle(id);
+const horn=$('horn');horn.addEventListener('pointerdown',()=>post('/api/input',{name:'horn',value:true}));
+for(const ev of ['pointerup','pointercancel','pointerleave'])horn.addEventListener(ev,()=>{if(local.horn)post('/api/input',{name:'horn',value:false})});
 $('reset').onclick=()=>post('/api/action',{name:'reset'});
 document.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{const [n,d]=b.dataset.act.split(':');post('/api/action',{name:n,device:d||undefined});});
-$('slope_in').oninput=e=>post('/api/input',{name:'slope',value:e.target.value});
-$('load_in').oninput=e=>post('/api/input',{name:'load',value:e.target.value});
-const pad=$('pad'),knob=$('knob');let drag=false;
-function setStick(x,y){knob.style.left=(67+x*67/1000)+'px';knob.style.top=(67-y*67/1000)+'px';post('/api/input',{name:'stick_x',value:Math.round(x)});post('/api/input',{name:'stick_y',value:Math.round(y)});}
-function move(e){const r=pad.getBoundingClientRect();let x=((e.clientX-r.left)/r.width*2-1)*1000,y=-((e.clientY-r.top)/r.height*2-1)*1000;x=Math.max(-1000,Math.min(1000,x));y=Math.max(-1000,Math.min(1000,y));setStick(x,y);}
-pad.onpointerdown=e=>{drag=true;pad.setPointerCapture(e.pointerId);move(e)};pad.onpointermove=e=>{if(drag)move(e)};pad.onpointerup=()=>{drag=false;setStick(0,0)};
-function pill(t,c){return '<span class="pill '+(c||'')+'">'+t+'</span>'}
+let slopeT=0,loadT=0;
+$('slope_in').oninput=e=>{clearTimeout(slopeT);slopeT=setTimeout(()=>post('/api/input',{name:'slope',value:e.target.value}),30)};
+$('load_in').oninput=e=>{clearTimeout(loadT);loadT=setTimeout(()=>post('/api/input',{name:'load',value:e.target.value}),30)};
+
+// ---- scene: static parts
+const NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){const n=document.createElementNS(NS,tag);for(const k in attrs)n.setAttribute(k,attrs[k]);if(parent)parent.appendChild(n);return n}
+(function ruler(){const g=$('ruler');el('line',{x1:700,y1:GROUND,x2:700,y2:GROUND-1000,stroke:'var(--mute)','stroke-width':2},g);
+ for(let m=0;m<=10;m++){const y=GROUND-m*PX;el('line',{x1:690,y1:y,x2:710,y2:y,stroke:'var(--mute)','stroke-width':2},g);el('text',{x:716,y:y+7},g).textContent=m+' m';
+  if(m<10)el('line',{x1:695,y1:y-50,x2:705,y2:y-50,stroke:'var(--mute)','stroke-width':1},g);}})();
+(function grid(){const g=$('topgrid');for(let i=-5;i<=5;i++){el('line',{x1:i*25,y1:-125,x2:i*25,y2:125,class:'gx'},g);el('line',{x1:-125,y1:i*25,x2:125,y2:i*25,class:'gy'},g);}})();
+const wheels=[],marks=[];
+for(const wx of [380,520]){const w=el('g',{},$('wheels'));el('circle',{cx:0,cy:0,r:20,fill:'var(--ink)'},w);el('circle',{cx:0,cy:0,r:9,fill:'var(--steel)'},w);
+ for(let i=0;i<3;i++)el('line',{x1:0,y1:0,x2:0,y2:-17,stroke:'var(--steel)','stroke-width':3,transform:'rotate('+i*120+')'},w);wheels.push({g:w,x:wx});}
+for(let i=0;i<40;i++){const g=el('g',{},$('marks'));el('line',{x1:0,y1:GROUND,x2:0,y2:GROUND+18,stroke:'var(--earth2)','stroke-width':4},g);marks.push(g);}
+const posts=[];for(let i=0;i<8;i++){const g=el('g',{},$('marks'));el('rect',{x:-6,y:GROUND-110,width:12,height:110,fill:'var(--steel)',opacity:.55},g);el('rect',{x:-6,y:GROUND-110,width:12,height:16,fill:'var(--bad)',opacity:.7},g);const t=el('text',{x:-14,y:GROUND+48,'font-size':20,fill:'var(--mute)'},g);posts.push({g,t});}
+
+// ---- scene: per frame
+const shown={floor:FLOOR0,odo:0,heading:0,x:0,y:0,tilt:0,wheel:0};
+function target(){if(!S)return null;const age=Math.min(0.25,(performance.now()-got)/1000);
+ return {floor:Math.max(1.2,Math.min(9,S.floor+S.lift_speed*age)),odo:S.odometer+S.speed*age,heading:S.heading,x:S.x+S.speed*age*Math.cos(S.heading),y:S.y+S.speed*age*Math.sin(S.heading),tilt:S.tilt,wheel:S.wheel};}
+function drawScene(){const t=target();if(!t)return;const k=0.35;
+ for(const n in shown)shown[n]+= (t[n]-shown[n])*k;
+ const f=shown.floor,sin=SIN0+(f-FLOOR0)/(STAGES*ARM),cos=Math.sqrt(Math.max(0,1-sin*sin));
+ const floorY=GROUND-f*PX,deckBottom=floorY+15,stage=ARM*sin*PX,base=deckBottom+STAGES*stage,half=ARM*cos*PX/2;
+ let d='';for(let i=0;i<STAGES;i++){const y1=base-i*stage,y2=base-(i+1)*stage;d+='M'+(CX-half)+' '+y1+'L'+(CX+half)+' '+y2+'M'+(CX+half)+' '+y1+'L'+(CX-half)+' '+y2;}
+ $('arms').innerHTML='<path d="'+d+'"/>';
+ $('deck').setAttribute('y',floorY);
+ $('railpath').setAttribute('d','M320 '+floorY+'V'+(floorY-110)+'H580V'+floorY+'M320 '+(floorY-55)+'H580');
+ $('phead').setAttribute('cx',400);$('phead').setAttribute('cy',floorY-169);
+ $('pbody').setAttribute('d','M400 '+(floorY-157)+'V'+(floorY-90)+'L388 '+floorY+'M400 '+(floorY-90)+'L412 '+floorY+'M400 '+(floorY-140)+'L425 '+(floorY-112));
+ $('upper').setAttribute('transform','rotate('+(-(shown.tilt-(S?S.inputs.slope:0)))+' '+CX+' 1000)');
+ $('machine').setAttribute('transform','');
+ $('world').setAttribute('transform','rotate('+(-(S?S.inputs.slope:0))+' '+CX+' '+GROUND+')');
+ const off=-shown.odo*PX;
+ marks.forEach((g,i)=>{const x=((i*100+off)%4000+4000)%4000-1500;g.setAttribute('transform','translate('+x+' 0)')});
+ posts.forEach((p,i)=>{const pos=Math.floor(shown.odo/5)*5+(i-3)*5,x=CX+(pos-shown.odo)*PX;p.g.setAttribute('transform','translate('+x+' 0)');p.t.textContent=pos+' m'});
+ wheels.forEach(w=>w.g.setAttribute('transform','translate('+w.x+' 1080) rotate('+(shown.odo/0.2*180/Math.PI)+')'));
+ $('heightmark').setAttribute('transform','translate(688 '+floorY+')');$('heighttext').textContent=f.toFixed(2)+' m';
+ // top view: 8 px per metre, machine in the middle, x right and y up
+ const sc=8,ox=shown.x,oy=shown.y,hd=shown.heading;
+ $('toppath').setAttribute('points',path.concat([[ox,oy]]).map(p=>((p[0]-ox)*sc).toFixed(1)+','+(-(p[1]-oy)*sc).toFixed(1)).join(' '));
+ $('topmachine').setAttribute('transform','rotate('+(-hd*180/Math.PI)+')');
+ for(const id of ['wheelL','wheelR'])$(id).setAttribute('transform','rotate('+(-shown.wheel)+' '+4.25+' '+(id==='wheelL'?-3.8:3.8)+')');
+ const gx=((ox*sc)%25+25)%25,gy=((oy*sc)%25+25)%25;
+ document.querySelectorAll('#topgrid .gx').forEach((l,i)=>{const x=(i-5)*25-gx;l.setAttribute('x1',x);l.setAttribute('x2',x)});
+ document.querySelectorAll('#topgrid .gy').forEach((l,i)=>{const y=(i-5)*25+gy;l.setAttribute('y1',y);l.setAttribute('y2',y)});}
+
+// ---- state view
 const lampDef={PB_LAMP_READY:['Ready','on'],PB_LAMP_ESTOP:['E-stop','red'],PB_LAMP_TILT:['Tilt','amber'],PB_LAMP_LOAD:['Overload','amber'],PB_LAMP_FAULT:['Fault','red'],PB_BUZZER:['Buzzer','amber']};
+function drawState(s){local=s.inputs;
+ for(const id of ['drive_mode','light','coil_fault','horn'])$(id).classList.toggle('on',!!s.inputs[id]);
+ for(const id of ['ground_estop','platform_estop'])$(id).classList.toggle('on',!!s.inputs[id]);
+ $('pe_text').innerHTML=(s.inputs.platform_estop?'<b>Pressed</b>: press to release':'Platform e-stop')+' <kbd>E</kbd>';
+ $('ge_text').innerHTML=s.inputs.ground_estop?'<b>Pressed</b>: press to release':'Ground e-stop';
+ $('slope_v').textContent=s.inputs.slope.toFixed(1)+'°';$('load_v').textContent=s.inputs.load+' kg';
+ if(document.activeElement!==$('slope_in'))$('slope_in').value=s.inputs.slope;if(document.activeElement!==$('load_in'))$('load_in').value=s.inputs.load;
+ $('relay').textContent=s.relay.closed?'closed (valves powered)':'open (valves off)';$('relay').className='pill '+(s.relay.closed?'ok':'bad');
+ $('relay_msg').textContent=s.relay_message||'';
+ $('lcd').textContent=s.display_text;
+ $('lamps').innerHTML=Object.entries(lampDef).map(([k,[t,c]])=>'<span class="lamp"><i class="'+(s.lamps[k]?'on '+c:'')+'"></i>'+t+'</span>').join('');
+ $('rFloor').textContent=s.floor.toFixed(2)+' m';$('rLift').textContent=(s.floor-FLOOR0).toFixed(2)+' m';$('rWork').textContent=(s.floor+2).toFixed(2)+' m';
+ $('rTilt').textContent=s.tilt.toFixed(2)+'°';$('rLoad').textContent=s.load_reading+' kg';$('rSpeed').textContent=(Math.abs(s.speed)*3.6).toFixed(1)+' km/h';
+ $('rTravel').textContent=s.travel.toFixed(1)+' m';$('rWheel').textContent=Math.abs(s.wheel).toFixed(0)+'° '+(s.wheel>0.5?'left':s.wheel<-0.5?'right':'');$('rPump').textContent=Math.round(s.pump*100)+' %';
+ busy=!!s.action.running;document.querySelectorAll('[data-act],[data-plc]').forEach(b=>b.disabled=busy);
+ $('actionmsg').textContent=busy?'Running: '+s.action.running+'...':(s.action.message||'');}
+function pill(t,c){return '<span class="pill '+(c||'')+'">'+t+'</span>'}
 function stateClass(n){const s=n.state;if(s==='operational')return n.warning?'warn':'ok';if(s==='lost'||s==='failed'||s==='silent')return 'bad';if(s==='absent'||s==='disabled')return '';return 'warn'}
-function draw(s){
-  local=s.inputs;
-  for(const id of ['ground_estop','platform_estop','enable','drive_mode','horn','light','coil_fault'])$(id).classList.toggle('on',!!s.inputs[id]);
-  $('slope_v').textContent=s.inputs.slope.toFixed(1)+'°';$('load_v').textContent=s.inputs.load+' kg';
-  if(document.activeElement!==$('slope_in'))$('slope_in').value=s.inputs.slope;if(document.activeElement!==$('load_in'))$('load_in').value=s.inputs.load;
-  $('relay').textContent=s.relay.closed?'closed (valves powered)':'open';$('relay').className='pill '+(s.relay.closed?'ok':'bad');
-  $('tRelay').textContent='Relay '+(s.relay.closed?'closed':'open');
-  $('tHeight').textContent='Height '+s.height+' mm';$('tTilt').textContent='Tilt '+s.inputs.slope.toFixed(1)+'°';$('tLoad').textContent='Load '+s.inputs.load+' kg';$('tTravel').textContent='Travel '+s.travel+' m';
-  const f=(s.height-1200)/7800,top=190-f*110,lw=110*(1-f*0.6);
-  $('deck').setAttribute('y',top);$('rail').setAttribute('y',top-30);
-  let d='';const n=3;for(let i=0;i<n;i++){const y1=190-(190-top)*i/n,y2=190-(190-top)*(i+1)/n;d+='<path d="M'+(260-lw)+' '+y1+' L'+(260+lw)+' '+y2+' M'+(260+lw)+' '+y1+' L'+(260-lw)+' '+y2+'"/>';}
-  $('scissor').innerHTML=d;$('slope').setAttribute('transform','rotate('+(-s.inputs.slope)+' 260 215)');
-  $('lamps').innerHTML=Object.entries(lampDef).map(([k,[t,c]])=>'<span class="lamp"><i class="'+(s.lamps[k]?'on '+c:'')+'"></i>'+t+'</span>').join('');
-  $('msg').textContent=s.message||'';$('relay_msg').textContent=s.relay_message||'';
-  const rows=[];
-  for(const [dev,r] of Object.entries(s.runtimes)){
-    if(!r.reachable){rows.push('<tr><td>'+dev+'</td><td>'+pill('offline','bad')+'</td><td>'+(r.error||'')+'</td></tr>');continue;}
-    const det=[];
-    (r.nodes||[]).forEach(n=>det.push(n.name+': '+pill(n.state||n.nmt,stateClass(n))));
-    (r.slaves||[]).forEach(n=>det.push(n.name+': '+pill(n.state,n.state==='operational'?'ok':'')+(n.node_id_from?' ('+n.node_id_from+')':'')));
-    rows.push('<tr><td>'+dev+'</td><td>'+pill(plcText(r.plc),r.plc==='RUNNING'?'ok':'warn')+'</td><td>'+det.join(' ')+'</td></tr>');
-  }
-  $('rt').innerHTML=rows.join('');
-}
-function plcText(p){return p==='RUNNING'?'program running':p==='EMPTY'?'no program':p==='STOPPED'?'PLC stopped':(p||'unknown').toLowerCase()}
-async function tick(){try{draw(await (await fetch('/api/state')).json())}catch(e){}setTimeout(tick,300)}
-tick();
+function plcText(p){return p==='RUNNING'?'running':p==='EMPTY'?'no program':p==='STOPPED'?'stopped':(p||'unknown').toLowerCase()}
+const rows={};
+function rowFor(dev){if(rows[dev])return rows[dev];const tr=document.createElement('tr');tr.innerHTML='<td><b>'+dev+'</b></td><td><span class="plc"></span> <button data-plc="start-plc">Start PLC</button> <button data-plc="stop-plc">Stop PLC</button></td><td class="scan num"></td><td class="co"></td>';
+ tr.querySelectorAll('[data-plc]').forEach(b=>b.onclick=()=>post('/api/action',{name:b.dataset.plc,device:dev}));$('rt').appendChild(tr);
+ return rows[dev]={plc:tr.querySelector('.plc'),scan:tr.querySelector('.scan'),co:tr.querySelector('.co'),start:tr.querySelector('[data-plc="start-plc"]'),stop:tr.querySelector('[data-plc="stop-plc"]')};}
+function setHTML(n,h){if(n.innerHTML!==h)n.innerHTML=h}
+function drawRuntimes(rt){for(const dev of ['chassis','platform','valves','sensor']){const r=rt[dev],row=rowFor(dev);
+  if(!r){setHTML(row.plc,pill('waiting'));continue}
+  if(!r.reachable){setHTML(row.plc,pill('offline','bad'));setHTML(row.scan,'');setHTML(row.co,'<span class="small">'+(r.error||'')+'</span>');row.start.disabled=row.stop.disabled=true;continue}
+  setHTML(row.plc,pill(plcText(r.plc),r.plc==='RUNNING'?'ok':r.plc==='ERROR'?'bad':'warn'));
+  row.start.disabled=busy||r.plc==='RUNNING'||r.plc==='EMPTY';row.stop.disabled=busy||r.plc!=='RUNNING';
+  const sc=r.scan;setHTML(row.scan,sc?'avg '+sc.avg_ms.toFixed(2)+' ms, max '+sc.max_ms.toFixed(2)+' ms'+(sc.overruns?', <b style="color:var(--warn)">'+sc.overruns+' overruns</b>':''):'');
+  const det=[];(r.nodes||[]).forEach(n=>det.push(n.name+' '+pill(n.state||n.nmt,stateClass(n))));
+  (r.slaves||[]).forEach(n=>det.push(n.name+' '+pill(n.state,n.state==='operational'?'ok':'warn')+(n.node_id_from?' <span class="small">('+n.node_id_from+')</span>':'')));
+  if(r.bus&&r.bus.load!=null)det.push('<span class="small">bus '+r.bus.load+' %</span>');
+  setHTML(row.co,det.join(' '));}}
+
+// ---- stream
+let es=null,lastMsg=0;
+function connect(){es=new EventSource('/api/stream');
+ es.addEventListener('state',e=>{S=JSON.parse(e.data);got=performance.now();lastMsg=got;drawState(S);$('offline').classList.remove('on')});
+ es.addEventListener('runtimes',e=>{R=JSON.parse(e.data);drawRuntimes(R)});
+ es.addEventListener('path',e=>{path=JSON.parse(e.data)});
+ es.onerror=()=>{$('offline').classList.add('on');};}
+connect();
+let prev=performance.now();
+function frame(now){const dt=Math.min(0.1,(now-prev)/1000);prev=now;keyStick(dt);
+ if(dirty&&now-lastSent>40)sendStick();else if((enableHeld||stick.x||stick.y)&&now-lastSent>250)sendStick();
+ if(lastMsg&&now-lastMsg>2000)$('offline').classList.add('on');
+ drawScene();requestAnimationFrame(frame);}
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>

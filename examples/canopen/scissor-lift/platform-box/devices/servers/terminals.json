@@ -11,7 +11,7 @@
     "deviceName": "Terminals (simulation)",
     "softwareVersion": "1.0",
     "hardwareVersion": "HW 1",
-    "productText": "Joystick axes from the machine panel.",
+    "productText": "Joystick axes from the machine panel, display code to it.",
     "orderNumber": "SL-902",
     "vendorId": 43981,
     "productCode": 902,
@@ -36,7 +36,7 @@
         "exchange": "pdo",
         "iecLocation": "%IW0",
         "defaultValue": "0",
-        "unit": "\u2030"
+        "unit": "‰"
       },
       {
         "id": "stick-y",
@@ -48,7 +48,18 @@
         "exchange": "pdo",
         "iecLocation": "%IW1",
         "defaultValue": "0",
-        "unit": "\u2030"
+        "unit": "‰"
+      },
+      {
+        "id": "display",
+        "index": 8448,
+        "subIndex": 1,
+        "name": "Display code",
+        "dataType": "UNSIGNED8",
+        "direction": "to_master",
+        "exchange": "pdo",
+        "iecLocation": "%QB0",
+        "defaultValue": "0"
       }
     ],
     "pdos": {
@@ -65,7 +76,18 @@
           "eventTimerMs": 0
         }
       ],
-      "tpdos": []
+      "tpdos": [
+        {
+          "number": 1,
+          "objects": [
+            "display"
+          ],
+          "cobId": null,
+          "transmissionType": 255,
+          "inhibitTime": 0,
+          "eventTimerMs": 50
+        }
+      ]
     }
   }
 }

@@ -14,9 +14,9 @@ safety relay that cuts the valve power. The PLCs only read its status, because t
 
 | Project | Role | Node | What it shows |
 |---|---|---|---|
-| `chassis-controller` | CANopen master | 1 | PDOs, SYNC, heartbeat, master watch, startup SDOs, LSS assignment, node control, SDO and EMCY blocks, interlocks |
+| `chassis-controller` | CANopen master | 1 | PDOs, SYNC, heartbeat, master watch, startup SDOs, LSS assignment, NMT and node control, SDO and EMCY blocks, interlocks |
 | `platform-box` | CANopen slave | 10 | LSS "wait for master" with a random serial, event-timed TPDO, packed bit objects, local I/O blocks |
-| `valve-module` | CANopen slave | 20 | RPDO receive timeout, parameter object written over SDO, program EMCY on a coil fault, slave status and written-object blocks |
+| `valve-module` | CANopen slave | 20 | RPDO receive timeout, ramp parameters written over SDO, program EMCY on a coil fault, slave status and written-object blocks |
 | `tilt-sensor` | CANopen slave | 30 | SYNC-driven TPDO, parameters, a read-only serial and operating time, program EMCY on overload |
 | (none) | optional work light | 40 | an optional node the master may find or not (device file only) |
 
@@ -27,10 +27,18 @@ imports them, so the master sees the slaves the way a real master would.
 
 Behaviour you can try:
 
-- The stick and the enable switch drive the lift and the chassis through the valve module.
-- A tilt above 3.00 degrees with the platform raised stops the valve module over NMT. It restarts
-  below 2.50 degrees with the stick in neutral.
-- A load above the limit (450 kg) raises an emergency message and a lamp.
+- Hold the enable switch and move the stick: up and down lift the platform; in drive mode the stick
+  drives forward and back and steers left and right. The valve module ramps a command up gently
+  and down quickly, and the platform box's display says what the machine does or why it stays still.
+- The platform rises in about 40 s and comes down in about 35 s, slower near the bottom, as on a
+  real scissor lift. Lowering through 2 m stops with the buzzer on: release the stick and push it
+  down again to go on, at half speed below that height.
+- The machine drives at full speed when stowed and at a fifth of it when raised.
+- A tilt above 3.00 degrees with the platform raised blocks lifting and driving and sounds the
+  buzzer. Lowering still works; the alarm ends below 2.50 degrees or when the platform is stowed.
+- A load above the limit (450 kg) raises an emergency message, a lamp and blocks lifting.
+- A valve coil fault raises an emergency; the master sends the valve module to pre-operational over
+  NMT and starts it again once the fault is gone and the stick is in neutral.
 - Either emergency stop opens the safety relay, which cuts the valve power. The valve module sees the
   relay's status contact; the platform box sees its own button contact. Neither decides anything.
 - Stop a slave and watch the master hold its inputs, stop its outputs and keep scanning.
@@ -77,7 +85,7 @@ Enterprise or Education, because Multipass uses Hyper-V.
 3. Create the machine and an SSH key for it:
 
    ```powershell
-   multipass launch 24.04 --name lift --cpus 2 --memory 4G --disk 20G
+   multipass launch 24.04 --name lift --cpus 4 --memory 4G --disk 20G
    ssh-keygen -t ed25519 -f $HOME\.ssh\lift -N '""'
    multipass transfer $HOME\.ssh\lift.pub lift:/tmp/lift.pub
    multipass exec lift -- bash -c "cat /tmp/lift.pub >> /home/ubuntu/.ssh/authorized_keys"
@@ -125,7 +133,7 @@ run `sudo ./run.sh down` and, on Windows, `multipass delete lift --purge`.
 Open the four folders as projects in the editor and upload each to its address. The chassis
 controller goes to `127.0.0.10`. Upload the three slaves first, then the master.
 
-An upload does not start the PLC: after uploading each project, start its PLC in the editor (Device, Start PLC). `./run.sh status` shows `plc=RUNNING` for every runtime when they all run.
+An upload does not start the PLC: after uploading each project, start its PLC in the editor (Device, Start PLC) or with the Start PLC button in the panel's runtime table. `./run.sh status` shows `plc=RUNNING` for every runtime when they all run.
 
 ### Commission the platform box
 
@@ -138,15 +146,36 @@ with a new one, so you can see a spare part being commissioned.
 
 ## The machine panel
 
-`./run.sh panel` serves a page with the lift drawing, the stick, the switches, the two emergency
-stops with the safety relay reset, a slope and a load slider, a coil-fault switch, the scenario buttons
-and a table of what each runtime reports. The panel binds to `127.0.0.1`; use `--bind` only on a
-network you trust, because it has no login.
+`./run.sh panel` serves a page with:
+
+- the lift drawn to scale with a person on the platform and a height ruler; when it drives, the
+  ground moves past and a top view draws the path;
+- the platform control box: its display, lamps, the stick, the enable switch (held while moving),
+  drive mode, horn, work light and the platform emergency stop;
+- the ground emergency stop and the safety relay reset, a slope and a load slider, a coil-fault switch;
+- a table of each runtime's PLC state with Start PLC and Stop PLC buttons, its scan time and
+  overruns and its CANopen nodes, and the scenario buttons.
+
+The keyboard works too: the arrow keys move the stick, the space bar holds enable, `D` switches the
+mode, `E` presses the platform emergency stop, `R` resets the relay, `H` sounds the horn and `L`
+switches the work light. Letting go of the stick, leaving the page or switching to another window
+returns the stick to neutral and releases enable.
+
+The panel binds to `127.0.0.1`; use `--bind` only on a network you trust, because it has no login.
 
 The panel sets the digital inputs through simulated GPIO chips that the `linux_io` blocks read, and
 sends the analog values as frames on a per-device simulation bus where a "Terminals (simulation)"
 slave turns them into process data. Nothing about the machine logic is in the panel except the
 physics: the PLC programs only see inputs.
+
+### Troubleshooting
+
+- **A PLC goes to ERROR and its log says "stuck in one scan".** The host was too busy to run the
+  task for ten of its periods. Give the virtual machine more processors (4 is what the example was
+  checked with) and close what else runs on it.
+- **The panel says that the server is not answering.** `run.sh panel` has stopped; start it again.
+- **The display says "A node is missing".** One of the runtimes is not running its PLC, or the
+  platform box has no node ID yet (see Commission the platform box).
 
 ### Screenshots
 

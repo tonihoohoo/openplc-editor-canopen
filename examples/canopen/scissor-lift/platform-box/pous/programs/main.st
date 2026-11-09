@@ -8,6 +8,8 @@ PROGRAM main
     lamp_overload AT %IX0.3 : BOOL;
     buzzer_cmd AT %IX0.4 : BOOL;
     lamp_fault AT %IX0.5 : BOOL;
+    display_code AT %IB0 : USINT;
+    display_out AT %QB0 : USINT;
     joy_x AT %QW0 : INT;
     joy_y AT %QW1 : INT;
     estop_healthy AT %QX0.0 : BOOL;
@@ -42,5 +44,8 @@ out_tilt(ENABLE := TRUE, PIN := 'PB_LAMP_TILT', VALUE := lamp_tilt);
 out_overload(ENABLE := TRUE, PIN := 'PB_LAMP_LOAD', VALUE := lamp_overload);
 out_buzzer(ENABLE := TRUE, PIN := 'PB_BUZZER', VALUE := buzzer_cmd);
 out_fault(ENABLE := TRUE, PIN := 'PB_LAMP_FAULT', VALUE := lamp_fault);
+
+(* The display shows the master's code; the terminal slave carries it to the display. *)
+display_out := display_code;
 
 END_PROGRAM

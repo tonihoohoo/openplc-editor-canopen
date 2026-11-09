@@ -28,7 +28,7 @@ declare -A SIM_LINK=([platform]=vxsim-pb [valves]=vxsim-vm [sensor]=vxsim-sn)
 # Simulated GPIO chips, and their lines in offset order.
 declare -A CHIP_LINES=(
     [platform]="PB_ESTOP_NC PB_ENABLE PB_DRIVE_MODE PB_HORN PB_LIGHT PB_LAMP_READY PB_LAMP_ESTOP PB_LAMP_TILT PB_LAMP_LOAD PB_BUZZER PB_LAMP_FAULT"
-    [valves]="VM_SUPPLY_OK VM_COIL_FAULT VM_LIFT_UP VM_LIFT_DOWN VM_DRIVE_FWD VM_DRIVE_REV"
+    [valves]="VM_SUPPLY_OK VM_COIL_FAULT VM_LIFT_UP VM_LIFT_DOWN VM_DRIVE_FWD VM_DRIVE_REV VM_STEER_LEFT VM_STEER_RIGHT"
 )
 CONFIGFS=/sys/kernel/config
 
@@ -228,7 +228,7 @@ cmd_down() {
 cmd_stop() {
     need_root stop
     valid_device "$1"
-    docker stop "$(container "$1")" >/dev/null
+    docker stop -t 2 "$(container "$1")" >/dev/null
     gateway_rules D "$1"
     echo "$1 stopped."
 }
