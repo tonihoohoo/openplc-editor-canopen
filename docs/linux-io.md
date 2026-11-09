@@ -23,6 +23,8 @@ slave object goes to the master with no copy in the program (see [CANopen slave]
 2. Declare instances of the blocks in a POU and call them every scan.
 3. Build for OpenPLC Runtime v4 and upload to the Linux device.
 
+Only the blocks the project uses are built, so enabling the library costs no build time on its own.
+
 On a target that is not Linux (a microcontroller board, the simulator, the Windows runtime) the
 blocks build but touch nothing: `VALID` stays FALSE and `ERROR` is `LIO_NOT_SUPPORTED`.
 

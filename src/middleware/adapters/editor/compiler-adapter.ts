@@ -16,6 +16,7 @@ import {
   injectLibraryBlocks,
 } from '../../../backend/shared/library/inject-library-blocks'
 import { collectNativePous, type NativePouRef } from '../../../backend/shared/library/native-pou-list'
+import { selectUsedLibraryArchives } from '../../../backend/shared/library/select-used-library-blocks'
 import { preprocessPous } from '../../../backend/shared/utils/PLC/preprocess-pous'
 import type {
   CompileLibraryArgs,
@@ -206,7 +207,10 @@ export function createEditorCompilerAdapter(deps: EditorCompilerAdapterDeps = {}
         return { success: false, error }
       }
 
-      const dataWithLibCpp = injectLibraryBlocks(args.projectData, archives)
+      const dataWithLibCpp = injectLibraryBlocks(
+        args.projectData,
+        selectUsedLibraryArchives(args.projectData, archives),
+      )
 
       // Preprocess for debug compilation too. Same target gate as the build
       // path — a Python block is no more loadable on an Arduino board when the
