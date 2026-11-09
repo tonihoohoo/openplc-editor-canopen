@@ -7,6 +7,7 @@ import {
   canopenNameProblems,
   canopenObjectSizes,
   canopenPlcNames,
+  canopenProgramSt,
   projectNamesForCanopen,
   serializeCanopenConstantsToST,
   withCanopenConstants,
@@ -163,5 +164,29 @@ describe('CANopen names as program constants', () => {
       )
       expect(declared.filter((n) => !CANOPEN_LIBRARY_SYMBOLS.includes(n))).toEqual([])
     })
+  })
+})
+
+describe('canopenProgramSt', () => {
+  const project = (remoteDevices: Parameters<typeof canopenProgramSt>[1]['remoteDevices'], pou = 'main') => ({
+    remoteDevices,
+    libraries: [{ name: 'canopen' }],
+    pous: [{ data: { name: pou } }],
+    configuration: { resource: { globalVariables: [] } },
+  })
+  const line1 = canopenDevice('line_1', configWith(genericNode(2)))
+
+  it('appends the constants when every name is free', () => {
+    const program = 'PROGRAM main\nEND_PROGRAM\n'
+    expect(canopenProgramSt(program, project([line1]))).toEqual({
+      ok: true,
+      programSt: withCanopenConstants(program, project([line1])),
+    })
+  })
+
+  it('refuses a node name the project already uses', () => {
+    const result = canopenProgramSt('PROGRAM io2\nEND_PROGRAM\n', project([line1], 'io2'))
+    expect(result.ok).toBe(false)
+    expect(result.ok ? '' : result.error).toMatch(/^Compilation aborted: CANopen "line_1" node "io2"/)
   })
 })

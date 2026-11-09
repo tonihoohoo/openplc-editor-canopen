@@ -343,3 +343,32 @@ export function canopenNameProblems(
   }
   return problems
 }
+
+/**
+ * The program source a build compiles: the CANopen name check, then `programSt` with the CANopen
+ * constants after it. The program build and the debug build both use it, so both hash the same
+ * source and the debugger's MD5 check matches the uploaded program.
+ */
+export function canopenProgramSt(
+  programSt: string,
+  project: {
+    remoteDevices?: readonly PLCRemoteDevice[]
+    servers?: readonly PLCServer[]
+    libraries?: ReadonlyArray<{ name: string }>
+    pous: ReadonlyArray<{ data: { name: string } }>
+    dataTypes?: ReadonlyArray<{ name: string; derivation: string; values?: ReadonlyArray<{ description: string }> }>
+    configuration: { resource: { globalVariables: ReadonlyArray<{ name: string }> } }
+  },
+): { ok: true; programSt: string } | { ok: false; error: string } {
+  const problems = canopenNameProblems(
+    project.remoteDevices,
+    projectNamesForCanopen(
+      project.configuration.resource.globalVariables,
+      project.pous.map((p) => p.data.name),
+      project.dataTypes ?? [],
+    ),
+    project.servers,
+  )
+  if (problems.length > 0) return { ok: false, error: `Compilation aborted: ${problems.join('; ')}` }
+  return { ok: true, programSt: withCanopenConstants(programSt, project) }
+}
