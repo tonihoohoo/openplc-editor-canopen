@@ -49,6 +49,25 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "LIO_SLOT",
+            "type": "UINT",
+            "displayName": "lio_slot"
+          },
+          {
+            "name": "LIO_GEN",
+            "type": "UDINT",
+            "displayName": "lio_gen"
+          },
+          {
+            "name": "LIO_LAST",
+            "type": "USINT",
+            "displayName": "lio_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "GPIO_IN.cpp",
         "documentation": "Reads a GPIO input line of the Linux device. PIN is the kernel's line name (such as 'GPIO17') or '<chip>:<offset>' (such as 'gpiochip0:17'). BIAS is LIO_BIAS_NONE, LIO_BIAS_PULL_UP or LIO_BIAS_PULL_DOWN; ACTIVE_LOW inverts the level; DEBOUNCE filters bounces shorter than its time (T#0s: off). Q is the level on every call while ENABLE is TRUE and VALID is TRUE. A pin that is missing or in use gives ERROR and ERRORTEXT, and the block tries again every 0.5 s.\nExample: button(ENABLE := TRUE, PIN := 'GPIO17', BIAS := LIO_BIAS_PULL_UP, ACTIVE_LOW := TRUE, DEBOUNCE := T#10ms); pressed := button.Q;"
@@ -96,6 +115,25 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "LIO_SLOT",
+            "type": "UINT",
+            "displayName": "lio_slot"
+          },
+          {
+            "name": "LIO_GEN",
+            "type": "UDINT",
+            "displayName": "lio_gen"
+          },
+          {
+            "name": "LIO_LAST",
+            "type": "USINT",
+            "displayName": "lio_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "GPIO_OUT.cpp",
         "documentation": "Drives a GPIO output line of the Linux device to VALUE. PIN as for GPIO_IN. DRIVE is LIO_DRIVE_PUSH_PULL, LIO_DRIVE_OPEN_DRAIN or LIO_DRIVE_OPEN_SOURCE; ACTIVE_LOW inverts the level. When the block is no longer called (PLC stop, PLC error, new upload) the line goes to ON_STOP within 100 ms or five call intervals: LIO_STOP_OFF (default), LIO_STOP_ON or LIO_STOP_HOLD. ENABLE FALSE puts it in that state too and frees the line.\nExample: lamp(ENABLE := TRUE, PIN := 'GPIO27', VALUE := alarm, ON_STOP := LIO_STOP_OFF);"
@@ -143,6 +181,25 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "LIO_SLOT",
+            "type": "UINT",
+            "displayName": "lio_slot"
+          },
+          {
+            "name": "LIO_GEN",
+            "type": "UDINT",
+            "displayName": "lio_gen"
+          },
+          {
+            "name": "LIO_LAST",
+            "type": "USINT",
+            "displayName": "lio_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "PWM_OUT.cpp",
         "documentation": "Drives a hardware PWM channel of the Linux device (sysfs) at FREQUENCY (Hz) with DUTY (0 to 100 %). CHIP is the pwmchip number ('0'), its name ('pwmchip0') or its device name; CHANNEL counts from 0. The channel is set up outside the PLC scan and written only when a value changes; VALID is TRUE once it runs with the values asked for. When the block is no longer called (PLC stop, PLC error, new upload) the channel goes to ON_STOP: LIO_STOP_OFF (default, duty 0 and disabled) or LIO_STOP_HOLD. ENABLE FALSE turns the channel off, also one left running by LIO_STOP_HOLD before. A board may need its PWM driver switched on in its boot settings first.\nExample: fan(ENABLE := TRUE, CHIP := '0', CHANNEL := 0, FREQUENCY := 1000.0, DUTY := speed);"
@@ -160,7 +217,8 @@
           },
           {
             "name": "SCALE",
-            "type": "REAL"
+            "type": "REAL",
+            "initialValue": "1.0"
           },
           {
             "name": "OFFSET",
@@ -168,7 +226,8 @@
           },
           {
             "name": "PERIOD",
-            "type": "TIME"
+            "type": "TIME",
+            "initialValue": "T#1s"
           }
         ],
         "outputs": [
@@ -194,6 +253,25 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "LIO_SLOT",
+            "type": "UINT",
+            "displayName": "lio_slot"
+          },
+          {
+            "name": "LIO_GEN",
+            "type": "UDINT",
+            "displayName": "lio_gen"
+          },
+          {
+            "name": "LIO_LAST",
+            "type": "USINT",
+            "displayName": "lio_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "READ_VALUE.cpp",
         "documentation": "Reads the first number in a file under /sys/ of the Linux device every PERIOD, outside the PLC scan: a temperature from a thermal zone or hwmon, a 1-wire sensor's temperature file, any value a kernel driver shows as a file. RAW is the number, VALUE is RAW x SCALE + OFFSET. VALID is FALSE until the first reading after a start, and on an error, when VALUE and RAW keep the last good reading.\nExample: cpu(ENABLE := TRUE, PATH := '/sys/class/thermal/thermal_zone0/temp', SCALE := 0.001); temperature := cpu.VALUE;"
@@ -215,7 +293,8 @@
           },
           {
             "name": "PERIOD",
-            "type": "TIME"
+            "type": "TIME",
+            "initialValue": "T#1s"
           }
         ],
         "outputs": [
@@ -241,11 +320,31 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "LIO_SLOT",
+            "type": "UINT",
+            "displayName": "lio_slot"
+          },
+          {
+            "name": "LIO_GEN",
+            "type": "UDINT",
+            "displayName": "lio_gen"
+          },
+          {
+            "name": "LIO_LAST",
+            "type": "USINT",
+            "displayName": "lio_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "IIO_READ.cpp",
         "documentation": "Reads a channel of a Linux IIO device (ADCs and other sensors with a kernel driver) every PERIOD, outside the PLC scan. DEVICE is the device's name as the driver gives it, CHANNEL the channel's file prefix (such as 'in_voltage0'). RAW is the channel's raw value and VALUE = (RAW + offset) x scale with the driver's offset and scale, in the driver's unit (such as mV). VALID is FALSE until the first reading after a start, and on an error, when VALUE and RAW keep the last good reading.\nExample: adc(ENABLE := TRUE, DEVICE := 'adc_name', CHANNEL := 'in_voltage0'); millivolts := adc.VALUE;"
       }
     ],
+    "interfaces": [],
     "types": [
       {
         "name": "LIO_ERROR",
@@ -272,87 +371,104 @@
       {
         "name": "LIO_NO_ERROR",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "0"
       },
       {
         "name": "LIO_NOT_SUPPORTED",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "1"
       },
       {
         "name": "LIO_WRONG_INPUT",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "2"
       },
       {
         "name": "LIO_NOT_FOUND",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "3"
       },
       {
         "name": "LIO_BUSY",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "4"
       },
       {
         "name": "LIO_REFUSED",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "5"
       },
       {
         "name": "LIO_IO_ERROR",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "6"
       },
       {
         "name": "LIO_NO_SLOT",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "7"
       },
       {
         "name": "LIO_BIAS_NONE",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "0"
       },
       {
         "name": "LIO_BIAS_PULL_UP",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "1"
       },
       {
         "name": "LIO_BIAS_PULL_DOWN",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "2"
       },
       {
         "name": "LIO_DRIVE_PUSH_PULL",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "0"
       },
       {
         "name": "LIO_DRIVE_OPEN_DRAIN",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "1"
       },
       {
         "name": "LIO_DRIVE_OPEN_SOURCE",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "2"
       },
       {
         "name": "LIO_STOP_OFF",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "0"
       },
       {
         "name": "LIO_STOP_ON",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "1"
       },
       {
         "name": "LIO_STOP_HOLD",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "2"
       }
     ],
     "headers": [],
