@@ -94,7 +94,7 @@ test('ST call helpers', async () => {
     await expect.poll(() => bodyText(page)).toContain('timer1(IN := start, PT := T#5s);')
     await expect(page.locator('.squiggly-error')).toHaveCount(0, { timeout: 30000 })
     await shot(page, '04-quick-fix-applied')
-    await page.keyboard.press('Control+Z')
+    await page.keyboard.press('ControlOrMeta+Z')
     await expect.poll(() => bodyText(page)).toContain('Q => , ET => );')
 
     // 4. Completion after a name.
