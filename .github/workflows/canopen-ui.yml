@@ -93,7 +93,7 @@ jobs:
 
       - name: Build
         env:
-          # The debug session seam for e2e/canopen-debug-lock.spec.ts; this build is never packaged.
+          # The debug session seam for e2e/canopen-lock-in-debug.spec.ts; this build is never packaged.
           OPENPLC_E2E_DEBUG_SEAM: '1'
         run: |
           .github/scripts/canopen-ui-build.sh
