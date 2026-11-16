@@ -166,6 +166,8 @@ export interface EditorCompilerAdapterDeps {
 
 export function createEditorCompilerAdapter(deps: EditorCompilerAdapterDeps = {}): CompilerPort {
   return {
+    compileToWasm: (request) => window.bridge.wasmToolchainCompile(request),
+
     /**
      * The Build / Build & Upload flow.
      *

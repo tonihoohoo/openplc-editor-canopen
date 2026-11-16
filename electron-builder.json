@@ -5,6 +5,7 @@
   "asarUnpack": "**\\*.{node,dll}",
   "generateUpdatesFilesForAllChannels": true,
   "files": ["dist", "node_modules", "package.json"],
+  "beforePack": "scripts/before-pack-debug-seam.js",
   "afterPack": "scripts/mac-inject-local-network-usage.js",
   "afterSign": "scripts/notarize.js",
   "directories": {
@@ -26,6 +27,15 @@
       "from": "./resources/libraries",
       "to": "./libraries",
       "filter": ["*.stlib"]
+    },
+    {
+      "from": "./node_modules/@yowasp/clang",
+      "to": "./yowasp-clang",
+      "filter": ["package.json", "README.md", "gen/**"]
+    },
+    {
+      "from": "./third-party-licenses/yowasp-clang",
+      "to": "./yowasp-clang/licenses"
     }
   ],
   "mac": {

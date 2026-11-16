@@ -78,6 +78,9 @@ jobs:
     with:
       docs_only: ${{ needs.changes.outputs.docs_only == 'true' }}
 
+  debug-lock-e2e:
+    uses: ./.github/workflows/ci-e2e-debug-lock.yml
+
   format:
     needs: [changes, architecture, build-check, lint]
     if: ${{ !cancelled() }}
