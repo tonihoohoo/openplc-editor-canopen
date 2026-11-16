@@ -92,6 +92,9 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Build
+        env:
+          # The debug session seam for e2e/canopen-debug-lock.spec.ts; this build is never packaged.
+          OPENPLC_E2E_DEBUG_SEAM: '1'
         run: |
           .github/scripts/canopen-ui-build.sh
           # Launched from dist, the app is not packaged and looks for the preload under configs/dll.

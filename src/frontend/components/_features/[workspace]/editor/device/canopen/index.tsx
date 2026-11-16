@@ -6,7 +6,9 @@ import { useCanopenExpertView } from '@root/frontend/hooks/use-canopen-expert-vi
 import { useCanopenOnline } from '@root/frontend/hooks/use-canopen-online'
 import { useCanopenOnlineReads } from '@root/frontend/hooks/use-canopen-online-reads'
 import { useCanopenStatus } from '@root/frontend/hooks/use-canopen-status'
+import { useIsEditingLocked } from '@root/frontend/hooks/use-editing-lock'
 import { useOpenPLCStore, useOpenPLCStoreApi } from '@root/frontend/store'
+import { selectIsEditingLocked } from '@root/frontend/store/slices/workspace/selectors'
 import { cn } from '@root/frontend/utils/cn'
 import type {
   CanopenConfig,
@@ -61,6 +63,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { DeviceFileDialog, type DeviceFileRequest, ExportDialog } from './device-file-dialogs'
 import { DbcExportOptionsCard, HtmlExportOptionsCard } from './export-options'
+import { DebugLockNotice, LockFieldset } from './lock'
 import { LssPanel } from './lss-panel'
 import { NetworkSettings } from './network-settings'
 import { NetworkSwitch } from './network-switch'
@@ -122,10 +125,12 @@ type CheckListProps = {
   onShow: (check: CanopenCheck) => void
   /** The network is on; errors of a network that is off do not stop the build. */
   on: boolean
+  /** A debug session is open: the fixes are shown but cannot be applied. */
+  locked: boolean
 }
 
 /** The network's checks: errors stop the build, warnings do not; each fix is one change. */
-const CheckList = ({ checks, onFix, onFixAll, onShow, on }: CheckListProps) => {
+const CheckList = ({ checks, onFix, onFixAll, onShow, on, locked }: CheckListProps) => {
   const errors = checks.filter((c) => c.level === 'error').length
   const fixable = checks.filter((c) => c.fix).length
   return (
@@ -151,7 +156,7 @@ const CheckList = ({ checks, onFix, onFixAll, onShow, on }: CheckListProps) => {
             : ''}
         </p>
         {fixable > 1 ? (
-          <button type='button' className={secondaryButtonClassName} onClick={onFixAll}>
+          <button type='button' className={secondaryButtonClassName} disabled={locked} onClick={onFixAll}>
             Fix all
           </button>
         ) : null}
@@ -170,7 +175,8 @@ const CheckList = ({ checks, onFix, onFixAll, onShow, on }: CheckListProps) => {
               {c.fix ? (
                 <button
                   type='button'
-                  className='font-medium underline'
+                  className='font-medium underline disabled:cursor-not-allowed disabled:opacity-50'
+                  disabled={locked}
                   aria-label={`${c.fix.label}: ${checkText(c)}`}
                   onClick={() => onFix(c)}
                 >
@@ -209,6 +215,7 @@ const CanopenEditor = () => {
   const online = useCanopenOnline(deviceName, config, live)
   const [expert, setExpert] = useCanopenExpertView()
   const reads = useCanopenOnlineReads(online)
+  const locked = useIsEditingLocked()
 
   const [chosenTab, setTab] = useState<EditorTab>('nodes')
   // The Online tab is there while the runtime offers the LSS tools.
@@ -253,6 +260,7 @@ const CanopenEditor = () => {
   const commit = useCallback(
     (update: (config: CanopenConfig) => CanopenConfig) => {
       const state = store.getState()
+      if (selectIsEditingLocked(state)) return
       const current =
         state.project.data.remoteDevices?.find((d) => d.name === deviceName)?.canopenConfig ?? defaultCanopenConfig()
       const result = state.projectActions.updateCanopenConfig(deviceName, update(current))
@@ -452,7 +460,9 @@ const CanopenEditor = () => {
               {config.network.masterNodeId}, {config.nodes.length} node{config.nodes.length === 1 ? '' : 's'}
             </p>
           </div>
-          <NetworkSwitch on={on} onChange={(enabled) => changeNetwork({ enabled })} />
+          <LockFieldset>
+            <NetworkSwitch on={on} onChange={(enabled) => changeNetwork({ enabled })} />
+          </LockFieldset>
         </div>
         {live ? <BusStatusLine live={live} /> : null}
         {status && !on ? (
@@ -471,6 +481,8 @@ const CanopenEditor = () => {
           </p>
         ) : null}
       </div>
+
+      {locked ? <DebugLockNotice what='CANopen network' /> : null}
 
       {problems.length > 0 ? (
         <div
@@ -492,6 +504,7 @@ const CanopenEditor = () => {
         <CheckList
           checks={checks}
           on={on}
+          locked={locked}
           onFix={(check) => {
             if (check.fix) commit(check.fix.apply)
           }}
@@ -542,6 +555,7 @@ const CanopenEditor = () => {
               toast({ title: `Cannot read ${fileName}`, description: message, variant: 'fail' })
             }
             canAdd={lowestFreeNodeId(config) !== null}
+            locked={locked}
           />
           {selected ? (
             <NodePanel
@@ -561,6 +575,7 @@ const CanopenEditor = () => {
               reads={reads}
               network={config.network}
               sdoWarnings={sdoWarnings}
+              locked={locked}
               onChange={(update) => commit((c) => updateNode(c, selected.id, update))}
               onNodeIdChange={(nodeId) => commit((c) => updateNode(c, selected.id, (n) => withNodeId(n, nodeId)))}
               onRemove={() => setRemoving(selected)}
@@ -594,7 +609,9 @@ const CanopenEditor = () => {
               Export network...
             </button>
           </div>
-          <NetworkSettings network={config.network} nodes={config.nodes} cycleUs={cycleUs} onChange={changeNetwork} />
+          <LockFieldset>
+            <NetworkSettings network={config.network} nodes={config.nodes} cycleUs={cycleUs} onChange={changeNetwork} />
+          </LockFieldset>
         </Tabs.Content>
         {online && lssTools ? (
           <Tabs.Content value='online' className='flex-1 data-[state=inactive]:hidden'>
@@ -607,6 +624,7 @@ const CanopenEditor = () => {
               onAdd={addLssNode}
               onReplace={replaceLssDevice}
               running={runningNodes}
+              locked={locked}
             />
           </Tabs.Content>
         ) : null}
@@ -644,12 +662,16 @@ const CanopenEditor = () => {
           saveLabel={exportRequest.saveLabel}
           options={
             exportFormat === 'dbc' ? (
-              <DbcExportOptionsCard config={config} onChange={(dbc) => commit((c) => withDbcExportOptions(c, dbc))} />
+              <LockFieldset>
+                <DbcExportOptionsCard config={config} onChange={(dbc) => commit((c) => withDbcExportOptions(c, dbc))} />
+              </LockFieldset>
             ) : exportFormat === 'html' ? (
-              <HtmlExportOptionsCard
-                config={config}
-                onChange={(html) => commit((c) => withHtmlExportOptions(c, html))}
-              />
+              <LockFieldset>
+                <HtmlExportOptionsCard
+                  config={config}
+                  onChange={(html) => commit((c) => withHtmlExportOptions(c, html))}
+                />
+              </LockFieldset>
             ) : undefined
           }
           onFormatChange={setExportFormat}

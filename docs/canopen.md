@@ -139,6 +139,14 @@ read 0 and its outputs go nowhere. Its problems are still listed, under "Fix the
 network on", but do not stop the build, and checks between networks leave it out. The project tree
 shows it dimmed with an **Off** tag.
 
+**During a debug session** the network, node and slave pages are read-only, like the editor's other
+pages: a note at the top says so, and every setting, **Add node**, **Remove node**, **Replace device
+file**, **Import...**, the **Fix all** buttons and the switch in the header are disabled until the
+session closes. What changes nothing in the project stays usable: the tabs, **Expert view**,
+**Export...**, the Status and Online tabs, **Give node ID** over LSS and the boot write list of the
+SDOs tab. The LSS actions that change the project (**Add as node**, **Use as node**, **Add as new
+node**) and the export options the project remembers are locked too.
+
 ## Device files
 
 **Limits.** A device file larger than 8 MiB is refused with its size. A count read from a file (the

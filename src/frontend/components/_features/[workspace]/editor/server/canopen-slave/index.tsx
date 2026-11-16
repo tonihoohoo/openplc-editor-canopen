@@ -3,7 +3,9 @@ import { toast } from '@root/frontend/components/_features/[app]/toast/use-toast
 import { useAliasRegistry } from '@root/frontend/hooks/use-alias-registry'
 import { useCanopenExpertView } from '@root/frontend/hooks/use-canopen-expert-view'
 import { type CanopenSlaveLiveStatus, useCanopenSlaveStatus } from '@root/frontend/hooks/use-canopen-status'
+import { useIsEditingLocked } from '@root/frontend/hooks/use-editing-lock'
 import { useOpenPLCStore, useOpenPLCStoreApi } from '@root/frontend/store'
+import { selectIsEditingLocked } from '@root/frontend/store/slices/workspace/selectors'
 import { cn } from '@root/frontend/utils/cn'
 import type { CanopenSlaveConfig, CanopenSlaveObject } from '@root/middleware/shared/ports/canopen-types'
 import { useProject, useRuntime } from '@root/middleware/shared/providers'
@@ -39,6 +41,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ExportDialog } from '../../device/canopen/device-file-dialogs'
+import { DebugLockNotice, LockFieldset } from '../../device/canopen/lock'
 import { NetworkSwitch } from '../../device/canopen/network-switch'
 import { compactCardClassName, hintClassName, secondaryButtonClassName } from '../../device/canopen/styles'
 import { DataTab } from './data-tab'
@@ -165,6 +168,7 @@ const CanopenSlaveEditor = () => {
   const [exporting, setExporting] = useState(false)
   const [format, setFormat] = useState<SlaveFormat>('eds')
   const [expert, setExpert] = useCanopenExpertView()
+  const locked = useIsEditingLocked()
 
   const libraries = useOpenPLCStore((s) => s.project.data.libraries)
   const libraryOn = usesCanopenLibrary(libraries)
@@ -209,6 +213,7 @@ const CanopenSlaveEditor = () => {
   const apply = useCallback(
     (update: (config: CanopenSlaveConfig) => CanopenSlaveConfig) => {
       const state = store.getState()
+      if (selectIsEditingLocked(state)) return
       const current =
         state.project.data.servers?.find((s) => s.name === name)?.canopenSlaveConfig ?? defaultCanopenSlaveConfig()
       const result = state.projectActions.updateCanopenSlaveConfig(name, withSlavePdoLayout(update(current)))
@@ -351,7 +356,12 @@ const CanopenSlaveEditor = () => {
             />
             Expert view
           </label>
-          <button type='button' className={secondaryButtonClassName} onClick={() => fileInput.current?.click()}>
+          <button
+            type='button'
+            className={secondaryButtonClassName}
+            disabled={locked}
+            onClick={() => fileInput.current?.click()}
+          >
             Import...
           </button>
           <input
@@ -376,15 +386,19 @@ const CanopenSlaveEditor = () => {
           <button type='button' className={secondaryButtonClassName} onClick={() => setExporting(true)}>
             Export...
           </button>
-          <NetworkSwitch
-            on={on}
-            onChange={(enabled) => commit((c) => ({ ...c, enabled }))}
-            label='Run this slave'
-            onHint='Starts when the PLC runs'
-            offHint='Not sent to the runtime. Objects and addresses are kept'
-          />
+          <LockFieldset>
+            <NetworkSwitch
+              on={on}
+              onChange={(enabled) => commit((c) => ({ ...c, enabled }))}
+              label='Run this slave'
+              onHint='Starts when the PLC runs'
+              offHint='Not sent to the runtime. Objects and addresses are kept'
+            />
+          </LockFieldset>
         </div>
       </div>
+
+      {locked ? <DebugLockNotice what='CANopen slave' /> : null}
 
       {imported ? (
         <div
@@ -397,6 +411,7 @@ const CanopenSlaveEditor = () => {
           <button
             type='button'
             className={secondaryButtonClassName}
+            disabled={locked}
             onClick={() => {
               const { before } = imported
               setImported(null)
@@ -440,28 +455,34 @@ const CanopenSlaveEditor = () => {
           <TabItem value='status' label='Status' active={tab === 'status'} />
         </Tabs.List>
         <Tabs.Content value='general' className='data-[state=inactive]:hidden'>
-          <GeneralTab
-            name={name}
-            config={config}
-            problems={problems}
-            slaveNumber={slaveNumber}
-            libraryOn={libraryOn}
-            expert={expert}
-            onChange={(update) => commit((c) => ({ ...c, ...update }))}
-          />
+          <LockFieldset>
+            <GeneralTab
+              name={name}
+              config={config}
+              problems={problems}
+              slaveNumber={slaveNumber}
+              libraryOn={libraryOn}
+              expert={expert}
+              onChange={(update) => commit((c) => ({ ...c, ...update }))}
+            />
+          </LockFieldset>
         </Tabs.Content>
         <Tabs.Content value='data' className='data-[state=inactive]:hidden'>
-          <DataTab
-            config={config}
-            problems={problems}
-            expert={expert}
-            commit={commit}
-            aliasProblem={aliasProblem}
-            onShowPdo={showPdo}
-          />
+          <LockFieldset>
+            <DataTab
+              config={config}
+              problems={problems}
+              expert={expert}
+              commit={commit}
+              aliasProblem={aliasProblem}
+              onShowPdo={showPdo}
+            />
+          </LockFieldset>
         </Tabs.Content>
         <Tabs.Content value='pdos' className='data-[state=inactive]:hidden'>
-          <PdosTab config={config} problems={problems} commit={commit} shown={shownPdo} />
+          <LockFieldset>
+            <PdosTab config={config} problems={problems} commit={commit} shown={shownPdo} />
+          </LockFieldset>
         </Tabs.Content>
         <Tabs.Content value='status' className='data-[state=inactive]:hidden'>
           <OnlineTab config={config} live={live} lssSlot={lssSlot} settingsSlot={settingsSlot} />
@@ -488,7 +509,11 @@ const CanopenSlaveEditor = () => {
           losses={format === 'eds' ? slaveEdsLosses(config) : []}
           lossesNote={format === 'eds' ? 'Pick XDD to keep them; a master that imports the XDD shows them.' : undefined}
           saveLabel={`Save ${exported.fileName}...`}
-          options={<RevisionCard config={config} onUse={(revision) => commit((c) => ({ ...c, revision }))} />}
+          options={
+            <LockFieldset>
+              <RevisionCard config={config} onUse={(revision) => commit((c) => ({ ...c, revision }))} />
+            </LockFieldset>
+          }
           onFormatChange={(f) => {
             if (isSlaveFormat(f)) setFormat(f)
           }}

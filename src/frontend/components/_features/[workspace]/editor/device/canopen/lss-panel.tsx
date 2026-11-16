@@ -69,6 +69,8 @@ type LssPanelProps = {
   onReplace: (nodeKey: string, device: LssDevice) => void
   /** The node IDs of the network that are operational now. */
   running: ReadonlySet<number>
+  /** A debug session is open: devices can be given a node ID but not added to the project. */
+  locked: boolean
 }
 
 /**
@@ -84,6 +86,7 @@ export const LssPanel = ({
   onAdd,
   onReplace,
   running,
+  locked,
 }: LssPanelProps) => {
   const [search, setSearch] = useState<Search>({ state: 'idle' })
   const [devices, setDevices] = useState<LssDevice[]>([])
@@ -260,7 +263,12 @@ export const LssPanel = ({
                         <button
                           type='button'
                           className={smallButtonClassName}
-                          disabled={match.kind !== 'file' && match.kind !== 'spare' && !online.ready}
+                          disabled={match.kind === 'file' || match.kind === 'spare' ? locked : !online.ready}
+                          title={
+                            locked && (match.kind === 'file' || match.kind === 'spare')
+                              ? 'Not while a debug session is open'
+                              : undefined
+                          }
                           onClick={() => setGiving({ device: d, match })}
                           data-testid='canopen-lss-give'
                         >
@@ -278,6 +286,8 @@ export const LssPanel = ({
                           <button
                             type='button'
                             className={smallButtonClassName}
+                            disabled={locked}
+                            title={locked ? 'Not while a debug session is open' : undefined}
                             onClick={() => setGiving({ device: d, match: lssFileMatchOfSpare(match) })}
                             data-testid='canopen-lss-add-new'
                           >

@@ -256,6 +256,21 @@ describe('CANopen LSS tools', () => {
     expect(nodes().find((n) => n.nodeId === 3)?.lss?.serialNumber).toBe(0x1234)
   })
 
+  it('keeps giving node IDs but not the project changes while a debug session is open', async () => {
+    await renderEditor()
+    await find()
+    act(() => store.getState().workspaceActions.setDebuggerVisible(true))
+    const before = nodes()
+    expect(screen.getByRole('button', { name: 'Give node ID 3' }).matches(':disabled')).toBe(false)
+    expect(screen.getByRole('button', { name: 'Use as node 3...' }).matches(':disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Add as new node...' }).matches(':disabled')).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Use as node 3...' }))
+    expect(screen.queryByTestId('canopen-lss-give-dialog')).toBeNull()
+    expect(nodes()).toBe(before)
+    act(() => store.getState().workspaceActions.setDebuggerVisible(false))
+    expect(screen.getByRole('button', { name: 'Use as node 3...' }).matches(':disabled')).toBe(false)
+  })
+
   it('has no bit rate choice in the basic view, also in service mode', async () => {
     await renderEditor({ service: true })
     await find()
