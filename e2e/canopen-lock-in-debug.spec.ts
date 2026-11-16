@@ -164,7 +164,7 @@ test('the CANopen pages and the ST call helpers are locked during a debug sessio
     await dropVariable(page, 'timer1')
     await expect.poll(() => bodyText(page)).toContain('timer1(')
     await page.keyboard.press('Escape')
-    await page.keyboard.press('Control+Z')
+    await page.keyboard.press('ControlOrMeta+Z')
     await expect.poll(() => bodyText(page)).not.toContain('timer1(')
 
     await page.getByRole('button', { name: /code/i }).first().click()
