@@ -36,7 +36,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -90,6 +91,50 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_PREV",
+            "type": "BOOL",
+            "displayName": "cop_prev"
+          },
+          {
+            "name": "COP_PHASE",
+            "type": "USINT",
+            "displayName": "cop_phase"
+          },
+          {
+            "name": "COP_HANDLE",
+            "type": "ULINT",
+            "displayName": "cop_handle"
+          },
+          {
+            "name": "COP_NET",
+            "type": "USINT",
+            "displayName": "cop_net"
+          },
+          {
+            "name": "COP_NODE",
+            "type": "USINT",
+            "displayName": "cop_node"
+          },
+          {
+            "name": "COP_INDEX",
+            "type": "WORD",
+            "displayName": "cop_index"
+          },
+          {
+            "name": "COP_SUB",
+            "type": "BYTE",
+            "displayName": "cop_sub"
+          },
+          {
+            "name": "COP_TIMEOUT",
+            "type": "UDINT",
+            "displayName": "cop_timeout"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "SDO_READ4.cpp",
         "documentation": "Reads an object of 1 to 4 bytes from a node by SDO. A rising edge of ENABLE starts the read; BUSY is TRUE until it ends, then CONFIRM (DATA holds the value, little-endian and zero-filled, DATALENGTH the byte count) or ERROR with ERRORTEXT stays until ENABLE goes FALSE. NETWORK counts from 1; DEVICE is the node ID or its name; TIMEOUT T#0s uses the network SDO timeout.\nExample: read(ENABLE := start, DEVICE := IO_Module, INDEX := 16#1018, SUBINDEX := 1); IF read.CONFIRM THEN vendor := read.DATA; END_IF;"
@@ -99,7 +144,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -153,6 +199,50 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_PREV",
+            "type": "BOOL",
+            "displayName": "cop_prev"
+          },
+          {
+            "name": "COP_PHASE",
+            "type": "USINT",
+            "displayName": "cop_phase"
+          },
+          {
+            "name": "COP_HANDLE",
+            "type": "ULINT",
+            "displayName": "cop_handle"
+          },
+          {
+            "name": "COP_NET",
+            "type": "USINT",
+            "displayName": "cop_net"
+          },
+          {
+            "name": "COP_NODE",
+            "type": "USINT",
+            "displayName": "cop_node"
+          },
+          {
+            "name": "COP_INDEX",
+            "type": "WORD",
+            "displayName": "cop_index"
+          },
+          {
+            "name": "COP_SUB",
+            "type": "BYTE",
+            "displayName": "cop_sub"
+          },
+          {
+            "name": "COP_TIMEOUT",
+            "type": "UDINT",
+            "displayName": "cop_timeout"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "SDO_WRITE4.cpp",
         "documentation": "Writes an object of 1 to 4 bytes of a node by SDO: the low DATALENGTH bytes of DATA, little-endian. DATALENGTH 0 takes the size from the node's EDS. A rising edge of ENABLE starts the write; then CONFIRM or ERROR with ERRORTEXT stays until ENABLE goes FALSE. NETWORK counts from 1; DEVICE is the node ID or its name; TIMEOUT T#0s uses the network SDO timeout.\nExample: write(ENABLE := set, DEVICE := IO_Module, INDEX := 16#1017, SUBINDEX := 0, DATA := 1000);"
@@ -162,7 +252,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -224,6 +315,50 @@
             "elementTypeName": "BYTE"
           }
         ],
+        "locals": [
+          {
+            "name": "COP_PREV",
+            "type": "BOOL",
+            "displayName": "cop_prev"
+          },
+          {
+            "name": "COP_PHASE",
+            "type": "USINT",
+            "displayName": "cop_phase"
+          },
+          {
+            "name": "COP_HANDLE",
+            "type": "ULINT",
+            "displayName": "cop_handle"
+          },
+          {
+            "name": "COP_NET",
+            "type": "USINT",
+            "displayName": "cop_net"
+          },
+          {
+            "name": "COP_NODE",
+            "type": "USINT",
+            "displayName": "cop_node"
+          },
+          {
+            "name": "COP_INDEX",
+            "type": "WORD",
+            "displayName": "cop_index"
+          },
+          {
+            "name": "COP_SUB",
+            "type": "BYTE",
+            "displayName": "cop_sub"
+          },
+          {
+            "name": "COP_TIMEOUT",
+            "type": "UDINT",
+            "displayName": "cop_timeout"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "SDO_READ_DATA.cpp",
         "documentation": "Reads an object of up to 256 bytes from a node by SDO into the byte array DATA; DATALENGTH gives the bytes received. Handshake as SDO_READ4. NETWORK counts from 1; DEVICE is the node ID or its name; TIMEOUT T#0s uses the network SDO timeout.\nExample: read(ENABLE := start, DEVICE := IO_Module, INDEX := 16#1008, SUBINDEX := 0, DATA := bytes);"
@@ -233,7 +368,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -295,6 +431,50 @@
             "elementTypeName": "BYTE"
           }
         ],
+        "locals": [
+          {
+            "name": "COP_PREV",
+            "type": "BOOL",
+            "displayName": "cop_prev"
+          },
+          {
+            "name": "COP_PHASE",
+            "type": "USINT",
+            "displayName": "cop_phase"
+          },
+          {
+            "name": "COP_HANDLE",
+            "type": "ULINT",
+            "displayName": "cop_handle"
+          },
+          {
+            "name": "COP_NET",
+            "type": "USINT",
+            "displayName": "cop_net"
+          },
+          {
+            "name": "COP_NODE",
+            "type": "USINT",
+            "displayName": "cop_node"
+          },
+          {
+            "name": "COP_INDEX",
+            "type": "WORD",
+            "displayName": "cop_index"
+          },
+          {
+            "name": "COP_SUB",
+            "type": "BYTE",
+            "displayName": "cop_sub"
+          },
+          {
+            "name": "COP_TIMEOUT",
+            "type": "UDINT",
+            "displayName": "cop_timeout"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "SDO_WRITE_DATA.cpp",
         "documentation": "Writes the first DATALENGTH bytes (1 to 256) of the byte array DATA to an object of a node by SDO. Handshake as SDO_WRITE4. NETWORK counts from 1; DEVICE is the node ID or its name; TIMEOUT T#0s uses the network SDO timeout.\nExample: write(ENABLE := set, DEVICE := IO_Module, INDEX := 16#2000, SUBINDEX := 0, DATALENGTH := 6, DATA := bytes);"
@@ -304,7 +484,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -354,6 +535,50 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_PREV",
+            "type": "BOOL",
+            "displayName": "cop_prev"
+          },
+          {
+            "name": "COP_PHASE",
+            "type": "USINT",
+            "displayName": "cop_phase"
+          },
+          {
+            "name": "COP_HANDLE",
+            "type": "ULINT",
+            "displayName": "cop_handle"
+          },
+          {
+            "name": "COP_NET",
+            "type": "USINT",
+            "displayName": "cop_net"
+          },
+          {
+            "name": "COP_NODE",
+            "type": "USINT",
+            "displayName": "cop_node"
+          },
+          {
+            "name": "COP_INDEX",
+            "type": "WORD",
+            "displayName": "cop_index"
+          },
+          {
+            "name": "COP_SUB",
+            "type": "BYTE",
+            "displayName": "cop_sub"
+          },
+          {
+            "name": "COP_TIMEOUT",
+            "type": "UDINT",
+            "displayName": "cop_timeout"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "SDO_READ_STRING.cpp",
         "documentation": "Reads a text object (VISIBLE_STRING) of up to 254 characters from a node by SDO into DATA. Handshake as SDO_READ4. NETWORK counts from 1; DEVICE is the node ID or its name; TIMEOUT T#0s uses the network SDO timeout.\nExample: read(ENABLE := start, DEVICE := IO_Module, INDEX := 16#1008, SUBINDEX := 0); IF read.CONFIRM THEN name := read.DATA; END_IF;"
@@ -363,7 +588,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -413,6 +639,50 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_PREV",
+            "type": "BOOL",
+            "displayName": "cop_prev"
+          },
+          {
+            "name": "COP_PHASE",
+            "type": "USINT",
+            "displayName": "cop_phase"
+          },
+          {
+            "name": "COP_HANDLE",
+            "type": "ULINT",
+            "displayName": "cop_handle"
+          },
+          {
+            "name": "COP_NET",
+            "type": "USINT",
+            "displayName": "cop_net"
+          },
+          {
+            "name": "COP_NODE",
+            "type": "USINT",
+            "displayName": "cop_node"
+          },
+          {
+            "name": "COP_INDEX",
+            "type": "WORD",
+            "displayName": "cop_index"
+          },
+          {
+            "name": "COP_SUB",
+            "type": "BYTE",
+            "displayName": "cop_sub"
+          },
+          {
+            "name": "COP_TIMEOUT",
+            "type": "UDINT",
+            "displayName": "cop_timeout"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "SDO_WRITE_STRING.cpp",
         "documentation": "Writes the text DATA (1 to 254 characters) to a text object of a node by SDO. Handshake as SDO_WRITE4. NETWORK counts from 1; DEVICE is the node ID or its name; TIMEOUT T#0s uses the network SDO timeout.\nExample: write(ENABLE := set, DEVICE := IO_Module, INDEX := 16#2010, SUBINDEX := 0, DATA := 'line 1');"
@@ -422,7 +692,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -464,6 +735,50 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_PREV",
+            "type": "BOOL",
+            "displayName": "cop_prev"
+          },
+          {
+            "name": "COP_PHASE",
+            "type": "USINT",
+            "displayName": "cop_phase"
+          },
+          {
+            "name": "COP_HANDLE",
+            "type": "ULINT",
+            "displayName": "cop_handle"
+          },
+          {
+            "name": "COP_NET",
+            "type": "USINT",
+            "displayName": "cop_net"
+          },
+          {
+            "name": "COP_NODE",
+            "type": "USINT",
+            "displayName": "cop_node"
+          },
+          {
+            "name": "COP_INDEX",
+            "type": "WORD",
+            "displayName": "cop_index"
+          },
+          {
+            "name": "COP_SUB",
+            "type": "BYTE",
+            "displayName": "cop_sub"
+          },
+          {
+            "name": "COP_TIMEOUT",
+            "type": "UDINT",
+            "displayName": "cop_timeout"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "NMT.cpp",
         "documentation": "Sends an NMT command to a node, or with DEVICE 0 to every node of the network: STATE is START_REMOTE_NODE, STOP_REMOTE_NODE, ENTER_PRE_OPERATIONAL, RESET_NODE or RESET_COMMUNICATION. A node stopped or set pre-operational this way is not a node loss; a start returns it to operational. A rising edge of ENABLE sends it; CONFIRM once sent. TIMEOUT is not used (NMT has no answer).\nExample: nmt(ENABLE := restart, DEVICE := IO_Module, STATE := START_REMOTE_NODE);"
@@ -473,7 +788,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -503,6 +819,15 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "GET_STATE.cpp",
         "documentation": "Gives a node's NMT state as the master sees it, in the same call while ENABLE is TRUE: INIT, PRE_OPERATIONAL, STOPPED, OPERATIONAL, UNKNOWN or NOT_AVAIL (not answering). NETWORK counts from 1; DEVICE is the node ID or its name.\nExample: state(ENABLE := TRUE, DEVICE := IO_Module); IF state.STATE = STOPPED THEN ... END_IF;"
@@ -512,7 +837,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -538,6 +864,15 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "GET_LOCAL_NODE_ID.cpp",
         "documentation": "Gives the master's own node ID on the network, in the same call while ENABLE is TRUE. NETWORK counts from 1.\nExample: local(ENABLE := TRUE); id := local.NODEID;"
@@ -547,7 +882,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -573,6 +909,15 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "GET_CANOPEN_KERNEL_STATE.cpp",
         "documentation": "Gives the network's bus state, in the same call while ENABLE is TRUE: CANOPEN_KERNEL_NO_ERROR, CANOPEN_KERNEL_ERROR_PASSIVE, CANOPEN_KERNEL_BUS_OFF or CANOPEN_KERNEL_NO_DRIVER (link down or missing). NETWORK counts from 1.\nExample: kernel(ENABLE := TRUE); bus_ok := kernel.STATE = CANOPEN_KERNEL_NO_ERROR;"
@@ -582,7 +927,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -612,6 +958,30 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_STARTED",
+            "type": "BOOL",
+            "displayName": "cop_started"
+          },
+          {
+            "name": "COP_CURSOR",
+            "type": "ULINT",
+            "displayName": "cop_cursor"
+          },
+          {
+            "name": "COP_NET",
+            "type": "USINT",
+            "displayName": "cop_net"
+          },
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "RECV_EMCY.cpp",
         "documentation": "Returns the network's emergency messages one per call while ENABLE is TRUE, oldest first: CONFIRM is TRUE in a call that returns one, with the sender in DEVICE and the message in EMCY. Messages from before the instance's first call are skipped; each instance has its own position. NETWORK counts from 1.\nExample: emcy(ENABLE := TRUE); IF emcy.CONFIRM THEN last_code := emcy.EMCY.ERRORCODE; END_IF;"
@@ -621,7 +991,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -651,6 +1022,30 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_STARTED",
+            "type": "BOOL",
+            "displayName": "cop_started"
+          },
+          {
+            "name": "COP_CURSOR",
+            "type": "ULINT",
+            "displayName": "cop_cursor"
+          },
+          {
+            "name": "COP_NET",
+            "type": "USINT",
+            "displayName": "cop_net"
+          },
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "RECV_EMCY_DEV.cpp",
         "documentation": "Returns one node's emergency messages one per call while ENABLE is TRUE, oldest first: CONFIRM is TRUE in a call that returns one, with the message in EMCY. Messages from before the instance's first call are skipped; each instance has its own position. NETWORK counts from 1; DEVICE is the node ID or its name.\nExample: emcy(ENABLE := TRUE, DEVICE := IO_Module); IF emcy.CONFIRM AND emcy.EMCY.ERRORCODE <> 0 THEN alarm := TRUE; END_IF;"
@@ -660,7 +1055,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -694,6 +1090,35 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          },
+          {
+            "name": "COP_SENT",
+            "type": "BOOL",
+            "displayName": "cop_sent"
+          },
+          {
+            "name": "COP_WANT",
+            "type": "BOOL",
+            "displayName": "cop_want"
+          },
+          {
+            "name": "COP_NET",
+            "type": "USINT",
+            "displayName": "cop_net"
+          },
+          {
+            "name": "COP_NODE",
+            "type": "USINT",
+            "displayName": "cop_node"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "CANOPEN_NODE_ENABLE.cpp",
         "documentation": "Turns a node on or off while the PLC runs: while ENABLE is TRUE the node is on when ACTIVE is TRUE and off when it is FALSE. Each change of ACTIVE sends one request; BUSY until the master has applied it, then CONFIRM. A node that is off is not booted, supervised or warned about and gets no PDOs; turning off a running node sends it NMT stop and handles its inputs as on a loss. The choice lasts until the PLC stops; at the next start the node's \"On at PLC start\" setting applies again. NETWORK counts from 1; DEVICE is the node ID or its name.\nExample: gripper(ENABLE := TRUE, DEVICE := Gripper, ACTIVE := has_gripper);"
@@ -703,7 +1128,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -745,6 +1171,15 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "CANOPEN_NODE_STATUS.cpp",
         "documentation": "Gives how the master runs a node, in the same call while ENABLE is TRUE: RUNSTATE is RUN_NOT_FOUND, RUN_BOOTING, RUN_FAILED, RUN_WAITING_START, RUN_OPERATIONAL, RUN_MANUAL, RUN_LOST, RUN_HELD, RUN_DISABLED or RUN_STOPPED; ENABLED, OPTIONAL and PROGRAMSTART give its settings as they are now. While the node is failed, lost or held, ERRORTEXT says why. NETWORK counts from 1; DEVICE is the node ID or its name.\nExample: status(ENABLE := TRUE, DEVICE := IO_Module); IF status.RUNSTATE = RUN_WAITING_START THEN ... END_IF;"
@@ -754,7 +1189,8 @@
         "inputs": [
           {
             "name": "NETWORK",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -804,6 +1240,15 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "CANOPEN_NETWORK_STATE.cpp",
         "documentation": "Gives the state of a whole network, in the same call while ENABLE is TRUE: MANDATORY_UP when every mandatory node that is on is operational or waits for the program's start, OPTIONAL_UP the same for the optional nodes, and the number of nodes CONFIGURED (operational, waiting or set by hand), OPERATIONAL, WAITING for the program's start, DISABLED (off) and FAULTY (failed, lost, held, or mandatory and not answering). Nodes that are off count in neither flag. NETWORK counts from 1.\nExample: net(ENABLE := TRUE); IF net.MANDATORY_UP THEN start(ENABLE := TRUE, DEVICE := IO_Module, STATE := START_REMOTE_NODE); END_IF;"
@@ -813,7 +1258,8 @@
         "inputs": [
           {
             "name": "SLAVE",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -867,6 +1313,20 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          },
+          {
+            "name": "COP_REASON",
+            "type": "USINT",
+            "displayName": "cop_reason"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "CANOPEN_SLAVE_STATUS.cpp",
         "documentation": "Gives the state of this runtime's CANopen slave, in the same call while ENABLE is TRUE: STATE (PRE_OPERATIONAL, OPERATIONAL, STOPPED, or NOT_AVAIL while its interface is not open), OPERATIONAL, the node ID in use in NODEID, whether the master's heartbeat is watched (MASTERWATCHED) and received (MASTERSEEN), the link in BUSSTATE (BUS_ERROR_ACTIVE, BUS_ERROR_PASSIVE, BUS_OFF or BUS_UNKNOWN), the error register 0x1001 in ERRORREGISTER and the number of active emergencies in EMCYACTIVE. The values are at most 100 ms old. SLAVE is the slave's name or its place in the project's slaves, from 1.\nExample: slave(SLAVE := Line_IO, ENABLE := TRUE); IF NOT slave.MASTERSEEN THEN ... END_IF;"
@@ -876,7 +1336,8 @@
         "inputs": [
           {
             "name": "SLAVE",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -906,6 +1367,35 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_PREV",
+            "type": "BOOL",
+            "displayName": "cop_prev"
+          },
+          {
+            "name": "COP_BUSY",
+            "type": "BOOL",
+            "displayName": "cop_busy"
+          },
+          {
+            "name": "COP_COMMAND",
+            "type": "USINT",
+            "displayName": "cop_command"
+          },
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          },
+          {
+            "name": "COP_REASON",
+            "type": "USINT",
+            "displayName": "cop_reason"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "CANOPEN_SLAVE_NMT.cpp",
         "documentation": "Puts this runtime's CANopen slave into an NMT state by itself (CiA 301 local control): STATE is START_REMOTE_NODE, STOP_REMOTE_NODE or ENTER_PRE_OPERATIONAL; a reset is refused. A rising edge of ENABLE sends it; BUSY until the slave is in that state, then CONFIRM. The master sees a slave that leaves operational this way as left operational and acts on its own settings; raise an emergency first so it knows why. SLAVE is the slave's name or its place in the project's slaves, from 1.\nExample: nmt(SLAVE := Line_IO, ENABLE := fault, STATE := ENTER_PRE_OPERATIONAL);"
@@ -915,7 +1405,8 @@
         "inputs": [
           {
             "name": "SLAVE",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -949,6 +1440,30 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_HANDLE",
+            "type": "UDINT",
+            "displayName": "cop_handle"
+          },
+          {
+            "name": "COP_SLAVE",
+            "type": "USINT",
+            "displayName": "cop_slave"
+          },
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          },
+          {
+            "name": "COP_REASON",
+            "type": "USINT",
+            "displayName": "cop_reason"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "CANOPEN_SLAVE_EMCY.cpp",
         "documentation": "Holds one emergency of the program on this runtime's CANopen slave: while ENABLE is TRUE it is active with ERRORCODE and INFO (sent in bytes 4 to 7 of the EMCY); ENABLE FALSE clears it, and the slave sends EMCY 0000h once no emergency is left. A change of ERRORCODE or INFO while active sends one more EMCY, so do not change them every scan. The error register gets the generic bit and the bit of the code's class (2xxx current, 3xxx voltage, 4xxx temperature, 8xxx communication, FFxx manufacturer). Each instance holds one emergency, up to 31 per slave; 0000h, 6200h and 8130h are the slave's own and refused. A PLC stop clears them; after the start the block raises its emergency again. SLAVE is the slave's name or its place in the project's slaves, from 1.\nExample: overheat(SLAVE := Line_IO, ENABLE := temp > 80.0, ERRORCODE := 16#4210, INFO := REAL_TO_UDINT(temp * 10.0));"
@@ -958,7 +1473,8 @@
         "inputs": [
           {
             "name": "SLAVE",
-            "type": "USINT"
+            "type": "USINT",
+            "initialValue": "1"
           },
           {
             "name": "ENABLE",
@@ -996,11 +1512,31 @@
           }
         ],
         "inouts": [],
+        "locals": [
+          {
+            "name": "COP_SEEN",
+            "type": "UDINT",
+            "displayName": "cop_seen"
+          },
+          {
+            "name": "COP_LAST",
+            "type": "USINT",
+            "displayName": "cop_last"
+          },
+          {
+            "name": "COP_REASON",
+            "type": "USINT",
+            "displayName": "cop_reason"
+          }
+        ],
+        "methods": [],
+        "properties": [],
         "implementation": "cpp",
         "sourceFile": "CANOPEN_SLAVE_WRITTEN.cpp",
         "documentation": "Tells how often the master has written an object of this runtime's CANopen slave, by SDO or RPDO, also with the same value: COUNT since the slave started, and NEW TRUE in the call after COUNT changed (in the first call when it was written before). An object mapped to an RPDO counts every frame. INDEX and SUBINDEX name an object from the master. SLAVE is the slave's name or its place in the project's slaves, from 1.\nExample: cmd(SLAVE := Line_IO, ENABLE := TRUE, INDEX := 16#2000, SUBINDEX := 1); IF cmd.NEW THEN ... END_IF;"
       }
     ],
+    "interfaces": [],
     "types": [
       {
         "name": "CANOPEN_KERNEL_ERROR",
@@ -1051,192 +1587,230 @@
       {
         "name": "CANOPEN_KERNEL_NO_ERROR",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "0"
       },
       {
         "name": "CANOPEN_KERNEL_OTHER_ERROR",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "1"
       },
       {
         "name": "CANOPEN_KERNEL_TIMEOUT",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "2"
       },
       {
         "name": "CANOPEN_KERNEL_BUS_OFF",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "3"
       },
       {
         "name": "CANOPEN_KERNEL_ERROR_PASSIVE",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "4"
       },
       {
         "name": "CANOPEN_KERNEL_INTERNAL",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "5"
       },
       {
         "name": "CANOPEN_KERNEL_WRONG_PARAMETER",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "6"
       },
       {
         "name": "CANOPEN_KERNEL_NODE_ID_UNKNOWN",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "7"
       },
       {
         "name": "CANOPEN_KERNEL_NET_ID_UNKNOWN",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "8"
       },
       {
         "name": "CANOPEN_KERNEL_REQUEST_ERROR",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "9"
       },
       {
         "name": "CANOPEN_KERNEL_NO_DRIVER",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "10"
       },
       {
         "name": "INIT",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "0"
       },
       {
         "name": "RESET_COMM",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "1"
       },
       {
         "name": "RESET_APP",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "2"
       },
       {
         "name": "PRE_OPERATIONAL",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "3"
       },
       {
         "name": "STOPPED",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "4"
       },
       {
         "name": "OPERATIONAL",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "5"
       },
       {
         "name": "UNKNOWN",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "6"
       },
       {
         "name": "NOT_AVAIL",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "7"
       },
       {
         "name": "START_REMOTE_NODE",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "0"
       },
       {
         "name": "STOP_REMOTE_NODE",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "1"
       },
       {
         "name": "ENTER_PRE_OPERATIONAL",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "2"
       },
       {
         "name": "RESET_NODE",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "3"
       },
       {
         "name": "RESET_COMMUNICATION",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "4"
       },
       {
         "name": "RUN_NOT_FOUND",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "0"
       },
       {
         "name": "RUN_BOOTING",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "1"
       },
       {
         "name": "RUN_FAILED",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "2"
       },
       {
         "name": "RUN_WAITING_START",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "3"
       },
       {
         "name": "RUN_OPERATIONAL",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "4"
       },
       {
         "name": "RUN_MANUAL",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "5"
       },
       {
         "name": "RUN_LOST",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "6"
       },
       {
         "name": "RUN_HELD",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "7"
       },
       {
         "name": "RUN_DISABLED",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "8"
       },
       {
         "name": "RUN_STOPPED",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "9"
       },
       {
         "name": "BUS_ERROR_ACTIVE",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "0"
       },
       {
         "name": "BUS_ERROR_PASSIVE",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "1"
       },
       {
         "name": "BUS_OFF",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "2"
       },
       {
         "name": "BUS_UNKNOWN",
         "type": "USINT",
-        "constant": true
+        "constant": true,
+        "initialValue": "3"
       }
     ],
     "headers": [],
