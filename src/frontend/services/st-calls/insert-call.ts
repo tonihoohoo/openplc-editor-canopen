@@ -28,11 +28,14 @@ const findBodyEditor = (monaco: typeof Monaco, pouName: string): Monaco.editor.I
   return monaco.editor.getEditors().find((editor) => editor.getModel()?.uri.toString() === uri)
 }
 
-/** Inserts `snippet` into the body of `pouName`; `false` when no body editor is open. */
+const isReadOnly = (monaco: typeof Monaco, editor: Monaco.editor.ICodeEditor): boolean =>
+  editor.getOption(monaco.editor.EditorOption.readOnly)
+
+/** Inserts `snippet` into the body of `pouName`; `false` when no body editor is open or it is read only. */
 export const insertIntoBody = (monaco: typeof Monaco, pouName: string, snippet: string): boolean => {
   const body = findBodyEditor(monaco, pouName)
   const model = body?.getModel()
-  if (!body || !model) return false
+  if (!body || !model || isReadOnly(monaco, body)) return false
   const position = body.getPosition()
   const cursor = bodiesWithCursor.has(model) && position ? model.getOffsetAt(position) : null
   const { offset, prefix } = bodyInsertion(model.getValue(), cursor)
@@ -55,12 +58,14 @@ export const registerInsertCallAction = (
     const model = editor.getModel()
     const position = editor.getPosition()
     const scope = callScopeFor(store, pouUri(pouName))
-    if (!model || !position || !scope || !findBodyEditor(monaco, pouName)) return null
+    const body = findBodyEditor(monaco, pouName)
+    if (!model || !position || !scope || !body || isReadOnly(monaco, editor) || isReadOnly(monaco, body)) return null
     return instanceOnDeclarationLine(model.getLineContent(position.lineNumber), position.column, scope)
   }
   const update = () => available.set(instanceAtCursor() !== null)
   const cursorListener = editor.onDidChangeCursorPosition(update)
   const contentListener = editor.onDidChangeModelContent(update)
+  const optionsListener = editor.onDidChangeConfiguration(update)
   const action = editor.addAction({
     id: INSERT_CALL_ACTION_ID,
     label: 'Insert call',
@@ -77,6 +82,7 @@ export const registerInsertCallAction = (
     dispose: () => {
       cursorListener.dispose()
       contentListener.dispose()
+      optionsListener.dispose()
       action.dispose()
     },
   }

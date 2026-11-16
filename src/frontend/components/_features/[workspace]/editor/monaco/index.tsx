@@ -1287,7 +1287,7 @@ void loop()
 
   const insertDroppedVariable = (variableName: string, clientX: number, clientY: number) => {
     const editorInstance = editorRef.current
-    if (language !== 'st' || !editorInstance) return
+    if (language !== 'st' || !editorInstance || editorInstance.getOption(monaco.editor.EditorOption.readOnly)) return
     const scope = callScopeFor(store, pouUri(name))
     const snippet = scope ? variableDropSnippet(variableName, scope) : null
     if (!snippet) return

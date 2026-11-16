@@ -39,6 +39,8 @@ uses the unnamed form with its minimum inputs: `ADD(, )`, `MUX(, , )`.
 - **Insert call.** When the variables are shown as code, right-click the declaration line of an
   instance (`timer1 : TON;`) and pick **Insert call**. The call goes into the body at its cursor, or
   on a new line at its end when the body has not had the cursor yet. Other lines do not offer it.
+- **During a debug session** the ST body is read-only, so a drop inserts nothing and **Insert call**
+  is not offered.
 
 ## Call completion
 

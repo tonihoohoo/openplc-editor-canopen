@@ -33,7 +33,7 @@ const NetworkSwitch = ({
       aria-label={label}
       onClick={() => onChange(!on)}
       className={cn(
-        'relative h-5 w-9 shrink-0 rounded-full transition-colors',
+        'relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50',
         on ? 'bg-brand' : 'bg-neutral-300 dark:bg-neutral-700',
       )}
     >

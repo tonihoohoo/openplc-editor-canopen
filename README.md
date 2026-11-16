@@ -38,6 +38,7 @@ CANopen:
 - XDD details of the CANopen slave behind the Expert view: descriptions, units and scales, value meanings, groups, product text, characteristics and the hardware version 0x1009: [docs/canopen.md](docs/canopen.md#xdd-details-of-the-slave)
 - Import of an EDS, DCF, XDD or XDC into the CANopen slave: replace the slave or add objects, with a list of what it cannot take: [docs/canopen.md](docs/canopen.md#importing-a-device-file-into-the-slave)
 - Guided object numbers on the CANopen slave's Data tab: a group menu, a reason for each refused range, a warning for an object in the other direction's group and type limits as range hints: [docs/canopen.md](docs/canopen.md#canopen-slave)
+- CANopen network, node and slave pages read-only during a debug session, like the editor's other pages; status, online tools and exports stay usable: [docs/canopen.md](docs/canopen.md#using-it)
 - Upload refused to a runtime without CANopen support: [docs/canopen.md](docs/canopen.md#installing-a-release-and-the-runtime-check)
 - A scissor lift example: four OpenPLC projects (a master and three slaves), a safety relay and an interactive machine panel on one simulated CAN bus: [examples/canopen/scissor-lift](examples/canopen/scissor-lift/README.md)
 

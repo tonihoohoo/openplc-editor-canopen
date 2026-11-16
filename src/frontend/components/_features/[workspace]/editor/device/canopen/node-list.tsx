@@ -18,9 +18,11 @@ type NodeListProps = {
   onImport: (fileName: string, bytes: Uint8Array) => void
   onImportError: (fileName: string, message: string) => void
   canAdd: boolean
+  /** A debug session is open: no node can be added. */
+  locked: boolean
 }
 
-const NodeList = ({ nodes, selectedId, live, onSelect, onImport, onImportError, canAdd }: NodeListProps) => {
+const NodeList = ({ nodes, selectedId, live, onSelect, onImport, onImportError, canAdd, locked }: NodeListProps) => {
   const fileInput = useRef<HTMLInputElement>(null)
   const sorted = [...nodes].sort((a, b) => a.nodeId - b.nodeId)
 
@@ -29,8 +31,8 @@ const NodeList = ({ nodes, selectedId, live, onSelect, onImport, onImportError, 
       <button
         type='button'
         className={primaryButtonClassName}
-        disabled={!canAdd}
-        title={canAdd ? undefined : 'All node IDs are in use'}
+        disabled={!canAdd || locked}
+        title={locked ? 'Not while a debug session is open' : canAdd ? undefined : 'All node IDs are in use'}
         onClick={() => fileInput.current?.click()}
       >
         Add node from device file...
