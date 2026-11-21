@@ -30,6 +30,10 @@
       {
         "name": "linux_io",
         "version": "1.0.0"
+      },
+      {
+        "name": "canopen",
+        "version": "1.0.0"
       }
     ],
     "debugVariables": {

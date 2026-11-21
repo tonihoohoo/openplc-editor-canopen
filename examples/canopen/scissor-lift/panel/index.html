@@ -21,7 +21,7 @@ button.on kbd{color:#fff;border-color:rgba(255,255,255,.7)}
 kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;color:var(--mute)}
 .lamp{display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:12px}.lamp i{width:13px;height:13px;border-radius:50%;background:var(--line);display:inline-block;border:1px solid var(--steel)}.lamp i.on{background:var(--ok)}.lamp i.on.red{background:var(--bad)}.lamp i.on.amber{background:var(--warn)}
 table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mute);font-weight:600}
-.tablewrap{overflow-x:auto}.tablewrap table{min-width:640px}td button{white-space:nowrap;padding:3px 8px;font-size:12px}
+.tablewrap{overflow-x:auto}.tablewrap table{min-width:640px}#rtable{table-layout:fixed}#rtable td{overflow-wrap:anywhere}#rtable .plc .pill{min-width:56px;text-align:center}#rtable .nowrap{white-space:nowrap}td button{white-space:nowrap;padding:3px 8px;font-size:12px}
 .pill{display:inline-block;margin:1px 2px 1px 0;padding:1px 7px;border-radius:9px;background:var(--line);white-space:nowrap}.pill.ok{background:var(--ok);color:#fff}.pill.bad{background:var(--bad);color:#fff}.pill.warn{background:var(--warn);color:#fff}
 .small{font-size:12px;color:var(--mute)}.num{font-variant-numeric:tabular-nums}
 #scene{width:100%;height:auto;max-height:calc(100vh - 150px);min-height:280px;display:block;background:var(--sky);border-radius:6px}
@@ -96,7 +96,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}td,th{text-align:left;p
 <div class="row"><button id="coil_fault">Valve coil fault</button></div></section>
 </div>
 
-<section class="wide"><h2>Runtimes</h2><div class="tablewrap"><table><thead><tr><th>Device</th><th>PLC</th><th>Scan</th><th>CANopen</th></tr></thead><tbody id="rt"></tbody></table></div>
+<section class="wide"><h2>Runtimes</h2><div class="tablewrap"><table id="rtable"><colgroup><col style="width:80px"><col style="width:235px"><col style="width:175px"><col></colgroup><thead><tr><th>Device</th><th>PLC</th><th>Scan</th><th>CANopen</th></tr></thead><tbody id="rt"></tbody></table></div>
 <h2 style="margin-top:14px">Scenarios</h2>
 <div class="row"><button data-act="stop:valves">Stop valve module</button><button data-act="start:valves">Start valve module</button>
 <button data-act="stop:sensor">Stop sensor</button><button data-act="start:sensor">Start sensor</button>
@@ -220,6 +220,7 @@ function drawState(s){local=s.inputs;
  $('rTravel').textContent=s.travel.toFixed(1)+' m';$('rWheel').textContent=Math.abs(s.wheel).toFixed(0)+'° '+(s.wheel>0.5?'left':s.wheel<-0.5?'right':'');$('rPump').textContent=Math.round(s.pump*100)+' %';
  busy=!!s.action.running;document.querySelectorAll('[data-act],[data-plc]').forEach(b=>b.disabled=busy);
  $('actionmsg').textContent=busy?'Running: '+s.action.running+'...':(s.action.message||'');}
+function esc(t){return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c])}
 function pill(t,c){return '<span class="pill '+(c||'')+'">'+t+'</span>'}
 function stateClass(n){const s=n.state;if(s==='operational')return n.warning?'warn':'ok';if(s==='lost'||s==='failed'||s==='silent')return 'bad';if(s==='absent'||s==='disabled')return '';return 'warn'}
 function plcText(p){return p==='RUNNING'?'running':p==='EMPTY'?'no program':p==='STOPPED'?'stopped':(p||'unknown').toLowerCase()}
@@ -230,13 +231,13 @@ function rowFor(dev){if(rows[dev])return rows[dev];const tr=document.createEleme
 function setHTML(n,h){if(n.innerHTML!==h)n.innerHTML=h}
 function drawRuntimes(rt){for(const dev of ['chassis','platform','valves','sensor']){const r=rt[dev],row=rowFor(dev);
   if(!r){setHTML(row.plc,pill('waiting'));continue}
-  if(!r.reachable){setHTML(row.plc,pill('offline','bad'));setHTML(row.scan,'');setHTML(row.co,'<span class="small">'+(r.error||'')+'</span>');row.start.disabled=row.stop.disabled=true;continue}
+  if(!r.reachable){setHTML(row.plc,pill('offline','bad'));setHTML(row.scan,'');setHTML(row.co,'<span class="small">not reachable'+(r.error?': '+esc(r.error):'')+'</span>');row.start.disabled=row.stop.disabled=true;continue}
   setHTML(row.plc,pill(plcText(r.plc),r.plc==='RUNNING'?'ok':r.plc==='ERROR'?'bad':'warn'));
   row.start.disabled=busy||r.plc==='RUNNING'||r.plc==='EMPTY';row.stop.disabled=busy||r.plc!=='RUNNING';
   const sc=r.scan;setHTML(row.scan,sc?'avg '+sc.avg_ms.toFixed(2)+' ms, max '+sc.max_ms.toFixed(2)+' ms'+(sc.overruns?', <b style="color:var(--warn)">'+sc.overruns+' overruns</b>':''):'');
   const det=[];(r.nodes||[]).forEach(n=>det.push(n.name+' '+pill(n.state||n.nmt,stateClass(n))));
   (r.slaves||[]).forEach(n=>det.push(n.name+' '+pill(n.state,n.state==='operational'?'ok':'warn')+(n.node_id_from?' <span class="small">('+n.node_id_from+')</span>':'')));
-  if(r.bus&&r.bus.load!=null)det.push('<span class="small">bus '+r.bus.load+' %</span>');
+  if(r.bus&&r.bus.load!=null)det.push('<span class="small nowrap">bus '+r.bus.load+' %</span>');
   setHTML(row.co,det.join(' '));}}
 
 // ---- stream

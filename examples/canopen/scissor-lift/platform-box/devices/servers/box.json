@@ -83,7 +83,7 @@
         "iecLocation": "%IB0",
         "defaultValue": "0",
         "group": "Display",
-        "description": "What the display shows: 0 ready, 1 e-stop, 2 safety relay off, 3 enable not held, 4 stick not in neutral, 5 tilt, 6 overload, 7 descent stop, 8 valve fault, 9 node missing, 10 lifting, 11 lowering, 12 driving."
+        "description": "What the display shows: 0 ready, 1 e-stop, 2 safety relay off, 3 enable not held, 4 stick not in neutral, 5 tilt, 6 overload, 7 descent stop, 8 valve fault, 9 node missing, 10 lifting, 11 lowering, 12 driving. While not operational the box shows its own 13 waiting for a node ID or 14 no contact with the master."
       },
       {
         "id": "joy-x",
