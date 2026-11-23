@@ -151,10 +151,18 @@ export interface PoolRemoteDeviceInput {
     nodes?: Array<{
       name?: string
       state?: { channelId: string; iecLocation: string; alias?: string }
-      tpdos?: Array<{ entries?: Array<{ channelId: string; iecLocation: string; alias?: string }> }>
-      rpdos?: Array<{ entries?: Array<{ channelId: string; iecLocation: string; alias?: string }> }>
+      tpdos?: Array<{ entries?: PoolCanopenEntry[] }>
+      rpdos?: Array<{ entries?: PoolCanopenEntry[] }>
     }>
   }
+}
+
+/** A CANopen PDO entry; a split entry claims each of its bits under the bit's own channel id. */
+export interface PoolCanopenEntry {
+  channelId: string
+  iecLocation: string
+  alias?: string
+  bits?: Array<{ channelId: string; iecLocation: string; alias?: string }>
 }
 
 /** A project server; only a CANopen slave's objects claim addresses. */
@@ -259,13 +267,15 @@ function compareClaimedAddress(a: ClaimedAddress, b: ClaimedAddress): number {
 
 type PoolCanopenNode = NonNullable<NonNullable<PoolRemoteDeviceInput['canopenConfig']>['nodes']>[number]
 
-/** A CANopen node's address-holding entries: its state, then its PDO entries. */
+/** A CANopen node's address-holding entries: its state, then its PDO entries, a split entry's bits in its place. */
 export function canopenPoolEntries(
   node: PoolCanopenNode,
 ): Array<{ channelId: string; iecLocation: string; alias?: string }> {
   return [
     ...(node.state ? [node.state] : []),
-    ...[...(node.tpdos ?? []), ...(node.rpdos ?? [])].flatMap((pdo) => pdo.entries ?? []),
+    ...[...(node.tpdos ?? []), ...(node.rpdos ?? [])].flatMap((pdo) =>
+      (pdo.entries ?? []).flatMap((e) => (e.bits && e.bits.length > 0 ? e.bits : [e])),
+    ),
   ]
 }
 

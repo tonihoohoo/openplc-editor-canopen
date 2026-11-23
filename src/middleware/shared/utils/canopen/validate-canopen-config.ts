@@ -20,6 +20,7 @@ import {
 
 export { outsideImage, RUNTIME_IMAGE_SIZE }
 import { findObject, OBJ_FLAG_REFUSE_WRITE } from './eds-parser'
+import { isSplitEntry, SPLITTABLE_TYPES } from './entry-bits'
 import { pdoConfigured, watchesMaster } from './generate-canopen-config'
 import {
   isDummyEntry,
@@ -112,6 +113,26 @@ export function validateCanopenProject(
             if (isGapEntry(node.eds, e)) {
               if (canopenTypeBits(e.dataType) > 32 && isDummyEntry(e))
                 errors.push(`${where}: a gap holds at most 32 bits`)
+              continue
+            }
+            if (isSplitEntry(e)) {
+              const bitPrefix = direction === 'input' ? '%IX' : '%QX'
+              const bits = e.bits ?? []
+              if (!SPLITTABLE_TYPES.includes(e.dataType) || bits.length !== canopenTypeBits(e.dataType))
+                errors.push(`${where}: ${e.name} has ${bits.length} bits; a ${e.dataType} has none to split`)
+              for (const b of bits) {
+                if (!b.iecLocation.startsWith(bitPrefix)) {
+                  errors.push(`${where}: ${e.name} ${b.name} needs a ${bitPrefix} address, has "${b.iecLocation}"`)
+                  continue
+                }
+                const outside = outsideImage(b.iecLocation)
+                if (outside) errors.push(`${where}: ${e.name} ${b.name} at ${b.iecLocation} ${outside}`)
+                if (direction === 'input') {
+                  const owner = inputs.get(b.iecLocation)
+                  if (owner) errors.push(`${where}: ${b.iecLocation} is also written by ${owner}`)
+                  else inputs.set(b.iecLocation, where)
+                }
+              }
               continue
             }
             const prefix = iecPrefixFor(e.dataType, direction)

@@ -180,11 +180,11 @@ describe('CANopen slave model', () => {
     expect(generateCanopenConfig([], null, [server({ ...io(), enabled: false })])).toBeNull()
   })
 
-  it('writes the slave under devices with format version 13', () => {
+  it('writes the slave under devices with format version 14', () => {
     const text = generateCanopenConfig([], null, [server(io())])
     expect(text).not.toBeNull()
     const json = JSON.parse(text ?? '{}') as { version: number; networks: unknown[]; devices: unknown[] }
-    expect(json.version).toBe(13)
+    expect(json.version).toBe(14)
     expect(json.networks).toEqual([])
     expect(json.devices).toEqual(slaveDevicesOut([server(io())]))
     expect(json.devices[0]).toMatchObject({

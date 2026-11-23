@@ -397,8 +397,49 @@
                 "subIndex": 1,
                 "name": "Inputs 1-8",
                 "dataType": "UNSIGNED8",
-                "iecLocation": "%IB1",
-                "alias": "io2_inputs"
+                "iecLocation": "",
+                "bits": [
+                  {
+                    "channelId": "ch-1.0",
+                    "name": "Bit 0",
+                    "iecLocation": "%IX0.0"
+                  },
+                  {
+                    "channelId": "ch-1.1",
+                    "name": "Bit 1",
+                    "iecLocation": "%IX0.1"
+                  },
+                  {
+                    "channelId": "ch-1.2",
+                    "name": "Bit 2",
+                    "iecLocation": "%IX0.2"
+                  },
+                  {
+                    "channelId": "ch-1.3",
+                    "name": "Bit 3",
+                    "iecLocation": "%IX0.3"
+                  },
+                  {
+                    "channelId": "ch-1.4",
+                    "name": "Bit 4",
+                    "iecLocation": "%IX0.4"
+                  },
+                  {
+                    "channelId": "ch-1.5",
+                    "name": "Bit 5",
+                    "iecLocation": "%IX0.5"
+                  },
+                  {
+                    "channelId": "ch-1.6",
+                    "name": "Bit 6",
+                    "iecLocation": "%IX0.6"
+                  },
+                  {
+                    "channelId": "ch-1.7",
+                    "name": "Bit 7",
+                    "iecLocation": "%IX0.7"
+                  }
+                ]
               },
               {
                 "channelId": "ch-2",
@@ -430,8 +471,49 @@
                 "subIndex": 1,
                 "name": "Outputs 1-8",
                 "dataType": "UNSIGNED8",
-                "iecLocation": "%QB0",
-                "alias": "io2_outputs"
+                "iecLocation": "",
+                "bits": [
+                  {
+                    "channelId": "ch-3.0",
+                    "name": "Bit 0",
+                    "iecLocation": "%QX0.0"
+                  },
+                  {
+                    "channelId": "ch-3.1",
+                    "name": "Bit 1",
+                    "iecLocation": "%QX0.1"
+                  },
+                  {
+                    "channelId": "ch-3.2",
+                    "name": "Bit 2",
+                    "iecLocation": "%QX0.2"
+                  },
+                  {
+                    "channelId": "ch-3.3",
+                    "name": "Bit 3",
+                    "iecLocation": "%QX0.3"
+                  },
+                  {
+                    "channelId": "ch-3.4",
+                    "name": "Bit 4",
+                    "iecLocation": "%QX0.4"
+                  },
+                  {
+                    "channelId": "ch-3.5",
+                    "name": "Bit 5",
+                    "iecLocation": "%QX0.5"
+                  },
+                  {
+                    "channelId": "ch-3.6",
+                    "name": "Bit 6",
+                    "iecLocation": "%QX0.6"
+                  },
+                  {
+                    "channelId": "ch-3.7",
+                    "name": "Bit 7",
+                    "iecLocation": "%QX0.7"
+                  }
+                ]
               }
             ]
           }

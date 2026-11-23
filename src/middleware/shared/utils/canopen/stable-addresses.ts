@@ -7,6 +7,7 @@
 import type { CanopenConfig, CanopenEntry, CanopenSlaveConfig, CanopenSlaveObject } from '../../ports/canopen-types'
 import { type AddressPool, nextFreeAddress } from '../iec-address'
 import type { IecAddressRegistry } from '../iec-address/registry/types'
+import { isSplitEntry } from './entry-bits'
 import { nodeEntries } from './model'
 import { isSlavePacked, slaveBitPrefix, slaveIecPrefix } from './slave'
 
@@ -58,7 +59,18 @@ export function addressNewCanopenEntries(
   for (const node of previous?.nodes ?? [])
     for (const entry of nodeEntries(node)) if (entry.iecLocation) had.add(`${node.id}:${entry.channelId}`)
   const pending = new Set<string>()
+  const placeBits = (nodeId: string, entry: CanopenEntry): CanopenEntry => {
+    const bits = entry.bits ?? []
+    if (bits.every((b) => had.has(`${nodeId}:${b.channelId}`))) return entry
+    const prefix = PREFIX.exec(bits[0]?.iecLocation ?? '')?.[0]?.toUpperCase()
+    if (!prefix?.endsWith('X')) return entry
+    const first = nextFreeBytes(pool, prefix, Math.ceil(bits.length / 8), pending)
+    const placed = bits.map((b, i) => ({ ...b, iecLocation: `${prefix}${first + Math.floor(i / 8)}.${i % 8}` }))
+    for (const b of placed) pending.add(b.iecLocation)
+    return { ...entry, iecLocation: '', bits: placed }
+  }
   const place = (nodeId: string, entry: CanopenEntry): CanopenEntry => {
+    if (isSplitEntry(entry)) return placeBits(nodeId, entry)
     if (!entry.iecLocation || had.has(`${nodeId}:${entry.channelId}`)) return entry
     const prefix = PREFIX.exec(entry.iecLocation)?.[0]?.toUpperCase()
     if (!prefix) return entry
@@ -132,6 +144,11 @@ const BIT_ADDRESS = /^%[IQ]X\d+\.[0-7]$/
 
 /** The lowest image byte whose 8 bits under `prefix` (%IX or %QX) the pool and `alsoUsed` leave free. */
 export function nextFreeByte(pool: AddressPool, prefix: string, alsoUsed: ReadonlySet<string>): number {
+  return nextFreeBytes(pool, prefix, 1, alsoUsed)
+}
+
+/** The lowest of `count` consecutive image bytes whose bits under `prefix` (%IX or %QX) are all free. */
+export function nextFreeBytes(pool: AddressPool, prefix: string, count: number, alsoUsed: ReadonlySet<string>): number {
   const used = new Set<number>()
   const take = (address: string): void => {
     if (!address.startsWith(prefix)) return
@@ -141,6 +158,10 @@ export function nextFreeByte(pool: AddressPool, prefix: string, alsoUsed: Readon
   for (const claim of pool.byPrefix.get(prefix) ?? []) take(claim.address)
   for (const address of alsoUsed) take(address)
   let byte = 0
-  while (used.has(byte)) byte++
-  return byte
+  for (;;) {
+    let k = 0
+    while (k < count && !used.has(byte + k)) k++
+    if (k === count) return byte
+    byte += k + 1
+  }
 }

@@ -2,6 +2,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ArrowRightIcon, PlusIcon, TrashIcon } from '@radix-ui/react-icons'
 import { cn } from '@root/frontend/utils/cn'
 import type {
+  CanopenChannel,
   CanopenConfig,
   CanopenEdsInfo,
   CanopenEntry,
@@ -11,18 +12,22 @@ import type {
 } from '@root/middleware/shared/ports/canopen-types'
 import {
   addPdo,
+  aliasesDroppedBySwitch,
   cannotAddPdo,
   cannotMap,
   cannotMoveEntry,
   canopenTypeBits,
+  canSplitEntry,
   cobIdBase,
   DUMMY_TYPES,
   entryFor,
   findObject,
   GAP_DUMMIES,
   gapEntry,
+  iecPrefixFor,
   isDummyEntry,
   isGapEntry,
+  isSplitEntry,
   isSynchronousType,
   mappableObjects,
   MAX_PDO_BITS,
@@ -46,11 +51,13 @@ import {
   transmissionTypeFor,
   unswitchablePdoNumbers,
   updatePdo,
+  withEntryBits,
   withPdoExchanged,
 } from '@root/middleware/shared/utils/canopen'
-import { useMemo, useRef } from 'react'
+import { Fragment, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
+import { BitsSwitchConfirm } from './bits-switch-confirm'
 import { CheckboxField, NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { ObjectPicker } from './object-picker'
 import { useKeepInPlace } from './scroll'
@@ -297,7 +304,9 @@ type PdoCardProps = {
   onRemove: () => void
   onMoveEntry: (channelId: string, to: number) => void
   /** Returns an error message to refuse the alias, or null after it is accepted. */
-  onAliasChange: (entry: CanopenEntry, alias: string) => string | null
+  onAliasChange: (entry: CanopenChannel, alias: string) => string | null
+  /** Program variables located at one of these aliases or addresses, as `name` or `pou.name`. */
+  locatedVariables: (places: readonly string[]) => string[]
 }
 
 const PdoCard = ({
@@ -316,6 +325,7 @@ const PdoCard = ({
   onRemove,
   onMoveEntry,
   onAliasChange,
+  locatedVariables,
 }: PdoCardProps) => {
   const isInput = direction === 'input'
   const title = `${isInput ? 'TPDO' : 'RPDO'} ${pdo.number}`
@@ -327,6 +337,20 @@ const PdoCard = ({
   const moveEntry = (from: number, to: number) => onChange({ ...pdo, entries: moveItem(pdo.entries, from, to) })
 
   const [addedId, setAddedId] = useAddedHighlight()
+  const [bitsConfirm, setBitsConfirm] = useState<{
+    name: string
+    on: boolean
+    variables: string[]
+    apply: () => void
+  } | null>(null)
+  const switchBits = (entry: CanopenEntry, on: boolean) => {
+    const next = withEntryBits(eds, entry, on, isInput ? '%IX' : '%QX', iecPrefixFor(entry.dataType, direction))
+    const apply = () =>
+      onChange({ ...pdo, entries: pdo.entries.map((e) => (e.channelId === entry.channelId ? next : e)) })
+    const variables = locatedVariables(aliasesDroppedBySwitch(entry))
+    if (variables.length > 0) setBitsConfirm({ name: entry.name, on, variables, apply })
+    else apply()
+  }
   const exchangeBox = useRef<HTMLDivElement>(null)
   const keepExchangeBox = useKeepInPlace(exchangeBox)
   const timeoutWarning =
@@ -526,76 +550,139 @@ const PdoCard = ({
           ) : null}
           {pdo.entries.map((entry, i) => {
             const gap = isGapEntry(eds, entry)
+            const split = pdo.exchanged && !gap && isSplitEntry(entry)
+            const splittable = !gap && canSplitEntry(eds, pdo, entry)
             return (
-              <SortableRow
-                key={entry.channelId}
-                id={entry.channelId}
-                name={entry.name}
-                highlight={entry.channelId === addedId}
-                disabled={pdo.fixedMapping}
-                className='border-t border-neutral-100 dark:border-neutral-800'
-              >
-                <td className='py-1 font-mono'>{objectRef(entry.index, entry.subIndex)}</td>
-                {gap ? (
-                  <td className='py-1 pr-2 italic text-neutral-500 [overflow-wrap:anywhere]'>{entry.name}</td>
-                ) : (
-                  <EntryName eds={eds} entry={entry} />
-                )}
-                <td className='py-1'>
-                  {gap && isDummyEntry(entry) ? `${canopenTypeBits(entry.dataType)} bits` : entry.dataType}
-                </td>
-                {gap ? (
-                  <td colSpan={2} className={cn(hintClassName, 'py-1')}>
-                    {isDummyEntry(entry) ? 'A gap: no PLC value' : 'Not in the device file: no PLC value'}
+              <Fragment key={entry.channelId}>
+                <SortableRow
+                  key={entry.channelId}
+                  id={entry.channelId}
+                  name={entry.name}
+                  highlight={entry.channelId === addedId}
+                  disabled={pdo.fixedMapping}
+                  className='border-t border-neutral-100 dark:border-neutral-800'
+                >
+                  <td className='py-1 font-mono'>{objectRef(entry.index, entry.subIndex)}</td>
+                  {gap ? (
+                    <td className='py-1 pr-2 italic text-neutral-500 [overflow-wrap:anywhere]'>{entry.name}</td>
+                  ) : (
+                    <EntryName eds={eds} entry={entry} />
+                  )}
+                  <td className='py-1'>
+                    {gap && isDummyEntry(entry) ? `${canopenTypeBits(entry.dataType)} bits` : entry.dataType}
                   </td>
-                ) : !pdo.exchanged ? (
-                  <td colSpan={2} className={cn(hintClassName, 'h-[38px] py-1')}>
-                    Not exchanged: no PLC value
-                  </td>
-                ) : (
-                  <>
-                    <td className='py-1 font-mono'>{entry.iecLocation || '-'}</td>
-                    <td className='py-1 pr-2'>
-                      <TextField
-                        label={`Alias of ${entry.name}`}
-                        hideLabel
-                        value={entry.alias ?? ''}
-                        placeholder='Alias'
-                        onCommit={(alias) => onAliasChange(entry, alias)}
-                      />
+                  {gap ? (
+                    <td colSpan={2} className={cn(hintClassName, 'py-1')}>
+                      {isDummyEntry(entry) ? 'A gap: no PLC value' : 'Not in the device file: no PLC value'}
                     </td>
-                  </>
-                )}
-                <td className='py-1'>
-                  <div className='flex items-center justify-end'>
-                    {pdo.fixedMapping ? null : (
-                      <>
-                        <MoveToMenu
-                          entry={entry}
-                          title={title}
-                          targets={others.map((o) => ({ pdo: o, title: `${isInput ? 'TPDO' : 'RPDO'} ${o.number}` }))}
-                          onMove={(to) => onMoveEntry(entry.channelId, to)}
+                  ) : !pdo.exchanged ? (
+                    <td colSpan={2} className={cn(hintClassName, 'h-[38px] py-1')}>
+                      Not exchanged: no PLC value
+                    </td>
+                  ) : split ? (
+                    <td colSpan={2} className={cn(hintClassName, 'h-[38px] py-1')}>
+                      {entry.bits?.length ?? 0} bits, each with its own address
+                    </td>
+                  ) : (
+                    <>
+                      <td className='py-1 font-mono'>{entry.iecLocation || '-'}</td>
+                      <td className='py-1 pr-2'>
+                        <TextField
+                          label={`Alias of ${entry.name}`}
+                          hideLabel
+                          value={entry.alias ?? ''}
+                          placeholder='Alias'
+                          onCommit={(alias) => onAliasChange(entry, alias)}
                         />
-                        <MoveButtons name={entry.name} index={i} count={pdo.entries.length} onMove={moveEntry} />
-                      </>
-                    )}
-                    <button
-                      type='button'
-                      aria-label={`Remove ${entry.name}`}
-                      title='Remove entry'
-                      disabled={pdo.fixedMapping}
-                      onClick={() => onChange({ ...pdo, entries: pdo.entries.filter((_, k) => k !== i) })}
-                      className={iconButtonClassName}
-                    >
-                      <TrashIcon className='h-4 w-4' />
-                    </button>
-                  </div>
-                </td>
-              </SortableRow>
+                      </td>
+                    </>
+                  )}
+                  <td className='py-1'>
+                    <div className='flex items-center justify-end'>
+                      {splittable ? (
+                        <button
+                          type='button'
+                          aria-pressed={split}
+                          aria-label={`Split ${entry.name} into bits`}
+                          title={split ? 'Use the whole value at one address' : 'Give each bit its own address'}
+                          data-testid={`canopen-entry-bits-${entry.channelId}`}
+                          onClick={() => switchBits(entry, !split)}
+                          className={cn(
+                            'mr-1 rounded border px-1.5 py-0.5 text-[10px] font-medium',
+                            split
+                              ? 'border-brand bg-brand text-white'
+                              : 'border-neutral-300 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800',
+                          )}
+                        >
+                          Bits
+                        </button>
+                      ) : null}
+                      {pdo.fixedMapping ? null : (
+                        <>
+                          <MoveToMenu
+                            entry={entry}
+                            title={title}
+                            targets={others.map((o) => ({ pdo: o, title: `${isInput ? 'TPDO' : 'RPDO'} ${o.number}` }))}
+                            onMove={(to) => onMoveEntry(entry.channelId, to)}
+                          />
+                          <MoveButtons name={entry.name} index={i} count={pdo.entries.length} onMove={moveEntry} />
+                        </>
+                      )}
+                      <button
+                        type='button'
+                        aria-label={`Remove ${entry.name}`}
+                        title='Remove entry'
+                        disabled={pdo.fixedMapping}
+                        onClick={() => onChange({ ...pdo, entries: pdo.entries.filter((_, k) => k !== i) })}
+                        className={iconButtonClassName}
+                      >
+                        <TrashIcon className='h-4 w-4' />
+                      </button>
+                    </div>
+                  </td>
+                </SortableRow>
+                {split
+                  ? (entry.bits ?? []).map((b, k) => (
+                      <tr
+                        key={b.channelId}
+                        className='bg-neutral-50/70 dark:bg-neutral-900/40'
+                        data-testid={`canopen-entry-bit-${entry.channelId}-${k}`}
+                      >
+                        <td />
+                        <td className='py-1 pl-2 font-mono text-neutral-500 dark:text-neutral-400'>bit {k}</td>
+                        <td className='py-1 pl-2 pr-2 [overflow-wrap:anywhere]'>{b.name}</td>
+                        <td className='py-1 text-neutral-500 dark:text-neutral-400'>BOOL</td>
+                        <td className='py-1 font-mono'>{b.iecLocation || '-'}</td>
+                        <td className='py-1 pr-2'>
+                          <TextField
+                            label={`Alias of ${entry.name} ${b.name}`}
+                            hideLabel
+                            value={b.alias ?? ''}
+                            placeholder='Alias'
+                            onCommit={(alias) => onAliasChange(b, alias)}
+                          />
+                        </td>
+                        <td />
+                      </tr>
+                    ))
+                  : null}
+              </Fragment>
             )
           })}
         </SortableBody>
       </table>
+      {bitsConfirm ? (
+        <BitsSwitchConfirm
+          name={bitsConfirm.name}
+          on={bitsConfirm.on}
+          variables={bitsConfirm.variables}
+          onCancel={() => setBitsConfirm(null)}
+          onConfirm={() => {
+            bitsConfirm.apply()
+            setBitsConfirm(null)
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -612,7 +699,8 @@ type PdoSectionProps = {
   /** The PLC cycle in microseconds, or null when unknown. */
   cycleUs: number | null
   onNodeChange: (node: CanopenNode) => void
-  onAliasChange: (entry: CanopenEntry, alias: string) => string | null
+  onAliasChange: (entry: CanopenChannel, alias: string) => string | null
+  locatedVariables: (places: readonly string[]) => string[]
 }
 
 const PdoSection = ({
@@ -624,6 +712,7 @@ const PdoSection = ({
   cycleUs,
   onNodeChange,
   onAliasChange,
+  locatedVariables,
 }: PdoSectionProps) => {
   const isInput = direction === 'input'
   const kind = isInput ? 'TPDO' : 'RPDO'
@@ -708,6 +797,7 @@ const PdoSection = ({
               onNodeChange(moveEntryToPdo(node, direction, pdo.number, to, channelId, placeholderAddress))
             }
             onAliasChange={onAliasChange}
+            locatedVariables={locatedVariables}
           />
         </div>
       ))}

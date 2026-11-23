@@ -5,8 +5,8 @@ import type { CanopenOnlineReads } from '@root/frontend/hooks/use-canopen-online
 import type { CanopenLiveStatus } from '@root/frontend/hooks/use-canopen-status'
 import { cn } from '@root/frontend/utils/cn'
 import type {
+  CanopenChannel,
   CanopenConfig,
-  CanopenEntry,
   CanopenHeartbeatConsumer,
   CanopenNetworkSettings,
   CanopenNode,
@@ -189,7 +189,9 @@ type NodePanelProps = {
   onExport: () => void
   /** Called with the chosen device file's name and bytes. */
   onReplaceFile: (fileName: string, bytes: Uint8Array) => void
-  onAliasChange: (entry: CanopenEntry, alias: string) => string | null
+  onAliasChange: (entry: CanopenChannel, alias: string) => string | null
+  /** Program variables located at one of these aliases or addresses. */
+  locatedVariables: (places: readonly string[]) => string[]
 }
 
 const TabButton = ({ value, label, active }: { value: NodeTab; label: string; active: boolean }) => (
@@ -233,6 +235,7 @@ const NodePanel = ({
   onExport,
   onReplaceFile,
   onAliasChange,
+  locatedVariables,
 }: NodePanelProps) => {
   const replaceInput = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState<NodeTab>('general')
@@ -782,6 +785,7 @@ const NodePanel = ({
               cycleUs={cycleUs}
               onNodeChange={(next) => onChange(() => next)}
               onAliasChange={onAliasChange}
+              locatedVariables={locatedVariables}
             />
           </LockFieldset>
         </Tabs.Content>
@@ -797,6 +801,7 @@ const NodePanel = ({
               cycleUs={cycleUs}
               onNodeChange={(next) => onChange(() => next)}
               onAliasChange={onAliasChange}
+              locatedVariables={locatedVariables}
             />
           </LockFieldset>
         </Tabs.Content>

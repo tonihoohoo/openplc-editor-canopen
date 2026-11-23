@@ -4,6 +4,7 @@
  */
 
 import type {
+  CanopenChannel,
   CanopenConfig,
   CanopenDataType,
   CanopenEdsInfo,
@@ -18,6 +19,7 @@ import type {
 } from '../../ports/canopen-types'
 import { accessFits, canopenTypeBits, iecPrefixFor, MAX_SUB_OBJECTS, toCanopenDataType } from './data-types'
 import { findObject, masterMayWrite, parseEdsInteger } from './eds-parser'
+import { entryChannels, isSplitEntry } from './entry-bits'
 
 export type PdoDirection = 'input' | 'output'
 
@@ -589,15 +591,18 @@ export function moveEntryToPdo(
   const target = list.find((p) => p.number === to)
   const entry = source?.entries.find((e) => e.channelId === channelId)
   if (!source || !target || !entry || from === to || source.fixedMapping || cannotMoveEntry(target, entry)) return node
+  const { bits: _bits, ...whole } = entry
   const moved: CanopenEntry = isGapEntry(node.eds, entry)
     ? entry
-    : target.exchanged
-      ? {
-          ...entry,
-          iecLocation:
-            entry.iecLocation || allocate(iecPrefixFor(entry.dataType, direction), entry.dataType === 'BOOLEAN'),
-        }
-      : { ...entry, iecLocation: '', alias: undefined }
+    : target.exchanged && isSplitEntry(entry)
+      ? entry
+      : target.exchanged
+        ? {
+            ...entry,
+            iecLocation:
+              entry.iecLocation || allocate(iecPrefixFor(entry.dataType, direction), entry.dataType === 'BOOLEAN'),
+          }
+        : { ...whole, iecLocation: '', alias: undefined }
   return withPdos(
     node,
     direction,
@@ -671,9 +676,9 @@ export function createCanopenNode(eds: CanopenEdsInfo, options: CreateNodeOption
   }
 }
 
-/** Every entry of the node that holds an address: its state, then its PDO entries. */
-export function nodeEntries(node: CanopenNode): CanopenEntry[] {
-  return [node.state, ...[...node.tpdos, ...node.rpdos].flatMap((p) => p.entries)]
+/** Everything of the node that holds an address: its state, then its PDO entries, a split entry's bits in its place. */
+export function nodeEntries(node: CanopenNode): CanopenChannel[] {
+  return [node.state, ...[...node.tpdos, ...node.rpdos].flatMap((p) => p.entries.flatMap(entryChannels))]
 }
 
 /** The node with a new node ID; COB-IDs of the predefined connection set follow it. */
@@ -759,14 +764,18 @@ export function withPdoExchanged(
   return {
     ...pdo,
     exchanged,
-    entries: pdo.entries.map((e) => ({
-      ...e,
-      iecLocation:
-        exchanged && !gap(e)
-          ? e.iecLocation || allocate(iecPrefixFor(e.dataType, direction), e.dataType === 'BOOLEAN')
-          : '',
-      alias: exchanged ? e.alias : undefined,
-    })),
+    entries: pdo.entries.map((e) => {
+      if (exchanged && isSplitEntry(e)) return e
+      const { bits: _bits, ...whole } = e
+      return {
+        ...whole,
+        iecLocation:
+          exchanged && !gap(e)
+            ? e.iecLocation || allocate(iecPrefixFor(e.dataType, direction), e.dataType === 'BOOLEAN')
+            : '',
+        alias: exchanged ? e.alias : undefined,
+      }
+    }),
   }
 }
 
@@ -775,8 +784,12 @@ export const placeholderAddress: AllocateAddress = (prefix, isBit) => (isBit ? `
 
 /** The node with the alias of one entry (its state or a PDO entry) set; an empty alias removes it. */
 export function withEntryAlias(node: CanopenNode, channelId: string, alias: string): CanopenNode {
-  const set = (e: CanopenEntry): CanopenEntry =>
-    e.channelId === channelId ? { ...e, alias: alias === '' ? undefined : alias } : e
+  const value = alias === '' ? undefined : alias
+  const set = (e: CanopenEntry): CanopenEntry => {
+    if (e.channelId === channelId) return { ...e, alias: value }
+    if (!e.bits?.some((b) => b.channelId === channelId)) return e
+    return { ...e, bits: e.bits.map((b) => (b.channelId === channelId ? { ...b, alias: value } : b)) }
+  }
   const pdos = (list: CanopenPdo[]): CanopenPdo[] => list.map((p) => ({ ...p, entries: p.entries.map(set) }))
   return { ...node, state: set(node.state), tpdos: pdos(node.tpdos), rpdos: pdos(node.rpdos) }
 }

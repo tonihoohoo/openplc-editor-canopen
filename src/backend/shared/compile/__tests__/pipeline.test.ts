@@ -1053,7 +1053,7 @@ describe('runCompilePipeline — runtime v4 path', () => {
     const port = makePort({
       checkRuntimeVersion: jest
         .fn()
-        .mockResolvedValue({ ok: true, version: 'v4.3.1-canopen.1', canopenConfigVersions: [13] }),
+        .mockResolvedValue({ ok: true, version: 'v4.3.1-canopen.1', canopenConfigVersions: [14] }),
     })
     const { emit } = captureEvents()
     const result = await runCompilePipeline(v4Args(), port, emit)

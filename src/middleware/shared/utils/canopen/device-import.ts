@@ -16,6 +16,7 @@ import { decodeDeviceFile, type DeviceFileEncoding, deviceFileFormat, deviceFile
 import { checkEds } from './eds-check'
 import { readEdsDocument } from './eds-document'
 import { EdsParseError, findObject, masterMayWrite, parseEdsDocument } from './eds-parser'
+import { withBitNamesFrom } from './entry-bits'
 import {
   type AllocateAddress,
   canBeGuarded,
@@ -143,7 +144,11 @@ function keepPdos(
       if (!fits) dropped.push({ what: objectRef(e.index, e.subIndex), detail: `entry of ${label} ${was.number}` })
       return fits
     })
-    out.push({ ...was, fixedMapping: fresh.fixedMapping, entries: fresh.fixedMapping ? fresh.entries : entries })
+    out.push({
+      ...was,
+      fixedMapping: fresh.fixedMapping,
+      entries: fresh.fixedMapping ? fresh.entries : entries.map((e) => withBitNamesFrom(eds, e)),
+    })
     if (fresh.fixedMapping && !was.fixedMapping)
       dropped.push({
         what: `${label} ${was.number}`,

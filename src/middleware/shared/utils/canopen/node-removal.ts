@@ -4,7 +4,7 @@
 
 import type { CanopenNode } from '../../ports/canopen-types'
 import type { PLCPou, PLCVariable } from '../../ports/types'
-import { isGapEntry } from './model'
+import { isGapEntry, nodeEntries } from './model'
 
 export interface CanopenNodeRemoval {
   /** PDO entries the master exchanges with the PLC that hold a value. */
@@ -26,21 +26,26 @@ export function canopenNodeRemoval(
   const mappedValues = pdos
     .filter((p) => p.exchanged)
     .reduce((n, p) => n + p.entries.filter((e) => !isGapEntry(node.eds, e)).length, 0)
-  const places = new Set(
-    [node.state, ...pdos.flatMap((p) => p.entries)]
-      .flatMap((e) => [e.alias, e.iecLocation])
-      .filter((s): s is string => s !== undefined && s.trim() !== '')
-      .map(placeKey),
-  )
-  const located = (v: PLCVariable): boolean => v.location.trim() !== '' && places.has(placeKey(v.location))
+  const places = nodeEntries(node).flatMap((e) => [e.alias, e.iecLocation])
   return {
     mappedValues,
     startupSdos: node.sdos.length,
-    locatedVariables: [
-      ...globals.filter(located).map((v) => v.name),
-      ...pous.flatMap((p) => (p.interface?.variables ?? []).filter(located).map((v) => `${p.name}.${v.name}`)),
-    ],
+    locatedVariables: variablesLocatedAt(places, globals, pous),
   }
+}
+
+/** Global and POU variables located at one of `places` (aliases or IEC addresses), as `name` or `pou.name`. */
+export function variablesLocatedAt(
+  places: ReadonlyArray<string | undefined>,
+  globals: readonly PLCVariable[],
+  pous: readonly PLCPou[],
+): string[] {
+  const keys = new Set(places.filter((s): s is string => s !== undefined && s.trim() !== '').map(placeKey))
+  const located = (v: PLCVariable): boolean => v.location.trim() !== '' && keys.has(placeKey(v.location))
+  return [
+    ...globals.filter(located).map((v) => v.name),
+    ...pous.flatMap((p) => (p.interface?.variables ?? []).filter(located).map((v) => `${p.name}.${v.name}`)),
+  ]
 }
 
 const count = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`

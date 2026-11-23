@@ -11,8 +11,8 @@ import { useOpenPLCStore, useOpenPLCStoreApi } from '@root/frontend/store'
 import { selectIsEditingLocked } from '@root/frontend/store/slices/workspace/selectors'
 import { cn } from '@root/frontend/utils/cn'
 import type {
+  CanopenChannel,
   CanopenConfig,
-  CanopenEntry,
   CanopenNetworkSettings,
   CanopenNode,
 } from '@root/middleware/shared/ports/canopen-types'
@@ -50,6 +50,7 @@ import {
   storedFileText,
   updateNode,
   validateCanopenProject,
+  variablesLocatedAt,
   withDbcExportOptions,
   withEntryAlias,
   withFreePdoCobIds,
@@ -430,7 +431,7 @@ const CanopenEditor = () => {
   }, [exportTarget, exportFormat, config, deviceName, saveExport, documentContext])
 
   const changeAlias = useCallback(
-    (node: CanopenNode, entry: CanopenEntry, alias: string): string | null => {
+    (node: CanopenNode, entry: CanopenChannel, alias: string): string | null => {
       const validation = validateAliasEdit(registry, alias, {
         kind: 'canopen',
         ref: `${deviceName}:${node.name || 'node'}:${entry.channelId}`,
@@ -582,6 +583,7 @@ const CanopenEditor = () => {
               onExport={() => setExportTarget({ kind: 'node', node: selected })}
               onReplaceFile={(fileName, bytes) => chooseFile(fileName, bytes, selected)}
               onAliasChange={(entry, alias) => changeAlias(selected, entry, alias)}
+              locatedVariables={(places) => variablesLocatedAt(places, globals, pous)}
             />
           ) : (
             <div className='flex min-w-0 flex-1 flex-col gap-1 pt-2' data-testid='canopen-no-nodes'>
