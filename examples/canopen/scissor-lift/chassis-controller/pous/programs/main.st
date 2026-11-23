@@ -4,18 +4,27 @@ PROGRAM main
     platform_state AT %IB0 : USINT;
     joy_x AT %IW0 : INT;
     joy_y AT %IW1 : INT;
-    buttons AT %IB1 : BYTE;
+    estop_healthy AT platform_estop_healthy : BOOL;
+    enable_switch AT platform_enable_switch : BOOL;
+    drive_mode AT platform_drive_mode : BOOL;
+    work_light AT platform_work_light : BOOL;
     valves_state AT %IB2 : USINT;
     lift_applied AT %IW2 : INT;
     drive_applied AT %IW3 : INT;
-    valve_status AT %IB3 : BYTE;
+    supply_ok AT valves_supply_ok : BOOL;
+    coil_fault AT valves_coil_fault : BOOL;
     sensor_state AT %IB4 : USINT;
     tilt AT %IW4 : INT;
     height AT %IW5 : UINT;
     load AT %IW6 : UINT;
     worklight_state AT %IB5 : USINT;
     (* Outputs to the nodes. *)
-    lamps AT %QB0 : BYTE;
+    lamp_ready AT platform_lamp_ready : BOOL;
+    lamp_stop AT platform_lamp_stop : BOOL;
+    lamp_tilt AT platform_lamp_tilt : BOOL;
+    lamp_overload AT platform_lamp_overload : BOOL;
+    lamp_warning AT platform_lamp_warning : BOOL;
+    lamp_fault AT platform_lamp_fault : BOOL;
     lift_sp AT %QW0 : INT;
     drive_sp AT %QW1 : INT;
     valve_enable AT %QB1 : BYTE;
@@ -33,8 +42,7 @@ PROGRAM main
     write_ramp : SDO_WRITE4;
     poll : TON;
 
-    estop_healthy, enable_switch, drive_mode, work_light : BOOL;
-    supply_ok, coil_fault, estop, relay_off, neutral, need_neutral : BOOL;
+    estop, relay_off, neutral, need_neutral : BOOL;
     overload, valve_fault, isolated, tilt_alarm, base_ok, can_move, ready, lift_up_ok : BOOL;
     descent_hold, lowering : BOOL;
     want_seconds, want_ramp, serial_done : BOOL;
@@ -46,14 +54,6 @@ PROGRAM main
     raised, stowed : BOOL;
     last_height : UINT;
   END_VAR
-
-(* What the platform box reports in its buttons byte, and what the valve module reports in its status. *)
-estop_healthy := (buttons AND 16#01) <> 0;
-enable_switch := (buttons AND 16#02) <> 0;
-drive_mode := (buttons AND 16#04) <> 0;
-work_light := (buttons AND 16#10) <> 0;
-supply_ok := (valve_status AND 16#01) <> 0;
-coil_fault := (valve_status AND 16#02) <> 0;
 
 (* The safety relay cuts the valves by itself; the program only sees its status and keeps the
    machine still until the stick has been in neutral after a reset. A node that is not operational
@@ -143,13 +143,12 @@ END_IF;
 (* The lamps of the platform box. *)
 ready := net.MANDATORY_UP AND base_ok AND sensor_state = OPERATIONAL AND NOT estop AND NOT relay_off
          AND NOT tilt_alarm AND NOT overload;
-lamps := 16#00;
-IF ready THEN lamps := lamps OR 16#01; END_IF;
-IF estop OR relay_off THEN lamps := lamps OR 16#02; END_IF;
-IF tilt_alarm THEN lamps := lamps OR 16#04; END_IF;
-IF overload THEN lamps := lamps OR 16#08; END_IF;
-IF tilt_alarm OR estop OR overload OR descent_hold THEN lamps := lamps OR 16#10; END_IF;
-IF valve_fault OR coil_fault OR isolated OR NOT base_ok THEN lamps := lamps OR 16#20; END_IF;
+lamp_ready := ready;
+lamp_stop := estop OR relay_off;
+lamp_tilt := tilt_alarm;
+lamp_overload := overload;
+lamp_warning := tilt_alarm OR estop OR overload OR descent_hold;
+lamp_fault := valve_fault OR coil_fault OR isolated OR NOT base_ok;
 
 (* The display code: the first reason that keeps the machine still, else what it does. *)
 IF estop THEN display := 1;

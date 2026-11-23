@@ -4,6 +4,7 @@
  */
 
 import type {
+  CanopenChannel,
   CanopenConfig,
   CanopenEntry,
   CanopenHtmlExportOptions,
@@ -17,6 +18,7 @@ import { canopenTypeBits, objectRef } from './data-types'
 import type { DeviceFileExport } from './dcf-export'
 import { objectLabel } from './editing'
 import { findObject } from './eds-parser'
+import { entryChannels, isSplitEntry } from './entry-bits'
 import { type BootWrite, nodeBootWrites } from './generate-canopen-config'
 import { effectiveEmcy, effectiveProducerMs, isDummyEntry, pdoBits, restoreChoiceName } from './model'
 import { describeValue, pdoMappingMeaning } from './object-info'
@@ -153,6 +155,14 @@ function table(head: readonly string[], rows: readonly string[][], className = '
   return `<table${cls}><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`
 }
 
+/** First and last bit address of a split entry. */
+function bitRangeCell(entry: CanopenEntry): string {
+  const bits = entry.bits ?? []
+  const first = bits[0]?.iecLocation ?? ''
+  const last = bits[bits.length - 1]?.iecLocation ?? ''
+  return `${code(first)}&ndash;${code(last)}`
+}
+
 function entryObject(node: CanopenNode, entry: CanopenEntry): CanopenObject | undefined {
   return findObject(node.eds, entry.index, entry.subIndex)
 }
@@ -162,11 +172,11 @@ function entryName(node: CanopenNode, entry: CanopenEntry): string {
   return object ? objectLabel(object) : entry.name
 }
 
-function usesCell(input: HtmlExportInput, entry: CanopenEntry): string {
-  const uses = [
-    ...(entry.alias ? (input.uses.get(entry.alias) ?? []) : []),
-    ...(input.uses.get(entry.iecLocation) ?? []),
-  ]
+function usesCell(input: HtmlExportInput, channels: readonly CanopenChannel[]): string {
+  const uses = channels.flatMap((c) => [
+    ...(c.alias ? (input.uses.get(c.alias) ?? []) : []),
+    ...(input.uses.get(c.iecLocation) ?? []),
+  ])
   return uses.length ? uses.map((u) => code(`${u.pou}.${u.variable}`)).join('<br>') : dim('not used')
 }
 
@@ -240,11 +250,11 @@ function pdoBlock(input: HtmlExportInput, node: CanopenNode, pdo: CanopenPdo, ki
           esc(entryName(node, entry)),
           ref,
           esc(entry.dataType),
-          code(entry.iecLocation),
+          isSplitEntry(entry) ? bitRangeCell(entry) : code(entry.iecLocation),
           entry.alias ? code(entry.alias) : '',
           meaningCell(node, entry),
         ]
-    if (withUses) row.push(isDummyEntry(entry) ? '' : usesCell(input, entry))
+    if (withUses) row.push(isDummyEntry(entry) ? '' : usesCell(input, entryChannels(entry)))
     at += bits
     return row
   })
@@ -550,29 +560,42 @@ function addressKey(address: string): string {
 function ioList(input: HtmlExportInput, nodes: readonly CanopenNode[]): string {
   const withUses = input.sections.has('plcVariables')
   const rows: Array<{ key: string; cells: string[] }> = []
-  const add = (node: CanopenNode, entry: CanopenEntry, object: string, pdo: string, meaning: string): void => {
+  const add = (
+    node: CanopenNode,
+    entry: CanopenChannel,
+    type: string,
+    object: string,
+    pdo: string,
+    meaning: string,
+  ): void => {
     const cells = [
       code(entry.iecLocation),
       entry.alias ? code(entry.alias) : '',
       `${node.nodeId} ${esc(node.name)}`,
       object,
       pdo,
-      esc(entry.dataType),
+      esc(type),
       meaning,
     ]
-    if (withUses) cells.push(usesCell(input, entry))
+    if (withUses) cells.push(usesCell(input, [entry]))
     rows.push({ key: addressKey(entry.iecLocation), cells })
   }
   for (const node of nodes) {
-    add(node, node.state, 'NMT state', '', '')
+    add(node, node.state, node.state.dataType, 'NMT state', '', '')
     for (const [kind, list] of [
       ['TPDO', node.tpdos],
       ['RPDO', node.rpdos],
     ] as const)
       for (const pdo of list)
-        for (const entry of pdo.entries)
-          if (!isDummyEntry(entry))
-            add(node, entry, esc(entryName(node, entry)), `${kind} ${pdo.number}`, meaningCell(node, entry))
+        for (const entry of pdo.entries) {
+          if (isDummyEntry(entry)) continue
+          const name = esc(entryName(node, entry))
+          if (isSplitEntry(entry))
+            (entry.bits ?? []).forEach((b, k) =>
+              add(node, b, 'BOOL', `${name} bit ${k} ${esc(b.name)}`, `${kind} ${pdo.number}`, ''),
+            )
+          else add(node, entry, entry.dataType, name, `${kind} ${pdo.number}`, meaningCell(node, entry))
+        }
   }
   rows.sort((a, b) => a.key.localeCompare(b.key))
   const head = ['Address', 'Alias', 'Node', 'Object', 'PDO', 'Type', 'Unit / meaning']

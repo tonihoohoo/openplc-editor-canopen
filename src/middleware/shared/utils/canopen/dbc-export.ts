@@ -15,6 +15,7 @@ import type {
 import { canopenTypeBits, toCanopenDataType } from './data-types'
 import type { DcfExportProblem, DeviceFileExport } from './dcf-export'
 import { findObject } from './eds-parser'
+import { isSplitEntry } from './entry-bits'
 import { nodeConfigurationSdos, pdoConfigured, pdoExchanged, rpdoSendPeriodMs } from './generate-canopen-config'
 import { effectiveEmcy, effectiveEventTimerMs, effectiveProducerMs, isDummyEntry } from './model'
 
@@ -652,9 +653,22 @@ class DbcBuilder {
   ) {
     let bit = 0
     const specs: Array<{ spec: SignalSpec; alias?: string; iec?: string }> = []
+    const bitSignals: Array<{ name: string; start: number; comment: string; iec: string }> = []
     for (const e of pdo.entries) {
       const length = canopenTypeBits(e.dataType)
-      if (!isDummyEntry(e)) {
+      if (!isDummyEntry(e) && isSplitEntry(e)) {
+        const object = findObject(node.eds, e.index, e.subIndex)
+        const label = objectLabel(object, e.index, e.subIndex)
+        const where = `0x${hex4(e.index)}:${e.subIndex} ${label}`
+        ;(e.bits ?? []).forEach((b, k) =>
+          bitSignals.push({
+            name: b.alias ?? `${node.name}_${label}_${b.name}`,
+            start: bit + k,
+            comment: [where, `bit ${k} ${b.name}`, b.iecLocation].filter(Boolean).join(', '),
+            iec: b.iecLocation,
+          }),
+        )
+      } else if (!isDummyEntry(e)) {
         const object = findObject(node.eds, e.index, e.subIndex)
         const where = `0x${hex4(e.index)}:${e.subIndex} ${objectLabel(object, e.index, e.subIndex)}`
         specs.push({
@@ -678,6 +692,8 @@ class DbcBuilder {
       ...timing,
     })
     for (const { spec, iec } of specs) this.objectSignal(m, spec, { iecLocation: iec })
+    for (const b of bitSignals)
+      this.signal(m, b.name, b.start, 1, receivers, { comment: b.comment, iecLocation: b.iec || undefined })
   }
 
   private sdo(node: CanopenNode) {

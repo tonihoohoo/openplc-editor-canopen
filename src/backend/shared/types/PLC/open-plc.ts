@@ -1106,6 +1106,9 @@ const CanopenEntrySchema = z.object({
   dataType: CanopenDataTypeSchema,
   iecLocation: z.string(),
   alias: z.string().optional(),
+  bits: z
+    .array(z.object({ channelId: z.string(), name: z.string(), iecLocation: z.string(), alias: z.string().optional() }))
+    .optional(),
 })
 
 const CanopenPdoSchema = z.object({

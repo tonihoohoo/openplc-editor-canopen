@@ -17,6 +17,7 @@ import type {
 import type { PLCRemoteDevice, PLCServer } from '../../ports/types'
 import { canopenTypeBits } from './data-types'
 import { findObject, masterMayWrite, OBJ_FLAG_REFUSE_WRITE } from './eds-parser'
+import { isSplitEntry } from './entry-bits'
 import {
   canBeGuarded,
   canProduceHeartbeat,
@@ -41,7 +42,7 @@ import {
 import { encodeCanopenValue, toHex } from './sdo-value'
 import { slaveDevicesOut } from './slave'
 
-export const CANOPEN_CONFIG_VERSION = 13
+export const CANOPEN_CONFIG_VERSION = 14
 
 /** The node's `lss` object: only while the node ID is given over LSS. */
 function lssOut(node: CanopenNode): {
@@ -88,6 +89,7 @@ interface PdoEntryOut {
   subindex: number
   type: string
   location?: string
+  bits?: string[]
 }
 
 interface PdoOut {
@@ -278,6 +280,8 @@ export function rpdoSendPeriodMs(pdo: CanopenPdo, cycleUs: number | null): numbe
 
 /** The runtime's entries for one PDO entry: a gap becomes dummies of its size without a location. */
 function entryOut(node: CanopenNode, e: CanopenEntry): PdoEntryOut[] {
+  if (!isGapEntry(node.eds, e) && isSplitEntry(e))
+    return [{ index: e.index, subindex: e.subIndex, type: e.dataType, bits: (e.bits ?? []).map((b) => b.iecLocation) }]
   if (!isGapEntry(node.eds, e))
     return [{ index: e.index, subindex: e.subIndex, type: e.dataType, location: e.iecLocation }]
   if (isDummyEntry(e)) return [{ index: e.index, subindex: 0, type: DUMMY_TYPES[e.index] ?? e.dataType }]

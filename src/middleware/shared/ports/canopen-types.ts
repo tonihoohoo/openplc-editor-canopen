@@ -129,7 +129,25 @@ export interface CanopenEntry {
   dataType: CanopenDataType
   iecLocation: string
   alias?: string
+  /**
+   * An UNSIGNED8/16/32 entry split into bits: one per bit, bit 0 first, each with its own %IX (TPDO)
+   * or %QX (RPDO) address; `iecLocation` and `alias` are then empty. The node still maps one value.
+   */
+  bits?: CanopenEntryBit[]
 }
+
+/** One bit of a split PDO entry. */
+export interface CanopenEntryBit {
+  /** `<entry channelId>.<bit>`; the address registry keys on it. */
+  channelId: string
+  /** From the device file's bit names, else "Bit n". */
+  name: string
+  iecLocation: string
+  alias?: string
+}
+
+/** Something of a node that holds an IEC address: its state, a PDO entry or one bit of a split entry. */
+export type CanopenChannel = Pick<CanopenEntry, 'channelId' | 'name' | 'iecLocation' | 'alias'>
 
 export interface CanopenPdo {
   /** PDO number on the node, from 1. */

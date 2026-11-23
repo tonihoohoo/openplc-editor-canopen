@@ -23,10 +23,11 @@ const FIXTURE = join(
 )
 
 describe('the end-to-end CANopen project', () => {
-  it('loads, validates and maps node 2 to the addresses its program uses, with optional node 9', () => {
+  it('loads, validates and maps node 2 bit by bit to the addresses its program uses, with optional node 9', () => {
     const device = PLCRemoteDeviceSchema.parse(JSON.parse(readFileSync(FIXTURE, 'utf8')))
     expect(validateCanopenProject([device])).toEqual([])
     const conf: unknown = JSON.parse(generateCanopenConfig([device]) ?? '')
+    const bits = (prefix: string) => Array.from({ length: 8 }, (_, k) => `${prefix}0.${k}`)
     expect(conf).toMatchObject({
       networks: [
         {
@@ -35,8 +36,8 @@ describe('the end-to-end CANopen project', () => {
           nodes: [
             {
               node_id: 2,
-              tpdos: [{ entries: [{ location: '%IB1' }, { location: '%IW0' }] }],
-              rpdos: [{ entries: [{ location: '%QB0' }] }],
+              tpdos: [{ entries: [{ bits: bits('%IX') }, { location: '%IW0' }] }],
+              rpdos: [{ entries: [{ bits: bits('%QX') }] }],
             },
             { node_id: 9, optional: true, state_location: '%IB2', tpdos: [], rpdos: [] },
           ],
@@ -53,7 +54,7 @@ describe('the end-to-end LSS project', () => {
     expect(validateCanopenProject([device])).toEqual([])
     const conf: unknown = JSON.parse(generateCanopenConfig([device]) ?? '')
     expect(conf).toMatchObject({
-      version: 13,
+      version: 14,
       networks: [
         {
           interface: 'vcan0',

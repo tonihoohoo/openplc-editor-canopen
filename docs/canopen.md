@@ -128,6 +128,7 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
    address when other entries, PDOs, nodes or devices are added, removed or moved: a new entry takes
    the lowest free address, and a removed one leaves a hole. Only an entry whose address a hardware
    pin takes moves. An address must lie inside the runtime's I/O image (index 65535 at most); a slave object's address is checked the same way.
+6. Split an entry into bits with its **Bits** button: see [Bits of a PDO entry](#bits-of-a-pdo-entry).
 
 Problems that would stop the build are listed at the top of the editor as they appear.
 
@@ -146,6 +147,27 @@ session closes. What changes nothing in the project stays usable: the tabs, **Ex
 **Export...**, the Status and Online tabs, **Give node ID** over LSS and the boot write list of the
 SDOs tab. The LSS actions that change the project (**Add as node**, **Use as node**, **Add as new
 node**) and the export options the project remembers are locked too.
+
+### Bits of a PDO entry
+
+An UNSIGNED8, UNSIGNED16 or UNSIGNED32 entry of an exchanged PDO has a **Bits** button on the Inputs
+and Outputs tabs. Switched on, the entry gets one row per bit (bit 0 is the lowest), each a BOOL with
+its own `%IX` (input) or `%QX` (output) address and alias; the entry itself then has no address and
+no alias, so it is used either as one value or as bits, never both. The bits take whole free bytes
+of `%IX` or `%QX` (one, two or four; bits 0-7 in the first byte, 8-15 in the next), and keep their
+addresses as other entries change. Bit names come from the device file: an XDD or XDC that names the
+bits of the object (a struct) gives those names, a field wider than one bit naming each of its bits
+"Name 0", "Name 1", ...; otherwise they are "Bit 0" to "Bit n". The names are read-only; the alias is
+the name the program uses. Switching off frees the bits' addresses and gives the entry one address
+again. When the switch would drop an alias that a PLC variable is located at, the editor asks first;
+those variables then show the missing alias warning.
+
+The node maps, sends and receives the entry as one value, as before. The runtime splits an input
+into its bits and packs the output bits into the value at each scan; when inputs are zeroed or held
+on node loss, the bits follow. The entry is written to `conf/canopen.json` with a `"bits"` list of
+locations instead of a `"location"` (format 14). A PDO that is no longer exchanged drops the bits
+with the entry's address. The DBC export gives each bit a 1-bit signal named by its alias, and the
+HTML I/O list has one BOOL row per bit address.
 
 ## Device files
 
@@ -229,7 +251,8 @@ in any format, whatever file it was added from; the dialog lists what the picked
   heartbeat), or `<network>.dbc` for the network, a single file and no zip. It needs no stored device
   file and cannot be read back. PDOs become messages with little-endian signals named by alias or
   object, REAL32 as float, XDD units, multipliers and value meanings as unit, factor and value tables,
-  and named bits as 1-bit signals; the IEC address is a comment and an `IecLocation` attribute, the
+  and named bits as 1-bit signals (an entry split into bits gets one 1-bit signal per bit, named by
+  its alias); the IEC address is a comment and an `IecLocation` attribute, the
   event timer or SYNC period gives `GenMsgCycleTime`, the inhibit time `GenMsgDelayTime`. Heartbeat
   frames decode the NMT state and toggle bit, EMCY frames the error code with the CiA 301 texts and
   each error register bit. SDO frames (0x600 and 0x580 plus the node ID) decode through extended
@@ -731,7 +754,7 @@ master) whose eight bits are separate BOOL addresses in the program, as CiA 401 
   per bit and the names of the bits that are on.
 - The EDS describes it as UNSIGNED8. The XDD names the bits through a struct data type, so a master
   network that adds the XDD shows the bit names in its DBC and HTML exports.
-- `conf/canopen.json` (version 13) lists the eight locations in the object's `bits` in place of
+- `conf/canopen.json` (version 13 and later) lists the eight locations in the object's `bits` in place of
   `location`.
 
 ### XDD details of the slave
@@ -847,7 +870,7 @@ from, checks it (CiA 306 or CiA 311) and suggests the next revision when the obj
 since the last export, so a master that imported the old file is not fed the wrong layout. A master
 project imports the file like any other node's.
 
-At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 13);
+At build time each slave that is on becomes an item of `devices` in `conf/canopen.json` (format 13 and later);
 the file is written when only a slave is on. The checks that stop the build name the slave and the
 field or object.
 
@@ -869,7 +892,8 @@ Entries and the CANopen slaves' objects take addresses from the central registry
 kind is `canopen`, one consumer per node, and each entry's channel id is stable across edits. New
 entries are written with a placeholder of the right class (`%IB0`, `%QX0.0`, ...) and
 `projectActions.updateCanopenConfig` reallocates, so the placeholders land on free addresses. An
-entry of a PDO the master does not exchange has no address and no alias. A slave's objects claim
+entry of a PDO the master does not exchange has no address and no alias. An entry split into bits
+claims one channel per bit (`<entry channel>.<bit>`) and none for itself. A slave's objects claim
 as consumer `CANopen slave <name>`, node `objects`, with the object's id as the channel id; a new
 object gets the lowest free address of its class in `projectActions.updateCanopenSlaveConfig`.
 
@@ -930,7 +954,7 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   `src/frontend/store/__tests__/canopen-config.test.ts`, and the device editor in
   `.../device/canopen/__tests__/`.
 - End-to-end: `e2e/canopen-*.spec.ts` drive the built app (Playwright, Electron). They cover adding a
-  node from an EDS and building it, removing a node, PDO and startup SDO editing, adding and removing PDOs, moving entries, PDOs between two nodes, aliases, the Network tab settings and
+  node from an EDS and building it, removing a node, PDO and startup SDO editing, adding and removing PDOs, moving entries, PDOs between two nodes, aliases, entries split into bits, the Network tab settings and
   the bit rates the nodes support, the defaults for new nodes, the checks that stop a build and their
   fixes, receive timeouts, node options, EDS and DCF import and export, the basic and expert view, heartbeat consuming, emergency and
   TIME settings, turning a network off, the PLC block library and node names in a program, the upload check against a runtime without CANopen, and,

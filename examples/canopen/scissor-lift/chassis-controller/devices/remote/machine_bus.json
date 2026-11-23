@@ -5143,8 +5143,53 @@
                 "subIndex": 3,
                 "name": "Buttons",
                 "dataType": "UNSIGNED8",
-                "iecLocation": "%IB1",
-                "alias": "platform_buttons"
+                "iecLocation": "",
+                "bits": [
+                  {
+                    "channelId": "ch-3.0",
+                    "name": "Bit 0",
+                    "iecLocation": "%IX0.0",
+                    "alias": "platform_estop_healthy"
+                  },
+                  {
+                    "channelId": "ch-3.1",
+                    "name": "Bit 1",
+                    "iecLocation": "%IX0.1",
+                    "alias": "platform_enable_switch"
+                  },
+                  {
+                    "channelId": "ch-3.2",
+                    "name": "Bit 2",
+                    "iecLocation": "%IX0.2",
+                    "alias": "platform_drive_mode"
+                  },
+                  {
+                    "channelId": "ch-3.3",
+                    "name": "Bit 3",
+                    "iecLocation": "%IX0.3"
+                  },
+                  {
+                    "channelId": "ch-3.4",
+                    "name": "Bit 4",
+                    "iecLocation": "%IX0.4",
+                    "alias": "platform_work_light"
+                  },
+                  {
+                    "channelId": "ch-3.5",
+                    "name": "Bit 5",
+                    "iecLocation": "%IX0.5"
+                  },
+                  {
+                    "channelId": "ch-3.6",
+                    "name": "Bit 6",
+                    "iecLocation": "%IX0.6"
+                  },
+                  {
+                    "channelId": "ch-3.7",
+                    "name": "Bit 7",
+                    "iecLocation": "%IX0.7"
+                  }
+                ]
               }
             ]
           }
@@ -5168,8 +5213,55 @@
                 "subIndex": 1,
                 "name": "Lamps",
                 "dataType": "UNSIGNED8",
-                "iecLocation": "%QB0",
-                "alias": "platform_lamps"
+                "iecLocation": "",
+                "bits": [
+                  {
+                    "channelId": "ch-4.0",
+                    "name": "Bit 0",
+                    "iecLocation": "%QX0.0",
+                    "alias": "platform_lamp_ready"
+                  },
+                  {
+                    "channelId": "ch-4.1",
+                    "name": "Bit 1",
+                    "iecLocation": "%QX0.1",
+                    "alias": "platform_lamp_stop"
+                  },
+                  {
+                    "channelId": "ch-4.2",
+                    "name": "Bit 2",
+                    "iecLocation": "%QX0.2",
+                    "alias": "platform_lamp_tilt"
+                  },
+                  {
+                    "channelId": "ch-4.3",
+                    "name": "Bit 3",
+                    "iecLocation": "%QX0.3",
+                    "alias": "platform_lamp_overload"
+                  },
+                  {
+                    "channelId": "ch-4.4",
+                    "name": "Bit 4",
+                    "iecLocation": "%QX0.4",
+                    "alias": "platform_lamp_warning"
+                  },
+                  {
+                    "channelId": "ch-4.5",
+                    "name": "Bit 5",
+                    "iecLocation": "%QX0.5",
+                    "alias": "platform_lamp_fault"
+                  },
+                  {
+                    "channelId": "ch-4.6",
+                    "name": "Bit 6",
+                    "iecLocation": "%QX0.6"
+                  },
+                  {
+                    "channelId": "ch-4.7",
+                    "name": "Bit 7",
+                    "iecLocation": "%QX0.7"
+                  }
+                ]
               },
               {
                 "channelId": "ch-15",
@@ -10349,8 +10441,51 @@
                 "subIndex": 3,
                 "name": "Status",
                 "dataType": "UNSIGNED8",
-                "iecLocation": "%IB3",
-                "alias": "valves_status"
+                "iecLocation": "",
+                "bits": [
+                  {
+                    "channelId": "ch-7.0",
+                    "name": "Bit 0",
+                    "iecLocation": "%IX1.0",
+                    "alias": "valves_supply_ok"
+                  },
+                  {
+                    "channelId": "ch-7.1",
+                    "name": "Bit 1",
+                    "iecLocation": "%IX1.1",
+                    "alias": "valves_coil_fault"
+                  },
+                  {
+                    "channelId": "ch-7.2",
+                    "name": "Bit 2",
+                    "iecLocation": "%IX1.2"
+                  },
+                  {
+                    "channelId": "ch-7.3",
+                    "name": "Bit 3",
+                    "iecLocation": "%IX1.3"
+                  },
+                  {
+                    "channelId": "ch-7.4",
+                    "name": "Bit 4",
+                    "iecLocation": "%IX1.4"
+                  },
+                  {
+                    "channelId": "ch-7.5",
+                    "name": "Bit 5",
+                    "iecLocation": "%IX1.5"
+                  },
+                  {
+                    "channelId": "ch-7.6",
+                    "name": "Bit 6",
+                    "iecLocation": "%IX1.6"
+                  },
+                  {
+                    "channelId": "ch-7.7",
+                    "name": "Bit 7",
+                    "iecLocation": "%IX1.7"
+                  }
+                ]
               }
             ]
           }
