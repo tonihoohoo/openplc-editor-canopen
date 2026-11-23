@@ -650,7 +650,7 @@ const PdoCard = ({
                       >
                         <td />
                         <td className='py-1 pl-2 font-mono text-neutral-500 dark:text-neutral-400'>bit {k}</td>
-                        <td className='py-1 pl-2 pr-2 [overflow-wrap:anywhere]'>{b.name}</td>
+                        <td className='py-1 pr-2 [overflow-wrap:anywhere]'>{b.name}</td>
                         <td className='py-1 text-neutral-500 dark:text-neutral-400'>BOOL</td>
                         <td className='py-1 font-mono'>{b.iecLocation || '-'}</td>
                         <td className='py-1 pr-2'>

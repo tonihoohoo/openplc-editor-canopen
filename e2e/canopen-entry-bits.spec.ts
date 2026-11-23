@@ -75,6 +75,8 @@ test('an input entry split into bits reaches conf/canopen.json as bit locations'
     await alias.fill('enable_switch')
     await alias.press('Enter')
     await expect(alias).toHaveValue('enable_switch')
+    await alias.blur()
+    await input.locator('thead').evaluate((el) => el.scrollIntoView({ block: 'start' }))
     await keyView(page, 'node-input-bits')
 
     await buildFromMenu(page, 'Build only')
