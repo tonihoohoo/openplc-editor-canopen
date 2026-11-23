@@ -193,7 +193,7 @@ test('node memory: a save refused while operational is retried in pre-operationa
   }
 })
 
-test('service mode opens the bus while the PLC is stopped and closes it again', async () => {
+test('service mode opens by itself at the first request while the PLC is stopped and no network runs', async () => {
   test.setTimeout(180000)
   const node = new FakeNode()
   let service: Record<string, unknown> | null = null
@@ -224,23 +224,55 @@ test('service mode opens the bus while the PLC is stopped and closes it again', 
   try {
     await openNetwork(page, () => connectRuntime(page, 'e2e', 'e2e'))
     await page.getByRole('tab', { name: 'Online' }).click()
-    const tab = page.getByTestId('canopen-online-tab')
-    await expect(tab).toContainText('The PLC is stopped, so CANopen is not running.', { timeout: 15000 })
-    await expect(page.getByTestId('canopen-service-bus')).toHaveCount(1)
+    const mode = page.getByTestId('canopen-bus-mode')
+    await expect(mode).toContainText("The bus opens with the project's settings at the first request", {
+      timeout: 15000,
+    })
+    await expect(page.getByRole('button', { name: 'Open bus' })).toHaveCount(0)
     await shot(page, 'online-service-closed')
-    await tab.getByRole('button', { name: 'Open bus' }).click()
-    const bus = page.getByTestId('canopen-service-bus')
-    await expect(bus.getByRole('button', { name: 'Close bus' })).toBeVisible({ timeout: 15000 })
+    await page.getByRole('button', { name: 'Read all' }).click()
+    await expect(page.getByTestId('canopen-online-value-4119:0')).toHaveText('500', { timeout: 15000 })
+    expect(service).toMatchObject({ op: 'service_open', name: 'canopen_1', nodes: [2, 9] })
+    await expect(mode).toContainText("No network runs. The bus is open with the project's settings.", {
+      timeout: 15000,
+    })
     await expect(page.getByText('Service mode: the PLC is stopped and the master does not run the nodes')).toHaveCount(
       1,
     )
-    expect(service).toMatchObject({ op: 'service_open', name: 'canopen_1', nodes: [2, 9] })
+    await keyView(page, 'online-service-mode')
+  } finally {
+    await quitApp(app, page)
+    runtime.close()
+  }
+})
+
+test('the network kept on the bus serves the online tools while the PLC is stopped', async () => {
+  test.setTimeout(180000)
+  const node = new FakeNode()
+  const requests: Record<string, unknown>[] = []
+  const runtime = fakeRuntime({
+    features: FEATURES,
+    plcState: () => 'STOPPED',
+    status: () =>
+      networkStatus(Date.now(), [nodeStatus(Date.now(), 2, 'io2', { state: 'stopped', nmt: 'pre_operational' })], {
+        plc_running: false,
+      }),
+    request: (body) => {
+      requests.push(body)
+      return node.answer(body)
+    },
+  })
+  const { userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-kept'), '127.0.0.1', STATION)
+  const { app, page } = await launch(userData)
+  await windowSize(app, 1600, 1000)
+  try {
+    await openNetwork(page, () => connectRuntime(page, 'e2e', 'e2e'))
+    await page.getByRole('tab', { name: 'Online' }).click()
+    await expect(page.getByTestId('canopen-bus-mode')).toContainText('PLC stopped, outputs zero', { timeout: 15000 })
     await page.getByRole('button', { name: 'Read all' }).click()
     await expect(page.getByTestId('canopen-online-value-4119:0')).toHaveText('500', { timeout: 15000 })
-    await keyView(page, 'online-service-mode')
-    await bus.getByRole('button', { name: 'Close bus' }).click()
-    await expect(tab).toContainText('Open the bus to read and set the nodes.', { timeout: 15000 })
-    expect(service).toBeNull()
+    expect(requests.some((r) => r.op === 'service_open')).toBe(false)
+    await keyView(page, 'online-plc-stopped')
   } finally {
     await quitApp(app, page)
     runtime.close()

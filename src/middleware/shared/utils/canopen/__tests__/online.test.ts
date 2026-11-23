@@ -135,7 +135,7 @@ describe('createCanopenOnline', () => {
     const online = createCanopenOnline(route.send, noSleep)
     const network = { ...defaultNetworkSettings(), interface: 'can1', bitrate: 500000 }
     expect(await online.nmt(0, 0, 'pre_operational')).toEqual({ ok: true, bytes: [] })
-    expect(await online.openService('canopen_1', network, [2, 3])).toEqual({ ok: true, bytes: [] })
+    expect(await online.openService('canopen_1', network, [2, 3])).toEqual({ ok: true, bytes: [], network: 0 })
     expect(await online.closeService()).toEqual({ ok: true, bytes: [] })
     expect(route.sent).toEqual([
       { op: 'nmt', network: 0, node: 0, command: 'pre_operational' },
@@ -296,5 +296,33 @@ describe('answers and status', () => {
       'Service mode opened.',
     ])
     expect(parseCanopenStatus({ version: 1, active: false })).toEqual({ active: false, slaves: [] })
+  })
+
+  it('reads a network kept on the bus while the PLC is stopped and its PLC events', () => {
+    const parsed = parseCanopenStatus({
+      version: 1,
+      active: true,
+      now: 10,
+      networks: [
+        {
+          name: 'CANopen_1',
+          interface: 'can0',
+          plc_running: false,
+          bus: { state: 'error_active' },
+          nodes: [],
+          events: [
+            { time: 2, kind: 'plc', running: true },
+            { time: 1, kind: 'plc', running: false },
+          ],
+        },
+      ],
+    })
+    expect(parsed?.active).toBe(true)
+    if (!parsed?.active) return
+    expect(parsed.networks[0].plc_running).toBe(false)
+    expect(parsed.networks[0].events.map(eventText)).toEqual([
+      'PLC started; the nodes started without a reset.',
+      'PLC stopped; the master stays on the bus.',
+    ])
   })
 })

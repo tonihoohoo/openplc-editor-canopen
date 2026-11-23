@@ -285,23 +285,23 @@ test('service mode opens the bus at another bit rate and sets a device bit rate'
   const { app, page } = await openDevice('openplc-e2e-canopen-lss-service', true)
   try {
     // The bit rate tools are in the expert view only.
-    await expect(page.getByRole('button', { name: 'Open bus' }).first()).toBeVisible({ timeout: 15000 })
+    await expect(page.getByTestId('canopen-bus-mode')).toBeVisible({ timeout: 15000 })
     await expect(page.getByTestId('canopen-service-bitrate')).toHaveCount(0)
     await page.getByRole('switch', { name: 'Expert view' }).first().check()
     const bitrate = page.getByTestId('canopen-service-bitrate')
     await expect(bitrate).toBeVisible({ timeout: 15000 })
     await bitrate.selectOption('125000')
-    await page.getByRole('button', { name: 'Open bus' }).first().click()
-    await expect.poll(() => requests.find((r) => r.op === 'service_open'), { timeout: 15000 }).toBeTruthy()
-    await expect(page.getByTestId('canopen-service-bitrate-note')).toContainText('The bus is open at 125 kbit/s', {
-      timeout: 15000,
-    })
-    expect(requests.find((r) => r.op === 'service_open')).toMatchObject({ bitrate: 125000 })
-    await shot(page, 'lss-service-open')
+    // The search opens the bus at the chosen bit rate.
     await page.getByRole('tab', { name: 'Online' }).first().click()
     const panel = page.getByTestId('canopen-lss-panel')
     await panel.getByRole('button', { name: 'Find devices without node ID' }).click()
+    await expect.poll(() => requests.find((r) => r.op === 'service_open'), { timeout: 15000 }).toBeTruthy()
+    expect(requests.find((r) => r.op === 'service_open')).toMatchObject({ bitrate: 125000 })
+    await expect(page.getByTestId('canopen-service-bitrate-note')).toContainText('The bus is open at 125 kbit/s', {
+      timeout: 15000,
+    })
     await expect(panel.getByTestId('canopen-lss-device')).toHaveCount(1, { timeout: 15000 })
+    await shot(page, 'lss-service-open')
     await panel.getByRole('button', { name: 'Add as new node...' }).click()
     const dialog = page.getByTestId('canopen-lss-give-dialog')
     await dialog.getByTestId('canopen-lss-bitrate').selectOption('250000')

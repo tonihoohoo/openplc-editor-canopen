@@ -132,6 +132,8 @@ export const CanopenEventSchema = z.object({
     'node_off',
     /** A node ID given over LSS, or the device not found. */
     'lss',
+    /** The PLC stopped or started while the network stayed on the bus. */
+    'plc',
   ]),
   problem: CanopenProblemSchema.nullable().optional(),
   code: count.optional(),
@@ -154,6 +156,8 @@ export const CanopenEventSchema = z.object({
   waits: z.boolean().optional(),
   /** service: opened (true) or closed. */
   open: z.boolean().optional(),
+  /** plc: the PLC started (true) or stopped. */
+  running: z.boolean().optional(),
   /** sdo_abort: what the boot did; absent from runtimes before refusal policies. */
   policy: z.enum(['stop', 'continue', 'jump']).optional(),
   /** lss: the outcome. */
@@ -177,6 +181,8 @@ export const CanopenNetworkStatusSchema = z.object({
   name: z.string(),
   /** `service` while service mode runs this network. */
   mode: z.literal('service').optional(),
+  /** False while the PLC is stopped and the network stays on the bus; older runtimes send none. */
+  plc_running: z.boolean().optional(),
   interface: z.string(),
   bus: CanopenBusStatusSchema,
   /** Runtimes before node options send `all_nodes_up` in its place. */

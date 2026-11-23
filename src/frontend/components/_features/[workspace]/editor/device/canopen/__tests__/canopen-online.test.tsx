@@ -122,7 +122,8 @@ async function settle() {
 async function renderEditor(
   options: {
     capabilities?: unknown
-    status?: unknown
+    /** The runtime's status, or a function that gives it at each read. */
+    status?: object | (() => object)
     expert?: boolean
     off?: boolean
     setup?: (node: FakeNode) => void
@@ -159,7 +160,8 @@ async function renderEditor(
     getCanopenCapabilities: () => ok(options.capabilities ?? ALL_FEATURES),
     getCanopenStatus: () => {
       statusReads++
-      return ok(options.status ?? currentStatus())
+      const status = typeof options.status === 'function' ? options.status() : options.status
+      return ok(status ?? currentStatus())
     },
     canopenRequest: node.handle,
   })
@@ -356,18 +358,59 @@ describe('CANopen online tools', () => {
     expect(within(raw).getByLabelText<HTMLSelectElement>('Data type').value).toBe('raw bytes')
   })
 
-  it('opens the bus in service mode while the PLC is stopped', async () => {
-    await renderEditor({ status: { version: 1, active: false } })
-    const open = screen.getAllByRole('button', { name: 'Open bus' })[0]
-    fireEvent.click(open)
+  const readRaw = async (index: string) => {
+    openNodeOnline()
+    fireEvent.click(screen.getByRole('button', { name: 'Any object…' }))
+    const raw = screen.getByTestId('canopen-online-raw')
+    fireEvent.change(within(raw).getByLabelText('Index (hex)'), { target: { value: index } })
+    fireEvent.click(within(raw).getByRole('button', { name: 'Read' }))
     await settle()
+  }
+
+  it('opens service mode by itself at the first request while the PLC is stopped and no network runs', async () => {
+    await renderEditor({ status: { version: 1, active: false } })
+    expect(screen.queryByRole('button', { name: 'Open bus' })).toBeNull()
+    expect(screen.getByTestId('canopen-bus-mode').textContent).toContain('The bus opens with the project')
+    await readRaw('1017')
     expect(node.sent[0]).toMatchObject({ op: 'service_open', name: NET, nodes: [2] })
+    expect(node.sent[1]).toMatchObject({ op: 'sdo_read', network: 0, node: 2, index: 0x1017 })
+    expect(node.sent.filter((r) => r.op === 'service_open')).toHaveLength(1)
+  })
+
+  it('keeps reading all objects when the first read opens service mode', async () => {
+    const serviceStatus = () => {
+      if (!node.sent.some((r) => r.op === 'service_open')) return { version: 1, active: false }
+      const body = sampleStatus()
+      Object.assign(body.networks[0], { mode: 'service' })
+      return body
+    }
+    await renderEditor({ status: serviceStatus })
+    openNodeOnline()
+    fireEvent.click(screen.getByRole('button', { name: 'Read all' }))
+    for (let i = 0; i < 4; i++) await settle()
+    expect(node.sent.filter((r) => r.op === 'service_open')).toHaveLength(1)
+    expect(screen.getByTestId('canopen-online-value-4119:0').textContent).toBe('500')
+  })
+
+  it('uses the network kept on the bus while the PLC is stopped, without service mode', async () => {
+    const kept = sampleStatus()
+    Object.assign(kept.networks[0], { plc_running: false })
+    await renderEditor({ status: kept })
+    expect(screen.getByTestId('canopen-bus-mode').textContent).toContain('PLC stopped, outputs zero')
+    await readRaw('1017')
+    expect(node.sent.some((r) => r.op === 'service_open')).toBe(false)
+    expect(node.sent[0]).toMatchObject({ op: 'sdo_read', node: 2, index: 0x1017 })
+  })
+
+  it('shows no bus line while the PLC runs', async () => {
+    await renderEditor()
+    expect(screen.queryByTestId('canopen-bus-mode')).toBeNull()
   })
 
   it('has no online tools for a network that is off in the project', async () => {
     await renderEditor({ off: true, status: { version: 1, active: false } })
     expect(screen.queryByRole('tab', { name: 'Online' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Open bus' })).toBeNull()
+    expect(screen.queryByTestId('canopen-bus-mode')).toBeNull()
   })
 
   describe('node memory', () => {

@@ -39,7 +39,7 @@ export interface LssGiveRequest {
   add: boolean
   /** Set the device's serial number as that of this project node (its `id`); null for no replacing. */
   replace: string | null
-  /** Also set and store this bit rate (service mode only); null leaves it. */
+  /** Also set and store this bit rate (only while the PLC is stopped); null leaves it. */
   bitrate: number | null
 }
 
@@ -182,11 +182,7 @@ export const LssPanel = ({
         </div>
       </div>
       {!online.ready ? (
-        <p className={cn(hintClassName, 'mb-2 text-xs')}>
-          {online.service.available
-            ? 'The PLC is stopped. Open the bus to search.'
-            : 'CANopen does not run on the runtime for this network.'}
-        </p>
+        <p className={cn(hintClassName, 'mb-2 text-xs')}>CANopen does not run on the runtime for this network.</p>
       ) : null}
       {search.state === 'searching' ? (
         <div className='mb-3' data-testid='canopen-lss-progress'>
@@ -305,14 +301,14 @@ export const LssPanel = ({
       ) : null}
       <p className='rounded-md bg-neutral-50 px-3 py-2 text-xs text-neutral-600 dark:bg-neutral-950 dark:text-neutral-400'>
         Finds only devices that have no node ID yet (LSS fastscan). A device that already has one is in the node list.
-        Works while the PLC runs and in service mode.
+        Works while the PLC runs and while it is stopped.
       </p>
       {giving ? (
         <GiveNodeIdDialog
           device={giving.device}
           match={giving.match}
           config={config}
-          serviceOpen={online.service.open && expert}
+          serviceOpen={(online.service.open || online.service.available || online.plcStopped) && expert}
           expert={expert}
           canGive={online.ready}
           running={running}
@@ -367,7 +363,7 @@ type GiveNodeIdDialogProps = {
   device: LssDevice
   match: LssMatch
   config: CanopenConfig
-  /** Service mode is open and the expert view is on: the bit rate can be set. */
+  /** The PLC is stopped and the expert view is on: the bit rate can be set. */
   serviceOpen: boolean
   /** Requests reach the devices now; when false, adding can only leave the ID to the next start. */
   canGive: boolean
@@ -384,7 +380,7 @@ type GiveNodeIdDialogProps = {
 
 /**
  * Give node ID, or Add as node for a device whose device file the project has: the ID (free ones
- * first), give it now, store and, in service mode with the expert view, the bit rate.
+ * first), give it now, store and, with the PLC stopped and the expert view, the bit rate.
  */
 export const GiveNodeIdDialog = ({
   device,
@@ -560,7 +556,7 @@ export const GiveNodeIdDialog = ({
         )}
         {serviceOpen && give ? (
           <div className='flex flex-col gap-1 rounded-md border border-neutral-200 p-3 dark:border-neutral-800'>
-            <span className={labelClassName}>Bit rate (service mode)</span>
+            <span className={labelClassName}>Bit rate (PLC stopped)</span>
             <select
               className={cn(inputClassName, 'w-[220px]')}
               value={bitrate ?? ''}

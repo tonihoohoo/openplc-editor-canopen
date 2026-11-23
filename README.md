@@ -26,7 +26,7 @@ CANopen:
 - Node IDs given by the master over LSS (CiA 305) at every start: [docs/canopen.md](docs/canopen.md#node-id-over-lss)
 - Find devices without a node ID over LSS, give one an ID or set its bit rate, or let a spare part with a new serial number take over an LSS node: [docs/canopen.md](docs/canopen.md#devices-without-node-id-lss)
 - Live status of the bus and the nodes while connected: [docs/canopen.md](docs/canopen.md#live-status)
-- Online SDO and NMT tools and service mode: [docs/canopen.md](docs/canopen.md#online-tools)
+- Online SDO and NMT tools, also while the PLC is stopped (on the network the runtime keeps on the bus, else in service mode opened by itself): [docs/canopen.md](docs/canopen.md#online-tools)
 - The `canopen` function block library (CiA 405 names) for SDO, NMT and node control from the PLC program: [docs/canopen.md](docs/canopen.md#plc-function-blocks)
 - Slave blocks for the PLC program: the slave's state, its own NMT state, the program's emergencies and the master's writes, and the slave's NMT state on a PLC stop: [docs/canopen.md](docs/canopen.md#plc-function-blocks)
 - CANopen addresses from the central registry, up to the runtime's limit of 65536 per table: [docs/canopen.md](docs/canopen.md#addresses)

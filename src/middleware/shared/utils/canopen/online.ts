@@ -20,7 +20,7 @@ export type CanopenRequestFn = (request: CanopenRequest) => Promise<CanopenRunti
 
 /** The outcome of an SDO read or write, or of an NMT or service mode request. */
 export type CanopenOnlineResult =
-  | { ok: true; bytes: number[] }
+  | { ok: true; bytes: number[]; network?: number }
   | { ok: false; abortCode: number; message: string }
   | { ok: false; abortCode?: undefined; reason: string; message: string }
 
@@ -36,6 +36,7 @@ const REASONS: Readonly<Record<string, string>> = {
   unknown_job: 'the runtime no longer knows the request',
   plc_running: 'the PLC is running; stop it first',
   busy: 'the bus is already open',
+  interface_in_use: 'a CANopen network or slave runs on this interface',
   inactive: 'the runtime has no CANopen',
   error: 'the request failed on the runtime',
   timeout: 'the runtime did not finish the request in time',
@@ -87,6 +88,7 @@ const LSS_REASONS: Readonly<Record<string, string>> = {
   incomplete:
     'a device answered out of turn, so more devices may be waiting; give the devices found a node ID and search again',
   needs_service_mode: 'only while the bus is open in service mode',
+  needs_plc_stopped: 'only while the PLC is stopped',
   node_in_use: 'a running node of the network has this node ID',
   not_running: 'no CANopen network runs on the runtime',
 }
@@ -138,7 +140,7 @@ export interface CanopenOnline {
   /** Finds the devices without a node ID; @p onProgress gets the devices that answered so far. */
   lssFind(network: number, onProgress?: (devices: LssDevice[]) => void): Promise<LssFindResult>
   lssSetId(network: number, device: LssDevice, nodeId: number, store: boolean): Promise<LssSetIdResult>
-  /** Sets and stores the device's bit rate; only in service mode. */
+  /** Sets and stores the device's bit rate; only while the PLC is stopped. */
   lssSetBitrate(network: number, device: LssDevice, bitrate: number): Promise<LssSetBitrateResult>
 }
 
@@ -215,7 +217,8 @@ export function createCanopenOnline(send: CanopenRequestFn, options: CanopenOnli
   const simple = async (request: CanopenRequest): Promise<CanopenOnlineResult> => {
     const r = await ask(request)
     if (r.error) return r.error
-    return 'ok' in r.answer ? { ok: true, bytes: [] } : failed('error', 'the runtime gave an unexpected answer')
+    if (!('ok' in r.answer)) return failed('error', 'the runtime gave an unexpected answer')
+    return r.answer.network === undefined ? { ok: true, bytes: [] } : { ok: true, bytes: [], network: r.answer.network }
   }
 
   return {
