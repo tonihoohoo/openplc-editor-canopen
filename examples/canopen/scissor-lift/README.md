@@ -144,6 +144,10 @@ settings of the platform node and upload the chassis controller again; from then
 box node 10 at every start. To start at once, the search result's "Use as node 10..." gives it node 10 now and stores its serial number in the project. `./run.sh swap` replaces the box
 with a new one, so you can see a spare part being commissioned.
 
+Until the master has given the box its node ID and started it, the box's own display says "Waiting for a
+node ID" and its lamps stay off. When the box loses the master later, for example because the chassis
+controller stops, it says "No contact with the master" and switches its lamps and buzzer off.
+
 ## The machine panel
 
 `./run.sh panel` serves a page with:
@@ -176,6 +180,9 @@ physics: the PLC programs only see inputs.
 - **The panel says that the server is not answering.** `run.sh panel` has stopped; start it again.
 - **The display says "A node is missing".** One of the runtimes is not running its PLC, or the
   platform box has no node ID yet (see Commission the platform box).
+- **A runtime's row says "not reachable".** Its container is not running or its web server does not
+  answer yet; the reason after the colon says which (connection refused, timed out). `./run.sh status`
+  shows the containers.
 
 ### Screenshots
 

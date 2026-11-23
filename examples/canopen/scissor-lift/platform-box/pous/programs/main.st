@@ -19,6 +19,8 @@ PROGRAM main
     work_light AT %QX0.4 : BOOL;
     in_estop, in_enable, in_drive, in_horn, in_light : GPIO_IN;
     out_ready, out_estop, out_tilt, out_overload, out_buzzer, out_fault : GPIO_OUT;
+    slave : CANOPEN_SLAVE_STATUS;
+    online : BOOL;
   END_VAR
 
 (* Terminals: the buttons on the rail are digital lines, the joystick axes come from the terminal slave. *)
@@ -37,15 +39,25 @@ drive_mode := in_drive.Q;
 horn := in_horn.Q;
 work_light := in_light.Q;
 
-(* The lamps and the buzzer follow the master's RPDO 1. *)
-out_ready(ENABLE := TRUE, PIN := 'PB_LAMP_READY', VALUE := lamp_ready);
-out_estop(ENABLE := TRUE, PIN := 'PB_LAMP_ESTOP', VALUE := lamp_estop);
-out_tilt(ENABLE := TRUE, PIN := 'PB_LAMP_TILT', VALUE := lamp_tilt);
-out_overload(ENABLE := TRUE, PIN := 'PB_LAMP_LOAD', VALUE := lamp_overload);
-out_buzzer(ENABLE := TRUE, PIN := 'PB_BUZZER', VALUE := buzzer_cmd);
-out_fault(ENABLE := TRUE, PIN := 'PB_LAMP_FAULT', VALUE := lamp_fault);
+(* The master's RPDO 1 counts only while the box is operational; before a node ID or after a lost master it is old or empty. *)
+slave(SLAVE := box, ENABLE := TRUE);
+online := slave.OPERATIONAL;
 
-(* The display shows the master's code; the terminal slave carries it to the display. *)
-display_out := display_code;
+(* The lamps and the buzzer follow the master's RPDO 1. *)
+out_ready(ENABLE := TRUE, PIN := 'PB_LAMP_READY', VALUE := online AND lamp_ready);
+out_estop(ENABLE := TRUE, PIN := 'PB_LAMP_ESTOP', VALUE := online AND lamp_estop);
+out_tilt(ENABLE := TRUE, PIN := 'PB_LAMP_TILT', VALUE := online AND lamp_tilt);
+out_overload(ENABLE := TRUE, PIN := 'PB_LAMP_LOAD', VALUE := online AND lamp_overload);
+out_buzzer(ENABLE := TRUE, PIN := 'PB_BUZZER', VALUE := online AND buzzer_cmd);
+out_fault(ENABLE := TRUE, PIN := 'PB_LAMP_FAULT', VALUE := online AND lamp_fault);
+
+(* The display shows the master's code, else the box's own: 13 no node ID, 14 no contact with the master. *)
+IF online THEN
+  display_out := display_code;
+ELSIF slave.NODEID = 0 OR slave.NODEID > 127 THEN
+  display_out := 13;
+ELSE
+  display_out := 14;
+END_IF;
 
 END_PROGRAM

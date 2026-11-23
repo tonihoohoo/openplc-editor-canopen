@@ -72,7 +72,27 @@ DISPLAY_TEXT = {
     10: "Lifting",
     11: "Lowering",
     12: "Driving",
+    13: "Waiting for a node ID",
+    14: "No contact with the master",
 }
+
+
+def short_reason(exc):
+    """A few words on why a runtime did not answer, for the runtime table."""
+    reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+    if isinstance(reason, ConnectionRefusedError):
+        return "connection refused"
+    if isinstance(reason, (TimeoutError, socket.timeout)):
+        return "timed out"
+    if isinstance(reason, ConnectionResetError):
+        return "connection reset"
+    if isinstance(reason, ssl.SSLError):
+        return "TLS error"
+    if isinstance(reason, (ValueError, KeyError)):
+        return "unexpected answer"
+    if isinstance(reason, str) and len(reason) <= 40:
+        return reason
+    return type(reason).__name__
 
 
 def load_state(path):
@@ -214,10 +234,10 @@ class Runtime:
                 if logged_in:  # an expired token: log in again
                     return self.status()
                 return {"reachable": False, "error": "no user yet: create the user in the editor first"}
-            return {"reachable": False, "error": str(exc)}
+            return {"reachable": False, "error": "HTTP %d" % exc.code}
         except (OSError, ValueError, KeyError) as exc:
             self.token = None
-            return {"reachable": False, "error": str(exc)}
+            return {"reachable": False, "error": short_reason(exc)}
 
     def command(self, name):
         """Starts or stops the PLC: name is start-plc or stop-plc."""
