@@ -84,7 +84,7 @@ test('an input entry split into bits reaches conf/canopen.json as bit locations'
     await expect.poll(() => findFile(build, 'canopen.json') !== undefined, { timeout: 180000 }).toBe(true)
     const conf: unknown = JSON.parse(readFileSync(findFile(build, 'canopen.json') ?? '', 'utf-8'))
     expect(conf).toMatchObject({
-      version: 14,
+      version: 15,
       networks: [
         {
           nodes: [

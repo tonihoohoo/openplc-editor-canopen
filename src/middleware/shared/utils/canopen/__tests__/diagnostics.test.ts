@@ -72,13 +72,13 @@ describe('CANopen status texts', () => {
 
   it('names the sender of an NMT command and a boot that waits for the program', () => {
     expect(eventText({ time: 0, node: 3, kind: 'nmt_command', command: 'start', source: 'program' })).toBe(
-      'NMT start sent by the PLC program.',
+      'NMT start remote node sent by the PLC program.',
     )
     expect(eventText({ time: 0, node: 3, kind: 'nmt_command', command: 'stop', source: 'client' })).toBe(
-      'NMT stop sent from the online tools.',
+      'NMT stop remote node sent from the online tools.',
     )
     expect(eventText({ time: 0, node: 3, kind: 'nmt_command', command: 'stop' })).toBe(
-      'NMT stop sent from the online tools.',
+      'NMT stop remote node sent from the online tools.',
     )
     expect(eventText({ time: 0, node: 3, kind: 'boot_ok', waits: true })).toBe(
       'Boot finished, the node waits for the PLC program to start it.',

@@ -18,7 +18,7 @@
     "onMasterLost": "pre_operational",
     "onPlcStop": "hold",
     "startAlone": false,
-    "lss": { "enabled": true, "waitForMaster": true, "serial": 23, "bitrateChange": true },
+    "lss": { "enabled": true, "serial": 23, "bitrateChange": true },
     "objects": [
       {
         "id": "setpoint",

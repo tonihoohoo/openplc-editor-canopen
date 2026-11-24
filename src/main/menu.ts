@@ -144,6 +144,10 @@ export default class MenuBuilder {
     this.mainWindow.webContents.send('project:retrieve-accelerator')
   }
 
+  handleCanopenCommissioning() {
+    this.mainWindow.webContents.send('canopen:commissioning-accelerator')
+  }
+
   handleSaveFile() {
     this.mainWindow.webContents.send('project:save-file-accelerator')
   }
@@ -373,6 +377,11 @@ export default class MenuBuilder {
         {
           label: i18n.t('menu:file.submenu.retrieveProject'),
           click: () => this.handleRetrieveProject(),
+        },
+        {
+          label: 'CANopen device commissioning...',
+          click: () => this.handleCanopenCommissioning(),
+          enabled: this.projectOpen,
         },
         { type: 'separator' },
         {
@@ -691,6 +700,11 @@ export default class MenuBuilder {
           {
             label: i18n.t('menu:file.submenu.retrieveProject'),
             click: () => this.handleRetrieveProject(),
+          },
+          {
+            label: 'CANopen device commissioning...',
+            click: () => this.handleCanopenCommissioning(),
+            enabled: this.projectOpen,
           },
           {
             type: 'separator',

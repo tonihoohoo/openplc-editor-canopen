@@ -24,7 +24,6 @@ import {
   slaveEdsLosses,
   slaveImportSummary,
   slaveLayoutText,
-  slaveLss,
   slaveLssForgetText,
   slavePdoLayout,
   type SlaveProblem,
@@ -296,8 +295,7 @@ const CanopenSlaveEditor = () => {
 
   const objects = config.objects.length
   const bitrate = config.bitrate > 0 ? `, ${config.bitrate / 1000} kbit/s` : ''
-  const lss = slaveLss(config)
-  const nodeText = lss.enabled && lss.waitForMaster ? 'node ID from the LSS master' : `node ID ${config.nodeId}`
+  const nodeText = `node ID ${config.nodeId}`
 
   const send = useMemo(() => runtime.canopenRequest?.bind(runtime), [runtime])
   const canForget = send !== undefined && (live?.features.includes('slave_lss') ?? false)
@@ -322,7 +320,7 @@ const CanopenSlaveEditor = () => {
     <LssCard
       slave={live.slave}
       expert={expert}
-      forgetQuestion={slaveLssForgetText(config, lss.waitForMaster)}
+      forgetQuestion={slaveLssForgetText(config)}
       onForget={canForget ? forgetLss : undefined}
     />
   ) : null

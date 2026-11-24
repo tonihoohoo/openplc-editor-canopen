@@ -51,10 +51,10 @@ out_overload(ENABLE := TRUE, PIN := 'PB_LAMP_LOAD', VALUE := online AND lamp_ove
 out_buzzer(ENABLE := TRUE, PIN := 'PB_BUZZER', VALUE := online AND buzzer_cmd);
 out_fault(ENABLE := TRUE, PIN := 'PB_LAMP_FAULT', VALUE := online AND lamp_fault);
 
-(* The display shows the master's code, else the box's own: 13 no node ID, 14 no contact with the master. *)
+(* The display shows the master's code, else the box's own: 13 no node ID (or the factory 127), 14 no contact with the master. *)
 IF online THEN
   display_out := display_code;
-ELSIF slave.NODEID = 0 OR slave.NODEID > 127 THEN
+ELSIF slave.NODEID = 0 OR slave.NODEID >= 127 THEN
   display_out := 13;
 ELSE
   display_out := 14;

@@ -34,4 +34,15 @@ describe('the scissor lift example', () => {
     expect(bound.filter((a) => !aliases.has(a))).toEqual([])
     expect(program).not.toMatch(/AND 16#/)
   })
+
+  it('keeps node IDs fixed: no LSS assignment on the master, the platform box starts as node 10', () => {
+    const bus = readFileSync(join(CHASSIS, 'devices', 'remote', 'machine_bus.json'), 'utf8')
+    expect(bus).not.toContain('"lss"')
+    const box = JSON.parse(
+      readFileSync(join(CHASSIS, '..', 'platform-box', 'devices', 'servers', 'box.json'), 'utf8'),
+    ) as { canopenSlaveConfig: { nodeId: number; lss: Record<string, unknown> } }
+    expect(box.canopenSlaveConfig.nodeId).toBe(10)
+    expect(box.canopenSlaveConfig.lss).toMatchObject({ enabled: true })
+    expect(box.canopenSlaveConfig.lss).not.toHaveProperty('waitForMaster')
+  })
 })

@@ -4,7 +4,6 @@ import type { CanopenNmtCommand } from '../../../ports/canopen-online'
 import type {
   CanopenBusState,
   CanopenEvent,
-  CanopenLssResult,
   CanopenNetworkStatus,
   CanopenNodeState,
   CanopenNodeStatus,
@@ -32,14 +31,14 @@ const NODE_STATES: Record<CanopenNodeState, string> = {
 }
 
 const NMT_COMMANDS: Record<CanopenNmtCommand, string> = {
-  start: 'Start',
-  stop: 'Stop',
-  pre_operational: 'Pre-operational',
+  start: 'Start remote node',
+  stop: 'Stop remote node',
+  pre_operational: 'Enter pre-operational',
   reset_node: 'Reset node',
   reset_communication: 'Reset communication',
 }
 
-/** A client NMT command as a button label, for example "Reset node". */
+/** A client NMT command by its CiA 301 name, as a button label, for example "Start remote node". */
 export function nmtCommandLabel(command: CanopenNmtCommand): string {
   return NMT_COMMANDS[command]
 }
@@ -206,107 +205,6 @@ export function linkResetParts(network: Pick<CanopenNetworkStatus, 'bus' | 'even
   return parts
 }
 
-/** The LSS address the master looks for, from the node's configuration. */
-export interface CanopenLssAddress {
-  vendorId: number
-  productCode: number
-  serialNumber: number
-  /** The product name from the node's device file. */
-  productName?: string
-}
-
-/** One fact of the LSS card's top line: a label, a short value and a line under it. */
-export interface LssNodeFact {
-  key: 'node_id' | 'looks_for' | 'last'
-  label: string
-  value: string
-  detail: string
-  /** The value reads as good (green), a problem (amber) or plain. */
-  tone: 'good' | 'bad' | 'plain'
-}
-
-const LSS_SHORT: Record<CanopenLssResult['result'], string> = {
-  none: 'Not given yet',
-  given: 'Given',
-  already: 'Already set',
-  not_found: 'No answer',
-  refused: 'Refused',
-  store_refused: 'Store refused',
-}
-
-/**
- * The top line of a node's LSS card: the node ID and how it got it, the serial number the master
- * looks for, and the last result; @p time formats the result's time.
- */
-export function lssNodeFacts(
-  result: CanopenLssResult,
-  nodeId: number,
-  address: CanopenLssAddress | undefined,
-  time: (t: number) => string,
-): LssNodeFact[] {
-  const has = result.result === 'given' || result.result === 'already' || result.result === 'store_refused'
-  const how: Record<CanopenLssResult['result'], string> = {
-    none: 'Not given yet',
-    given: `Given by the master, ${result.stored ? 'stored in the device' : 'not stored'}`,
-    already: `The device already had it${result.stored ? '; stored' : ''}`,
-    not_found: 'Not given: no device answered',
-    refused: 'Not given: the device refused it',
-    store_refused: 'Given, but the device refused to store it',
-  }
-  const good = result.result === 'given' || result.result === 'already'
-  return [
-    { key: 'node_id', label: 'Node ID', value: has ? String(nodeId) : '-', detail: how[result.result], tone: 'plain' },
-    {
-      key: 'looks_for',
-      label: 'Looks for',
-      value: address ? hex(address.serialNumber, 8) : '-',
-      detail: address?.productName ? `Serial number, ${address.productName}` : 'Serial number',
-      tone: 'plain',
-    },
-    {
-      key: 'last',
-      label: 'Last result',
-      value: LSS_SHORT[result.result],
-      detail: result.time !== undefined ? time(result.time) : '',
-      tone: result.result === 'none' ? 'plain' : good ? 'good' : 'bad',
-    },
-  ]
-}
-
-/** What an LSS result says; `address` names what the master looked for when no device answered. */
-export function lssResultText(result: CanopenLssResult, nodeId: number, address?: CanopenLssAddress): string {
-  const stored = result.stored ? 'stored' : 'not stored'
-  switch (result.result) {
-    case 'none':
-      return 'Not given yet.'
-    case 'given': {
-      const before = result.previous_id === undefined || result.previous_id === 255 ? 'none' : result.previous_id
-      return `Node ID ${nodeId} given (device had ${before}); ${stored}.`
-    }
-    case 'already':
-      return `The device already had node ID ${nodeId}${result.stored ? '; stored' : ''}.`
-    case 'not_found':
-      return address
-        ? `No device with vendor ${hex(address.vendorId, 8)}, product ${hex(address.productCode, 8)}, serial ${hex(address.serialNumber, 8)} answered. Check the serial number and the cabling.`
-        : "No device with the node's LSS address answered. Check the serial number and the cabling."
-    case 'refused':
-      return `The device refused node ID ${nodeId}.`
-    case 'store_refused':
-      return `Node ID ${nodeId} given, but the device refused to store it; it loses it at power-off.`
-    default: {
-      const unreachable: never = result.result
-      return unreachable
-    }
-  }
-}
-
-/** The LSS problem shown under the node's name in the node list, or null. */
-export function lssProblemShort(result: CanopenLssResult | undefined): string | null {
-  if (result?.result === 'not_found') return 'LSS: no device answered'
-  if (result?.result === 'refused') return 'LSS: node ID refused'
-  return null
-}
-
 /** What an event says, without its time and node. */
 export function eventText(event: CanopenEvent): string {
   const pdo = `TPDO ${event.pdo ?? 0}${event.cob_id !== undefined ? ` (COB-ID ${hex(event.cob_id, 3)})` : ''}`
@@ -367,8 +265,6 @@ export function eventText(event: CanopenEvent): string {
       return 'Turned on by the PLC program.'
     case 'node_off':
       return 'Turned off by the PLC program.'
-    case 'lss':
-      return lssResultText(event.lss ?? { result: 'none' }, event.node ?? 0)
     case 'plc':
       return event.running
         ? 'PLC started; the nodes started without a reset.'

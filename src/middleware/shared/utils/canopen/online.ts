@@ -4,7 +4,13 @@
  * value, typing from the EDS, save and restore scopes).
  */
 
-import type { CanopenAnswer, CanopenNmtCommand, CanopenRequest } from '../../ports/canopen-online'
+import type {
+  CanopenAnswer,
+  CanopenLssDeviceFields,
+  CanopenNmtCommand,
+  CanopenRequest,
+  CanopenScanDeviceFields,
+} from '../../ports/canopen-online'
 import { parseCanopenAnswer } from '../../ports/canopen-online'
 import type { CanopenRuntimeFetch } from '../../ports/canopen-status'
 import type { CanopenEdsInfo, CanopenNetworkSettings, CanopenNode, CanopenObject } from '../../ports/canopen-types'
@@ -22,7 +28,7 @@ export type CanopenRequestFn = (request: CanopenRequest) => Promise<CanopenRunti
 export type CanopenOnlineResult =
   | { ok: true; bytes: number[]; network?: number }
   | { ok: false; abortCode: number; message: string }
-  | { ok: false; abortCode?: undefined; reason: string; message: string }
+  | { ok: false; abortCode?: undefined; reason: string; message: string; name?: string }
 
 const REASONS: Readonly<Record<string, string>> = {
   booting: 'the master is booting the node; try again once it is up',
@@ -43,6 +49,9 @@ const REASONS: Readonly<Record<string, string>> = {
   unknown_slave: 'the runtime runs no slave by this name',
   lss_off: 'LSS is off in the slave the runtime runs',
   settings_off: 'saving settings is off in the slave the runtime runs',
+  not_commissioning: 'only while the bus is open for device commissioning',
+  network_on_interface: 'a CANopen network runs on this interface, kept on the bus at PLC stop',
+  slave_on_interface: 'a CANopen slave of the runtime runs on this interface',
 }
 
 /** A refusal or failure reason in words. */
@@ -50,10 +59,17 @@ export function onlineReasonText(reason: string): string {
   return REASONS[reason] ?? reason
 }
 
-type ReasonFailure = { ok: false; abortCode?: undefined; reason: string; message: string }
+type ReasonFailure = { ok: false; abortCode?: undefined; reason: string; message: string; name?: string }
 
-function failed(reason: string, detail?: string): ReasonFailure {
-  return { ok: false, reason, message: detail ?? onlineReasonText(reason) }
+function failed(reason: string, detail?: string, name?: string): ReasonFailure {
+  if (name === undefined) return { ok: false, reason, message: detail ?? onlineReasonText(reason) }
+  const who =
+    reason === 'network_on_interface'
+      ? `the network ${name} runs on this interface, kept on the bus at PLC stop`
+      : reason === 'slave_on_interface'
+        ? `the slave ${name} of the runtime runs on this interface; stop it there or use another interface`
+        : `${onlineReasonText(reason)} (${name})`
+  return { ok: false, reason, message: detail ?? who, name }
 }
 
 function fromHex(text: string): number[] {
@@ -73,13 +89,31 @@ export interface LssDevice {
   serialNumber: number
 }
 
+/** A node ID a bus scan found. Values are null when not read. */
+export interface ScanDevice {
+  nodeId: number
+  /** Answered at least the 0x1000 read (an SDO abort counts as an answer). */
+  answered: boolean
+  heard: ReadonlyArray<'heartbeat' | 'boot_up' | 'emcy'>
+  deviceType: number | null
+  vendorId: number | null
+  productCode: number | null
+  revision: number | null
+  serialNumber: number | null
+}
+
+export type ScanResult = { ok: true; devices: ScanDevice[] } | (LssFailure & { devices: ScanDevice[] })
+
+/** How long a bus scan may run: 127 IDs, five reads of 200 ms each, 8 at a time, with margin. */
+export const SCAN_TIMEOUT_MS = 60 * 1000
+
 type LssFailure = { ok: false; reason: string; message: string }
 export type LssFindResult = { ok: true; devices: LssDevice[] } | (LssFailure & { devices: LssDevice[] })
 export type LssSetIdResult = { ok: true; previousId: number; stored: boolean } | LssFailure
 export type LssSetBitrateResult = { ok: true } | LssFailure
 
 const LSS_REASONS: Readonly<Record<string, string>> = {
-  busy: 'another LSS request, or the start-up node ID assignment, is running; try again',
+  busy: 'another LSS request or a search is running; try again',
   not_found: 'no device with this LSS address answered',
   no_answer: 'the device stopped answering',
   refused: 'the device refused the value',
@@ -104,10 +138,28 @@ export const LSS_BITRATES: readonly number[] = [1000000, 800000, 500000, 250000,
 /** How long an LSS search may run: about 7 s per device, at most 64 devices. */
 export const LSS_FIND_TIMEOUT_MS = 10 * 60 * 1000
 
-type LssDeviceFields = { vendor_id: number; product_code: number; revision: number; serial_number: number }
+type LssDeviceFields = CanopenLssDeviceFields
+type FoundFields = CanopenLssDeviceFields | CanopenScanDeviceFields
 
-function toLssDevices(devices: LssDeviceFields[] | undefined): LssDevice[] {
-  return (devices ?? []).map((d) => ({
+const isScanFields = (d: FoundFields): d is CanopenScanDeviceFields => 'node_id' in d
+
+function toLssDevices(devices: FoundFields[] | undefined): LssDevice[] {
+  return (devices ?? [])
+    .flatMap((d) => (isScanFields(d) ? [] : [d]))
+    .map((d) => ({
+      vendorId: d.vendor_id,
+      productCode: d.product_code,
+      revision: d.revision,
+      serialNumber: d.serial_number,
+    }))
+}
+
+function toScanDevices(devices: FoundFields[] | undefined): ScanDevice[] {
+  return (devices ?? []).filter(isScanFields).map((d) => ({
+    nodeId: d.node_id,
+    answered: d.answered,
+    heard: d.heard,
+    deviceType: d.device_type,
     vendorId: d.vendor_id,
     productCode: d.product_code,
     revision: d.revision,
@@ -118,6 +170,11 @@ function toLssDevices(devices: LssDeviceFields[] | undefined): LssDevice[] {
 function lssAddress(d: LssDevice): LssDeviceFields {
   return { vendor_id: d.vendorId, product_code: d.productCode, revision: d.revision, serial_number: d.serialNumber }
 }
+
+/** The master's node ID in service mode for commissioning; it sends nothing under it there. */
+export const COMMISSION_MASTER_NODE_ID = 127
+/** SDO timeout of the commissioning window's reads and writes. */
+export const COMMISSION_SDO_TIMEOUT_MS = 1000
 
 export interface CanopenOnlineOptions {
   /** The longest wait between job polls, used after `JOB_POLL_STEPS_MS`. */
@@ -132,6 +189,13 @@ export interface CanopenOnline {
   write(network: number, node: number, index: number, subIndex: number, bytes: number[]): Promise<CanopenOnlineResult>
   nmt(network: number, node: number, command: CanopenNmtCommand): Promise<CanopenOnlineResult>
   openService(name: string, network: CanopenNetworkSettings, nodeIds: number[]): Promise<CanopenOnlineResult>
+  /**
+   * Opens service mode for commissioning on @p iface at @p bitrate: any node ID, bus scans. With
+   * @p takeOver a network kept on the bus at PLC stop there leaves it; a refusal names who uses it.
+   */
+  openCommission(name: string, iface: string, bitrate: number, takeOver: boolean): Promise<CanopenOnlineResult>
+  /** Scans node IDs 1-127 in service mode for commissioning; @p onProgress gets the IDs found so far. */
+  scan(network: number, onProgress?: (devices: ScanDevice[]) => void): Promise<ScanResult>
   closeService(): Promise<CanopenOnlineResult>
   /** Removes the node ID and bit rate an LSS master stored for the slave; the slave restarts. */
   forgetSlaveLss(slave: string): Promise<CanopenOnlineResult>
@@ -158,7 +222,7 @@ export function createCanopenOnline(send: CanopenRequestFn, options: CanopenOnli
     if (!result.success) return { error: failed('error', result.error) }
     const answer = parseCanopenAnswer(result.body)
     if (!answer) return { error: failed('error', 'the runtime sent an answer this editor does not read') }
-    if ('error' in answer) return { error: failed(answer.error) }
+    if ('error' in answer) return { error: failed(answer.error, undefined, answer.name) }
     if ('active' in answer) return { error: failed('inactive') }
     return { answer }
   }
@@ -236,7 +300,25 @@ export function createCanopenOnline(send: CanopenRequestFn, options: CanopenOnli
         sdo_timeout_ms: network.sdoTimeoutMs,
         nodes: nodeIds,
       }),
+    openCommission: (name, iface, bitrate, takeOver) =>
+      simple({
+        op: 'service_open',
+        name,
+        interface: iface,
+        bitrate,
+        master_node_id: COMMISSION_MASTER_NODE_ID,
+        sdo_timeout_ms: COMMISSION_SDO_TIMEOUT_MS,
+        commission: true,
+        ...(takeOver ? { take_over: true } : {}),
+      }),
     closeService: () => simple({ op: 'service_close' }),
+    scan: async (network, onProgress) => {
+      const r = await lssJob({ op: 'scan', network }, SCAN_TIMEOUT_MS, (a) => {
+        if (onProgress && a.devices) onProgress(toScanDevices(a.devices))
+      })
+      const devices = toScanDevices(r.end?.devices)
+      return r.failure ? { ...r.failure, devices } : { ok: true, devices }
+    },
     forgetSlaveLss: (slave) => simple({ op: 'slave_lss_forget', slave }),
     forgetSlaveSettings: (slave) => simple({ op: 'slave_settings_forget', slave }),
     lssFind: async (network, onProgress) => {
@@ -390,6 +472,13 @@ export function onlineObjects(node: CanopenNode, network: CanopenNetworkSettings
     })
 }
 
+/** Every object of a device file with its default, for a device that is not a node of the project. */
+export function deviceFileObjects(eds: CanopenEdsInfo, nodeId: number): OnlineObject[] {
+  return [...eds.objects]
+    .sort((a, b) => a.index - b.index || a.subIndex - b.subIndex)
+    .map((object) => ({ object, project: edsValue(eds, object, nodeId), masterWrites: false }))
+}
+
 function edsValue(eds: CanopenEdsInfo, object: CanopenObject, nodeId: number): number[] | null {
   const type = toCanopenDataType(object.dataType)
   if (!type) return null
@@ -445,9 +534,14 @@ export function rawObject(eds: CanopenEdsInfo, index: number, subIndex: number):
   return findObject(eds, index, subIndex)
 }
 
-/** Raw access never writes 0x1010 or 0x1011: Save to node and Restore defaults do that, with confirmation. */
-export function rawWriteRefusal(index: number): string | null {
-  if (index === 0x1010) return "Use Save to node to save to the node's memory."
-  if (index === 0x1011) return "Use Restore defaults to restore the node's defaults."
-  return null
+/**
+ * Raw access never writes 0x1010 or 0x1011: Save to device and Restore defaults of the device
+ * commissioning window do that, with confirmation; @p where is the node Online tab or that window.
+ */
+export function rawWriteRefusal(index: number, where: 'node' | 'device' = 'node'): string | null {
+  if (index !== 0x1010 && index !== 0x1011) return null
+  const what = index === 0x1010 ? "Saving to the device's memory" : "Restoring the device's defaults"
+  if (where === 'device')
+    return `${what} is done with ${index === 0x1010 ? 'Save to device' : 'Restore defaults'} above.`
+  return `${what} is done in File > CANopen device commissioning..., one device at a time.`
 }

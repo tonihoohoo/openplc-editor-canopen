@@ -20,15 +20,7 @@ import { expect, test } from '@playwright/test'
 
 import { FakeNode, openDevice, STATION } from './helpers/canopen-online-node'
 import { fakeRuntime, networkStatus, nodeStatus } from './helpers/canopen-runtime'
-import {
-  addNode,
-  EDS_TEXT,
-  EMPTY_STATION,
-  openNetwork,
-  windowSize,
-  withOptionalObjects,
-  writeEds,
-} from './helpers/canopen-project'
+import { openNetwork, windowSize } from './helpers/canopen-project'
 import { keyView, shot } from './helpers/canopen-shots'
 import { connectRuntime, launch, quitApp, writeEthercatProject } from './helpers/ethercat-project'
 
@@ -68,125 +60,11 @@ test('the expert view switches a node to pre-operational to retry a refused writ
     await row.getByRole('button', { name: 'Write' }).click()
     const note = page.getByTestId('canopen-online-note-8448:0')
     await expect(note).toContainText('Write refused', { timeout: 15000 })
-    await note.getByRole('button', { name: 'Switch to pre-operational and retry' }).click()
-    await page.getByRole('button', { name: 'Switch and retry' }).click()
+    await note.getByRole('button', { name: 'Enter pre-operational and retry' }).click()
+    await page.getByRole('button', { name: 'Retry', exact: true }).click()
     await expect(page.getByTestId('canopen-online-value-8448:0')).toHaveText('25', { timeout: 15000 })
     expect(node.requests.some((r) => r.op === 'nmt' && r.command === 'pre_operational')).toBe(true)
     await shot(page, 'online-expert-write-retried')
-  } finally {
-    await quitApp(app, page)
-    runtime.close()
-  }
-})
-
-const NVM_OBJECTS = `
-[1010]
-ParameterName=Store parameters
-ObjectType=0x8
-SubNumber=2
-
-[1010sub0]
-ParameterName=Highest sub-index supported
-ObjectType=0x7
-DataType=0x0005
-AccessType=ro
-DefaultValue=1
-PDOMapping=0
-
-[1010sub1]
-ParameterName=Save all parameters
-ObjectType=0x7
-DataType=0x0007
-AccessType=rw
-DefaultValue=1
-PDOMapping=0
-
-[1011]
-ParameterName=Restore default parameters
-ObjectType=0x8
-SubNumber=2
-
-[1011sub0]
-ParameterName=Highest sub-index supported
-ObjectType=0x7
-DataType=0x0005
-AccessType=ro
-DefaultValue=1
-PDOMapping=0
-
-[1011sub1]
-ParameterName=Restore all default parameters
-ObjectType=0x7
-DataType=0x0007
-AccessType=rw
-DefaultValue=1
-PDOMapping=0
-`
-
-/** Node 1 with node memory: saves on command, refuses a save while operational. */
-class NvmNode extends FakeNode {
-  constructor() {
-    super()
-    this.values.set('4112:1', '01000000')
-    this.refused.add(0x1010)
-  }
-}
-
-test('node memory: a save refused while operational is retried in pre-operational, a restore offers a reset', async () => {
-  test.setTimeout(180000)
-  const node = new NvmNode()
-  const runtime = fakeRuntime({
-    features: FEATURES,
-    status: () =>
-      networkStatus(Date.now(), [
-        nodeStatus(Date.now(), 1, 'Generic_I_O_module', {
-          state: node.operational ? 'operational' : 'manual',
-          nmt: node.operational ? 'operational' : 'pre_operational',
-        }),
-      ]),
-    request: (body) => node.answer(body),
-  })
-  const { userData } = writeEthercatProject(join(tmpdir(), 'openplc-e2e-canopen-nvm'), '127.0.0.1', EMPTY_STATION)
-  const eds = writeEds(join(userData, 'nvm-module.eds'), withOptionalObjects(EDS_TEXT, [0x1010, 0x1011], NVM_OBJECTS))
-  const { app, page } = await launch(userData)
-  await windowSize(app, 1600, 1000)
-  try {
-    await openNetwork(page, () => connectRuntime(page, 'e2e', 'e2e'))
-    await addNode(page, eds, 'Node 1: Generic_I_O_module')
-    await page.getByRole('switch', { name: 'Expert view' }).check()
-    await page.getByRole('tab', { name: 'Online' }).click()
-    const memory = page.getByTestId('canopen-online-nvm')
-    await expect(memory.getByLabel('Scope to save')).toContainText('Save all parameters')
-
-    await memory.getByRole('button', { name: 'Save to node' }).click()
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Save to node' }).click()
-    await expect(memory).toContainText('The node may take it in pre-operational.', { timeout: 15000 })
-    await memory.getByRole('button', { name: 'Switch to pre-operational and retry' }).click()
-    await page.getByRole('button', { name: 'Switch and retry' }).click()
-    await expect(page.getByText('Save all parameters: done. The node is in pre-operational.')).toBeVisible({
-      timeout: 15000,
-    })
-    await expect(memory).toContainText('Start the node again?')
-    await expect(page.getByTestId('canopen-online-nmt')).toContainText('NMT state: Pre-operational')
-    await shot(page, 'online-save-retried')
-    await memory.getByTestId('canopen-online-nvm-offer').getByRole('button', { name: 'Start' }).click()
-    await expect.poll(() => node.operational).toBe(true)
-
-    await memory.getByRole('button', { name: 'Restore defaults' }).click()
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Restore defaults' }).click()
-    await expect(page.getByText('Restore all default parameters: done. Takes effect after a reset.')).toBeVisible({
-      timeout: 15000,
-    })
-    await expect(memory).toContainText('Reset now?')
-    await keyView(page, 'online-node-memory', [page.getByTestId('canopen-online-tab').locator('table')])
-    await memory.getByTestId('canopen-online-nvm-offer').getByRole('button', { name: 'Reset node' }).click()
-    await expect.poll(() => node.requests.some((r) => r.op === 'nmt' && r.command === 'reset_node')).toBe(true)
-    const writes = node.requests.filter((r) => r.op === 'sdo_write').map((r) => [r.index, r.subindex, r.data])
-    expect(writes).toEqual([
-      [0x1010, 1, '73617665'],
-      [0x1010, 1, '73617665'],
-      [0x1011, 1, '6C6F6164'],
-    ])
   } finally {
     await quitApp(app, page)
     runtime.close()

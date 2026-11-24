@@ -520,12 +520,10 @@ describe('the slave LSS state', () => {
     expect(slaveLssStoredText(lssSlave({ stored_node_id: undefined, stored_bitrate: undefined }))).toBeNull()
     expect(slaveLssStoredText(parse())).toBeNull()
     const config = { ...slaveConfig(), nodeId: 5, bitrate: 500000 }
-    expect(slaveLssForgetText(config, false)).toBe(
+    expect(slaveLssForgetText(config)).toBe(
       "Forget the node ID and bit rate an LSS master stored? The slave restarts with the project's values (node ID 5, 500 kbit/s).",
     )
-    expect(slaveLssForgetText({ ...config, bitrate: 0 }, true)).toContain(
-      '(no node ID, waiting for an LSS master, set on the interface)',
-    )
+    expect(slaveLssForgetText({ ...config, bitrate: 0 })).toContain('(node ID 5, set on the interface)')
   })
 
   it('compares PDO COB-IDs at the node ID in use and the node ID with the project', () => {

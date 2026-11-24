@@ -14,8 +14,8 @@ safety relay that cuts the valve power. The PLCs only read its status, because t
 
 | Project | Role | Node | What it shows |
 |---|---|---|---|
-| `chassis-controller` | CANopen master | 1 | PDOs, SYNC, heartbeat, master watch, startup SDOs, LSS assignment, NMT and node control, SDO and EMCY blocks, interlocks |
-| `platform-box` | CANopen slave | 10 | LSS "wait for master" with a random serial, event-timed TPDO, packed bit objects, local I/O blocks |
+| `chassis-controller` | CANopen master | 1 | PDOs, SYNC, heartbeat, master watch, startup SDOs, NMT and node control, SDO and EMCY blocks, interlocks |
+| `platform-box` | CANopen slave | 10 | node ID changeable over LSS with a random serial, event-timed TPDO, packed bit objects, local I/O blocks |
 | `valve-module` | CANopen slave | 20 | RPDO receive timeout, ramp parameters written over SDO, program EMCY on a coil fault, slave status and written-object blocks |
 | `tilt-sensor` | CANopen slave | 30 | SYNC-driven TPDO, parameters, a read-only serial and operating time, program EMCY on overload |
 | (none) | optional work light | 40 | an optional node the master may find or not (device file only) |
@@ -42,8 +42,8 @@ Behaviour you can try:
 - Either emergency stop opens the safety relay, which cuts the valve power. The valve module sees the
   relay's status contact; the platform box sees its own button contact. Neither decides anything.
 - Stop a slave and watch the master hold its inputs, stop its outputs and keep scanning.
-- Replace the platform box: the new box has a new random serial and no node ID, and the master
-  commissions it again over LSS.
+- Replace the platform box: the spare box has a new random serial and the factory node ID 127. Give it
+  node 10 in the editor's device commissioning window, and the master boots it again.
 
 ## What you need
 
@@ -52,7 +52,7 @@ Behaviour you can try:
 - `iproute2`, `util-linux` (`nsenter`), `can-utils` (`cangw`) and `python3`.
 - The kernel modules `vxcan`, `can-gw` and `gpio-sim`. Most distribution kernels have them.
 - The OpenPLC Editor with CANopen support (this fork) on the same machine or another one: a release
-  from `v4.3.4-canopen.3` on, or a build of this branch. Older releases write an older CANopen
+  from `v4.3.5-canopen.2` on, or a build of this branch. Older releases write an older CANopen
   configuration version, which the example's runtime image refuses at upload.
 
 ![The host](images/host.svg)
@@ -71,7 +71,7 @@ The runtimes are at `127.0.0.10` (chassis controller), `127.0.0.11` (platform bo
 `18446`. When another runtime on the host already uses port 8443, `run.sh up` says so and publishes only
 the `18443` to `18446` ports; reach the runtimes from another machine with the helpers below. Each runtime needs a user once; the example uses `lift` with the password `lift-example`
 (set `SCISSOR_USER` and `SCISSOR_PASSWORD` to change them). The image is
-`ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.4`; set `SCISSOR_IMAGE` for another.
+`ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.5`; set `SCISSOR_IMAGE` for another.
 
 ### Windows: a virtual machine with Multipass
 
@@ -135,18 +135,29 @@ controller goes to `127.0.0.10`. Upload the three slaves first, then the master.
 
 If a PLC is not running after its upload, start it in the editor (Device, Start PLC) or with the Start PLC button in the panel's runtime table. `./run.sh status` shows `plc=RUNNING` for every runtime when they all run.
 
-### Commission the platform box
+### Commission a spare platform box
 
-The platform box starts without a node ID and a random serial number. The chassis controller's platform
-node is given its node ID over LSS, but the project does not know the box's serial yet. Open the master's
-Online tab and run the LSS search: it lists the box with its serial number. Enter that serial in the LSS
-settings of the platform node and upload the chassis controller again; from then on the master gives the
-box node 10 at every start. To start at once, the search result's "Use as node 10..." gives it node 10 now and stores its serial number in the project. `./run.sh swap` replaces the box
-with a new one, so you can see a spare part being commissioned.
+The platform box starts as node 10, so the master boots it at once. `./run.sh swap` (or the panel's
+**Replace platform box** button) replaces it with a spare one, as a service technician would: a new
+random serial number and the factory node ID 127, which it keeps until it is given another one over
+LSS (CiA 305). The master then reports node 10 missing. To commission the spare:
 
-Until the master has given the box its node ID and started it, the box's own display says "Waiting for a
-node ID" and its lamps stay off. When the box loses the master later, for example because the chassis
-controller stops, it says "No contact with the master" and switches its lamps and buzzer off.
+1. Upload `platform-box` to `127.0.0.11` again and start its PLC.
+2. Stop the chassis controller's PLC, connect the editor to it (`127.0.0.10`) and open
+   **File > CANopen device commissioning...**.
+3. Keep `can0` and 250 kbit/s, the machine bus's rate, and press **Open the bus**. The machine bus
+   is kept on the bus while the PLC is stopped, so the window asks first: **Leave the bus and open**.
+4. **Find devices** lists node 20 (valve module), node 30 (tilt sensor) and node 127, the spare box.
+5. Pick node 127, enter 10 as **New node ID** and press **Set node ID**, then **Reset device**.
+   **Find devices** again shows it as node 10.
+6. Close the window and start the chassis controller's PLC: the master boots node 10 and the box's
+   lamps come back.
+
+![Device commissioning with the spare box at node 127](images/screenshots/editor-commissioning-spare.png)
+
+Until the master has started the spare box, its display says "Waiting for a node ID" and its lamps stay
+off. When the box loses the master later, for example because the chassis controller stops, it says "No
+contact with the master" and switches its lamps and buzzer off.
 
 ## The machine panel
 
@@ -179,7 +190,7 @@ physics: the PLC programs only see inputs.
   checked with) and close what else runs on it.
 - **The panel says that the server is not answering.** `run.sh panel` has stopped; start it again.
 - **The display says "A node is missing".** One of the runtimes is not running its PLC, or the
-  platform box has no node ID yet (see Commission the platform box).
+  platform box is a spare that still has node ID 127 (see Commission a spare platform box).
 - **A runtime's row says "not reachable".** Its container is not running or its web server does not
   answer yet; the reason after the colon says which (connection refused, timed out). `./run.sh status`
   shows the containers.
@@ -218,7 +229,7 @@ The projects compile and the master configuration validates with the editor's ow
 ran on a Raspberry Pi 5 (64-bit Raspberry Pi OS) with the projects uploaded from the editor over an SSH
 tunnel: lift, lower through the descent stop, drive and steer stowed and raised, both emergency stops
 and the relay reset, the tilt alarm, overload, the coil fault and its recovery, stopping and starting a
-device, commissioning the platform box over LSS, and 30 minutes of mixed use with no PLC error, no task
+device, and 30 minutes of mixed use with no PLC error, no task
 overrun and no node lost.
 
 ## Files

@@ -697,7 +697,6 @@ const CanopenSlaveConfigSchema = z.object({
   lss: z
     .object({
       enabled: z.boolean(),
-      waitForMaster: z.boolean(),
       serial: z.number().int().min(0).max(0xffffffff).nullable(),
       bitrateChange: z.boolean(),
     })
@@ -1151,14 +1150,6 @@ const CanopenNodeSchema = z
     start: z.enum(['master', 'program']).default('master'),
     enabled: z.boolean().default(true),
     restoreDefaults: z.number().int().min(0).max(127).default(0),
-    lss: z
-      .object({
-        enabled: z.boolean(),
-        serialNumber: z.number().int().min(0).max(0xffffffff).nullable(),
-        revision: z.number().int().min(0).max(0xffffffff),
-        store: z.boolean(),
-      })
-      .optional(),
     supervision: z.enum(['none', 'heartbeat', 'guarding']),
     heartbeatConsumerMs: z.number().int().min(0).max(65535),
     heartbeatProducerMs: z.number().int().min(0).max(65535),

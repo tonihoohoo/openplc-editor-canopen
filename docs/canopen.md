@@ -146,9 +146,9 @@ shows it dimmed with an **Off** tag.
 pages: a note at the top says so, and every setting, **Add node**, **Remove node**, **Replace device
 file**, **Import...**, the **Fix all** buttons and the switch in the header are disabled until the
 session closes. What changes nothing in the project stays usable: the tabs, **Expert view**,
-**Export...**, the Status and Online tabs, **Give node ID** over LSS and the boot write list of the
-SDOs tab. The LSS actions that change the project (**Add as node**, **Use as node**, **Add as new
-node**) and the export options the project remembers are locked too.
+**Export...**, the Status and Online tabs, the boot write list of the SDOs tab and the device tools
+of [device commissioning](#device-commissioning). Its **Add to project...** and the export options
+the project remembers are locked too.
 
 ### Bits of a PDO entry
 
@@ -385,37 +385,62 @@ to `canopen.json` lies in the range the runtime takes; `__tests__/runtime-ranges
 copy of those ranges, taken from the runtime's parser, and must change with it. **Fix all** applies every fix as one change. These options need
 `canopen.json` format version 3 or later.
 
-## Node ID over LSS
+## Node ID of a node
 
-A node's **General** tab has a section *How the device gets node ID N*:
+The node ID on a node's **General** tab must match the node ID set on the device: DIP switches, the
+device's own tool, or stored over LSS in [device commissioning](#device-commissioning). The master
+does not give node IDs at start. A project from an older editor whose nodes got their ID from the
+master over LSS opens with that setting dropped; give those devices their node ID once in device
+commissioning, with Store. `canopen.json` (format version 15) has no `lss` object on a node.
 
-- **Set on the device** (the default): DIP switches, the device's own tool, or stored earlier. The
-  node ID on the page must match it.
-- **Given by the master over LSS (CiA 305)**: at every start the runtime's master finds the device by
-  its LSS address and gives it the node ID before it boots it. A line under the choice shows the
-  vendor ID and product code from the device file; enter the **serial number** from the device's label
-  (0x1018:04, hexadecimal `0x...` or decimal). **Also store the node ID in the device** (off by
-  default) makes the device keep the ID after a power-off; the master stores it when it changed it,
-  not at every start. To swap a broken device, enter the new serial number. In the expert view, the
-  **revision** can be set too (empty for any: the master then searches for it, a few seconds more at
-  start); a revision that is set stays visible in the basic view, marked as expert.
+## Device commissioning
 
-The choice is offered only when the device file says the device supports LSS (`LSS_Supported=1` in
-an EDS or DCF, `layerSettingServiceSlave="true"` in an XDD or XDC); otherwise it is grey with that
-reason. A node given its ID over LSS has an **LSS** mark in the node list. Switching back to *Set on
-the device* keeps the serial number in the project but writes no `lss` object.
+**File > CANopen device commissioning...** (with a project open) opens a window for one device at a
+time on the CAN bus of the runtime the editor is connected to, apart from the project's networks. It
+needs a runtime that lists `"commission"` in `canopen.features` and a stopped PLC; otherwise it says
+why it offers nothing. While a network is in a debug session, everything but **Add to project...**
+works.
 
-The build is refused, naming the node, when a node set to LSS has no serial number or 0, when its
-device file does not list LSS support (fix: *Set the node ID on the device*), or when two nodes of
-one network have the same LSS address (vendor ID, product code, revision and serial number).
-`canopen.json` gets the node's `lss` object (format version 7): `vendor_id`, `product_code`,
-`revision` (0 for any), `serial_number` and `store`.
-
-While connected, the node list shows *LSS: no device answered* or *LSS: node ID refused* under the
-node's name, and the node's **Status** tab has an **LSS** card. Its top line shows the node ID and how
-the device got it, the serial number the master looks for, and the last result; under it, **History**
-lists the latest LSS results in words, such as "Node ID 3 given (device had none); not stored" or the
-full address the master looked for when no device answered.
+- **The bus.** Pick the **CAN interface** (the project's interfaces are offered, can0 when there is
+  none) and the **Bit rate** (the rate of the project's network on that interface, else 125 kbit/s;
+  there is no automatic detection), then **Open the bus**. The runtime opens service mode for
+  commissioning: the master sends nothing of its own and reaches any node ID 1 to 127. When a network the
+  runtime keeps on the bus at PLC stop runs on the interface, the window asks first: **Leave the bus
+  and open** takes the interface over until the next PLC start, which boots all the network's nodes
+  again. The bus closes when the window closes, when the PLC starts, and after 5 minutes without a
+  request.
+- **Find devices** reads 0x1000 and 0x1018 of node IDs 1 to 127 (a few seconds), listening for
+  heartbeats, boot-ups and emergencies meanwhile, and then searches for devices without a node ID by
+  LSS fastscan (about 7 s per device). The list shows the devices with a node ID in order, then the
+  IDs that were only heard (they sent but did not answer SDO reads: a wrong bit rate or no SDO server),
+  then the devices without a node ID by their LSS address. Each row names the device by the device file
+  it matches.
+- **Device file.** A device gets the project's device file (any CANopen network) with its vendor ID
+  and product code, the same revision first, else the newest. **Choose file...** takes another EDS,
+  DCF, XDD or XDC for this window session, with a warning when it is for another device; **None**
+  works without one, reading and writing objects by index, sub-index and data type. A device file
+  is never required.
+- **Node ID and memory.** **Set node ID** gives the device a new node ID over LSS (CiA 305) and
+  always stores it; an ID another found device uses is refused. A device that had an ID keeps it until
+  it is reset: the card offers **Reset device**. **Find devices** keeps the selected device selected by
+  its LSS address, so after the reset it picks the device at its new ID. **Set bit rate** stores a new bit rate after a confirmation that this
+  device is the only one on the link, and is blocked while more than one device answered; the device
+  takes it at its next power-on, and the card offers to open the bus at the new rate. With a device file
+  that says no LSS, these are greyed with the reason. **Device memory** has **Save to device** (0x1010)
+  and **Restore defaults** (0x1011), each with a scope list from the device file, or without one from
+  the sub-indexes the device reports. Both ask first; when the device refuses with 0x08000022, the
+  card offers **Enter pre-operational and retry** (NMT Enter pre-operational, then the same write
+  once more), and after a save it offers **Start remote node** to set it back to operational. A save
+  the device took in the state it was in offers nothing. After a restore it offers the reset that makes
+  it take effect.
+- **Objects** is the node's Online tab for this device, from its device file: Read all, filters,
+  **Any object...**, and in the expert view writes and the NMT buttons. Its "Default" column is the
+  device file's default, and the filter "Differs from default" shows the objects that differ.
+- **Add to project...** adds the device as a node of a CANopen network of the project with the node
+  ID it has now, its device file (a picked file is imported with the node) and the file's default
+  PDOs. With no CANopen network in the project it makes a new one on the window's interface and bit
+  rate. It refuses a node ID the network uses, and warns when the network runs at another bit rate
+  than the device was found at.
 
 ## Live status
 
@@ -471,20 +496,15 @@ and turning it off closes the service mode the editor opened.
   as startup SDOs; the object is read back after the write, and the project is not changed. A write
   to an object the master writes at boot says that the value lasts until the node boots again.
   Problems and refusals show on a line under the row; when the node refuses a write with 0x08000022
-  (not in its present state), that line offers to switch the node to pre-operational and write again.
-  **Node state** shows the node's state and NMT state with the NMT buttons (Start, Pre-operational,
-  Stop, Reset node, Reset communication); all but Start ask first. With **Send to all nodes of the
+  (not in its present state), that line offers **Enter pre-operational and retry**: NMT Enter
+  pre-operational, then the write again.
+  **Node state** shows the node's state and NMT state with the NMT buttons, named as in CiA 301
+  (Start remote node, Enter pre-operational, Stop remote node, Reset node, Reset communication); all
+  but Start remote node ask first. With **Send to all nodes of the
   network** ticked, the buttons send to every node and the question says so. Questions and results
   show to the right of the buttons, so the card keeps its size.
-  **Node memory** has one Save to node (0x1010) and one Restore defaults (0x1011), each with a scope
-  list holding only the scopes the EDS lists as writable sub-indexes. Each save scope is read when the
-  tab opens: a scope the node does not save on command is left out, and one it saves by itself shows
-  "(saves automatically)" with the button greyed; when the read fails the scope stays. Both ask first,
-  to the right of the buttons, and after a restore the editor offers the reset that makes it take effect (reset
-  communication for the communication scope, else reset node). When the node refuses a save or
-  restore with 0x08000022, the card offers to switch it to pre-operational and try once more; after a
-  retried restore the reset brings the node back, and after a retried save the card offers Start.
-  Any object also writes; it never writes 0x1010 or 0x1011 and points to Node memory instead.
+  Any object also writes; it never writes 0x1010 or 0x1011: saving and restoring is done in
+  [device commissioning](#device-commissioning), one device at a time.
 - **PLC stopped.** While the PLC is stopped, the network header says what the tools reach. When
   the runtime keeps the network on the bus ("PLC stopped, outputs zero"), the tools work on it as
   while the PLC runs. When no network by this name runs and the runtime lists the `"service"`
@@ -492,57 +512,7 @@ and turning it off closes the service mode the editor opened.
   (there is no button for it); the master then sends nothing of its own, the NMT state follows the
   commands sent and the nodes' heartbeats and boot-ups, and the header says that no network runs and
   the bus is open with the project's settings. Closing the device editor closes it; the runtime
-  closes it before the PLC starts and after 5 minutes without a request. With the runtime's `"lss"`
-  feature and the expert view on, the header has a bit rate choice for service mode (the network's
-  rate by default), so a device that runs at another rate can be reached; choosing another rate
-  closes an open bus, and the next request opens it at the new rate. While the bus is open at another
-  rate than the network's, the header says so. While a network runs on the interface the choice is
-  greyed with the reason, since the bus stays at the network's rate. A device at another rate disturbs
-  every device at the network's rate, so another rate is only for a device alone on its link (its
-  own interface, or the other devices disconnected).
-
-### Devices without node ID (LSS)
-
-With the runtime's `"lss"` feature the network has an **Online** tab (next to Nodes and Network)
-with the panel **Devices without node ID (LSS)** and an **Expert view** switch (the same setting as
-on the node pages). **Find devices without node ID** runs an LSS fastscan on the runtime, about 7 s
-per device, while the PLC runs or is stopped; devices show as they answer, and a device that
-already has a node ID is left out. Each row has the device (the product name of the device file it
-matches, or *Unknown device*), its serial number and what it matches in the project; the row's
-tooltip gives the full LSS address, and the expert view adds the vendor ID, product code and
-revision columns:
-
-- a project node given its ID over LSS with the same serial number, vendor ID and product code
-  ("serial matches"): **Give node ID 3** gives it that node's ID;
-- else project nodes that use LSS with the same vendor ID and product code but another serial number
-  ("other serial", a spare part): **Use as node 3...** (one button when one node fits, with a node
-  choice in the dialog when several do) lets the device take over that node, and **Add as new node...**
-  adds it as a node of its own;
-- else a device file of the project (any CANopen network) with the same vendor ID and product code
-  ("not in project"): **Add as node...**;
-- else nothing: **Give node ID...**.
-
-**Use as node** opens *Replace device of node N*, which shows the node's serial number and the new one.
-It gives the node ID (*Give it node ID N now*, on by default) and then sets the node's LSS serial number
-and revision to the device's; if the request fails the project stays unchanged. Upload the project
-afterwards, so the master gives the ID at every start. When the node is running now, the dialog warns
-that the original device may still be on the bus.
-
-If the search stops early (after 64 devices, or because a device answered out of turn, which some
-devices do once found), the devices found so far stay in the list under the reason. Give them a node
-ID and search again to find the rest.
-
-The dialog lists the free node IDs first, then the ones the project uses. *Also store the node ID in
-the device* (off by default) stores the ID in the device, needed when the project does not give it
-over LSS at every start. **Add as node** adds a node with the matched device file and the chosen ID,
-set to get it over LSS with the device's serial number when the file lists LSS support; *Give it node
-ID N now* (on by default) also gives it at once, and off leaves it to the master at the next PLC
-start. A device file without LSS support makes a node with a fixed ID, so the ID is then always given
-now and stored. With the PLC stopped and the expert view on, the dialog also sets the device's bit rate:
-the change must be confirmed, it is always stored, and the device takes it after its next reset or
-power-off. It then only works on a bus where every device uses the new rate: change the others too
-and the network's bit rate, or connect it to a bus at the new rate. The runtime refuses a node ID that a running node uses, and a bit rate change while the
-PLC runs.
+  closes it before the PLC starts and after 5 minutes without a request.
 
 ## PLC function blocks
 
@@ -826,15 +796,13 @@ again comes back with the same objects, details and layout.
 ### LSS
 
 The General tab's **How this slave gets node ID N** card (layer setting services, CiA 305) lets an LSS
-master find the slave and give it its node ID and bit rate. **Fixed in the project** is the default;
+tool find the slave and change its node ID and bit rate. **Fixed in the project** is the default;
 the settings below show only with LSS on, and are kept while it is off:
 
-- **Given by an LSS master (CiA 305)** turns LSS on. The exported EDS then has `LSS_Supported=1`
-  and the XDD `layerSettingServiceSlave="true"`.
-- **Until a master gives one**: **Use node ID N** starts with the node ID above, which a master may
-  change; **No node ID: wait for the master** starts with no node ID (FFh) and stays silent apart from
-  LSS until a master gives it one, finding it by LSS fastscan. The Node ID field then shows "Set by the
-  LSS master" and keeps the typed value for when this is turned back.
+- **Fixed in the project, changeable over LSS (CiA 305)** turns LSS on. The slave starts with the
+  node ID above unless an LSS tool stored another one. The exported EDS then has `LSS_Supported=1`
+  and the XDD `layerSettingServiceSlave="true"`. A project from an older editor whose slave waited
+  for a master's node ID opens with the node ID above.
 
 In the expert view (a setting off its default stays visible in the basic view, marked as expert):
 
@@ -968,7 +936,7 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   fixes, receive timeouts, node options, EDS and DCF import and export, the basic and expert view, heartbeat consuming, emergency and
   TIME settings, turning a network off, the PLC block library and node names in a program, the upload check against a runtime without CANopen, and,
   against a fake runtime on port 8443 (`e2e/helpers/canopen-runtime.ts`), the live status, the Online
-  tab, Save to node and Restore defaults, and service mode. Run them locally with
+  tab, service mode and device commissioning. Run them locally with
   `npx playwright test e2e/canopen-` after the build steps in CLAUDE.md ("Electron e2e").
 - CI: `.github/workflows/canopen-ui.yml` runs on every pull request to `canopen`, on pushes to
   `canopen` and when started by hand. A pull request runs only the specs its changed files need
@@ -1003,17 +971,16 @@ the node's `tpdos` and `rpdos`. Objects the EDS marks read-only are not written.
   `jest.config.json` (`.github/scripts/coverage-merge.mjs`). A push to a pull request that changes
   only files under `e2e/`, on an unchanged base after a passing run, skips its jobs like a docs-only
   change.
-- `e2e/canopen-lss.spec.ts` covers the LSS section, the list mark, the build check and the LSS panel
-  of the Status tab against the fake runtime.
+- `e2e/canopen-commissioning.spec.ts` opens device commissioning from the File menu against the fake
+  runtime: taking over the kept network, Find, a new node ID over LSS and a reset, Save to device
+  with the retry in pre-operational, and Add to project.
 - `e2e/layout-canopen-online.spec.ts` (local only, outside the CI glob) takes screenshots of the Online
   tab at a wide and a narrow window for a layout review, into `SCREENSHOT_DIR`.
   The runtime fork's CI builds `e2e/fixtures/canopen-generic-io/` with the editor CLI and runs it
   against a simulated node on a virtual CAN bus, and runs `e2e/fixtures/canopen-plc-blocks/`, a
   program that calls every block, against the same node across PLC stops and starts. It also runs
   `e2e/fixtures/canopen-slave/` as a CANopen slave under a master played by a script on the bus,
-  `e2e/fixtures/canopen-slave-lss/`, the same slave waiting for an LSS master's node ID, and
-  `e2e/fixtures/canopen-lss/` against a simulated node that starts without a node ID and gets
-  node 2 over LSS. `e2e/fixtures/canopen-slave-blocks/` is a slave whose program uses the four slave
+  `e2e/fixtures/canopen-slave-lss/`, the same slave with LSS on. `e2e/fixtures/canopen-slave-blocks/` is a slave whose program uses the four slave
   blocks; the script raises and clears its emergency, has it leave and re-enter operational and
   stops the PLC with the NMT state on a PLC stop set (`slave-blocks-e2e-fixture.test.ts` checks the
   project and compiles its program).

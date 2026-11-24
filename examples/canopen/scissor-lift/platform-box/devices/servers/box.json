@@ -191,7 +191,6 @@
     },
     "lss": {
       "enabled": true,
-      "waitForMaster": true,
       "serial": null,
       "bitrateChange": true
     }

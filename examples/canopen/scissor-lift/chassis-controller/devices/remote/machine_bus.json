@@ -5275,13 +5275,7 @@
             ]
           }
         ],
-        "sdos": [],
-        "lss": {
-          "enabled": true,
-          "serialNumber": 1,
-          "revision": 0,
-          "store": true
-        }
+        "sdos": []
       },
       {
         "id": "node-valves",

@@ -1,11 +1,11 @@
 /**
- * Screenshots of the CANopen Online tab for a layout review: the basic and expert views, node
- * memory, any-object access and NMT to all nodes, at a wide and a narrow window. Writes PNGs to
+ * Screenshots of the CANopen Online tab for a layout review: the basic and expert views,
+ * any-object access and NMT to all nodes, at a wide and a narrow window. Writes PNGs to
  * SCREENSHOT_DIR (default test-results/canopen-online-screens).
  *
  * Local only (CI runs `e2e/canopen-*`). Needs a production build plus the preload copy; see "Electron e2e" in CLAUDE.md. Port 8443 must be free.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { expect, type Page, test } from '@playwright/test'
@@ -15,45 +15,6 @@ import { quitApp } from './helpers/ethercat-project'
 
 const OUT = process.env.SCREENSHOT_DIR ?? join(__dirname, '..', 'test-results', 'canopen-online-screens')
 const FEATURES = ['status', 'sdo', 'nmt', 'service']
-
-type EdsObject = {
-  index: number
-  subIndex: number
-  name: string
-  dataType: string
-  access: string
-  pdoMapping: boolean
-}
-
-const nvm = (index: number, subIndex: number, name: string): EdsObject => ({
-  index,
-  subIndex,
-  name,
-  dataType: subIndex === 0 ? 'UNSIGNED8' : 'UNSIGNED32',
-  access: subIndex === 0 ? 'ro' : 'rw',
-  pdoMapping: false,
-})
-
-/** Adds 0x1010 and 0x1011 to the node's EDS so that the node memory card shows. */
-function addNodeMemory(file: string): void {
-  const bus = JSON.parse(readFileSync(file, 'utf8')) as {
-    canopenConfig: { nodes: Array<{ eds: { objects: EdsObject[] } }> }
-  }
-  const objects = bus.canopenConfig.nodes[0].eds.objects
-  const extra = [0x1010, 0x1011].flatMap((index) => {
-    const verb = index === 0x1010 ? 'Save' : 'Restore default'
-    return [
-      nvm(index, 0, 'Highest sub-index supported'),
-      nvm(index, 1, `${verb} all parameters`),
-      nvm(index, 2, `${verb} communication parameters`),
-      nvm(index, 3, `${verb} application parameters`),
-    ]
-  })
-  bus.canopenConfig.nodes[0].eds.objects = [...objects, ...extra].sort(
-    (a, b) => a.index - b.index || a.subIndex - b.subIndex,
-  )
-  writeFileSync(file, JSON.stringify(bus, null, 2))
-}
 
 function screenNode(): FakeNode {
   const node = new FakeNode()
@@ -90,8 +51,7 @@ function screenNode(): FakeNode {
   return node
 }
 
-const open = (name: string, node: FakeNode) =>
-  openDevice(FEATURES, name, node, (project) => addNodeMemory(join(project, 'devices', 'remote', 'canopen_1.json')))
+const open = (name: string, node: FakeNode) => openDevice(FEATURES, name, node)
 
 async function shot(page: Page, file: string): Promise<void> {
   await page.mouse.move(0, 0)
@@ -128,29 +88,14 @@ test('screenshots of the CANopen Online tabs', async () => {
     await page.getByTestId('canopen-online-note-8448:0').scrollIntoViewIfNeeded()
     await shot(page, '04-node-online-refused-write.png')
 
-    const memory = page.getByTestId('canopen-online-nvm')
-    await memory.scrollIntoViewIfNeeded()
-    await memory.getByRole('button', { name: 'Restore defaults' }).click()
-    await shot(page, '05-node-memory-confirm.png')
-    await memory.getByRole('button', { name: 'Restore defaults' }).last().click()
-    await expect(page.getByTestId('canopen-online-nvm-offer')).toBeVisible({ timeout: 15000 })
-    await shot(page, '06-node-memory-reset-offer.png')
-
     const state = page.getByTestId('canopen-online-nmt')
     await state.scrollIntoViewIfNeeded()
     await state.getByRole('checkbox', { name: 'Send to all nodes of the network' }).check()
-    await state.getByRole('button', { name: 'Stop' }).click()
+    await state.getByRole('button', { name: 'Stop remote node' }).click()
     await shot(page, '07-node-state-all-nodes-confirm.png')
-    await state.getByRole('alertdialog').getByRole('button', { name: 'Stop' }).click()
-    await expect(state).toContainText('Stop sent to every node.', { timeout: 15000 })
+    await state.getByRole('alertdialog').getByRole('button', { name: 'Stop remote node' }).click()
+    await expect(state).toContainText('Stop remote node sent to every node.', { timeout: 15000 })
     await shot(page, '08-node-state-all-nodes-sent.png')
-
-    node.aborts.set('4112:1', 0x08000020)
-    await memory.getByRole('button', { name: 'Save to node' }).click()
-    await memory.getByRole('alertdialog').getByRole('button', { name: 'Save to node' }).click()
-    await expect(memory).toContainText('Save failed', { timeout: 15000 })
-    await memory.scrollIntoViewIfNeeded()
-    await shot(page, '13-node-memory-save-failed.png')
 
     const raw = page.getByTestId('canopen-online-raw')
     await raw.getByLabel('Index (hex)').fill('5FFF')

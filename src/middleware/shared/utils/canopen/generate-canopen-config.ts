@@ -42,23 +42,7 @@ import {
 import { encodeCanopenValue, toHex } from './sdo-value'
 import { slaveDevicesOut } from './slave'
 
-export const CANOPEN_CONFIG_VERSION = 14
-
-/** The node's `lss` object: only while the node ID is given over LSS. */
-function lssOut(node: CanopenNode): {
-  lss?: { vendor_id: number; product_code: number; revision: number; serial_number: number; store: boolean }
-} {
-  if (!node.lss?.enabled) return {}
-  return {
-    lss: {
-      vendor_id: node.eds.vendorId,
-      product_code: node.eds.productCode,
-      revision: node.lss.revision,
-      serial_number: node.lss.serialNumber ?? 0,
-      store: node.lss.store,
-    },
-  }
-}
+export const CANOPEN_CONFIG_VERSION = 15
 
 interface SdoOut {
   index: number
@@ -370,7 +354,6 @@ export function generateCanopenConfig(
             product_code: node.checkProductCode ? node.eds.productCode : 0,
             revision: node.checkRevision ? node.eds.revision : 0,
           },
-          ...lssOut(node),
           supervision: supervisionOut(node),
           on_loss: node.onLoss,
           ...(node.state.iecLocation ? { state_location: node.state.iecLocation } : {}),

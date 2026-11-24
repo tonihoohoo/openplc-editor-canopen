@@ -714,7 +714,6 @@ export function slaveLssStoredText(slave: CanopenSlaveStatus): string | null {
 }
 
 /** The question before Forget, naming what the slave starts with afterwards. */
-export function slaveLssForgetText(config: CanopenSlaveConfig, waitForMaster: boolean): string {
-  const node = waitForMaster ? 'no node ID, waiting for an LSS master' : `node ID ${config.nodeId}`
-  return `Forget the node ID and bit rate an LSS master stored? The slave restarts with the project's values (${node}, ${bitrateText(config.bitrate).toLowerCase()}).`
+export function slaveLssForgetText(config: CanopenSlaveConfig): string {
+  return `Forget the node ID and bit rate an LSS master stored? The slave restarts with the project's values (node ID ${config.nodeId}, ${bitrateText(config.bitrate).toLowerCase()}).`
 }

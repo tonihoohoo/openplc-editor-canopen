@@ -43,6 +43,7 @@ const PROJECT_ONLY = [
   'menu:file.submenu.pageSetup',
   'menu:file.submenu.preview',
   'menu:file.submenu.print',
+  'CANopen device commissioning...',
   'Board Package Manager...',
   'menu:edit.submenu.findInProject',
   'menu:edit.submenu.deletePou',

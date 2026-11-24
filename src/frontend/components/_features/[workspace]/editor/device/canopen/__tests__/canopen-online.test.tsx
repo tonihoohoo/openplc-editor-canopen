@@ -93,9 +93,6 @@ const NVM_OBJECTS: CanopenObject[] = [
   nvmObject(0x1011, 2, 'Restore communication default parameters'),
 ]
 
-const LOAD = '6C6F6164'
-const SAVE = '73617665'
-
 const offIf = (config: CanopenConfig, off: boolean): CanopenConfig =>
   off ? { ...config, network: { ...config.network, enabled: false } } : config
 
@@ -251,8 +248,10 @@ describe('CANopen online tools', () => {
     const before = statusReads
     reportedNmt = 'operational'
     const preOperational = () => {
-      fireEvent.click(within(card).getByRole('button', { name: 'Pre-operational' }))
-      fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Pre-operational' }))
+      fireEvent.click(within(card).getByRole('button', { name: 'Enter pre-operational' }))
+      fireEvent.click(
+        within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Enter pre-operational' }),
+      )
     }
     preOperational()
     await settle()
@@ -276,8 +275,8 @@ describe('CANopen online tools', () => {
     fireEvent.click(within(r).getByRole('button', { name: 'Write' }))
     await settle()
     expect(note(0x2100).textContent).toContain('Write refused')
-    fireEvent.click(within(note(0x2100)).getByRole('button', { name: 'Switch to pre-operational and retry' }))
-    fireEvent.click(within(note(0x2100)).getByRole('button', { name: 'Switch and retry' }))
+    fireEvent.click(within(note(0x2100)).getByRole('button', { name: 'Enter pre-operational and retry' }))
+    fireEvent.click(within(note(0x2100)).getByRole('button', { name: 'Retry' }))
     await settle()
     await settle()
     expect(node.sent.some((s) => s.op === 'nmt' && s.command === 'pre_operational' && s.node === 2)).toBe(true)
@@ -309,12 +308,12 @@ describe('CANopen online tools', () => {
     expect(card.textContent).toContain('Reset node sent.')
 
     fireEvent.click(within(card).getByRole('checkbox', { name: 'Send to all nodes of the network' }))
-    fireEvent.click(within(card).getByRole('button', { name: 'Stop' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Stop remote node' }))
     expect(within(card).getByRole('alertdialog').textContent).toContain('Stop every node?')
-    fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Stop' }))
+    fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Stop remote node' }))
     await settle()
     expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 0, command: 'stop' })
-    expect(card.textContent).toContain('Stop sent to every node.')
+    expect(card.textContent).toContain('Stop remote node sent to every node.')
   })
 
   it('has one Online tab, on the node, and none on the network', async () => {
@@ -331,7 +330,7 @@ describe('CANopen online tools', () => {
     fireEvent.change(within(raw).getByLabelText('Sub-index'), { target: { value: '1' } })
     fireEvent.change(within(raw).getByLabelText('Value to write'), { target: { value: '73617665' } })
     fireEvent.click(within(raw).getByRole('button', { name: 'Write' }))
-    expect(raw.textContent).toContain('Use Save to node')
+    expect(raw.textContent).toContain('File > CANopen device commissioning')
     expect(node.sent.some((s) => s.op === 'sdo_write')).toBe(false)
   })
 
@@ -413,118 +412,11 @@ describe('CANopen online tools', () => {
     expect(screen.queryByTestId('canopen-bus-mode')).toBeNull()
   })
 
-  describe('node memory', () => {
-    const nvmCard = () => screen.getByTestId('canopen-online-nvm')
-    const nvmWrites = (index: number) => node.sent.filter((s) => s.op === 'sdo_write' && s.index === index)
-    const press = async (label: 'Save to node' | 'Restore defaults', subIndex: number) => {
-      const card = nvmCard()
-      const select = within(card).getByLabelText(label === 'Save to node' ? 'Scope to save' : 'Scope to restore')
-      fireEvent.change(select, { target: { value: String(subIndex) } })
-      fireEvent.click(within(card).getByRole('button', { name: label }))
-      fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: label }))
-      await settle()
-      await settle()
-    }
-    const retry = async () => {
-      fireEvent.click(within(nvmCard()).getByRole('button', { name: 'Switch to pre-operational and retry' }))
-      fireEvent.click(
-        within(within(nvmCard()).getByRole('alertdialog')).getByRole('button', { name: 'Switch and retry' }),
-      )
-      await settle()
-      await settle()
-    }
-
-    it('lists only the save scopes the node saves on command, and one the node saves by itself', async () => {
-      await renderEditor({ expert: true })
-      openNodeOnline()
-      await settle()
-      const options = within(within(nvmCard()).getByLabelText('Scope to save'))
-        .getAllByRole('option')
-        .map((o) => o.textContent)
-      expect(options).toEqual(['Save all parameters', 'Save application parameters (saves automatically)'])
-      const restores = within(within(nvmCard()).getByLabelText('Scope to restore'))
-        .getAllByRole('option')
-        .map((o) => o.textContent)
-      expect(restores).toEqual(['Restore all default parameters', 'Restore communication default parameters'])
-    })
-
-    it('switches to pre-operational, restores again and offers the reset, in the card', async () => {
-      await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x08000022) })
-      openNodeOnline()
-      await press('Restore defaults', 1)
-      expect(nvmCard().textContent).toContain('Restore all default parameters failed')
-      await retry()
-      expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'pre_operational' })
-      const writes = nvmWrites(0x1011)
-      expect(writes).toHaveLength(2)
-      expect(writes[1]).toMatchObject({ subindex: 1, data: LOAD })
-      const offer = screen.getByTestId('canopen-online-nvm-offer')
-      expect(within(offer).getByRole('button', { name: 'Reset node' })).toBeTruthy()
-      fireEvent.click(within(offer).getByRole('button', { name: 'Not now' }))
-      expect(nvmCard().textContent).toContain('The node stays in pre-operational until it is started or reset.')
-    })
-
-    it('offers reset communication after a retried communication restore', async () => {
-      await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x08000022) })
-      openNodeOnline()
-      await press('Restore defaults', 2)
-      await retry()
-      const offer = screen.getByTestId('canopen-online-nvm-offer')
-      fireEvent.click(within(offer).getByRole('button', { name: 'Reset communication' }))
-      await settle()
-      expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'reset_communication' })
-    })
-
-    it('saves again in pre-operational and offers to start the node', async () => {
-      await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x08000022) })
-      openNodeOnline()
-      await settle()
-      await press('Save to node', 1)
-      await retry()
-      expect(nvmWrites(0x1010)[1]).toMatchObject({ subindex: 1, data: SAVE })
-      expect(nvmCard().textContent).toContain('Save all parameters: done. The node is in pre-operational.')
-      fireEvent.click(within(screen.getByTestId('canopen-online-nvm-offer')).getByRole('button', { name: 'Start' }))
-      await settle()
-      expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 2, command: 'start' })
-    })
-
-    it('shows a second refusal without another retry', async () => {
-      await renderEditor({
-        expert: true,
-        setup: (n) => {
-          n.nvmAbort = 0x08000022
-          n.nvmAlwaysRefused = true
-        },
-      })
-      openNodeOnline()
-      await press('Restore defaults', 1)
-      await retry()
-      expect(nvmWrites(0x1011)).toHaveLength(2)
-      expect(screen.queryByTestId('canopen-online-nvm-offer')).toBeNull()
-      expect(nvmCard().textContent).toContain('The node is in pre-operational.')
-    })
-
-    it('offers no retry for another abort', async () => {
-      await renderEditor({ expert: true, setup: (n) => (n.nvmAbort = 0x06010002) })
-      openNodeOnline()
-      await press('Restore defaults', 1)
-      expect(nvmCard().textContent).toContain('Restore all default parameters failed')
-      expect(screen.queryByTestId('canopen-online-nvm-offer')).toBeNull()
-    })
-
-    it('shows a failed switch to pre-operational and does not write again', async () => {
-      await renderEditor({
-        expert: true,
-        setup: (n) => {
-          n.nvmAbort = 0x08000022
-          n.nmtError = 'busy'
-        },
-      })
-      openNodeOnline()
-      await press('Restore defaults', 1)
-      await retry()
-      expect(nvmCard().textContent).toContain('Pre-operational failed')
-      expect(nvmWrites(0x1011)).toHaveLength(1)
-    })
+  it('has no save or restore card: those are in the device commissioning window', async () => {
+    await renderEditor({ expert: true })
+    openNodeOnline()
+    await settle()
+    expect(screen.queryByTestId('canopen-online-nvm')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save to node' })).toBeNull()
   })
 })

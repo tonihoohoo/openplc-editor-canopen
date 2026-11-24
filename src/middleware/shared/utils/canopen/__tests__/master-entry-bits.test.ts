@@ -174,13 +174,13 @@ describe('bits in the model', () => {
 })
 
 describe('bits in the runtime configuration and checks', () => {
-  it('writes the bit locations instead of a location, at format 14', () => {
+  it('writes the bit locations instead of a location (format 14 and later)', () => {
     const { after } = splitInput()
     const json = JSON.parse(generateCanopenConfig([canopenDevice('net', after)]) ?? '') as {
       version: number
       networks: Array<{ nodes: Array<{ tpdos: Array<{ entries: Array<Record<string, unknown>> }> }> }>
     }
-    expect(json.version).toBe(14)
+    expect(json.version).toBe(15)
     const entry = json.networks[0].nodes[0].tpdos[0].entries[0]
     expect(entry).toEqual({
       index: 0x6000,
