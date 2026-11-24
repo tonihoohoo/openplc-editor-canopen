@@ -34,7 +34,6 @@ import { keyView, shot } from './helpers/canopen-shots'
 import { connectRuntime, launch, quitApp, writeEthercatProject } from './helpers/ethercat-project'
 
 const FEATURES = ['status', 'sdo', 'nmt', 'service', 'lss', 'commission']
-const WINDOW = 'CANopen device commissioning'
 
 const NVM_OBJECTS = `
 [1010]
@@ -225,7 +224,7 @@ test('commissioning: a new device gets node ID 10, saves its parameters and is a
     await lss.getByTestId('canopen-com-set-id').click()
     const outcome = lss.getByTestId('canopen-com-lss-outcome')
     await expect(outcome).toContainText('Node ID 10 set and stored.', { timeout: 15000 })
-    await keyView(page, 'commissioning-node-id-set', [], WINDOW)
+    await keyView(page, 'commissioning-node-id-set', [], win)
     await outcome.getByRole('button', { name: 'Reset device' }).click()
     await expect.poll(() => bus.devices[1].nodeId).toBe(10)
     await lss.getByTestId('canopen-com-check-again').click()
@@ -241,7 +240,7 @@ test('commissioning: a new device gets node ID 10, saves its parameters and is a
     await expect(memory).toContainText('Save all parameters: done. The device is in pre-operational.', {
       timeout: 15000,
     })
-    await keyView(page, 'commissioning-saved', [], WINDOW)
+    await keyView(page, 'commissioning-saved', [], win)
     const saves = bus.requests.filter((r) => r.op === 'sdo_write' && r.index === 0x1010)
     expect(saves.map((r) => [r.node, r.data])).toEqual([
       [10, '73617665'],

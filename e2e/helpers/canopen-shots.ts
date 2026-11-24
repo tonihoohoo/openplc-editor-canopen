@@ -35,18 +35,19 @@ export async function shot(page: Page, name: string): Promise<void> {
  * compared with `e2e/<spec>-snapshots/<name>-chromium-linux.png`. A difference is recorded, not thrown,
  * so the test goes on and is not retried for it.
  * @param mask parts that change between runs, such as times
- * @param container the element compared, by its label; the slave server page passes its own
+ * @param container the element compared, by its label or as a locator; the slave server page passes its own
  */
 export async function keyView(
   page: Page,
   name: string,
   mask: Locator[] = [],
-  container = 'CANopen editor container',
+  container: string | Locator = 'CANopen editor container',
 ): Promise<void> {
   await shot(page, name)
   if (!visual) return
   try {
-    await expect(page.getByLabel(container, { exact: true })).toHaveScreenshot(`${name}.png`, {
+    const target = typeof container === 'string' ? page.getByLabel(container, { exact: true }) : container
+    await expect(target).toHaveScreenshot(`${name}.png`, {
       animations: 'disabled',
       caret: 'hide',
       mask,
