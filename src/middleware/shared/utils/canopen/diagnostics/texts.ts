@@ -31,14 +31,14 @@ const NODE_STATES: Record<CanopenNodeState, string> = {
 }
 
 const NMT_COMMANDS: Record<CanopenNmtCommand, string> = {
-  start: 'Start',
-  stop: 'Stop',
-  pre_operational: 'Pre-operational',
+  start: 'Start remote node',
+  stop: 'Stop remote node',
+  pre_operational: 'Enter pre-operational',
   reset_node: 'Reset node',
   reset_communication: 'Reset communication',
 }
 
-/** A client NMT command as a button label, for example "Reset node". */
+/** A client NMT command by its CiA 301 name, as a button label, for example "Start remote node". */
 export function nmtCommandLabel(command: CanopenNmtCommand): string {
   return NMT_COMMANDS[command]
 }

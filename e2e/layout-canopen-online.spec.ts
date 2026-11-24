@@ -91,10 +91,10 @@ test('screenshots of the CANopen Online tabs', async () => {
     const state = page.getByTestId('canopen-online-nmt')
     await state.scrollIntoViewIfNeeded()
     await state.getByRole('checkbox', { name: 'Send to all nodes of the network' }).check()
-    await state.getByRole('button', { name: 'Stop' }).click()
+    await state.getByRole('button', { name: 'Stop remote node' }).click()
     await shot(page, '07-node-state-all-nodes-confirm.png')
-    await state.getByRole('alertdialog').getByRole('button', { name: 'Stop' }).click()
-    await expect(state).toContainText('Stop sent to every node.', { timeout: 15000 })
+    await state.getByRole('alertdialog').getByRole('button', { name: 'Stop remote node' }).click()
+    await expect(state).toContainText('Stop remote node sent to every node.', { timeout: 15000 })
     await shot(page, '08-node-state-all-nodes-sent.png')
 
     const raw = page.getByTestId('canopen-online-raw')

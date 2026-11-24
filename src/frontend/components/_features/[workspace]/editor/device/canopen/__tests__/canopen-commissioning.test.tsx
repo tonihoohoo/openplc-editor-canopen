@@ -290,6 +290,8 @@ describe('CANopen device commissioning window', () => {
     const card = screen.getByTestId('canopen-device-memory')
     fireEvent.click(within(card).getByRole('button', { name: 'Save to device' }))
     fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Save to device' }))
+    expect(within(card).getByRole('status').textContent).toMatch(/: saving\.\.\.$/)
+    expect(within(card).getByRole('button', { name: 'Save to device' })).toHaveProperty('disabled', true)
     await settle()
     fireEvent.click(within(card).getByRole('button', { name: 'Enter pre-operational and retry' }))
     fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Retry' }))

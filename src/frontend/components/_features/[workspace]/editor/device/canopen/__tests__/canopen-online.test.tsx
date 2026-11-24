@@ -248,8 +248,10 @@ describe('CANopen online tools', () => {
     const before = statusReads
     reportedNmt = 'operational'
     const preOperational = () => {
-      fireEvent.click(within(card).getByRole('button', { name: 'Pre-operational' }))
-      fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Pre-operational' }))
+      fireEvent.click(within(card).getByRole('button', { name: 'Enter pre-operational' }))
+      fireEvent.click(
+        within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Enter pre-operational' }),
+      )
     }
     preOperational()
     await settle()
@@ -306,12 +308,12 @@ describe('CANopen online tools', () => {
     expect(card.textContent).toContain('Reset node sent.')
 
     fireEvent.click(within(card).getByRole('checkbox', { name: 'Send to all nodes of the network' }))
-    fireEvent.click(within(card).getByRole('button', { name: 'Stop' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Stop remote node' }))
     expect(within(card).getByRole('alertdialog').textContent).toContain('Stop every node?')
-    fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Stop' }))
+    fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Stop remote node' }))
     await settle()
     expect(node.sent).toContainEqual({ op: 'nmt', network: 0, node: 0, command: 'stop' })
-    expect(card.textContent).toContain('Stop sent to every node.')
+    expect(card.textContent).toContain('Stop remote node sent to every node.')
   })
 
   it('has one Online tab, on the node, and none on the network', async () => {

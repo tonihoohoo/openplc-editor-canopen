@@ -498,8 +498,9 @@ and turning it off closes the service mode the editor opened.
   Problems and refusals show on a line under the row; when the node refuses a write with 0x08000022
   (not in its present state), that line offers **Enter pre-operational and retry**: NMT Enter
   pre-operational, then the write again.
-  **Node state** shows the node's state and NMT state with the NMT buttons (Start, Pre-operational,
-  Stop, Reset node, Reset communication); all but Start ask first. With **Send to all nodes of the
+  **Node state** shows the node's state and NMT state with the NMT buttons, named as in CiA 301
+  (Start remote node, Enter pre-operational, Stop remote node, Reset node, Reset communication); all
+  but Start remote node ask first. With **Send to all nodes of the
   network** ticked, the buttons send to every node and the question says so. Questions and results
   show to the right of the buttons, so the card keeps its size.
   Any object also writes; it never writes 0x1010 or 0x1011: saving and restoring is done in

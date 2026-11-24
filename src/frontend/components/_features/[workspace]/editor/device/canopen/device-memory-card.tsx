@@ -29,9 +29,6 @@ type NvmOffer =
   | { kind: 'reset'; subIndex: number; preOperational: boolean }
   | { kind: 'start' }
 
-/** The CiA 301 name of the NMT command that sets a device operational. */
-const START_REMOTE_NODE = 'Start remote node'
-
 type DeviceMemoryCardProps = {
   /** The device file in use; null for none, when the scopes come from the device's sub-index 0. */
   eds: CanopenEdsInfo | null
@@ -73,6 +70,8 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
   const [saveSub, setSaveSub] = useState<number | null>(null)
   const [restoreSub, setRestoreSub] = useState<number | null>(restores[0]?.subIndex ?? null)
   const feedback = useCardFeedback(online.ready)
+  /** True while a save, restore or the NMT command before a retry waits for the device. */
+  const [busy, setBusy] = useState(false)
   useEffect(() => {
     if (!ready) setOffer(null)
   }, [ready])
@@ -117,10 +116,12 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
 
   const nvmWrite = (op: NvmOp, subIndex: number, name: string, retried: boolean) => {
     setOffer(null)
-    onResult(null)
+    setBusy(true)
+    onResult(`${name}: ${op === 'save' ? 'saving' : 'restoring'}...`)
     const index = op === 'save' ? 0x1010 : 0x1011
     const signature = op === 'save' ? SAVE_SIGNATURE : LOAD_SIGNATURE
     void client.write(networkIndex, nodeId, index, subIndex, [...signature]).then((r) => {
+      setBusy(false)
       const inPreOp = retried ? ' The device is in pre-operational.' : ''
       if (!r.ok) {
         const failed = `${name} failed: ${r.message}.`
@@ -144,21 +145,28 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
 
   const retryInPreOperational = (op: NvmOp, subIndex: number, name: string) => {
     setOffer(null)
+    setBusy(true)
+    onResult(`${nmtCommandLabel('pre_operational')}...`)
     void client.nmt(networkIndex, nodeId, 'pre_operational').then((r) => {
-      if (!r.ok) return onResult(`Enter pre-operational failed: ${r.message}.`, true)
+      if (!r.ok) {
+        setBusy(false)
+        return onResult(`Enter pre-operational failed: ${r.message}.`, true)
+      }
       nvmWrite(op, subIndex, name, true)
     })
   }
 
   const offerRow = (text: string, action: { label: string; run: () => void }, onNotNow: () => void) => (
-    <div className='mt-2 flex flex-wrap items-center gap-2 text-xs' data-testid='canopen-device-memory-offer'>
+    <div className='mt-2 flex flex-col items-start gap-1 text-xs' data-testid='canopen-device-memory-offer'>
       <span>{text}</span>
-      <button type='button' className={smallButtonClassName} onClick={action.run}>
-        {action.label}
-      </button>
-      <button type='button' className={smallButtonClassName} onClick={onNotNow}>
-        Not now
-      </button>
+      <div className='flex gap-2'>
+        <button type='button' className={smallButtonClassName} onClick={action.run}>
+          {action.label}
+        </button>
+        <button type='button' className={smallButtonClassName} onClick={onNotNow}>
+          Not now
+        </button>
+      </div>
     </div>
   )
 
@@ -205,10 +213,10 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
         return offerRow(
           'Back to operational?',
           {
-            label: START_REMOTE_NODE,
+            label: nmtCommandLabel('start'),
             run: () => {
               setOffer(null)
-              sendNmt('start', START_REMOTE_NODE)
+              sendNmt('start')
             },
           },
           () => {
@@ -264,7 +272,7 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
               <button
                 type='button'
                 className={smallButtonClassName}
-                disabled={!ready || !saveScope || saveAuto}
+                disabled={!ready || busy || !saveScope || saveAuto}
                 title={saveAuto ? 'The device saves this by itself' : undefined}
                 onClick={() => {
                   if (!saveScope) return
@@ -297,7 +305,7 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
               <button
                 type='button'
                 className={smallButtonClassName}
-                disabled={!ready || !restoreScope}
+                disabled={!ready || busy || !restoreScope}
                 onClick={() => {
                   if (!restoreScope) return
                   feedback.ask({
