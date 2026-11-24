@@ -15,7 +15,9 @@ import { portsWithRuntime } from '@root/middleware/shared/utils/canopen/__tests_
 
 import { CanopenCommissioningWindow } from '../commissioning/window'
 
-const FEATURES = { canopen: { configVersions: [15], features: ['status', 'sdo', 'nmt', 'service', 'lss', 'commission'] } }
+const FEATURES = {
+  canopen: { configVersions: [15], features: ['status', 'sdo', 'nmt', 'service', 'lss', 'commission'] },
+}
 const IO = genericIoEds()
 
 const nvm = (index: number, subIndex: number, name: string): CanopenObject => ({
@@ -142,7 +144,10 @@ async function renderWindow(
     },
   }
   const config = configWith(...(options.noProjectFile ? [] : [node]))
-  const net = { ...config, network: { ...config.network, interface: 'can0', bitrate: options.networkBitrate ?? 125000 } }
+  const net = {
+    ...config,
+    network: { ...config.network, interface: 'can0', bitrate: options.networkBitrate ?? 125000 },
+  }
   store.setState({
     project: {
       ...state.project,

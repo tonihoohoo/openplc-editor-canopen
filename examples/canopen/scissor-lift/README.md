@@ -153,6 +153,8 @@ LSS (CiA 305). The master then reports node 10 missing. To commission the spare:
 6. Close the window and start the chassis controller's PLC: the master boots node 10 and the box's
    lamps come back.
 
+![Device commissioning with the spare box at node 127](images/screenshots/editor-commissioning-spare.png)
+
 Until the master has started the spare box, its display says "Waiting for a node ID" and its lamps stay
 off. When the box loses the master later, for example because the chassis controller stops, it says "No
 contact with the master" and switches its lamps and buzzer off.

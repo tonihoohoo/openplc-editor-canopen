@@ -257,7 +257,7 @@ test('commissioning: a new device gets node ID 10, saves its parameters and is a
     await page.keyboard.press('Escape')
     await expect(win).toHaveCount(0)
     await expect.poll(() => bus.requests.some((r) => r.op === 'service_close')).toBe(true)
-    await expect(page.getByText(/^Node 10: /).first()).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText('10: Generic_I_O_module_2', { exact: true })).toBeVisible({ timeout: 15000 })
   } finally {
     await quitApp(app, page)
     runtime.close()
