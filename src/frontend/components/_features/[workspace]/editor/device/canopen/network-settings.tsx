@@ -139,7 +139,7 @@ const NetworkSettings = ({ network, nodes, cycleUs, onChange }: NetworkSettingsP
             label='On PLC stop'
             value={network.onPlcStop}
             options={STOP_OPTIONS}
-            hint='NMT state the nodes are put in after the outputs are zeroed'
+            hint='NMT state the nodes are put in after the outputs are zeroed; the master stays on the bus'
             onChange={(value) => onChange({ onPlcStop: value })}
           />
         </div>

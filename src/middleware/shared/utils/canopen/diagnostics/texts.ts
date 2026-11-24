@@ -369,6 +369,10 @@ export function eventText(event: CanopenEvent): string {
       return 'Turned off by the PLC program.'
     case 'lss':
       return lssResultText(event.lss ?? { result: 'none' }, event.node ?? 0)
+    case 'plc':
+      return event.running
+        ? 'PLC started; the nodes started without a reset.'
+        : 'PLC stopped; the master stays on the bus.'
     default: {
       const unreachable: never = event.kind
       return unreachable

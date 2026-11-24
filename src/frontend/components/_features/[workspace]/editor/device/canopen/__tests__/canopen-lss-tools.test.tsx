@@ -48,7 +48,14 @@ function lssNode(base: CanopenNode, nodeId: number, serialNumber: number): Canop
 }
 
 async function renderEditor(
-  options: { features?: string[]; service?: boolean; stopped?: boolean; expert?: boolean; failGive?: boolean } = {},
+  options: {
+    features?: string[]
+    service?: boolean
+    stopped?: boolean
+    kept?: boolean
+    expert?: boolean
+    failGive?: boolean
+  } = {},
 ) {
   localStorage.setItem('openplc:canopen-expert-view', options.expert ? 'on' : 'off')
   store = createTestStore()
@@ -63,7 +70,7 @@ async function renderEditor(
   })
   state.deviceActions.setRuntimeJwtToken('token')
   state.deviceActions.setRuntimeConnectionStatus('connected')
-  state.deviceActions.setPlcRuntimeStatus(options.service || options.stopped ? 'STOPPED' : 'RUNNING')
+  state.deviceActions.setPlcRuntimeStatus(options.service || options.stopped || options.kept ? 'STOPPED' : 'RUNNING')
   const jobs = new Map<number, unknown[]>()
   let next = 1
   const job = (...states: unknown[]) => {
@@ -74,6 +81,7 @@ async function renderEditor(
     if (options.stopped) return { version: 1, active: false }
     const body = sampleStatus()
     if (options.service) Object.assign(body.networks[0], { mode: 'service' })
+    if (options.kept) Object.assign(body.networks[0], { plc_running: false })
     return body
   }
   const ports = portsWithRuntime({
@@ -296,19 +304,28 @@ describe('CANopen LSS tools', () => {
     expect(nodes()).toHaveLength(3)
   })
 
-  it('opens the bus at another bit rate in the expert view', async () => {
+  it('opens the bus at another bit rate in the expert view at the first request', async () => {
     await renderEditor({ stopped: true, expert: true })
     fireEvent.change(screen.getByTestId('canopen-service-bitrate'), { target: { value: '125000' } })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Open bus' })[0])
-    await settle()
+    await find()
     expect(sent[0]).toMatchObject({ op: 'service_open', name: NET, bitrate: 125000 })
+    expect(sent[1]).toMatchObject({ op: 'lss', network: 0, action: 'find' })
   })
 
   it("opens the bus at the network's bit rate in the basic view", async () => {
     await renderEditor({ stopped: true })
     expect(screen.queryByTestId('canopen-service-bitrate')).toBeNull()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Open bus' })[0])
-    await settle()
+    await find()
     expect(sent[0]).toMatchObject({ op: 'service_open', name: NET, bitrate: 500000 })
+  })
+
+  it('keeps the bit rate of a network that stays on the bus while the PLC is stopped', async () => {
+    await renderEditor({ kept: true, expert: true })
+    const rate = screen.getByTestId<HTMLSelectElement>('canopen-service-bitrate')
+    expect(rate.disabled).toBe(true)
+    expect(screen.getByTestId('canopen-service-bus').textContent).toContain('so the bus stays at its bit rate')
+    await find()
+    expect(sent.some((r) => r.op === 'service_open')).toBe(false)
+    expect(sent[0]).toMatchObject({ op: 'lss', action: 'find' })
   })
 })

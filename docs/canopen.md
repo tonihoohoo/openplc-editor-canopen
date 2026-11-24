@@ -23,7 +23,9 @@ CANopen is offered where EtherCAT is: on targets whose capabilities set `etherca
    "Leave as configured" for a link set up outside the runtime), the master node ID, the master's
    heartbeat (100 ms for a new network), the real-time priority of the bus work on the runtime
    (1 to 97, default 90, above the PLC tasks), SYNC (none, once per PLC cycle, or a fixed period
-   of 1000 to 10000000 µs) and the NMT state the nodes get when the PLC stops. Further groups set the startup and error
+   of 1000 to 10000000 µs) and the NMT state the nodes get when the PLC stops (the master stays on the
+   bus while the PLC is stopped, with its heartbeat, supervision and the online tools, and the next
+   PLC start starts the nodes again without a reset when the network's bus settings did not change). Further groups set the startup and error
    behaviour, TIME and the defaults for new nodes (see "Startup and supervision options").
 3. **Nodes** tab: **Add node from device file...** reads an EDS, DCF, XDD or XDC file, picks the
    lowest free node ID and maps the PDOs the file defines by default. Set the node ID to the one set
@@ -433,7 +435,7 @@ While the editor is connected to a runtime whose `/api/capabilities` lists `"sta
   losses, the last emergencies with their code, error register bits and data, late PDOs, and the
   node's events with local times, and whether the node is optional or stopped after an error until
   the PLC restarts. A node held by a command from the online tools is "Held by you"; in service
-  mode the nodes are "Service mode".
+  mode the nodes are "Service mode", and the network's events include "PLC stopped" and "PLC started" when the runtime keeps it on the bus.
 
 SDO abort codes, emergency codes (CiA 301 communication and protocol codes, else the class) and
 error register bits are shown in words next to their values. When a read fails the last status stays,
@@ -447,8 +449,8 @@ The network is matched by the device's name. A network that is off is not read: 
 While the editor is connected to a runtime that lists `"sdo"` in `canopen.features`, each node has an
 **Online** tab. It sends its requests to `POST /api/canopen/request`;
 SDO requests are jobs the editor polls after 10, 20 and 50 ms and then every 100 ms. The network is
-the device's network in the runtime's status. A network that is off in the project has no Online tab
-and no Open bus, and turning it off closes the service mode the editor opened.
+the device's network in the runtime's status. A network that is off in the project has no Online tab,
+and turning it off closes the service mode the editor opened.
 
 - **Basic view (read only).** Every object of the node's EDS with index, name, type, access, the value
   in the project (the value the master writes at boot, marked with `*`, else the EDS default) and the
@@ -483,22 +485,28 @@ and no Open bus, and turning it off closes the service mode the editor opened.
   restore with 0x08000022, the card offers to switch it to pre-operational and try once more; after a
   retried restore the reset brings the node back, and after a retried save the card offers Start.
   Any object also writes; it never writes 0x1010 or 0x1011 and points to Node memory instead.
-- **Service mode.** With the runtime's `"service"` feature and the PLC stopped, the network header
-  offers **Open bus** (the node's Online tab offers it instead while that tab is shown), which opens
-  service mode with the network's settings and nodes; the online tools then work as with a running PLC while the master sends nothing of its own.
-  The NMT state follows the commands sent and the nodes' heartbeats and boot-ups.
-  **Close bus** closes it, and so does closing the device editor; the runtime closes it before the
-  PLC starts and after 5 minutes without a request. With the runtime's `"lss"` feature and the expert
-  view on, a bit rate choice sits next to Open bus (the network's rate by default), so a device that
-  runs at another rate can be reached; while the bus is open at another rate than the network's, the
-  header says so.
+- **PLC stopped.** While the PLC is stopped, the network header says what the tools reach. When
+  the runtime keeps the network on the bus ("PLC stopped, outputs zero"), the tools work on it as
+  while the PLC runs. When no network by this name runs and the runtime lists the `"service"`
+  feature, the first request opens service mode with the network's settings and nodes by itself
+  (there is no button for it); the master then sends nothing of its own, the NMT state follows the
+  commands sent and the nodes' heartbeats and boot-ups, and the header says that no network runs and
+  the bus is open with the project's settings. Closing the device editor closes it; the runtime
+  closes it before the PLC starts and after 5 minutes without a request. With the runtime's `"lss"`
+  feature and the expert view on, the header has a bit rate choice for service mode (the network's
+  rate by default), so a device that runs at another rate can be reached; choosing another rate
+  closes an open bus, and the next request opens it at the new rate. While the bus is open at another
+  rate than the network's, the header says so. While a network runs on the interface the choice is
+  greyed with the reason, since the bus stays at the network's rate. A device at another rate disturbs
+  every device at the network's rate, so another rate is only for a device alone on its link (its
+  own interface, or the other devices disconnected).
 
 ### Devices without node ID (LSS)
 
 With the runtime's `"lss"` feature the network has an **Online** tab (next to Nodes and Network)
 with the panel **Devices without node ID (LSS)** and an **Expert view** switch (the same setting as
 on the node pages). **Find devices without node ID** runs an LSS fastscan on the runtime, about 7 s
-per device, while the PLC runs or in service mode; devices show as they answer, and a device that
+per device, while the PLC runs or is stopped; devices show as they answer, and a device that
 already has a node ID is left out. Each row has the device (the product name of the device file it
 matches, or *Unknown device*), its serial number and what it matches in the project; the row's
 tooltip gives the full LSS address, and the expert view adds the vendor ID, product code and
@@ -530,9 +538,10 @@ over LSS at every start. **Add as node** adds a node with the matched device fil
 set to get it over LSS with the device's serial number when the file lists LSS support; *Give it node
 ID N now* (on by default) also gives it at once, and off leaves it to the master at the next PLC
 start. A device file without LSS support makes a node with a fixed ID, so the ID is then always given
-now and stored. In service mode with the expert view on, the dialog also sets the device's bit rate:
+now and stored. With the PLC stopped and the expert view on, the dialog also sets the device's bit rate:
 the change must be confirmed, it is always stored, and the device takes it after its next reset or
-power-off. The runtime refuses a node ID that a running node uses, and a bit rate change while the
+power-off. It then only works on a bus where every device uses the new rate: change the others too
+and the network's bit rate, or connect it to a bus at the new rate. The runtime refuses a node ID that a running node uses, and a bit rate change while the
 PLC runs.
 
 ## PLC function blocks

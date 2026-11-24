@@ -40,8 +40,14 @@ export function useCanopenOnlineReads(online: CanopenOnlineContext | null): Cano
   const client = online?.client ?? null
   const networkIndex = online?.networkIndex ?? -1
 
-  // Values from another runtime or network say nothing about this one.
+  // Values from another runtime or network say nothing about this one. A network that appears
+  // (service mode opened by the first request) or goes away keeps them.
+  const shown = useRef({ client, networkIndex })
   useEffect(() => {
+    const before = shown.current
+    shown.current = { client, networkIndex }
+    const otherNetwork = before.networkIndex >= 0 && networkIndex >= 0 && before.networkIndex !== networkIndex
+    if (before.client === client && !otherNetwork) return
     setNodes(new Map())
     for (const id of running.current) stopped.current.add(id)
   }, [client, networkIndex])

@@ -217,71 +217,77 @@ export const NmtButtons = ({
   )
 }
 
-/** Open or close the bus in service mode while the PLC is stopped. */
 const kbit = (bitrate: number) => `${bitrate / 1000} kbit/s`
 
+/** What the online tools reach while the PLC is stopped, or null while it runs. */
+export function busModeText(online: CanopenOnlineContext): string | null {
+  if (online.plcStopped) return 'PLC stopped, outputs zero. The master stays on the bus and the online tools work.'
+  if (online.service.open) return "No network runs. The bus is open with the project's settings."
+  if (online.service.available)
+    return "The PLC is stopped and no network runs. The bus opens with the project's settings at the first request."
+  return null
+}
+
 /**
- * Open bus / Close bus. With the LSS tools and the expert view the bus can be opened at another bit
- * rate than the network's, to reach a device that runs at another one.
+ * The bus while the PLC is stopped: the kept network or service mode. With the LSS tools and the
+ * expert view the bus can be opened at another bit rate than the network's, to reach a device that
+ * runs at another one; not while a network runs on the interface.
  */
 export const ServiceBus = ({
   online,
-  bare = false,
   networkBitrate = 0,
+  interfaceName = '',
   expert = false,
 }: {
   online: CanopenOnlineContext
-  bare?: boolean
   networkBitrate?: number
+  interfaceName?: string
   expert?: boolean
 }) => {
   const { service } = online
-  const [bitrate, setBitrate] = useState(networkBitrate)
-  if (!service.available) return null
+  const text = busModeText(online)
+  if (!text) return null
   const others = LSS_BITRATES.filter((b) => b !== networkBitrate)
-  const pickRate = online.lss && !bare && expert
+  const pickRate = online.lss && expert && (service.available || online.plcStopped)
+  const value = service.chosenBitrate || networkBitrate
   return (
     <div className='flex flex-wrap items-center gap-3' data-testid='canopen-service-bus'>
-      {service.open ? (
-        <>
-          <button type='button' className={smallButtonClassName} disabled={service.busy} onClick={service.closeBus}>
-            Close bus
-          </button>
-        </>
-      ) : (
-        <>
-          {bare ? null : (
-            <span className={hintClassName}>The PLC is stopped. Open the bus to read and set the nodes.</span>
-          )}
-          {pickRate ? (
-            <select
-              aria-label='Bit rate to open the bus at'
-              data-testid='canopen-service-bitrate'
-              className={cn(inputClassName, 'w-[190px]')}
-              value={bitrate}
-              disabled={service.busy}
-              onChange={(e) => setBitrate(Number(e.target.value))}
-            >
-              <option value={networkBitrate}>
-                {networkBitrate > 0 ? `${kbit(networkBitrate)} (the network's)` : "The interface's bit rate"}
-              </option>
-              {others.map((b) => (
-                <option key={b} value={b}>
-                  {kbit(b)}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          <button
-            type='button'
-            className={smallButtonClassName}
-            disabled={service.busy}
-            onClick={() => service.openBus(pickRate ? bitrate : undefined)}
-          >
-            Open bus
-          </button>
-        </>
-      )}
+      <span className={hintClassName} data-testid='canopen-bus-mode'>
+        {text}
+      </span>
+      {pickRate ? (
+        <select
+          aria-label='Bit rate to open the bus at'
+          data-testid='canopen-service-bitrate'
+          className={cn(inputClassName, 'w-[190px]')}
+          value={online.plcStopped ? networkBitrate : value}
+          disabled={service.busy || online.plcStopped}
+          title={
+            online.plcStopped
+              ? `A CANopen network runs on ${interfaceName || 'this interface'}, so the bus stays at its bit rate. Another bit rate only works with the device alone on its link.`
+              : undefined
+          }
+          onChange={(e) => {
+            const rate = Number(e.target.value)
+            service.chooseBitrate(rate === networkBitrate ? 0 : rate)
+          }}
+        >
+          <option value={networkBitrate}>
+            {networkBitrate > 0 ? `${kbit(networkBitrate)} (the network's)` : "The interface's bit rate"}
+          </option>
+          {others.map((b) => (
+            <option key={b} value={b}>
+              {kbit(b)}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      {pickRate && online.plcStopped ? (
+        <span className={hintClassName}>
+          A CANopen network runs on {interfaceName || 'this interface'}, so the bus stays at its bit rate. Another bit
+          rate only works with the device alone on its link.
+        </span>
+      ) : null}
       {service.error ? <span className='text-xs text-red-600 dark:text-red-400'>{service.error}</span> : null}
     </div>
   )
@@ -290,9 +296,7 @@ export const ServiceBus = ({
 /** Why the online buttons are greyed, or null when requests reach the nodes. */
 export function notReadyText(online: CanopenOnlineContext): string | null {
   if (online.ready) return null
-  return online.service.available
-    ? 'The PLC is stopped, so CANopen is not running. Open the bus to read and set the nodes.'
-    : 'The buttons are greyed because CANopen does not run on the runtime, or its program has no network by this name.'
+  return 'The buttons are greyed because CANopen does not run on the runtime, or its program has no network by this name.'
 }
 
 /** A node's state and NMT state, as on the Status tab; a sent command shows as requested until reported. */
@@ -557,7 +561,6 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
           <p className='text-xs text-neutral-850 dark:text-neutral-200' role='status'>
             {notReady}
           </p>
-          {online.service.available && !online.service.open ? <ServiceBus online={online} bare /> : null}
         </div>
       ) : null}
 

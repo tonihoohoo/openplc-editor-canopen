@@ -36,7 +36,7 @@ import {
   restoreChoices,
   watchMasterProblem,
 } from '@root/middleware/shared/utils/canopen'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CheckboxField, ExpertMark, NumberField, SelectField, type SelectOption, TextField } from './fields'
@@ -178,8 +178,6 @@ type NodePanelProps = {
   live: CanopenLiveStatus | null
   /** The online tools; null hides the Online tab. */
   online: CanopenOnlineContext | null
-  /** Told whether the Online tab is the one shown, and false when the panel goes away. */
-  onOnlineShown?: (shown: boolean) => void
   /** Values read from the nodes, kept across tabs and nodes. */
   reads: CanopenOnlineReads
   network: CanopenNetworkSettings
@@ -226,7 +224,6 @@ const NodePanel = ({
   locked,
   live,
   online,
-  onOnlineShown,
   reads,
   network,
   onChange,
@@ -243,10 +240,6 @@ const NodePanel = ({
   const shownTab: NodeTab = (tab === 'status' && !live) || (tab === 'online' && !online) ? 'general' : tab
   const tabsAnchor = useRef<HTMLDivElement>(null)
   useScrollBackOnSwitch(tabsAnchor, `${node.id}:${shownTab}`)
-  useEffect(() => {
-    onOnlineShown?.(shownTab === 'online')
-    return () => onOnlineShown?.(false)
-  }, [shownTab, onOnlineShown])
   const { eds } = node
   const canHeartbeat = findObject(eds, 0x1017, 0) !== undefined
   const heartbeatObject = objectParameterState(eds, 0x1017, 0)

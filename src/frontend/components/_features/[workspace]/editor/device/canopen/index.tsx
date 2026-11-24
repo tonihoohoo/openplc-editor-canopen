@@ -225,7 +225,6 @@ const CanopenEditor = () => {
   const editorTabsAnchor = useRef<HTMLDivElement>(null)
   useScrollBackOnSwitch(editorTabsAnchor, tab)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [nodeOnlineShown, setNodeOnlineShown] = useState(false)
   const [removing, setRemoving] = useState<CanopenNode | null>(null)
   const selected = config.nodes.find((n) => n.id === selectedId) ?? config.nodes[0]
 
@@ -471,9 +470,14 @@ const CanopenEditor = () => {
             Off in the project
           </p>
         ) : null}
-        {online && !(tab === 'nodes' && nodeOnlineShown && !online.service.open) ? (
+        {online ? (
           <div className='mt-2'>
-            <ServiceBus online={online} networkBitrate={config.network.bitrate} expert={expert} />
+            <ServiceBus
+              online={online}
+              networkBitrate={config.network.bitrate}
+              interfaceName={config.network.interface}
+              expert={expert}
+            />
           </div>
         ) : null}
         {online && serviceBitrateNote(online.service.bitrate, config.network.bitrate) ? (
@@ -572,7 +576,6 @@ const CanopenEditor = () => {
               cycleUs={cycleUs}
               live={live}
               online={online}
-              onOnlineShown={setNodeOnlineShown}
               reads={reads}
               network={config.network}
               sdoWarnings={sdoWarnings}
