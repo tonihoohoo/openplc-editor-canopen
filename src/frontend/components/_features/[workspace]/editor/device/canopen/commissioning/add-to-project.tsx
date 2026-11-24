@@ -6,9 +6,9 @@ import {
   addCommissionedNode,
   addToProjectCheck,
   type CommissionFile,
+  commissionNodeName,
   newCommissionNetwork,
   newNetworkName,
-  nodeNameFromEds,
   placeholderAddress,
 } from '@root/middleware/shared/utils/canopen'
 import { useMemo, useState } from 'react'
@@ -43,10 +43,11 @@ export const AddToProjectDialog = ({ file, nodeId, iface, bitrate, onClose }: Ad
     [remoteDevices],
   )
   const [target, setTarget] = useState(networks[0]?.name ?? NEW)
-  const [name, setName] = useState(nodeNameFromEds(file.eds))
+  const [typedName, setTypedName] = useState<string | null>(null)
   const [id, setId] = useState(String(nodeId))
   const [error, setError] = useState<string | null>(null)
   const config = networks.find((n) => n.name === target)?.canopenConfig ?? null
+  const name = typedName ?? commissionNodeName(config, file.eds)
   const check = addToProjectCheck(config, Number(id), bitrate, name)
 
   const add = () => {
@@ -102,7 +103,7 @@ export const AddToProjectDialog = ({ file, nodeId, iface, bitrate, onClose }: Ad
               aria-label='Node name'
               className={inputClassName}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setTypedName(e.target.value)}
             />
           </label>
           <label className='flex flex-col gap-1'>

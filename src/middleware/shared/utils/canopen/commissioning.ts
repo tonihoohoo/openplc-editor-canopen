@@ -205,6 +205,12 @@ export interface AddCheck {
   warning: string | null
 }
 
+/** The name a commissioned device gets as a node: from its device file, free in @p config when given. */
+export function commissionNodeName(config: CanopenConfig | null, eds: CanopenEdsInfo): string {
+  const base = nodeNameFromEds(eds)
+  return config ? uniqueNodeName(config, base) : base
+}
+
 /**
  * The check of the Add to project dialog: an ID the network uses, or the master's, is refused; a
  * window bit rate other than the network's is a warning.

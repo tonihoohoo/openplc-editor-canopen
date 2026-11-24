@@ -280,7 +280,7 @@ test('a CANopen slave is created, edited, built and its EDS added to a network',
   }
 })
 
-test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS flag and the build', async () => {
+test('LSS on a CANopen slave: the project node ID changeable over LSS, a fixed serial, the EDS flag and the build', async () => {
   test.setTimeout(300000)
   // No located variables: nothing on this slave produces them, and the build would refuse them.
   const station = {
@@ -313,17 +313,15 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await expect(summary).toHaveText('can0, 500 kbit/s, node ID 5, 0 objects', { timeout: 30000 })
     await commitField(page, 'Vendor ID', '0xABCD')
 
-    await expect(page.getByLabel('Until a master gives one', { exact: true })).toHaveCount(0)
     await expect(page.getByLabel('Fixed in the project', { exact: true })).toBeChecked()
     await summary.evaluate((el) => el.closest('.overflow-auto')?.scrollTo(0, 0))
     await slaveKeyView(page, 'slave-lss-off')
-    await page.getByLabel('Given by an LSS master (CiA 305)', { exact: true }).check()
+    await page.getByLabel('Fixed in the project, changeable over LSS (CiA 305)', { exact: true }).check()
+    await expect(page.getByText('Starts with node ID 5 unless an LSS tool stored another one.')).toBeVisible()
     await page.getByTestId('canopen-slave-lss').evaluate((el) => el.scrollIntoView({ block: 'start' }))
     await slaveKeyView(page, 'slave-lss-on')
-    await page.getByLabel('Until a master gives one', { exact: true }).selectOption('wait')
-    await expect(page.getByLabel('Node ID', { exact: true })).toHaveValue('Set by the LSS master')
-    await expect(page.getByLabel('Node ID', { exact: true })).toBeDisabled()
-    await expect(summary).toHaveText('can0, 500 kbit/s, node ID from the LSS master, 0 objects')
+    await expect(page.getByLabel('Node ID', { exact: true })).toBeEnabled()
+    await expect(summary).toHaveText('can0, 500 kbit/s, node ID 5, 0 objects')
     await expect(page.getByLabel('Serial number', { exact: true })).toHaveCount(0)
     await page.getByRole('switch', { name: 'Expert view' }).check()
     await page.getByLabel('Serial number', { exact: true }).selectOption('fixed')
@@ -336,7 +334,7 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
     await page.getByRole('switch', { name: 'Expert view' }).uncheck()
     await expect(page.getByLabel('Fixed serial number', { exact: true })).toBeVisible()
     await page.getByTestId('canopen-slave-lss').evaluate((el) => el.scrollIntoView({ block: 'start' }))
-    await slaveKeyView(page, 'slave-lss-wait')
+    await slaveKeyView(page, 'slave-lss-fixed-serial')
 
     await page.getByRole('switch', { name: 'Expert view' }).check()
     await page.getByLabel('Keep settings a master saves', { exact: true }).check()
@@ -364,7 +362,7 @@ test('LSS on a CANopen slave: waiting for the master, a fixed serial, the EDS fl
           name: 'slave',
           node_id: 5,
           store_settings: true,
-          lss: { enabled: true, wait_for_master: true, serial: 0x17, bitrate_change: false },
+          lss: { enabled: true, serial: 0x17, bitrate_change: false },
         },
       ],
     })

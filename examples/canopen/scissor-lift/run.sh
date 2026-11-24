@@ -8,12 +8,12 @@
 #   run.sh status          show each runtime's CANopen status in short form
 #   run.sh stop <device>   stop a device's container (chassis, platform, valves or sensor)
 #   run.sh start <device>  start it again and join it to the bus
-#   run.sh swap            replace the platform box by a new one with a new serial number
+#   run.sh swap            replace the platform box by a spare one: new serial number, node ID 127
 #   run.sh panel [--bind ADDRESS] [--port PORT]   open the machine panel (default 127.0.0.1:8080)
 set -Eeuo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE="${SCISSOR_IMAGE:-ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.4}"
+IMAGE="${SCISSOR_IMAGE:-ghcr.io/tonihoohoo/openplc-runtime:v4.3.2-canopen.5}"
 STATE_DIR="${SCISSOR_STATE_DIR:-/run/scissor-lift}"
 USER_NAME="${SCISSOR_USER:-lift}"
 USER_PASSWORD="${SCISSOR_PASSWORD:-lift-example}"
@@ -246,11 +246,15 @@ cmd_swap() {
     need_root swap
     docker rm -f "$(container platform)" >/dev/null 2>&1 || true
     docker volume rm "$(volume platform)" >/dev/null 2>&1 || true
+    # A spare box from the factory: node ID 127 stored as if set over LSS, a new serial made at start.
+    docker run --rm -v "$(volume platform):/var/run/runtime" --entrypoint sh "$IMAGE" -c \
+        'mkdir -p /var/run/runtime/canopen && echo "{\"node_id\": 127}" > /var/run/runtime/canopen/lss-can0.json'
     run_container platform
     attach_device platform
     gateway_rules A platform
-    echo "A new platform control box is on the bus without a node ID. Upload platform-box to 127.0.0.11"
-    echo "again, then find it with the Online tab's search for devices without a node ID."
+    echo "A spare platform control box is on the bus as node 127. Upload platform-box to 127.0.0.11"
+    echo "again, stop the chassis controller's PLC, then give the box node 10 in the editor's"
+    echo "File > CANopen device commissioning... and start the chassis controller's PLC."
 }
 
 cmd_status() {

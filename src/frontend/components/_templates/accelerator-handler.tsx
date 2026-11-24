@@ -243,6 +243,14 @@ const AcceleratorHandler = () => {
     return unsub
   }, [accelerator, openModal])
 
+  /** File > CANopen device commissioning from the native menu (macOS and Linux). */
+  useEffect(() => {
+    if (!accelerator.onCanopenCommissioning) return
+    return accelerator.onCanopenCommissioning(() => {
+      openModal('canopen-commissioning', null)
+    })
+  }, [accelerator, openModal])
+
   useEffect(() => {
     const unsub = accelerator.onImportPlcopen(() => {
       if (isEditingLocked(store)) return

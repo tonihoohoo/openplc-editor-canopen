@@ -7,6 +7,7 @@ import {
   answeredCount,
   bitrateBlock,
   commissionList,
+  commissionNodeName,
   defaultCommissionBitrate,
   deviceLssAddress,
   matchingFiles,
@@ -153,6 +154,13 @@ describe('the bus and Add to project', () => {
     expect(node.tpdos.length + node.rpdos.length).toBeGreaterThan(0)
     expect(config.nodes).toHaveLength(1)
     expect(config.files).toEqual({ abc: { fileName: 'p.eds', text: '[FileInfo]' } })
+  })
+
+  it('names the node after its file, free in the network', () => {
+    const node = genericNode(2)
+    const base = commissionNodeName(null, node.eds)
+    const taken = configWith({ ...node, name: base })
+    expect(commissionNodeName(taken, node.eds)).toBe(`${base}_2`)
   })
 
   it('names a new network once', () => {
