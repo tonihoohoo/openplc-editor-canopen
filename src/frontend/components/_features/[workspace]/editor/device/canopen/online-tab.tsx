@@ -264,7 +264,7 @@ export const ServiceBus = ({
           disabled={service.busy || online.plcStopped}
           title={
             online.plcStopped
-              ? `A CANopen network runs on ${interfaceName || 'this interface'}, so the bus stays at its bit rate.`
+              ? `A CANopen network runs on ${interfaceName || 'this interface'}, so the bus stays at its bit rate. Another bit rate only works with the device alone on its link.`
               : undefined
           }
           onChange={(e) => {
@@ -284,7 +284,8 @@ export const ServiceBus = ({
       ) : null}
       {pickRate && online.plcStopped ? (
         <span className={hintClassName}>
-          A CANopen network runs on {interfaceName || 'this interface'}, so the bus stays at its bit rate.
+          A CANopen network runs on {interfaceName || 'this interface'}, so the bus stays at its bit rate. Another bit
+          rate only works with the device alone on its link.
         </span>
       ) : null}
       {service.error ? <span className='text-xs text-red-600 dark:text-red-400'>{service.error}</span> : null}

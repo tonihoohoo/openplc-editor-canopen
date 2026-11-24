@@ -580,7 +580,7 @@ export const GiveNodeIdDialog = ({
                 disabled={busy}
                 onChange={setConfirmed}
                 label={`Change the device from ${busBitrate > 0 ? kbit(busBitrate) : "the interface's bit rate"} to ${kbit(bitrate)}`}
-                hint='The device stores the new bit rate and uses it after its next reset or power-off. It then no longer answers at the old one.'
+                hint='The device stores the new bit rate and uses it after its next reset or power-off. It then no longer answers at the old one, so it only works on a bus where every device uses the new bit rate.'
                 testId='canopen-lss-bitrate-confirm'
               />
             ) : (

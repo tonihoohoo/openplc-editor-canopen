@@ -497,7 +497,9 @@ and turning it off closes the service mode the editor opened.
   rate by default), so a device that runs at another rate can be reached; choosing another rate
   closes an open bus, and the next request opens it at the new rate. While the bus is open at another
   rate than the network's, the header says so. While a network runs on the interface the choice is
-  greyed with the reason, since the bus stays at the network's rate.
+  greyed with the reason, since the bus stays at the network's rate. A device at another rate disturbs
+  every device at the network's rate, so another rate is only for a device alone on its link (its
+  own interface, or the other devices disconnected).
 
 ### Devices without node ID (LSS)
 
@@ -538,7 +540,8 @@ ID N now* (on by default) also gives it at once, and off leaves it to the master
 start. A device file without LSS support makes a node with a fixed ID, so the ID is then always given
 now and stored. With the PLC stopped and the expert view on, the dialog also sets the device's bit rate:
 the change must be confirmed, it is always stored, and the device takes it after its next reset or
-power-off. The runtime refuses a node ID that a running node uses, and a bit rate change while the
+power-off. It then only works on a bus where every device uses the new rate: change the others too
+and the network's bit rate, or connect it to a bus at the new rate. The runtime refuses a node ID that a running node uses, and a bit rate change while the
 PLC runs.
 
 ## PLC function blocks

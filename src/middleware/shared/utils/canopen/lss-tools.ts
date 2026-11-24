@@ -115,6 +115,6 @@ const kbit = (bitrate: number) => `${bitrate / 1000} kbit/s`
 export function serviceBitrateNote(open: number | null, networkBitrate: number): string | null {
   if (open === null || open === networkBitrate) return null
   return networkBitrate > 0
-    ? `The bus is open at ${kbit(open)}, not at the network's ${kbit(networkBitrate)}. Nodes at the network's bit rate do not answer.`
-    : `The bus is open at ${kbit(open)}, not at the interface's own bit rate.`
+    ? `The bus is open at ${kbit(open)}, not at the network's ${kbit(networkBitrate)}. Nodes at the network's bit rate do not answer, so connect only the device you are setting.`
+    : `The bus is open at ${kbit(open)}, not at the interface's own bit rate. Connect only the device you are setting.`
 }
