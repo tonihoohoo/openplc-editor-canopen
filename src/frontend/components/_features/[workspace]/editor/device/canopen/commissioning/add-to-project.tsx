@@ -31,10 +31,12 @@ type AddToProjectDialogProps = {
   iface: string
   bitrate: number
   onClose: () => void
+  /** Called with a result line once the node is in the project. */
+  onAdded: (text: string) => void
 }
 
 /** Adds the commissioned device as a node of a CANopen network of the project, or of a new one. */
-export const AddToProjectDialog = ({ file, nodeId, iface, bitrate, onClose }: AddToProjectDialogProps) => {
+export const AddToProjectDialog = ({ file, nodeId, iface, bitrate, onClose, onAdded }: AddToProjectDialogProps) => {
   const store = useOpenPLCStoreApi()
   const locked = useIsEditingLocked()
   const remoteDevices = useOpenPLCStore((s) => s.project.data.remoteDevices)
@@ -71,6 +73,7 @@ export const AddToProjectDialog = ({ file, nodeId, iface, bitrate, onClose }: Ad
     const result = store.getState().projectActions.updateCanopenConfig(deviceName, next)
     if (!result.ok) return setError(result.message ?? 'The node could not be added.')
     store.getState().sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
+    onAdded(`Added to ${deviceName} as node ${id}: ${name}.`)
     onClose()
   }
 

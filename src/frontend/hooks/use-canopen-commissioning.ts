@@ -45,6 +45,9 @@ export interface CanopenCommissioning {
   client: CanopenOnline | null
 }
 
+/** Why the bus is closed when service mode ended on the runtime. */
+const BUS_GONE = 'The runtime closed the bus, for example after a link reset or bus-off. Open the bus again.'
+
 const noNmt = (): CanopenNmtCommand | undefined => undefined
 
 /**
@@ -140,7 +143,7 @@ export function useCanopenCommissioning(): CanopenCommissioning {
       seen.current = false
       setBus({ state: 'closed' })
       setFind({ state: 'idle' })
-      setError('The runtime closed the bus.')
+      setError(BUS_GONE)
     }
   }, [bus.state, listed])
 
@@ -151,6 +154,13 @@ export function useCanopenCommissioning(): CanopenCommissioning {
     [client],
   )
 
+  /** Service mode ended on the runtime while the window used it, for example after a link reset. */
+  const busGone = useCallback(() => {
+    setBus({ state: 'closed' })
+    setFind({ state: 'idle' })
+    setError(BUS_GONE)
+  }, [])
+
   const runFind = useCallback(async () => {
     const b = busRef.current
     if (!client || b.state !== 'open') return
@@ -159,6 +169,7 @@ export function useCanopenCommissioning(): CanopenCommissioning {
       setFind((f) => (f.state === 'running' ? { ...f, scan: devices } : f)),
     )
     if (busRef.current.state !== 'open') return
+    if (!scan.ok && scan.reason === 'not_running') return busGone()
     if (!scan.ok) {
       setFind({ state: 'done', scan: scan.devices, lss: [], error: scan.message, lssNote: null })
       return
@@ -168,6 +179,7 @@ export function useCanopenCommissioning(): CanopenCommissioning {
       setFind((f) => (f.state === 'running' ? { ...f, lss: devices } : f)),
     )
     if (busRef.current.state !== 'open') return
+    if (!lss.ok && lss.reason === 'not_running') return busGone()
     const incomplete = !lss.ok && (lss.reason === 'incomplete' || lss.reason === 'too_many')
     setFind({
       state: 'done',
@@ -176,7 +188,7 @@ export function useCanopenCommissioning(): CanopenCommissioning {
       error: lss.ok || incomplete ? null : `The LSS search failed: ${lss.message}`,
       lssNote: incomplete ? lss.message : null,
     })
-  }, [client])
+  }, [client, busGone])
 
   const online = useMemo((): CanopenOnlineContext | null => {
     if (!client || bus.state !== 'open') return null

@@ -119,7 +119,7 @@ export const NodeStatusTab = ({
   emcy?: NodeEmcyState
 }) => {
   const node = liveNode(live, nodeId)
-  const events = (live.network?.events ?? []).filter((e) => e.node === nodeId)
+  const events = (live.network?.events ?? []).filter((e) => e.node === nodeId || e.node === undefined)
   return (
     <div className={cn('flex flex-col gap-4', live.stale && 'opacity-50')} data-testid='canopen-node-status'>
       {live.stale ? (

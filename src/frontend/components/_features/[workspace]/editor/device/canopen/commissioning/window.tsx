@@ -235,6 +235,7 @@ const CommissioningBody = ({ c }: { c: CanopenCommissioning }) => {
                   type='button'
                   onClick={() => {
                     setFollow(null)
+                    setHighlight(null)
                     setSelected(d.key)
                   }}
                   data-testid={`canopen-com-device-${d.key}`}
