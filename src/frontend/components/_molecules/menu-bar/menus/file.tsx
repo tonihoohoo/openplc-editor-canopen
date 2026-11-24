@@ -162,6 +162,14 @@ export const FileMenu = () => {
           <MenuPrimitive.Item className={ITEM} data-testid='menu-retrieve-project' onClick={handleRetrieveProject}>
             <span>{i18n.t('menu:file.submenu.retrieveProject')}</span>
           </MenuPrimitive.Item>
+          <MenuPrimitive.Item
+            className={ITEM}
+            data-testid='menu-canopen-commissioning'
+            disabled={project.meta.path === ''}
+            onClick={() => openModal('canopen-commissioning', null)}
+          >
+            <span>CANopen device commissioning...</span>
+          </MenuPrimitive.Item>
           <MenuPrimitive.Separator className={SEPARATOR} />
           <MenuPrimitive.Item className={ITEM} onClick={() => openModal('page-setup', null)}>
             <span>{i18n.t('menu:file.submenu.pageSetup')}</span>

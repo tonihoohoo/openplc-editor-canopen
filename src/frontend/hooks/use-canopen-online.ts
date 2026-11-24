@@ -43,12 +43,6 @@ export interface CanopenServiceControl {
   open: boolean
   busy: boolean
   error: string | null
-  /** The bit rate (bit/s) this editor opened the bus at; null when it did not open it. */
-  bitrate: number | null
-  /** The bit rate the next opening uses (expert choice); 0 for the network's. */
-  chosenBitrate: number
-  /** Chooses the bit rate to open the bus at; a bus open at another rate closes first. */
-  chooseBitrate: (bitrate: number) => void
 }
 
 export interface CanopenOnlineContext {
@@ -64,8 +58,6 @@ export interface CanopenOnlineContext {
   plcStopped: boolean
   /** The runtime takes NMT commands. */
   nmt: boolean
-  /** The runtime offers the LSS tools. */
-  lss: boolean
   /** The NMT command sent to @p node that the runtime's status does not show yet. */
   requestedNmt: (node: number) => CanopenNmtCommand | undefined
   service: CanopenServiceControl
@@ -86,8 +78,6 @@ export function useCanopenOnline(
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [opened, setOpened] = useState(false)
-  const [openedBitrate, setOpenedBitrate] = useState<number | null>(null)
-  const [chosenBitrate, setChosenBitrate] = useState(0)
   const openedRef = useRef(false)
   /** The service mode network's index from the opening, until the status lists it. */
   const openIndexRef = useRef<number | null>(null)
@@ -106,8 +96,8 @@ export function useCanopenOnline(
 
   const configRef = useRef(config)
   configRef.current = config
-  const stateRef = useRef({ listed, available, networkIndex: live?.networkIndex ?? -1, chosenBitrate })
-  stateRef.current = { listed, available, networkIndex: live?.networkIndex ?? -1, chosenBitrate }
+  const stateRef = useRef({ listed, available, networkIndex: live?.networkIndex ?? -1 })
+  stateRef.current = { listed, available, networkIndex: live?.networkIndex ?? -1 }
 
   const base = useMemo(() => {
     const send = runtime.canopenRequest?.bind(runtime)
@@ -122,13 +112,12 @@ export function useCanopenOnline(
     if (!base || !state.available) return state.networkIndex
     if (openingRef.current) return openingRef.current
     const { network, nodes } = configRef.current
-    const rate = state.chosenBitrate || network.bitrate
     setBusy(true)
     setError(null)
     const opening = base
       .openService(
         deviceName,
-        { ...network, bitrate: rate },
+        network,
         nodes.map((n) => n.nodeId),
       )
       .then((r): number | string => {
@@ -140,7 +129,6 @@ export function useCanopenOnline(
         openIndexRef.current = index
         openedRef.current = true
         setOpened(true)
-        setOpenedBitrate(rate)
         refreshRef.current()
         return index
       })
@@ -181,18 +169,6 @@ export function useCanopenOnline(
         }
         return r
       },
-      lssFind: async (_network, onProgress) => {
-        const net = await target()
-        return typeof net === 'string' ? { ...refused(net), devices: [] } : base.lssFind(net, onProgress)
-      },
-      lssSetId: async (_network, device, nodeId, store) => {
-        const net = await target()
-        return typeof net === 'string' ? refused(net) : base.lssSetId(net, device, nodeId, store)
-      },
-      lssSetBitrate: async (_network, device, bitrate) => {
-        const net = await target()
-        return typeof net === 'string' ? refused(net) : base.lssSetBitrate(net, device, bitrate)
-      },
     }
     return tracked
   }, [base, target])
@@ -203,16 +179,6 @@ export function useCanopenOnline(
   }, [network])
 
   const requestedNmt = useCallback((node: number) => (requests.get(node) ?? requests.get(0))?.command, [requests])
-
-  // The bit rate this editor opened the bus at, until the service mode it saw running ends.
-  const serviceSeen = useRef(false)
-  useEffect(() => {
-    if (serviceRuns) serviceSeen.current = true
-    else if (serviceSeen.current) {
-      serviceSeen.current = false
-      setOpenedBitrate(null)
-    }
-  }, [serviceRuns])
 
   // Service mode that ended on the runtime (PLC start, idle close) is no longer this editor's.
   useEffect(() => {
@@ -231,7 +197,6 @@ export function useCanopenOnline(
     openedRef.current = false
     openIndexRef.current = null
     setOpened(false)
-    setOpenedBitrate(null)
     void base.closeService().then(() => refreshRef.current())
   }, [base])
 
@@ -259,14 +224,6 @@ export function useCanopenOnline(
     [base],
   )
 
-  const chooseBitrate = useCallback(
-    (bitrate: number) => {
-      setChosenBitrate(bitrate)
-      closeBus()
-    },
-    [closeBus],
-  )
-
   if (!client || !live || !hasSdo) return null
   return {
     client,
@@ -274,16 +231,12 @@ export function useCanopenOnline(
     ready: listed || available,
     plcStopped: listed && !serviceRuns && live.network?.plc_running === false,
     nmt: features.includes('nmt'),
-    lss: features.includes('lss'),
     requestedNmt,
     service: {
       available,
       open: serviceRuns,
       busy,
       error,
-      bitrate: serviceRuns ? openedBitrate : null,
-      chosenBitrate,
-      chooseBitrate,
     },
   }
 }

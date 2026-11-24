@@ -211,21 +211,6 @@ export interface CanopenHeartbeatConsumer {
   consumerMs: number
 }
 
-/**
- * How the device gets its node ID. With `enabled`, the master finds it by its LSS address (vendor ID
- * and product code from the device file, `serialNumber`, `revision`; 0 for any) and gives it the node
- * ID at every start. The other fields are kept while `enabled` is off.
- */
-export interface CanopenLss {
-  enabled: boolean
-  /** 0x1018:04 of the device; null until entered. */
-  serialNumber: number | null
-  /** 0x1018:03 to look for; 0 for any revision. */
-  revision: number
-  /** LSS store configuration after giving the ID, so the device keeps it at power-off. */
-  store: boolean
-}
-
 /** The node's emergency messages: the COB-ID the master listens on (and the node's 0x1014). */
 export interface CanopenEmcy {
   enabled: boolean
@@ -250,8 +235,6 @@ export interface CanopenNode {
   checkVendorId: boolean
   checkProductCode: boolean
   checkRevision: boolean
-  /** Node ID given by the master over LSS; absent for a node ID set on the device. */
-  lss?: CanopenLss
   supervision: CanopenSupervision
   /** The master's heartbeat consumer time for this node. */
   heartbeatConsumerMs: number
@@ -446,8 +429,6 @@ export type CanopenSlaveOnPlcStop = 'hold' | 'zero'
 /** CiA 305 LSS slave settings. */
 export interface CanopenSlaveLss {
   enabled: boolean
-  /** Starts with no node ID and stays silent apart from LSS until a master gives it one. */
-  waitForMaster: boolean
   /** 0x1018 sub 4, the last part of the LSS address; null for one made once on the runtime device. */
   serial: number | null
   /** A master may configure and store a new bit rate, used from the slave's next start. */

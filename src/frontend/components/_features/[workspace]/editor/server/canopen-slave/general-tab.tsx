@@ -26,7 +26,6 @@ import {
   headingClassName,
   hintClassName,
   iconButtonClassName,
-  inputClassName,
   labelClassName,
   secondaryButtonClassName,
 } from '../../device/canopen/styles'
@@ -81,22 +80,12 @@ const SLAVE_BLOCKS = 'CANOPEN_SLAVE_STATUS, CANOPEN_SLAVE_NMT, CANOPEN_SLAVE_EMC
 
 const isStop = (v: string): v is CanopenSlaveOnPlcStop => v === 'hold' || v === 'zero'
 
-type FirstStart = 'node' | 'wait'
 type SerialKind = 'auto' | 'fixed'
 
 const SERIAL_OPTIONS: ReadonlyArray<SelectOption<SerialKind>> = [
   { value: 'auto', label: 'Automatic (per device)' },
   { value: 'fixed', label: 'Fixed' },
 ]
-
-/** The Node ID field while an LSS master sets it; the typed node ID is kept for later. */
-const NodeIdFromMaster = () => (
-  <label className='flex flex-col gap-1'>
-    <span className={labelClassName}>Node ID</span>
-    <input type='text' aria-label='Node ID' value='Set by the LSS master' disabled className={inputClassName} />
-    <span className={hintClassName}>The slave starts with no node ID (FFh) and waits for an LSS master</span>
-  </label>
-)
 
 type LssPanelProps = {
   config: CanopenSlaveConfig
@@ -130,19 +119,11 @@ const Radio = ({ label, hint, checked, onPick }: RadioProps) => (
 const LssPanel = ({ config, problems, expert, onChange }: LssPanelProps) => {
   const lss = slaveLss(config)
   const set = (update: Partial<CanopenSlaveLss>) => onChange({ lss: { ...lss, ...update } })
-  const firstStartOptions: ReadonlyArray<SelectOption<FirstStart>> = [
-    { value: 'node', label: `Use node ID ${config.nodeId}` },
-    { value: 'wait', label: 'No node ID: wait for the master' },
-  ]
   const showSerial = expert || lss.serial !== null
   const showBitrate = expert || !lss.bitrateChange
   return (
     <div className={cardClassName} data-slave-where='lss' data-testid='canopen-slave-lss'>
-      <h3 className={headingClassName}>
-        {lss.enabled && lss.waitForMaster
-          ? 'How this slave gets its node ID'
-          : `How this slave gets node ID ${config.nodeId}`}
-      </h3>
+      <h3 className={headingClassName}>How this slave gets node ID {config.nodeId}</h3>
       <div className='flex max-w-[640px] flex-col gap-3'>
         <Radio
           label='Fixed in the project'
@@ -151,25 +132,14 @@ const LssPanel = ({ config, problems, expert, onChange }: LssPanelProps) => {
           onPick={() => set({ enabled: false })}
         />
         <Radio
-          label='Given by an LSS master (CiA 305)'
-          hint='A master finds the slave by its LSS address and may give it another node ID'
+          label='Fixed in the project, changeable over LSS (CiA 305)'
+          hint='An LSS tool finds the slave by its LSS address and may store another node ID'
           checked={lss.enabled}
           onPick={() => set({ enabled: true })}
         />
         {lss.enabled ? (
           <div className='ml-5 flex flex-col gap-3'>
             <div className='grid grid-cols-2 gap-4'>
-              <SelectField
-                label='Until a master gives one'
-                value={lss.waitForMaster ? 'wait' : 'node'}
-                options={firstStartOptions}
-                hint={
-                  lss.waitForMaster
-                    ? 'No boot-up, heartbeat, PDO or SDO until a master gives a node ID; it finds the slave by LSS fastscan'
-                    : 'Starts with the node ID above; a master may change it'
-                }
-                onChange={(value) => set({ waitForMaster: value === 'wait' })}
-              />
               {showSerial ? (
                 <div className='flex flex-col gap-1'>
                   <SelectField
@@ -219,10 +189,11 @@ const LssPanel = ({ config, problems, expert, onChange }: LssPanelProps) => {
               />
             ) : null}
             <p className={hintClassName} data-testid='canopen-slave-lss-note'>
+              Starts with node ID {config.nodeId} unless an LSS tool stored another one.{' '}
               {showSerial
                 ? ''
                 : 'Serial number: automatic, made once on the runtime device and shown on the Status tab. '}
-              A node ID{lss.bitrateChange ? ' or bit rate' : ''} the master stores is kept on the runtime device, also
+              A node ID{lss.bitrateChange ? ' or bit rate' : ''} a master stores is kept on the runtime device, also
               after a restart, a new upload or a runtime update, until you forget it on the Status tab.
             </p>
           </div>
@@ -416,22 +387,18 @@ const GeneralTab = ({ name, config, problems, slaveNumber, libraryOn, expert, on
       <div className={cardClassName} data-slave-where='nodeId'>
         <h3 className={headingClassName}>Node</h3>
         <div className='grid max-w-[640px] grid-cols-2 gap-4'>
-          {lss.enabled && lss.waitForMaster ? (
-            <NodeIdFromMaster />
-          ) : (
-            <NumberField
-              label='Node ID'
-              value={config.nodeId}
-              min={1}
-              max={127}
-              hint={
-                lss.enabled
-                  ? '1 - 127; the PDO and SDO COB-IDs follow it, also when an LSS master changes it'
-                  : '1 - 127; the PDO and SDO COB-IDs follow it'
-              }
-              onCommit={(value) => onChange({ nodeId: value })}
-            />
-          )}
+          <NumberField
+            label='Node ID'
+            value={config.nodeId}
+            min={1}
+            max={127}
+            hint={
+              lss.enabled
+                ? '1 - 127; the PDO and SDO COB-IDs follow it, also when an LSS tool changes it'
+                : '1 - 127; the PDO and SDO COB-IDs follow it'
+            }
+            onCommit={(value) => onChange({ nodeId: value })}
+          />
           <SelectField
             label='Started by'
             value={config.startAlone ? 'self' : 'master'}

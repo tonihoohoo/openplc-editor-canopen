@@ -20,11 +20,17 @@ export type CanopenRequest =
       bitrate: number
       master_node_id: number
       sdo_timeout_ms: number
-      nodes: number[]
+      /** Optional in service mode for commissioning, which reaches any node ID. */
+      nodes?: number[]
+      /** Service mode for commissioning one device at a time: any node ID, bus scans. */
+      commission?: boolean
+      /** With `commission`: a network kept on the bus at PLC stop on the interface leaves it. */
+      take_over?: boolean
     }
   | { op: 'service_close' }
   | { op: 'slave_lss_forget'; slave: string }
   | { op: 'slave_settings_forget'; slave: string }
+  | { op: 'scan'; network: number }
   | { op: 'lss'; network: number; action: 'find' }
   | ({ op: 'lss'; network: number; action: 'set_id'; node_id: number; store: boolean } & CanopenLssAddressFields)
   | ({ op: 'lss'; network: number; action: 'set_bitrate'; bitrate: number } & CanopenLssAddressFields)
@@ -41,9 +47,23 @@ const count = z.number().int().nonnegative()
 const u32 = count.max(0xffffffff)
 
 const LssDeviceSchema = z.object({ vendor_id: u32, product_code: u32, revision: u32, serial_number: u32 })
-/** Members an LSS job adds to its state: the devices found, the node ID it had, whether it was stored. */
+/** A node ID a bus scan found: answered SDO reads or was heard; a value is null when it was not read. */
+const ScanDeviceSchema = z.object({
+  node_id: count.min(1).max(127),
+  answered: z.boolean(),
+  heard: z.array(z.enum(['heartbeat', 'boot_up', 'emcy'])),
+  device_type: u32.nullable(),
+  vendor_id: u32.nullable(),
+  product_code: u32.nullable(),
+  revision: u32.nullable(),
+  serial_number: u32.nullable(),
+})
+/**
+ * Members an LSS or scan job adds to its state: the devices found (by LSS address, or by node ID for
+ * a scan), the node ID it had, whether it was stored.
+ */
 const lssResult = {
-  devices: z.array(LssDeviceSchema).optional(),
+  devices: z.array(z.union([ScanDeviceSchema, LssDeviceSchema])).optional(),
   previous_id: count.max(255).optional(),
   stored: z.boolean().optional(),
 }
@@ -63,11 +83,14 @@ export const CanopenAnswerSchema = z.union([
   z.object({ state: z.literal('failed'), abort_code: count }),
   z.object({ state: z.literal('failed'), reason: z.string(), ...lssResult }),
   z.object({ ok: z.literal(true), network: count.optional() }),
-  z.object({ error: z.string() }),
+  /** `name`: the network or slave on the interface that refused a commissioning service mode. */
+  z.object({ error: z.string(), name: z.string().optional() }),
   z.object({ active: z.literal(false) }),
 ])
 
 export type CanopenAnswer = z.infer<typeof CanopenAnswerSchema>
+export type CanopenScanDeviceFields = z.infer<typeof ScanDeviceSchema>
+export type CanopenLssDeviceFields = z.infer<typeof LssDeviceSchema>
 
 /** The route's answer, or null when the body is none of the known answers. */
 export function parseCanopenAnswer(body: unknown): CanopenAnswer | null {

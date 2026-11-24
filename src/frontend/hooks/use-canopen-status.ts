@@ -46,7 +46,7 @@ const EMPTY: CanopenLiveStatus = {
   refresh: noRefresh,
 }
 
-interface StatusFeed {
+export interface StatusFeed {
   supported: boolean
   connected: boolean
   features: readonly string[]
@@ -68,7 +68,7 @@ interface FeedState {
 const NO_FEED: FeedState = { status: null, stale: false, failures: 0, error: null }
 
 /** The runtime's CANopen status, read once a second while connected to a runtime with the `status` feature. */
-function useStatusFeed(enabled: boolean): StatusFeed {
+export function useCanopenStatusFeed(enabled: boolean): StatusFeed {
   const runtime = useRuntime()
   const connected = useOpenPLCStore(
     (s) => s.runtimeConnection.connectionStatus === 'connected' && s.runtimeConnection.jwtToken !== null,
@@ -144,7 +144,7 @@ function useStatusFeed(enabled: boolean): StatusFeed {
  * With `enabled` false (the network is off in the project) nothing is read and the status stays empty.
  */
 export function useCanopenStatus(networkName: string, enabled = true): CanopenLiveStatus | null {
-  const feed = useStatusFeed(enabled)
+  const feed = useCanopenStatusFeed(enabled)
   const { supported, connected, features, refresh, status, stale, failures, error } = feed
   return useMemo(() => {
     if (!supported || !connected) return null
@@ -181,7 +181,7 @@ export interface CanopenSlaveLiveStatus {
  * without the `status` feature. With `enabled` false nothing is read.
  */
 export function useCanopenSlaveStatus(slaveName: string, enabled = true): CanopenSlaveLiveStatus | null {
-  const { supported, connected, features, refresh, status, stale, failures, error } = useStatusFeed(enabled)
+  const { supported, connected, features, refresh, status, stale, failures, error } = useCanopenStatusFeed(enabled)
   return useMemo(() => {
     if (!supported || !connected) return null
     return {

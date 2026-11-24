@@ -115,7 +115,6 @@ export function defaultCanopenSlaveConfig(projectName = ''): CanopenSlaveConfig 
 /** LSS settings of a slave without any: off. */
 export const SLAVE_LSS_OFF: Readonly<CanopenSlaveLss> = {
   enabled: false,
-  waitForMaster: false,
   serial: null,
   bitrateChange: true,
 }
@@ -816,7 +815,6 @@ function lssOut(config: CanopenSlaveConfig): object | null {
   if (!lss.enabled) return null
   return {
     enabled: true,
-    wait_for_master: lss.waitForMaster,
     ...(lss.serial !== null ? { serial: lss.serial } : {}),
     bitrate_change: lss.bitrateChange,
   }

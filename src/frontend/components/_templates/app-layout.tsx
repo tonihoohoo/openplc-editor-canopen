@@ -9,6 +9,7 @@ import { cn } from '../../utils/cn'
 import { ResolutionWarning } from '../_atoms/resolution-warning-message'
 import Toaster from '../_features/[app]/toast/toaster'
 import { ProjectModal } from '../_features/[start]/new-project/project-modal'
+import { CanopenCommissioningWindow } from '../_features/[workspace]/editor/device/canopen/commissioning/window'
 import { AIConsentModal } from '../_features/[workspace]/editor/monaco/ai-consent-modal'
 import { DataTypeDeleteImpactModal } from '../_molecules/rename-impact-modal/data-type-delete-impact-modal'
 import { DataTypeRenameImpactModal } from '../_molecules/rename-impact-modal/data-type-rename-impact-modal'
@@ -199,6 +200,7 @@ const AppLayout = ({ children, ...rest }: AppLayoutProps): ReactNode => {
           {modals?.['runtime-create-user']?.open === true && <RuntimeCreateUserModal />}
           {modals?.['runtime-discover-devices']?.open === true && <RuntimeDiscoverDevicesModal />}
           {modals?.['retrieve-project']?.open === true && <RetrieveProjectModal />}
+          {modals?.['canopen-commissioning']?.open === true && <CanopenCommissioningWindow />}
           {modals?.['export-pdf']?.open === true && <ExportPdfModal />}
           {modals?.['page-setup']?.open === true && <PageSetupModal />}
           {modals?.['ai-consent']?.open === true && <AIConsentModal />}

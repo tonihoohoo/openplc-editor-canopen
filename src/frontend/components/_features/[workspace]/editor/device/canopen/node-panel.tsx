@@ -41,7 +41,6 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { CheckboxField, ExpertMark, NumberField, SelectField, type SelectOption, TextField } from './fields'
 import { LockFieldset } from './lock'
-import { LssSection } from './lss-section'
 import { OnlineTab } from './online-tab'
 import { PdoSection } from './pdo-section'
 import { useScrollBackOnSwitch } from './scroll'
@@ -387,11 +386,7 @@ const NodePanel = ({
                     value={node.nodeId}
                     min={1}
                     max={127}
-                    hint={
-                      node.lss?.enabled
-                        ? 'Given to the device over LSS at every start'
-                        : 'Must match the node ID set on the device'
-                    }
+                    hint='Must match the node ID set on the device'
                     onCommit={(nodeId) => {
                       if (nodeId === masterNodeId) return 'The master uses this node ID.'
                       if (nodes.some((n) => n.id !== node.id && n.nodeId === nodeId))
@@ -434,8 +429,6 @@ const NodePanel = ({
                   />
                 </div>
               </Card>
-
-              <LssSection node={node} expert={expert} onChange={onChange} />
 
               {show('configure') || show('restoreDefaults') ? (
                 <Card title='Startup' tag={tag('configure') || tag('restoreDefaults')}>
@@ -815,16 +808,6 @@ const NodePanel = ({
               live={live}
               nodeId={node.nodeId}
               emcy={emcySupported === 'none' ? 'none' : emcy.enabled ? 'on' : 'off'}
-              lssAddress={
-                node.lss?.enabled && node.lss.serialNumber !== null
-                  ? {
-                      vendorId: eds.vendorId,
-                      productCode: eds.productCode,
-                      serialNumber: node.lss.serialNumber,
-                      productName: eds.productName,
-                    }
-                  : undefined
-              }
             />
           </Tabs.Content>
         ) : null}

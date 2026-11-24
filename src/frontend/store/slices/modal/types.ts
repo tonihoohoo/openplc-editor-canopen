@@ -26,6 +26,8 @@ export type ModalTypes =
   | 'runtime-create-user'
   | 'runtime-discover-devices'
   | 'retrieve-project'
+  /** File > CANopen device commissioning: one device at a time on the connected runtime. */
+  | 'canopen-commissioning'
   | 'runtime-login'
   | 'server-ip-mismatch'
   | 'runtime-connection-lost'

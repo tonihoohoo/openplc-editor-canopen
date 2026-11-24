@@ -8,6 +8,7 @@ import {
   CANOPEN_DATA_TYPES,
   type CanopenOnlineResult,
   dataTypeLabel,
+  deviceFileObjects,
   displayFor,
   encodeForObject,
   encodeOnlineValue,
@@ -16,16 +17,12 @@ import {
   hex,
   isReadable,
   isWritable,
-  LOAD_SIGNATURE,
-  LSS_BITRATES,
   matchesObjectQuery,
   NEVER_WRITTEN_INDICES,
   nmtCommandLabel,
   nmtStateLabel,
   nodeDot,
   nodeStateLabel,
-  type NvmScope,
-  nvmScopes,
   objectInfo,
   objectLabel,
   objectOwnLabel,
@@ -35,10 +32,6 @@ import {
   pdoMappingMeaning,
   rawWriteRefusal,
   requestedNmtLabel,
-  resetForRestore,
-  SAVE_SIGNATURE,
-  type SaveSupport,
-  saveSupport,
   scaledValue,
   setBitNames,
   shortDescription,
@@ -54,13 +47,13 @@ import { cardClassName, headingClassName, hintClassName, inputClassName, seconda
 import { useElementWidth } from './use-element-width'
 
 /** Abort 0x08000022: the node does not take the write in its present state. */
-const ABORT_DEVICE_STATE = 0x08000022
+export const ABORT_DEVICE_STATE = 0x08000022
 
 type Filter = 'all' | 'differs' | 'writable' | 'mapped'
 
 const ref = (o: { index: number; subIndex: number }): string => `${hex(o.index, 4)}:${hex(o.subIndex, 2).slice(2)}`
 
-const smallButtonClassName = cn(secondaryButtonClassName, 'px-2 py-1')
+export const smallButtonClassName = cn(secondaryButtonClassName, 'px-2 py-1')
 const errorTextClassName = 'text-red-600 dark:text-red-400'
 /** A node value that differs from the project. */
 const differsClassName = 'rounded bg-sky-100 px-1 -mx-1 dark:bg-sky-900/40'
@@ -75,6 +68,15 @@ const CONFIRM: Readonly<Record<CanopenNmtCommand, string | null>> = {
   stop: 'Stop the node? It stops its PDOs and answers only NMT and heartbeat.',
   reset_node: 'Reset the node? It restarts; the master boots and configures it again.',
   reset_communication: "Reset the node's communication? The master boots and configures it again.",
+}
+
+/** The questions in the device commissioning window, where no master configures the device. */
+const DEVICE_CONFIRM: Readonly<Record<CanopenNmtCommand, string | null>> = {
+  start: null,
+  pre_operational: 'Put the device in pre-operational? It stops its PDOs.',
+  stop: 'Stop the device? It stops its PDOs and answers only NMT and heartbeat.',
+  reset_node: 'Reset the device? It restarts with the values it has saved.',
+  reset_communication: "Reset the device's communication? It restarts its communication objects.",
 }
 
 const ALL_CONFIRM: Readonly<Record<CanopenNmtCommand, string>> = {
@@ -129,7 +131,7 @@ const FIXED_PX = {
 }
 
 /** A card's controls with its feedback to their right, so the card keeps its size as feedback comes and goes. */
-const WithFeedback = ({ children, feedback }: { children: ReactNode; feedback: ReactNode }) => (
+export const WithFeedback = ({ children, feedback }: { children: ReactNode; feedback: ReactNode }) => (
   <div className='flex flex-wrap items-start gap-x-6 gap-y-2'>
     <div className='shrink-0'>{children}</div>
     <div className='min-w-[260px] flex-1 [&>*:first-child]:mt-0'>{feedback}</div>
@@ -180,11 +182,14 @@ export const NmtButtons = ({
   node,
   onConfirm,
   onResult,
+  device = false,
 }: {
   online: CanopenOnlineContext
   node: number
   onConfirm: (c: ConfirmRequest) => void
   onResult: (text: string, error?: boolean) => void
+  /** In the device commissioning window: the questions speak of the device. */
+  device?: boolean
 }) => {
   const send = (command: CanopenNmtCommand) => {
     void online.client.nmt(online.networkIndex, node, command).then((r) => {
@@ -196,7 +201,7 @@ export const NmtButtons = ({
   return (
     <div className='flex flex-wrap gap-2'>
       {NMT_BUTTONS.map((command) => {
-        const question = node === 0 ? ALL_CONFIRM[command] : CONFIRM[command]
+        const question = node === 0 ? ALL_CONFIRM[command] : (device ? DEVICE_CONFIRM : CONFIRM)[command]
         return (
           <button
             key={command}
@@ -217,8 +222,6 @@ export const NmtButtons = ({
   )
 }
 
-const kbit = (bitrate: number) => `${bitrate / 1000} kbit/s`
-
 /** What the online tools reach while the PLC is stopped, or null while it runs. */
 export function busModeText(online: CanopenOnlineContext): string | null {
   if (online.plcStopped) return 'PLC stopped, outputs zero. The master stays on the bus and the online tools work.'
@@ -228,67 +231,18 @@ export function busModeText(online: CanopenOnlineContext): string | null {
   return null
 }
 
-/**
- * The bus while the PLC is stopped: the kept network or service mode. With the LSS tools and the
- * expert view the bus can be opened at another bit rate than the network's, to reach a device that
- * runs at another one; not while a network runs on the interface.
- */
-export const ServiceBus = ({
-  online,
-  networkBitrate = 0,
-  interfaceName = '',
-  expert = false,
-}: {
-  online: CanopenOnlineContext
-  networkBitrate?: number
-  interfaceName?: string
-  expert?: boolean
-}) => {
-  const { service } = online
+/** The bus while the PLC is stopped: the kept network or service mode with the project's settings. */
+export const ServiceBus = ({ online }: { online: CanopenOnlineContext }) => {
   const text = busModeText(online)
   if (!text) return null
-  const others = LSS_BITRATES.filter((b) => b !== networkBitrate)
-  const pickRate = online.lss && expert && (service.available || online.plcStopped)
-  const value = service.chosenBitrate || networkBitrate
   return (
     <div className='flex flex-wrap items-center gap-3' data-testid='canopen-service-bus'>
       <span className={hintClassName} data-testid='canopen-bus-mode'>
         {text}
       </span>
-      {pickRate ? (
-        <select
-          aria-label='Bit rate to open the bus at'
-          data-testid='canopen-service-bitrate'
-          className={cn(inputClassName, 'w-[190px]')}
-          value={online.plcStopped ? networkBitrate : value}
-          disabled={service.busy || online.plcStopped}
-          title={
-            online.plcStopped
-              ? `A CANopen network runs on ${interfaceName || 'this interface'}, so the bus stays at its bit rate. Another bit rate only works with the device alone on its link.`
-              : undefined
-          }
-          onChange={(e) => {
-            const rate = Number(e.target.value)
-            service.chooseBitrate(rate === networkBitrate ? 0 : rate)
-          }}
-        >
-          <option value={networkBitrate}>
-            {networkBitrate > 0 ? `${kbit(networkBitrate)} (the network's)` : "The interface's bit rate"}
-          </option>
-          {others.map((b) => (
-            <option key={b} value={b}>
-              {kbit(b)}
-            </option>
-          ))}
-        </select>
+      {online.service.error ? (
+        <span className='text-xs text-red-600 dark:text-red-400'>{online.service.error}</span>
       ) : null}
-      {pickRate && online.plcStopped ? (
-        <span className={hintClassName}>
-          A CANopen network runs on {interfaceName || 'this interface'}, so the bus stays at its bit rate. Another bit
-          rate only works with the device alone on its link.
-        </span>
-      ) : null}
-      {service.error ? <span className='text-xs text-red-600 dark:text-red-400'>{service.error}</span> : null}
     </div>
   )
 }
@@ -460,11 +414,21 @@ type OnlineTabProps = {
   /** The node's live status, for its state and NMT state. */
   status: CanopenNodeStatus | undefined
   expert: boolean
+  /**
+   * `device`: the object list of the device commissioning window, with the device file's defaults in
+   * place of the project's values and NMT for this device only.
+   */
+  variant?: 'node' | 'device'
 }
 
 /** The Online tab of a node: its objects read from the node, and in the expert view writes, NMT and saving. */
-export const OnlineTab = ({ node, network, online, reads, status, expert }: OnlineTabProps) => {
-  const rows = useMemo(() => onlineObjects(node, network), [node, network])
+export const OnlineTab = ({ node, network, online, reads, status, expert, variant = 'node' }: OnlineTabProps) => {
+  const device = variant === 'device'
+  const rows = useMemo(
+    () => (device ? deviceFileObjects(node.eds, node.nodeId) : onlineObjects(node, network)),
+    [device, node, network],
+  )
+  const projectHeading = device ? 'Default' : 'Project'
   const [notes, setNotes] = useState<ReadonlyMap<string, RowNote>>(new Map())
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
   const toggleOpen = (k: string): void =>
@@ -476,7 +440,8 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [display, setDisplay] = useState<ValueDisplay>('decimal')
-  const [anyObject, setAnyObject] = useState(false)
+  // Without a device file the window opens raw access, the only way to its objects.
+  const [anyObject, setAnyObject] = useState(device && node.eds.objects.length === 0)
   const nmtFeedback = useCardFeedback(online.ready)
   const [allNodes, setAllNodes] = useState(false)
   const { client, networkIndex, ready } = online
@@ -567,36 +532,37 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
       {expert && online.nmt ? (
         <div className={cardClassName} data-testid='canopen-online-nmt'>
           <div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
-            <h4 className={cn(headingClassName, 'mb-0')}>Node state</h4>
-            <NodeStateLine status={status} requested={online.requestedNmt(nodeId)} />
+            <h4 className={cn(headingClassName, 'mb-0')}>{device ? 'Device state' : 'Node state'}</h4>
+            {device ? null : <NodeStateLine status={status} requested={online.requestedNmt(nodeId)} />}
           </div>
           <WithFeedback feedback={nmtFeedback.view}>
             <NmtButtons
               online={online}
-              node={allNodes ? 0 : nodeId}
+              node={allNodes && !device ? 0 : nodeId}
               onConfirm={nmtFeedback.ask}
               onResult={nmtFeedback.setMessage}
+              device={device}
             />
-            <label
-              className={cn(
-                'mt-2 flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300',
-                !nmtReady && 'cursor-not-allowed opacity-50',
-              )}
-            >
-              <input
-                type='checkbox'
-                checked={allNodes}
-                disabled={!nmtReady}
-                onChange={(e) => setAllNodes(e.target.checked)}
-                className='h-3.5 w-3.5 accent-brand'
-              />
-              Send to all nodes of the network
-            </label>
+            {device ? null : (
+              <label
+                className={cn(
+                  'mt-2 flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300',
+                  !nmtReady && 'cursor-not-allowed opacity-50',
+                )}
+              >
+                <input
+                  type='checkbox'
+                  checked={allNodes}
+                  disabled={!nmtReady}
+                  onChange={(e) => setAllNodes(e.target.checked)}
+                  className='h-3.5 w-3.5 accent-brand'
+                />
+                Send to all nodes of the network
+              </label>
+            )}
           </WithFeedback>
         </div>
       ) : null}
-
-      {expert ? <NvmCard node={node} online={online} /> : null}
 
       <div className={cn(cardClassName, 'min-w-0')}>
         <div className='mb-3 flex flex-wrap items-center gap-2'>
@@ -617,7 +583,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
             }}
           >
             <option value='all'>All objects</option>
-            <option value='differs'>Differs from project</option>
+            <option value='differs'>{device ? 'Differs from default' : 'Differs from project'}</option>
             <option value='writable'>Writable</option>
             <option value='mapped'>Mapped in a PDO</option>
           </select>
@@ -669,7 +635,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
           </div>
         ) : null}
 
-        {anyObject ? <RawAccess node={node} online={online} expert={expert} /> : null}
+        {anyObject ? <RawAccess node={node} online={online} expert={expert} where={variant} /> : null}
 
         <div ref={tableRef}>
           <table className='w-full table-fixed text-left text-xs'>
@@ -688,8 +654,8 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                 <th className='py-1 pr-2 font-medium'>Name</th>
                 {compact ? null : <th className='py-1 pr-2 font-medium'>Type</th>}
                 {compact ? null : <th className='py-1 pr-2 font-medium'>Access</th>}
-                {narrow ? null : <th className='py-1 pr-2 font-medium'>Project</th>}
-                <th className='py-1 pr-2 font-medium'>Node</th>
+                {narrow ? null : <th className='py-1 pr-2 font-medium'>{projectHeading}</th>}
+                <th className='py-1 pr-2 font-medium'>{device ? 'Device' : 'Node'}</th>
                 <th className='py-1 font-medium'>
                   <span className='sr-only'>Actions</span>
                 </th>
@@ -802,7 +768,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
                         ) : null}
                         {narrow && project ? (
                           <span className={cn(hintClassName, 'block font-sans')} title={projectTitle}>
-                            Project: <span className='font-mono'>{project}</span>
+                            {projectHeading}: <span className='font-mono'>{project}</span>
                             {row.masterWrites ? ' *' : ''}
                             {projectMeaning ? ` (${projectMeaning})` : ''}
                           </span>
@@ -858,268 +824,20 @@ export const OnlineTab = ({ node, network, online, reads, status, expert }: Onli
 
 const RowGroup = ({ children }: { children: ReactNode }) => <>{children}</>
 
-/** A save scope as the node reported it. */
-const saveScopeLabel = (scope: NvmScope, support: SaveSupport | undefined): string =>
-  support === 'auto' ? `${scope.name} (saves automatically)` : scope.name
-
-type NvmOp = 'save' | 'restore'
-
-/** What the Node memory card offers after a save or restore. */
-type NvmOffer =
-  | { kind: 'retry'; op: NvmOp; subIndex: number; name: string }
-  | { kind: 'reset'; subIndex: number; preOperational: boolean }
-  | { kind: 'start' }
-
-/** Save to node (0x1010) and Restore defaults (0x1011), each for a scope the EDS lists. */
-const NvmCard = ({ node, online }: { node: CanopenNode; online: CanopenOnlineContext }) => {
-  const allSaves = useMemo(() => nvmScopes(node.eds, 0x1010), [node.eds])
-  const restores = useMemo(() => nvmScopes(node.eds, 0x1011), [node.eds])
-  const [support, setSupport] = useState<ReadonlyMap<number, SaveSupport>>(new Map())
-  const [offer, setOffer] = useState<NvmOffer | null>(null)
-  const [saveSub, setSaveSub] = useState<number | null>(null)
-  const [restoreSub, setRestoreSub] = useState<number | null>(restores[0]?.subIndex ?? null)
-  const feedback = useCardFeedback(online.ready)
-  const { client, networkIndex, ready } = online
-  const nodeId = node.nodeId
-  useEffect(() => {
-    if (!ready) setOffer(null)
-  }, [ready])
-
-  useEffect(() => {
-    if (!ready || allSaves.length === 0) return
-    let cancelled = false
-    void (async () => {
-      const next = new Map<number, SaveSupport>()
-      for (const scope of allSaves) {
-        next.set(scope.subIndex, saveSupport(await client.read(networkIndex, nodeId, 0x1010, scope.subIndex)))
-        if (cancelled) return
-      }
-      setSupport(next)
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [client, networkIndex, nodeId, ready, allSaves])
-
-  // A scope the node does not save on command is left out.
-  const saves = allSaves.filter((s) => support.get(s.subIndex) !== 'none')
-  const saveScope = saves.find((s) => s.subIndex === saveSub) ?? saves.find((s) => support.get(s.subIndex) !== 'auto')
-  const restoreScope = restores.find((s) => s.subIndex === restoreSub) ?? restores[0]
-
-  if (allSaves.length === 0 && restores.length === 0) return null
-
-  const onResult = feedback.setMessage
-  const sendNmt = (command: CanopenNmtCommand) =>
-    void client
-      .nmt(networkIndex, nodeId, command)
-      .then((r) =>
-        onResult(
-          r.ok ? `${nmtCommandLabel(command)} sent.` : `${nmtCommandLabel(command)} failed: ${r.message}.`,
-          !r.ok,
-        ),
-      )
-
-  const nvmWrite = (op: NvmOp, subIndex: number, name: string, retried: boolean) => {
-    setOffer(null)
-    onResult(null)
-    const index = op === 'save' ? 0x1010 : 0x1011
-    const signature = op === 'save' ? SAVE_SIGNATURE : LOAD_SIGNATURE
-    void client.write(networkIndex, nodeId, index, subIndex, [...signature]).then((r) => {
-      const inPreOp = retried ? ' The node is in pre-operational.' : ''
-      if (!r.ok) {
-        const failed = `${name} failed: ${r.message}.`
-        if (r.abortCode === ABORT_DEVICE_STATE && !retried && online.nmt) {
-          onResult(failed, true)
-          setOffer({ kind: 'retry', op, subIndex, name })
-        } else {
-          onResult(`${failed}${inPreOp}`, true)
-        }
-        return
-      }
-      if (op === 'save') {
-        onResult(`${name}: done.${inPreOp}`)
-        if (retried) setOffer({ kind: 'start' })
-        return
-      }
-      onResult(`${name}: done. Takes effect after a reset.`)
-      setOffer({ kind: 'reset', subIndex, preOperational: retried })
-    })
-  }
-
-  const retryInPreOperational = (op: NvmOp, subIndex: number, name: string) => {
-    setOffer(null)
-    void client.nmt(networkIndex, nodeId, 'pre_operational').then((r) => {
-      if (!r.ok) return onResult(`Pre-operational failed: ${r.message}.`, true)
-      nvmWrite(op, subIndex, name, true)
-    })
-  }
-
-  const offerRow = (text: string, action: { label: string; run: () => void }, onNotNow: () => void) => (
-    <div className='mt-2 flex flex-wrap items-center gap-2 text-xs' data-testid='canopen-online-nvm-offer'>
-      <span>{text}</span>
-      <button type='button' className={smallButtonClassName} onClick={action.run}>
-        {action.label}
-      </button>
-      <button type='button' className={smallButtonClassName} onClick={onNotNow}>
-        Not now
-      </button>
-    </div>
-  )
-
-  const offerBar = (() => {
-    if (!offer) return null
-    switch (offer.kind) {
-      case 'retry': {
-        const { op, subIndex, name } = offer
-        return offerRow(
-          'The node may take it in pre-operational.',
-          {
-            label: 'Switch to pre-operational and retry',
-            run: () => {
-              setOffer(null)
-              feedback.ask({
-                text: `Put the node in pre-operational and ${op} again?`,
-                label: 'Switch and retry',
-                action: () => retryInPreOperational(op, subIndex, name),
-              })
-            },
-          },
-          () => setOffer(null),
-        )
-      }
-      case 'reset': {
-        const command = resetForRestore(offer.subIndex)
-        const preOperational = offer.preOperational
-        return offerRow(
-          'Reset now?',
-          {
-            label: nmtCommandLabel(command),
-            run: () => {
-              setOffer(null)
-              sendNmt(command)
-            },
-          },
-          () => {
-            setOffer(null)
-            if (preOperational) onResult('The node stays in pre-operational until it is started or reset.')
-          },
-        )
-      }
-      case 'start':
-        return offerRow(
-          'Start the node again?',
-          {
-            label: nmtCommandLabel('start'),
-            run: () => {
-              setOffer(null)
-              sendNmt('start')
-            },
-          },
-          () => {
-            setOffer(null)
-            onResult('The node stays in pre-operational until it is started or reset.')
-          },
-        )
-      default: {
-        const unreachable: never = offer
-        return unreachable
-      }
-    }
-  })()
-
-  const saveAuto = saveScope !== undefined && support.get(saveScope.subIndex) === 'auto'
-
-  return (
-    <div className={cardClassName} data-testid='canopen-online-nvm'>
-      <h4 className={headingClassName}>Node memory</h4>
-      <WithFeedback
-        feedback={
-          <>
-            {feedback.view}
-            {offerBar}
-          </>
-        }
-      >
-        <div className='grid grid-cols-[max-content_minmax(0,240px)_max-content] items-center gap-x-3 gap-y-2 text-xs'>
-          {allSaves.length > 0 ? (
-            <>
-              <span>Save</span>
-              {saves.length > 0 ? (
-                <select
-                  aria-label='Scope to save'
-                  className={inputClassName}
-                  value={saveScope?.subIndex ?? ''}
-                  onChange={(e) => setSaveSub(Number(e.target.value))}
-                >
-                  {saves.map((s) => (
-                    <option key={s.subIndex} value={s.subIndex}>
-                      {saveScopeLabel(s, support.get(s.subIndex))}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className={hintClassName}>The node saves nothing on command.</span>
-              )}
-              <button
-                type='button'
-                className={smallButtonClassName}
-                disabled={!ready || !saveScope || saveAuto}
-                title={saveAuto ? 'The node saves this by itself' : undefined}
-                onClick={() => {
-                  if (!saveScope) return
-                  feedback.ask({
-                    text: `Save to node ${nodeId}'s non-volatile memory: ${saveScope.name}?`,
-                    label: 'Save to node',
-                    action: () => nvmWrite('save', saveScope.subIndex, saveScope.name, false),
-                  })
-                }}
-              >
-                Save to node
-              </button>
-            </>
-          ) : null}
-          {restores.length > 0 ? (
-            <>
-              <span>Restore</span>
-              <select
-                aria-label='Scope to restore'
-                className={inputClassName}
-                value={restoreScope?.subIndex ?? ''}
-                onChange={(e) => setRestoreSub(Number(e.target.value))}
-              >
-                {restores.map((s) => (
-                  <option key={s.subIndex} value={s.subIndex}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                type='button'
-                className={smallButtonClassName}
-                disabled={!ready || !restoreScope}
-                onClick={() => {
-                  if (!restoreScope) return
-                  feedback.ask({
-                    text: `Restore defaults on node ${nodeId}: ${restoreScope.name}? They take effect after a reset.`,
-                    label: 'Restore defaults',
-                    action: () => nvmWrite('restore', restoreScope.subIndex, restoreScope.name, false),
-                  })
-                }}
-              >
-                Restore defaults
-              </button>
-            </>
-          ) : null}
-        </div>
-      </WithFeedback>
-    </div>
-  )
-}
-
 const RAW_TYPES: readonly string[] = [...CANOPEN_DATA_TYPES, 'raw bytes']
 
 /** Read, and in the expert view write, any index and sub-index by data type or as raw bytes. */
-const RawAccess = ({ node, online, expert }: { node: CanopenNode; online: CanopenOnlineContext; expert: boolean }) => {
+const RawAccess = ({
+  node,
+  online,
+  expert,
+  where,
+}: {
+  node: CanopenNode
+  online: CanopenOnlineContext
+  expert: boolean
+  where: 'node' | 'device'
+}) => {
   const [index, setIndex] = useState('')
   const [sub, setSub] = useState('0')
   const [type, setType] = useState('raw bytes')
@@ -1160,7 +878,7 @@ const RawAccess = ({ node, online, expert }: { node: CanopenNode; online: Canope
   const doWrite = () => {
     const t = target()
     if (!t) return setResult('Give the index in hex (for example 2000) and the sub-index (0 to 255).')
-    const refusal = rawWriteRefusal(t.index)
+    const refusal = rawWriteRefusal(t.index, where)
     if (refusal) return setResult(refusal)
     const encoded = type === 'raw bytes' ? encodeRawBytes(value) : encodeOnlineValue(type, value)
     if (!encoded.ok) return setResult(encoded.message)
