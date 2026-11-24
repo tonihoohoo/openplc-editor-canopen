@@ -48,6 +48,10 @@ class FakeBus {
     ['4112:3', '01000000'],
   ])
   nvmAbort: number | null = null
+  /** An abort every SDO read gets, as when the link is down. */
+  readAbort: number | null = null
+  /** Service mode ended on the runtime: requests answer that no network runs. */
+  gone = false
   operational = true
   private jobs = new Map<number, unknown>()
   private next = 1
@@ -60,6 +64,8 @@ class FakeBus {
       return { job: id }
     }
     const body = (() => {
+      if (this.gone && request.op !== 'service_open' && request.op !== 'service_close' && request.op !== 'job')
+        return { error: 'not_running' }
       switch (request.op) {
         case 'service_open':
           if (this.keptNetwork && !request.take_over) return { error: 'network_on_interface', name: this.keptNetwork }
@@ -83,6 +89,7 @@ class FakeBus {
         case 'lss':
           return job({ state: 'done', devices: [], previous_id: 127, stored: true })
         case 'sdo_read': {
+          if (this.readAbort !== null) return job({ state: 'failed', abort_code: this.readAbort })
           const v = this.values.get(`${request.index}:${request.subindex}`)
           return job(v === undefined ? { state: 'failed', abort_code: 0x06020000 } : { state: 'done', data: v })
         }
@@ -337,6 +344,44 @@ describe('CANopen device commissioning window', () => {
     const nodes = store.getState().project.data.remoteDevices?.[0].canopenConfig?.nodes ?? []
     expect(nodes.map((n) => n.nodeId)).toEqual([2, 10])
     expect(nodes[1].tpdos.length + nodes[1].rpdos.length).toBeGreaterThan(0)
+    expect(screen.getByTestId('canopen-com-added').textContent).toMatch(/^Added to .+ as node 10: .+\.$/)
+  })
+
+  it('says the reads failed, not that the device lacks 0x1010 and 0x1011', async () => {
+    await renderWindow({ noProjectFile: true })
+    await openAndFind()
+    bus.readAbort = 0x05040000
+    await pick('node:10')
+    await settle()
+    await settle()
+    expect(screen.getByTestId('canopen-device-memory-missing').textContent).toMatch(
+      /^Could not read 0x1010 and 0x1011 from the device: /,
+    )
+  })
+
+  it('closes the bus with the reason when service mode ended on the runtime during Find', async () => {
+    await renderWindow()
+    fireEvent.click(screen.getByTestId('canopen-com-open'))
+    await settle()
+    bus.gone = true
+    fireEvent.click(screen.getByTestId('canopen-com-find-button'))
+    await settle()
+    await settle()
+    expect(screen.getByTestId('canopen-com-open')).toBeTruthy()
+    expect(screen.getByText(/The runtime closed the bus, for example after a link reset/)).toBeTruthy()
+  })
+
+  it('highlights only the device it followed, until another is picked', async () => {
+    await renderWindow()
+    await openAndFind()
+    await pick('node:127')
+    bus.devices[1].node_id = 20
+    fireEvent.click(screen.getByTestId('canopen-com-find-button'))
+    await settle()
+    await settle()
+    expect(screen.getByTestId('canopen-com-device-node:20').className).toContain('ring-green-500')
+    await pick('node:10')
+    expect(screen.getByTestId('canopen-com-device-node:20').className).not.toContain('ring-green-500')
   })
 
   it('locks Add to project during a debug session but keeps the device tools', async () => {

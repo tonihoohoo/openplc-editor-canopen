@@ -65,6 +65,7 @@ export const DevicePanel = (props: DevicePanelProps) => {
   const nodeId = device.kind === 'unconfigured' ? null : device.nodeId
   const objects = device.kind === 'node'
   const [adding, setAdding] = useState(false)
+  const [added, setAdded] = useState<string | null>(null)
   const locked = useIsEditingLocked()
 
   return (
@@ -95,6 +96,15 @@ export const DevicePanel = (props: DevicePanelProps) => {
             </button>
           ) : null}
         </div>
+        {added ? (
+          <p
+            className='mb-2 text-xs text-neutral-850 dark:text-neutral-200'
+            role='status'
+            data-testid='canopen-com-added'
+          >
+            {added}
+          </p>
+        ) : null}
         <dl className='grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-xs'>
           <IdentityRow label='Vendor ID' value={identity.vendorId} />
           <IdentityRow label='Product code' value={identity.productCode} />
@@ -141,6 +151,7 @@ export const DevicePanel = (props: DevicePanelProps) => {
           iface={props.iface}
           bitrate={props.bitrate}
           onClose={() => setAdding(false)}
+          onAdded={setAdded}
         />
       ) : null}
     </div>

@@ -14,7 +14,7 @@ import {
 } from '@root/middleware/shared/utils/canopen'
 import { useEffect, useMemo, useState } from 'react'
 
-import { ABORT_DEVICE_STATE, smallButtonClassName, useCardFeedback, WithFeedback } from './online-tab'
+import { ABORT_DEVICE_STATE, smallButtonClassName, useCardFeedback } from './online-tab'
 import { cardClassName, headingClassName, hintClassName, inputClassName } from './styles'
 
 /** A save scope as the node reported it. */
@@ -29,6 +29,9 @@ type NvmOffer =
   | { kind: 'reset'; subIndex: number; preOperational: boolean }
   | { kind: 'start' }
 
+/** SDO abort: the object does not exist in the object dictionary. */
+const ABORT_NO_OBJECT = 0x06020000
+
 type DeviceMemoryCardProps = {
   /** The device file in use; null for none, when the scopes come from the device's sub-index 0. */
   eds: CanopenEdsInfo | null
@@ -42,19 +45,27 @@ type DeviceMemoryCardProps = {
  */
 export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps) => {
   const { client, networkIndex, ready } = online
-  const [reported, setReported] = useState<{ save: number | null; restore: number | null } | null>(null)
+  const [reported, setReported] = useState<{
+    save: number | null
+    restore: number | null
+    /** Why 0x1010 or 0x1011 could not be read, when the device did not say it lacks them. */
+    failed: string | null
+  } | null>(null)
   useEffect(() => {
     setReported(null)
     if (eds || !ready) return
     let cancelled = false
     void (async () => {
+      let failed: string | null = null
       const count = async (index: number) => {
         const r = await client.read(networkIndex, nodeId, index, 0)
-        return r.ok && r.bytes.length > 0 ? r.bytes[0] : null
+        if (r.ok) return r.bytes.length > 0 ? r.bytes[0] : null
+        if (r.abortCode !== ABORT_NO_OBJECT) failed ??= r.message
+        return null
       }
       const save = await count(0x1010)
       const restore = await count(0x1011)
-      if (!cancelled) setReported({ save, restore })
+      if (!cancelled) setReported({ save, restore, failed })
     })()
     return () => {
       cancelled = true
@@ -105,7 +116,9 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
           ? ready
             ? 'Reading 0x1010 and 0x1011 from the device...'
             : null
-          : 'The device has no 0x1010 or 0x1011, so it cannot save or restore on command.'
+          : reported.failed !== null
+            ? `Could not read 0x1010 and 0x1011 from the device: ${reported.failed}.`
+            : 'The device has no 0x1010 or 0x1011, so it cannot save or restore on command.'
       : null
 
   const onResult = feedback.setMessage
@@ -157,7 +170,7 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
   }
 
   const offerRow = (text: string, action: { label: string; run: () => void }, onNotNow: () => void) => (
-    <div className='mt-2 flex flex-col items-start gap-1 text-xs' data-testid='canopen-device-memory-offer'>
+    <div className='mt-2 flex flex-wrap items-center gap-2 text-xs' data-testid='canopen-device-memory-offer'>
       <span>{text}</span>
       <div className='flex gap-2'>
         <button type='button' className={smallButtonClassName} onClick={action.run}>
@@ -241,14 +254,7 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
           {missing}
         </p>
       ) : null}
-      <WithFeedback
-        feedback={
-          <>
-            {feedback.view}
-            {offerBar}
-          </>
-        }
-      >
+      <div>
         <div className='grid grid-cols-[max-content_minmax(0,240px)_max-content] items-center gap-x-3 gap-y-2 text-xs'>
           {allSaves.length > 0 ? (
             <>
@@ -320,7 +326,11 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
             </>
           ) : null}
         </div>
-      </WithFeedback>
+      </div>
+      <div data-testid='canopen-device-memory-feedback'>
+        {feedback.view}
+        {offerBar}
+      </div>
     </div>
   )
 }

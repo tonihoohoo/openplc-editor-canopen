@@ -117,6 +117,18 @@ describe('CANopen live status', () => {
     expect(tab.textContent).toContain('TPDO 1 (COB-ID 0x182) late since')
   })
 
+  it('lists the network events of every node with its own, such as the PLC start', async () => {
+    const status = sampleStatus()
+    const net = status.networks[0]
+    const events = [{ time: status.now - 1000, kind: 'plc', running: true }]
+    await renderEditor(true, CAPABILITIES_WITH_STATUS, () =>
+      ok({ ...status, networks: [{ ...net, events: [...events, ...net.events] }] }),
+    )
+    openTab('Status')
+    const tab = screen.getByTestId('canopen-node-status').textContent ?? ''
+    expect(tab).toContain('PLC started; the nodes started without a reset.')
+  })
+
   it('says when a node sends no emergency messages or has them turned off', async () => {
     await renderEditor(true)
     const setNode3 = (change: (n: CanopenNode) => CanopenNode) =>

@@ -408,7 +408,8 @@ works.
   runtime keeps on the bus at PLC stop runs on the interface, the window asks first: **Leave the bus
   and open** takes the interface over until the next PLC start, which boots all the network's nodes
   again. The bus closes when the window closes, when the PLC starts, and after 5 minutes without a
-  request.
+  request. When the runtime closes it by itself, for example after a link reset or bus-off, the window
+  says so and offers **Open the bus** again.
 - **Find devices** reads 0x1000 and 0x1018 of node IDs 1 to 127 (a few seconds), listening for
   heartbeats, boot-ups and emergencies meanwhile, and then searches for devices without a node ID by
   LSS fastscan (about 7 s per device). The list shows the devices with a node ID in order, then the
@@ -428,7 +429,8 @@ works.
   takes it at its next power-on, and the card offers to open the bus at the new rate. With a device file
   that says no LSS, these are greyed with the reason. **Device memory** has **Save to device** (0x1010)
   and **Restore defaults** (0x1011), each with a scope list from the device file, or without one from
-  the sub-indexes the device reports. Both ask first; when the device refuses with 0x08000022, the
+  the sub-indexes the device reports (when those reads fail, it says so with the reason). Both ask
+  first and show the request as in progress until the device answers; when the device refuses with 0x08000022, the
   card offers **Enter pre-operational and retry** (NMT Enter pre-operational, then the same write
   once more), and after a save it offers **Start remote node** to set it back to operational. A save
   the device took in the state it was in offers nothing. After a restore it offers the reset that makes
@@ -440,7 +442,7 @@ works.
   ID it has now, its device file (a picked file is imported with the node) and the file's default
   PDOs. With no CANopen network in the project it makes a new one on the window's interface and bit
   rate. It refuses a node ID the network uses, and warns when the network runs at another bit rate
-  than the device was found at.
+  than the device was found at. The device panel then names the network and node it was added as.
 
 ## Live status
 
@@ -458,7 +460,8 @@ While the editor is connected to a runtime whose `/api/capabilities` lists `"sta
 - a **Status** tab on each node: the state and since when, the reason of the last failure in words
   (for example "The product code is 0x43 where 0x42 was expected"), the NMT state, boot attempts and
   losses, the last emergencies with their code, error register bits and data, late PDOs, and the
-  node's events with local times, and whether the node is optional or stopped after an error until
+  node's events with local times, together with the network's own events (bus state, link resets,
+  service mode, PLC start and stop), and whether the node is optional or stopped after an error until
   the PLC restarts. A node held by a command from the online tools is "Held by you"; in service
   mode the nodes are "Service mode", and the network's events include "PLC stopped" and "PLC started" when the runtime keeps it on the bus.
 

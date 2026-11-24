@@ -240,6 +240,7 @@ test('commissioning: a new device gets node ID 10, saves its parameters and is a
     await expect(memory).toContainText('Save all parameters: done. The device is in pre-operational.', {
       timeout: 15000,
     })
+    await memory.getByTestId('canopen-device-memory-offer').scrollIntoViewIfNeeded()
     await keyView(page, 'commissioning-saved', [], win)
     const saves = bus.requests.filter((r) => r.op === 'sdo_write' && r.index === 0x1010)
     expect(saves.map((r) => [r.node, r.data])).toEqual([
@@ -253,6 +254,7 @@ test('commissioning: a new device gets node ID 10, saves its parameters and is a
     await shot(page, 'commissioning-add-to-project')
     await dialog.getByTestId('canopen-com-add-confirm').click()
     await expect(dialog).toHaveCount(0)
+    await expect(win.getByTestId('canopen-com-added')).toContainText('as node 10: Generic_I_O_module_2.')
     await page.keyboard.press('Escape')
     await expect(win).toHaveCount(0)
     await expect.poll(() => bus.requests.some((r) => r.op === 'service_close')).toBe(true)
