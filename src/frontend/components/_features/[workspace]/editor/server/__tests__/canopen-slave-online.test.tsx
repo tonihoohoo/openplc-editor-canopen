@@ -192,7 +192,7 @@ describe('the slave Status tab', () => {
       ...slaveConfig(),
       nodeId: 5,
       bitrate: 500000,
-      lss: { enabled: true, waitForMaster: false, serial: null, bitrateChange: true },
+      lss: { enabled: true, serial: null, bitrateChange: true },
     })
 
     it('shows the node ID in use and its source, and forgets the stored values after a confirm', async () => {
