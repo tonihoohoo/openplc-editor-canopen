@@ -66,26 +66,23 @@ describe('CanopenSlaveEditor', () => {
     expect(config()?.enabled).toBe(false)
   })
 
-  it('turns LSS on, waits for the master and keeps the typed node ID', () => {
+  it('turns LSS on with the project node ID and no choice to wait for a master', () => {
     expect(screen.getByLabelText('Fixed in the project')).toHaveProperty('checked', true)
-    expect(screen.queryByLabelText('Until a master gives one')).toBeNull()
     expect(screen.queryByLabelText('The master may change the bit rate')).toBeNull()
-    fireEvent.click(screen.getByLabelText('Given by an LSS master (CiA 305)'))
-    expect(config()?.lss).toEqual({ enabled: true, waitForMaster: false, serial: null, bitrateChange: true })
-    expect(screen.getByLabelText('Until a master gives one')).toHaveProperty('disabled', false)
-    fireEvent.change(screen.getByLabelText('Until a master gives one'), { target: { value: 'wait' } })
-    expect(config()?.lss?.waitForMaster).toBe(true)
+    fireEvent.click(screen.getByLabelText('Fixed in the project, changeable over LSS (CiA 305)'))
+    expect(config()?.lss).toEqual({ enabled: true, serial: null, bitrateChange: true })
+    expect(screen.queryByLabelText('Until a master gives one')).toBeNull()
     expect(config()?.nodeId).toBe(5)
     const nodeId = screen.getByLabelText('Node ID')
-    expect((nodeId as HTMLInputElement).value).toBe('Set by the LSS master')
-    expect((nodeId as HTMLInputElement).disabled).toBe(true)
-    expect(screen.getByTestId('canopen-slave-summary').textContent).toBe(
-      'can1, 500 kbit/s, node ID from the LSS master, 0 objects',
-    )
+    expect((nodeId as HTMLInputElement).disabled).toBe(false)
+    expect(screen.getByTestId('canopen-slave-lss').textContent).toContain('How this slave gets node ID 5')
+    expect(screen.getByTestId('canopen-slave-summary').textContent).toBe('can1, 500 kbit/s, node ID 5, 0 objects')
     // The serial number and bit rate settings are in the expert view.
     expect(screen.queryByLabelText('Serial number')).toBeNull()
     expect(screen.queryByLabelText('The master may change the bit rate')).toBeNull()
-    expect(screen.getByTestId('canopen-slave-lss-note').textContent).toContain('Serial number: automatic')
+    const note = screen.getByTestId('canopen-slave-lss-note').textContent
+    expect(note).toContain('Starts with node ID 5 unless an LSS tool stored another one.')
+    expect(note).toContain('Serial number: automatic')
     fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
     fireEvent.click(screen.getByLabelText('The master may change the bit rate'))
     expect(config()?.lss?.bitrateChange).toBe(false)
@@ -94,14 +91,11 @@ describe('CanopenSlaveEditor', () => {
     expect(screen.getByLabelText('The master may change the bit rate')).toBeTruthy()
     expect(screen.getByTestId('canopen-slave-lss').textContent).toContain('The master may change the bit rateexpert')
     fireEvent.click(screen.getByLabelText('Fixed in the project'))
-    expect(config()?.lss).toEqual({ enabled: false, waitForMaster: true, serial: null, bitrateChange: false })
-    expect(screen.queryByLabelText('Until a master gives one')).toBeNull()
-    fireEvent.click(screen.getByLabelText('Given by an LSS master (CiA 305)'))
-    expect(screen.getByLabelText('Until a master gives one')).toHaveProperty('value', 'wait')
+    expect(config()?.lss).toEqual({ enabled: false, serial: null, bitrateChange: false })
   })
 
   it('takes a fixed LSS serial number and refuses 0', () => {
-    fireEvent.click(screen.getByLabelText('Given by an LSS master (CiA 305)'))
+    fireEvent.click(screen.getByLabelText('Fixed in the project, changeable over LSS (CiA 305)'))
     fireEvent.click(screen.getByRole('switch', { name: 'Expert view' }))
     fireEvent.change(screen.getByLabelText('Serial number'), { target: { value: 'fixed' } })
     expect(config()?.lss?.serial).toBe(1)

@@ -30,7 +30,7 @@ const slave = (): CanopenSlaveConfig => ({
   productText: 'Tank controller',
   orderNumber: 'TC-100',
   characteristics: [{ value: 'Supply', label: '24 V DC' }],
-  lss: { enabled: true, waitForMaster: false, serial: 42, bitrateChange: true },
+  lss: { enabled: true, serial: 42, bitrateChange: true },
   objects: [
     obj({ id: 'set', name: 'Setpoint', defaultValue: '100', min: '0', max: '1000', unit: '°C', multiplier: 0.1 }),
     obj({
@@ -152,7 +152,7 @@ describe('importIntoSlave', () => {
       onPlcStopState: 'pre_operational',
       productText: 'Tank controller',
       orderNumber: 'TC-100',
-      lss: { enabled: true, waitForMaster: false, serial: 42, bitrateChange: true },
+      lss: { enabled: true, serial: 42, bitrateChange: true },
     })
     expect(c.characteristics).toEqual(expect.arrayContaining([{ value: 'Supply', label: '24 V DC' }]))
     expect(essence(c)).toEqual(essence(original))

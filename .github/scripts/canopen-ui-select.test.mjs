@@ -14,7 +14,12 @@ const spec = (name, covers, helpers = [], text = '') => ({
 })
 const SPECS = [
   spec('online', [`${C}online-tab.tsx`], ['e2e/helpers/canopen-runtime']),
-  spec('lss', [`${C}lss-panel.tsx`, 'src/middleware/shared/utils/canopen/diagnostics/**'], [], "'canopen-lss'"),
+  spec(
+    'commissioning',
+    [`${C}commissioning/window.tsx`, 'src/middleware/shared/utils/canopen/diagnostics/**'],
+    [],
+    "'canopen-commissioning'",
+  ),
   spec('offline-build', []),
   spec('slave-build', [`${S}data-tab.tsx`], [], "'generic-io-module.eds'"),
   spec('slave-online', [], ['e2e/helpers/canopen-runtime']),
@@ -23,15 +28,15 @@ const names = (set) => [...set].map((s) => s.replace(/^e2e\/canopen-|\.spec\.ts$
 const run = (files, shared = new Set()) => names(choose(files, SPECS, shared))
 
 test('a listed master file runs only the specs that list it', () => {
-  assert.deepEqual(run([`${C}lss-panel.tsx`]), ['lss'])
+  assert.deepEqual(run([`${C}commissioning/window.tsx`]), ['commissioning'])
 })
 
 test('a folder pattern covers the files under it', () => {
-  assert.deepEqual(run(['src/middleware/shared/utils/canopen/diagnostics/texts.ts']), ['lss'])
+  assert.deepEqual(run(['src/middleware/shared/utils/canopen/diagnostics/texts.ts']), ['commissioning'])
 })
 
 test('an unlisted master file runs every master spec', () => {
-  assert.deepEqual(run([`${C}node-panel.tsx`]), ['lss', 'offline-build', 'online'])
+  assert.deepEqual(run([`${C}node-panel.tsx`]), ['commissioning', 'offline-build', 'online'])
 })
 
 test('a slave page file runs the slave specs that list it', () => {
@@ -59,7 +64,7 @@ test('a helper no spec imports by name runs everything', () => {
 })
 
 test('fixtures run the specs that name them', () => {
-  assert.deepEqual(run(['e2e/fixtures/canopen-lss/project/project.json']), ['lss'])
+  assert.deepEqual(run(['e2e/fixtures/canopen-commissioning/project/project.json']), ['commissioning'])
   assert.deepEqual(run(['src/middleware/shared/utils/canopen/__tests__/fixtures/generic-io-module.eds']), [
     'slave-build',
   ])

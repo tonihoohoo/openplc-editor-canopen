@@ -31,7 +31,7 @@ describe('the end-to-end CANopen slave project', () => {
     expect(validateCanopenSlaves([server], [])).toEqual([])
     const conf: unknown = JSON.parse(generateCanopenConfig([], null, [server]) ?? '')
     expect(conf).toMatchObject({
-      version: 14,
+      version: 15,
       networks: [],
       devices: [
         {
@@ -79,7 +79,7 @@ describe('the end-to-end CANopen slave project', () => {
     // TPDO 5 waits for the master's COB-ID, so the runtime starts it off.
     expect(conf).not.toHaveProperty('devices.0.tpdos.1.cob_id')
   })
-  it('writes the LSS project as the same slave waiting for the master with serial number 23', () => {
+  it('writes the LSS project as the same slave with LSS on and serial number 23, starting as node 5', () => {
     const server = PLCServerSchema.parse(JSON.parse(readFileSync(fixture('canopen-slave-lss'), 'utf8')))
     const plain = PLCServerSchema.parse(JSON.parse(readFileSync(FIXTURE, 'utf8')))
     expect(validateCanopenSlaves([server], [])).toEqual([])
@@ -90,10 +90,11 @@ describe('the end-to-end CANopen slave project', () => {
         {
           node_id: 5,
           identity: { vendor_id: 0xabcd, product_code: 1, revision: 0x10000 },
-          lss: { enabled: true, wait_for_master: true, serial: 23, bitrate_change: true },
+          lss: { enabled: true, serial: 23, bitrate_change: true },
         },
       ],
     })
+    expect(conf).not.toHaveProperty('devices.0.lss.wait_for_master')
     expect(plainConf).toMatchObject({ devices: [{ lss: null }] })
   })
 })
