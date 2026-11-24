@@ -29,6 +29,9 @@ type NvmOffer =
   | { kind: 'reset'; subIndex: number; preOperational: boolean }
   | { kind: 'start' }
 
+/** The CiA 301 name of the NMT command that sets a device operational. */
+const START_REMOTE_NODE = 'Start remote node'
+
 type DeviceMemoryCardProps = {
   /** The device file in use; null for none, when the scopes come from the device's sub-index 0. */
   eds: CanopenEdsInfo | null
@@ -107,15 +110,10 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
       : null
 
   const onResult = feedback.setMessage
-  const sendNmt = (command: CanopenNmtCommand) =>
+  const sendNmt = (command: CanopenNmtCommand, label = nmtCommandLabel(command)) =>
     void client
       .nmt(networkIndex, nodeId, command)
-      .then((r) =>
-        onResult(
-          r.ok ? `${nmtCommandLabel(command)} sent.` : `${nmtCommandLabel(command)} failed: ${r.message}.`,
-          !r.ok,
-        ),
-      )
+      .then((r) => onResult(r.ok ? `${label} sent.` : `${label} failed: ${r.message}.`, !r.ok))
 
   const nvmWrite = (op: NvmOp, subIndex: number, name: string, retried: boolean) => {
     setOffer(null)
@@ -147,7 +145,7 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
   const retryInPreOperational = (op: NvmOp, subIndex: number, name: string) => {
     setOffer(null)
     void client.nmt(networkIndex, nodeId, 'pre_operational').then((r) => {
-      if (!r.ok) return onResult(`Pre-operational failed: ${r.message}.`, true)
+      if (!r.ok) return onResult(`Enter pre-operational failed: ${r.message}.`, true)
       nvmWrite(op, subIndex, name, true)
     })
   }
@@ -172,12 +170,12 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
         return offerRow(
           'The device may take it in pre-operational.',
           {
-            label: 'Switch to pre-operational and retry',
+            label: 'Enter pre-operational and retry',
             run: () => {
               setOffer(null)
               feedback.ask({
-                text: `Put the device in pre-operational and ${op} again?`,
-                label: 'Switch and retry',
+                text: `Send NMT Enter pre-operational to the device and ${op} again?`,
+                label: 'Retry',
                 action: () => retryInPreOperational(op, subIndex, name),
               })
             },
@@ -205,12 +203,12 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
       }
       case 'start':
         return offerRow(
-          'Start the device again?',
+          'Back to operational?',
           {
-            label: nmtCommandLabel('start'),
+            label: START_REMOTE_NODE,
             run: () => {
               setOffer(null)
-              sendNmt('start')
+              sendNmt('start', START_REMOTE_NODE)
             },
           },
           () => {

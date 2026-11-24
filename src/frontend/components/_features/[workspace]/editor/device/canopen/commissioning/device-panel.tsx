@@ -53,9 +53,6 @@ type DevicePanelProps = {
   networks: readonly CanopenConfig[]
   iface: string
   bitrate: number
-  finding: boolean
-  /** Finds devices again and selects the one with this key afterwards. */
-  onCheckAgain: (key: string | null) => void
   /** Closes the bus and opens it again at this bit rate. */
   onReopen: (bitrate: number) => void
 }
@@ -245,8 +242,8 @@ const DeviceFileField = ({ device, files, file, onPickFile }: DevicePanelProps) 
 
 type Outcome = { text: string; error: boolean; offer?: 'reset' | 'reopen' }
 
-/** Node ID and bit rate over LSS (CiA 305), and Check again. */
-const LssCard = ({ device, list, file, online, bitrate, finding, onCheckAgain, onReopen }: DevicePanelProps) => {
+/** Node ID and bit rate over LSS (CiA 305). */
+const LssCard = ({ device, list, file, online, bitrate, onReopen }: DevicePanelProps) => {
   const support = lssSupportOf(file?.eds ?? null)
   const address = deviceLssAddress(device)
   const oldId = device.kind === 'unconfigured' ? null : device.nodeId
@@ -293,7 +290,7 @@ const LssCard = ({ device, list, file, online, bitrate, finding, onCheckAgain, o
     const r = await online.client.nmt(online.networkIndex, oldId, 'reset_node')
     setOutcome(
       r.ok
-        ? { text: `Reset sent to node ${oldId}. Check again to see it as node ${given ?? ''}.`, error: false }
+        ? { text: `Reset sent to node ${oldId}. Find devices to see it as node ${given ?? ''}.`, error: false }
         : { text: `Reset failed: ${r.message}.`, error: true },
     )
   }
@@ -407,17 +404,6 @@ const LssCard = ({ device, list, file, online, bitrate, finding, onCheckAgain, o
             ) : null}
           </div>
         ) : null}
-        <div>
-          <button
-            type='button'
-            className={secondaryButtonClassName}
-            disabled={finding}
-            onClick={() => onCheckAgain(given !== null ? `node:${given}` : device.key)}
-            data-testid='canopen-com-check-again'
-          >
-            Check again
-          </button>
-        </div>
         {address ? <p className={hintClassName}>LSS address: {lssAddressText(address)}</p> : null}
       </div>
     </div>

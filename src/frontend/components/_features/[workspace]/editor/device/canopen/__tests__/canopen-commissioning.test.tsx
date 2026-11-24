@@ -247,6 +247,14 @@ describe('CANopen device commissioning window', () => {
     fireEvent.click(within(lss).getByRole('button', { name: 'Reset device' }))
     await settle()
     expect(bus.sent).toContainEqual({ op: 'nmt', network: 0, node: 127, command: 'reset_node' })
+    expect(within(lss).getByTestId('canopen-com-lss-outcome').textContent).toContain(
+      'Find devices to see it as node 20.',
+    )
+    bus.devices[1].node_id = 20
+    fireEvent.click(screen.getByTestId('canopen-com-find-button'))
+    await settle()
+    expect(screen.getByTestId('canopen-com-device-node:20').className).toContain('ring-green-500')
+    expect(within(screen.getByTestId('canopen-com-panel')).getByText(/^Node 20$/i)).toBeTruthy()
   })
 
   it('sets the bit rate of the only device after the confirmation and offers to reopen the bus', async () => {
@@ -283,8 +291,8 @@ describe('CANopen device commissioning window', () => {
     fireEvent.click(within(card).getByRole('button', { name: 'Save to device' }))
     fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Save to device' }))
     await settle()
-    fireEvent.click(within(card).getByRole('button', { name: 'Switch to pre-operational and retry' }))
-    fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Switch and retry' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Enter pre-operational and retry' }))
+    fireEvent.click(within(within(card).getByRole('alertdialog')).getByRole('button', { name: 'Retry' }))
     await settle()
     await settle()
     expect(bus.sent).toContainEqual({ op: 'nmt', network: 0, node: 10, command: 'pre_operational' })

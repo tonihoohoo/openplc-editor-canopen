@@ -16,8 +16,9 @@ import {
   matchingFiles,
   projectDeviceFiles,
   projectInterfaces,
+  sameDeviceKey,
 } from '@root/middleware/shared/utils/canopen'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   cardClassName,
@@ -117,10 +118,20 @@ const CommissioningBody = ({ c }: { c: CanopenCommissioning }) => {
   const open = bus.state === 'open'
   const busy = bus.state === 'opening' || find.state === 'running'
 
-  const findAgain = async (key: string | null) => {
-    setHighlight(key)
-    if (key) setSelected(key)
-    await c.runFind()
+  /** The selected device, followed across a Find even when its node ID changed. */
+  const [follow, setFollow] = useState<CommissionDevice | null>(null)
+  useEffect(() => {
+    if (follow === null || find.state !== 'done') return
+    const key = sameDeviceKey(follow, list)
+    setSelected(key)
+    setHighlight(key !== null && key !== follow.key ? key : null)
+    setFollow(null)
+  }, [follow, find.state, list])
+
+  const findDevices = () => {
+    setFollow(device)
+    setHighlight(null)
+    void c.runFind()
   }
 
   return (
@@ -210,7 +221,7 @@ const CommissioningBody = ({ c }: { c: CanopenCommissioning }) => {
               type='button'
               className={primaryButtonClassName}
               disabled={!open || busy}
-              onClick={() => void findAgain(null)}
+              onClick={findDevices}
               data-testid='canopen-com-find-button'
             >
               Find devices
@@ -222,7 +233,10 @@ const CommissioningBody = ({ c }: { c: CanopenCommissioning }) => {
               <li key={d.key}>
                 <button
                   type='button'
-                  onClick={() => setSelected(d.key)}
+                  onClick={() => {
+                    setFollow(null)
+                    setSelected(d.key)
+                  }}
                   data-testid={`canopen-com-device-${d.key}`}
                   className={cn(
                     'flex w-full flex-col rounded-md border px-3 py-2 text-left',
@@ -251,8 +265,6 @@ const CommissioningBody = ({ c }: { c: CanopenCommissioning }) => {
               networks={networks}
               iface={bus.iface}
               bitrate={bus.bitrate}
-              finding={find.state === 'running'}
-              onCheckAgain={(key) => void findAgain(key)}
               onReopen={(rate) => {
                 setBitrate(rate)
                 c.open(bus.iface, rate)

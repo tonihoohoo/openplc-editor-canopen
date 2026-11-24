@@ -378,12 +378,16 @@ const NoteLine = ({ note, onClose }: { note: RowNote; onClose: () => void }) => 
       <span className={cn('min-w-0', note.error && errorTextClassName)}>{note.text}</span>
       {retry && !asking ? (
         <button type='button' className={smallButtonClassName} onClick={() => setAsking(true)}>
-          Switch to pre-operational and retry
+          Enter pre-operational and retry
         </button>
       ) : null}
       {retry && asking ? (
-        <span role='alertdialog' aria-label='Put the node in pre-operational and write again?' className='flex gap-2'>
-          <span>Put the node in pre-operational and write again?</span>
+        <span
+          role='alertdialog'
+          aria-label='Send NMT Enter pre-operational to the node and write again?'
+          className='flex gap-2'
+        >
+          <span>Send NMT Enter pre-operational to the node and write again?</span>
           <button
             type='button'
             className={smallButtonClassName}
@@ -392,7 +396,7 @@ const NoteLine = ({ note, onClose }: { note: RowNote; onClose: () => void }) => 
               retry()
             }}
           >
-            Switch and retry
+            Retry
           </button>
           <button type='button' className={smallButtonClassName} onClick={() => setAsking(false)}>
             Cancel
@@ -473,7 +477,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert, varian
         result.abortCode === ABORT_DEVICE_STATE && !retried
           ? () => {
               void client.nmt(networkIndex, nodeId, 'pre_operational').then((r) => {
-                if (!r.ok) return setNote(k, { text: `Pre-operational failed: ${r.message}`, error: true })
+                if (!r.ok) return setNote(k, { text: `Enter pre-operational failed: ${r.message}`, error: true })
                 void write(row, bytes, true)
               })
             }

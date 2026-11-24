@@ -227,16 +227,16 @@ test('commissioning: a new device gets node ID 10, saves its parameters and is a
     await keyView(page, 'commissioning-node-id-set', [], win)
     await outcome.getByRole('button', { name: 'Reset device' }).click()
     await expect.poll(() => bus.devices[1].nodeId).toBe(10)
-    await lss.getByTestId('canopen-com-check-again').click()
-    await expect(win.getByTestId('canopen-com-device-node:10')).toBeVisible({ timeout: 15000 })
-    await win.getByTestId('canopen-com-device-node:10').click()
+    await win.getByTestId('canopen-com-find-button').click()
+    await expect(win.getByTestId('canopen-com-device-node:10')).toHaveClass(/ring-green-500/, { timeout: 15000 })
+    await expect(win.getByTestId('canopen-com-panel')).toContainText('Node 10', { timeout: 15000 })
 
     const memory = win.getByTestId('canopen-device-memory')
     await expect(memory.getByLabel('Scope to save')).toContainText('Save all parameters', { timeout: 15000 })
     await memory.getByRole('button', { name: 'Save to device' }).click()
     await page.getByRole('alertdialog').getByRole('button', { name: 'Save to device' }).click()
-    await memory.getByRole('button', { name: 'Switch to pre-operational and retry' }).click({ timeout: 15000 })
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Switch and retry' }).click()
+    await memory.getByRole('button', { name: 'Enter pre-operational and retry' }).click({ timeout: 15000 })
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Retry', exact: true }).click()
     await expect(memory).toContainText('Save all parameters: done. The device is in pre-operational.', {
       timeout: 15000,
     })

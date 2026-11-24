@@ -422,15 +422,17 @@ works.
   is never required.
 - **Node ID and memory.** **Set node ID** gives the device a new node ID over LSS (CiA 305) and
   always stores it; an ID another found device uses is refused. A device that had an ID keeps it until
-  it is reset: the card offers **Reset device** and **Check again**, which finds the devices again and
-  picks the device at its new ID. **Set bit rate** stores a new bit rate after a confirmation that this
+  it is reset: the card offers **Reset device**. **Find devices** keeps the selected device selected by
+  its LSS address, so after the reset it picks the device at its new ID. **Set bit rate** stores a new bit rate after a confirmation that this
   device is the only one on the link, and is blocked while more than one device answered; the device
   takes it at its next power-on, and the card offers to open the bus at the new rate. With a device file
   that says no LSS, these are greyed with the reason. **Device memory** has **Save to device** (0x1010)
   and **Restore defaults** (0x1011), each with a scope list from the device file, or without one from
   the sub-indexes the device reports. Both ask first; when the device refuses with 0x08000022, the
-  card offers to switch it to pre-operational and try once more, and after a save it offers Start.
-  After a restore it offers the reset that makes it take effect.
+  card offers **Enter pre-operational and retry** (NMT Enter pre-operational, then the same write
+  once more), and after a save it offers **Start remote node** to set it back to operational. A save
+  the device took in the state it was in offers nothing. After a restore it offers the reset that makes
+  it take effect.
 - **Objects** is the node's Online tab for this device, from its device file: Read all, filters,
   **Any object...**, and in the expert view writes and the NMT buttons. Its "Default" column is the
   device file's default, and the filter "Differs from default" shows the objects that differ.
@@ -494,7 +496,8 @@ and turning it off closes the service mode the editor opened.
   as startup SDOs; the object is read back after the write, and the project is not changed. A write
   to an object the master writes at boot says that the value lasts until the node boots again.
   Problems and refusals show on a line under the row; when the node refuses a write with 0x08000022
-  (not in its present state), that line offers to switch the node to pre-operational and write again.
+  (not in its present state), that line offers **Enter pre-operational and retry**: NMT Enter
+  pre-operational, then the write again.
   **Node state** shows the node's state and NMT state with the NMT buttons (Start, Pre-operational,
   Stop, Reset node, Reset communication); all but Start ask first. With **Send to all nodes of the
   network** ticked, the buttons send to every node and the question says so. Questions and results

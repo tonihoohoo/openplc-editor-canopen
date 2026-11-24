@@ -17,6 +17,7 @@ import {
   pickedFileWarning,
   projectDeviceFiles,
   projectInterfaces,
+  sameDeviceKey,
   scopesFromCount,
 } from '../commissioning'
 import { createCanopenOnline, type ScanDevice } from '../online'
@@ -53,6 +54,15 @@ describe('the commissioning list', () => {
     const [full, partial] = commissionList([scanned(10), scanned(11, { serialNumber: null })], [])
     expect(deviceLssAddress(full)).toEqual({ vendorId: 1, productCode: 2, revision: 3, serialNumber: 0x10a })
     expect(deviceLssAddress(partial)).toBeNull()
+  })
+
+  it('finds the same device again by its LSS address after its node ID changed, else by its key', () => {
+    const [before] = commissionList([scanned(127, { serialNumber: 0x77 })], [])
+    const after = commissionList([scanned(1), scanned(10, { serialNumber: 0x77 })], [])
+    expect(sameDeviceKey(before, after)).toBe('node:10')
+    const [partial] = commissionList([scanned(5, { serialNumber: null })], [])
+    expect(sameDeviceKey(partial, commissionList([scanned(5, { serialNumber: null })], []))).toBe('node:5')
+    expect(sameDeviceKey(before, commissionList([scanned(1)], []))).toBeNull()
   })
 })
 

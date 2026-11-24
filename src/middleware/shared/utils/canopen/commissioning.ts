@@ -77,6 +77,24 @@ export function deviceLssAddress(device: CommissionDevice): LssDevice | null {
   return { vendorId, productCode, revision, serialNumber }
 }
 
+/** The key of the same device in a new list: matched by its LSS address when it has one, else by its key. */
+export function sameDeviceKey(device: CommissionDevice, list: readonly CommissionDevice[]): string | null {
+  const address = deviceLssAddress(device)
+  const same = address
+    ? list.find((d) => {
+        const a = deviceLssAddress(d)
+        return (
+          a !== null &&
+          a.vendorId === address.vendorId &&
+          a.productCode === address.productCode &&
+          a.revision === address.revision &&
+          a.serialNumber === address.serialNumber
+        )
+      })
+    : undefined
+  return (same ?? list.find((d) => d.key === device.key))?.key ?? null
+}
+
 /** A device's LSS address in one line. */
 export function lssAddressText(d: LssDevice): string {
   return `Vendor ${hex8(d.vendorId)}, product ${hex8(d.productCode)}, revision ${hex8(d.revision)}, serial ${hex8(d.serialNumber)}`

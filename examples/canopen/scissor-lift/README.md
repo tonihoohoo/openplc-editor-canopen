@@ -149,7 +149,7 @@ LSS (CiA 305). The master then reports node 10 missing. To commission the spare:
    is kept on the bus while the PLC is stopped, so the window asks first: **Leave the bus and open**.
 4. **Find devices** lists node 20 (valve module), node 30 (tilt sensor) and node 127, the spare box.
 5. Pick node 127, enter 10 as **New node ID** and press **Set node ID**, then **Reset device**.
-   **Check again** shows it as node 10.
+   **Find devices** again shows it as node 10.
 6. Close the window and start the chassis controller's PLC: the master boots node 10 and the box's
    lamps come back.
 
