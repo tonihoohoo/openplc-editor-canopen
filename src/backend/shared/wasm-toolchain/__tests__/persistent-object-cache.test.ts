@@ -54,7 +54,9 @@ beforeAll(() => {
     return running
   })
 })
-afterAll(() => jest.restoreAllMocks())
+afterAll(() => {
+  jest.restoreAllMocks()
+})
 
 /** Waits until every digest has ended and the writes that follow them have run. */
 const settle = async () => {
