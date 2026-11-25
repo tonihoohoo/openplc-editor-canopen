@@ -6,6 +6,7 @@
 set -euo pipefail
 
 flags='--no-optimization-minimize --no-devtool --no-optimization-concatenate-modules'
+npm run setup:hmi-widgets
 npm run build:hmi-objects
 main="TS_NODE_TRANSPILE_ONLY=true npx ts-node scripts/prepare-yowasp-clang.ts \
 && npx ts-node --transpile-only scripts/package-trust/cli.ts prepare \
