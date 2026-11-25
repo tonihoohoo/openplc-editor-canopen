@@ -38,7 +38,17 @@ export type ScrollBox = { scrollTop: number; scrollHeight: number; clientHeight:
 export function keepInPlace(box: ScrollBox, moved: number): { scrollTop: number; slack: number } {
   const scrollTop = Math.max(0, box.scrollTop + moved)
   const maxWithoutSlack = box.scrollHeight - box.slack - box.clientHeight
-  return { scrollTop, slack: Math.max(0, scrollTop - maxWithoutSlack) }
+  return { scrollTop, slack: scrollTop === 0 ? 0 : Math.max(0, scrollTop - maxWithoutSlack) }
+}
+
+/**
+ * Scroll height of @p scroller without the keep slack. A probe slack larger than the view makes the
+ * content overflow, so a flex item that grows to fill the view cannot hide the slack.
+ */
+function naturalScrollHeight(scroller: HTMLElement): number {
+  const probe = scroller.clientHeight + scroller.scrollHeight
+  scroller.style.setProperty(KEEP_SLACK_VARIABLE, `${probe}px`)
+  return scroller.scrollHeight - probe
 }
 
 /**
@@ -54,12 +64,9 @@ export function useKeepInPlace(element: RefObject<HTMLElement | null>): () => vo
     const current = element.current
     const scroller = current?.closest<HTMLElement>(`[${SCROLLER_ATTRIBUTE}]`)
     if (!current || !scroller) return
-    const slack = Number.parseFloat(scroller.style.getPropertyValue(KEEP_SLACK_VARIABLE)) || 0
-    const { scrollHeight, clientHeight, scrollTop } = scroller
-    const next = keepInPlace(
-      { scrollTop, scrollHeight, clientHeight, slack },
-      current.getBoundingClientRect().top - before,
-    )
+    const moved = current.getBoundingClientRect().top - before
+    const { clientHeight, scrollTop } = scroller
+    const next = keepInPlace({ scrollTop, scrollHeight: naturalScrollHeight(scroller), clientHeight, slack: 0 }, moved)
     scroller.style.setProperty(KEEP_SLACK_VARIABLE, `${next.slack}px`)
     if (next.scrollTop !== scroller.scrollTop) scroller.scrollTop = next.scrollTop
   })
