@@ -211,8 +211,14 @@ describe('preview session', () => {
   it('answers a request it cannot read with an error, and frames before a module with another', async () => {
     const worker = testWorker()
     const replies: unknown[] = []
-    worker.addEventListener('message', (event) => replies.push(event.data))
+    const replied = new Promise<void>((resolve) =>
+      worker.addEventListener('message', (event) => {
+        replies.push(event.data)
+        resolve()
+      }),
+    )
     worker.postMessage({ id: 1, type: 'frame', timeMs: 0, surface }, [])
+    await replied
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(replies).toEqual([{ id: 1, ok: false, error: 'No preview module is loaded', fatal: false }])
   })
