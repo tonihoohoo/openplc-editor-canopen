@@ -1,0 +1,3 @@
+commit: 9c6b1e0d24a3556919bf299c32f67952593e9de2
+ref: main
+run: https://github.com/tonihoohoo/openplc-editor-canopen/actions/runs/45676423795
