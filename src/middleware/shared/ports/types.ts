@@ -1,4 +1,5 @@
 import type { VppPackagePin } from '../../../backend/shared/types/PLC/devices/configuration'
+import type { ProjectHmi } from '../utils/hmi/project-files'
 import type { CanopenConfig, CanopenSlaveConfig } from './canopen-types'
 import type { ConfiguredEtherCATDevice } from './esi-types'
 
@@ -482,6 +483,8 @@ export interface PLCProjectData {
   }
   /** Project-scope opaque data a VPP screen owns under its (packageId, screenId) key. */
   vppExtensions?: Record<string, Record<string, unknown>>
+  /** Absent when the project has no `hmi/` folder. */
+  hmi?: ProjectHmi
 }
 
 /** Alias used by Monaco completion providers */
@@ -537,6 +540,10 @@ export interface ProjectCapabilities {
   /** Show the runtime-connection status and Start/Stop controls. */
   hasRuntimeControls: boolean
   hasLibraryManifest: boolean
+  /** Show the HMI branch and the + menu's HMI Screen and HMI Widget entries. */
+  hasHmi: boolean
+  /** Author HMI widget blocks: a library project builds them into its archive. */
+  hasHmiWidgets: boolean
 }
 
 export function projectCapabilities(
@@ -557,6 +564,8 @@ export function projectCapabilities(
       hasDebugger: false,
       hasRuntimeControls: false,
       hasLibraryManifest: true,
+      hasHmi: false,
+      hasHmiWidgets: true,
     }
   }
   return {
@@ -573,6 +582,8 @@ export function projectCapabilities(
     hasDebugger: true,
     hasRuntimeControls: true,
     hasLibraryManifest: false,
+    hasHmi: true,
+    hasHmiWidgets: true,
   }
 }
 
@@ -693,6 +704,9 @@ export interface VppMetadata {
   } | null
 }
 
+/** `user`: a runtime licence for the hardware; `vpp`: a valid licence of the package; `vendor`: always licensed. */
+export type RuntimeLicenseMode = 'user' | 'vpp' | 'vendor'
+
 export interface PackageManifest {
   formatVersion: string
   package: {
@@ -710,6 +724,8 @@ export interface PackageManifest {
     minEditorVersion?: string
     /** Oldest runtime this package works with. Checked at compile time, since the target device is unknown at install time. */
     minRuntimeVersion?: string
+    /** Who licenses the OpenPLC Runtime on this package's targets. Absent on packages built before the field existed. */
+    runtimeLicense?: RuntimeLicenseMode
   }
   devices: Array<{
     id: string

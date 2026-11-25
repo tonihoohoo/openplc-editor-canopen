@@ -21,6 +21,7 @@ const ALL_MODAL_TYPES: ModalTypes[] = [
   'retrieve-project',
   'canopen-commissioning',
   'runtime-login',
+  'runtime-no-device',
   'server-ip-mismatch',
   'runtime-connection-lost',
   'debugger-message',

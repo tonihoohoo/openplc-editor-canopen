@@ -21,6 +21,7 @@ describe('probeRuntimeVersion', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
     expect(log).not.toHaveBeenCalled()
   })
@@ -36,6 +37,7 @@ describe('probeRuntimeVersion', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
   })
 
@@ -50,6 +52,7 @@ describe('probeRuntimeVersion', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
     expect(log).toHaveBeenCalledWith(expect.stringContaining('Could not reach runtime: ECONNREFUSED'), 'warning')
   })
@@ -67,6 +70,7 @@ describe('probeRuntimeVersion', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining('Runtime version probe failed: orchestrator HTTP down'),
@@ -88,6 +92,7 @@ describe('probeRuntimeVersion', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
     expect(log).toHaveBeenCalledWith(expect.stringContaining('plain string failure'), 'warning')
   })
@@ -103,6 +108,7 @@ describe('probeRuntimeVersion', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
     expect(log).not.toHaveBeenCalled()
   })
@@ -118,6 +124,7 @@ describe('probeRuntimeVersion', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
   })
 
@@ -132,6 +139,7 @@ describe('probeRuntimeVersion', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
   })
 
@@ -146,6 +154,7 @@ describe('probeRuntimeVersion', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
   })
 })
@@ -177,6 +186,7 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       minEditorVersion: '4.2.1',
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
     // One round-trip, not two: the capabilities answer is complete.
     expect(fetchVersion).not.toHaveBeenCalled()
@@ -200,6 +210,7 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
         minEditorVersion,
         supportsProjectSnapshot: false,
         canopenConfigVersions: null,
+        supportsHmi: false,
       })
       expect(log).not.toHaveBeenCalled()
     },
@@ -225,6 +236,7 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       minEditorVersion: 'garbage',
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
     expect(log).toHaveBeenCalledWith(expect.stringContaining('unreadable minEditorVersion ("garbage")'), 'warning')
     expect(log).toHaveBeenCalledWith(expect.stringContaining('not being enforced'), 'warning')
@@ -242,6 +254,7 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
   })
 
@@ -260,6 +273,7 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
   })
 
@@ -289,6 +303,7 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
     expect(log).not.toHaveBeenCalled()
   })
@@ -308,6 +323,7 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
     expect(log).not.toHaveBeenCalled()
   })
@@ -326,6 +342,7 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
     expect(log).not.toHaveBeenCalled()
   })
@@ -351,6 +368,7 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
   })
 
@@ -367,6 +385,7 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
   })
 
@@ -382,6 +401,7 @@ describe('probeRuntimeVersion — capabilities endpoint', () => {
       minEditorVersion: null,
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     })
     expect(log).toHaveBeenCalledWith(expect.stringContaining('Could not reach runtime: ECONNREFUSED'), 'warning')
   })
@@ -485,5 +505,31 @@ describe('canopenConfigVersions', () => {
       log: jest.fn(),
     })
     expect(result.canopenConfigVersions).toBeNull()
+  })
+})
+
+describe('supportsHmi', () => {
+  const log = () => undefined
+  const probe = (body: Record<string, unknown>) =>
+    probeRuntimeVersion({
+      fetchCapabilities: () => Promise.resolve({ success: true, body: { runtimeVersion: 'v4.3.2', ...body } }),
+      fetchVersion: () => Promise.resolve({ success: false, error: 'unused' }),
+      log,
+    })
+
+  it('is true only when the runtime declares hmi: true', async () => {
+    expect((await probe({ hmi: true })).supportsHmi).toBe(true)
+    expect((await probe({ hmi: false })).supportsHmi).toBe(false)
+    expect((await probe({ hmi: 'yes' })).supportsHmi).toBe(false)
+    expect((await probe({})).supportsHmi).toBe(false)
+  })
+
+  it('is false for a runtime without the capabilities endpoint', async () => {
+    const result = await probeRuntimeVersion({
+      fetchCapabilities: () => Promise.resolve({ success: false, error: '401' }),
+      fetchVersion: () => Promise.resolve({ success: true, body: { version: '4.0.9' } }),
+      log,
+    })
+    expect(result.supportsHmi).toBe(false)
   })
 })

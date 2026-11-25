@@ -16,6 +16,7 @@ import {
   injectLibraryBlocks,
 } from '../../../backend/shared/library/inject-library-blocks'
 import { collectNativePous, type NativePouRef } from '../../../backend/shared/library/native-pou-list'
+import { buildLibraryArchives, listedLibraryNames } from '../../../backend/shared/library/select-library-archives'
 import { selectUsedLibraryArchives } from '../../../backend/shared/library/select-used-library-blocks'
 import { preprocessPous } from '../../../backend/shared/utils/PLC/preprocess-pous'
 import type {
@@ -65,6 +66,8 @@ export interface IpcProjectData {
   /** Opaque VPP screen data forwarded to the pipeline for runtime emitters. */
   vppExtensions?: Record<string, Record<string, unknown>>
   originalCppPous?: Array<{ name: string; code: string; variables: unknown[] }>
+  /** The project's HMI files, verbatim; a library build compiles its widget blocks. */
+  hmi?: PLCProjectData['hmi']
 }
 
 /** Converts a flat port POU to the editor's discriminated-union IPC format. */
@@ -100,6 +103,7 @@ function toIpcProjectData(data: PLCProjectData & { originalCppPous?: unknown[] }
     libraries: data.libraries,
     ...(data.vppExtensions ? { vppExtensions: data.vppExtensions } : {}),
     ...(data.originalCppPous ? { originalCppPous: data.originalCppPous as IpcProjectData['originalCppPous'] } : {}),
+    ...(data.hmi ? { hmi: data.hmi } : {}),
   }
 }
 
@@ -184,7 +188,7 @@ export function createEditorCompilerAdapter(deps: EditorCompilerAdapterDeps = {}
         args,
         {
           getAvailableBoards: () => window.bridge.getAvailableBoards(),
-          loadAllLibraries: async () => (await window.bridge.loadAllLibraries()) as StlibArchiveDTO[],
+          loadBuildLibraries: async (listedNames) => (await window.bridge.loadBuildLibraries(listedNames)).archives,
           runCompileProgram: (compileArgs, onMessage) => window.bridge.runCompileProgram(compileArgs, onMessage),
           findPackageUpdateNotice: deps.findPackageUpdateNotice,
         },
@@ -198,7 +202,10 @@ export function createEditorCompilerAdapter(deps: EditorCompilerAdapterDeps = {}
     ): Promise<DebugCompileResult> {
       // Same graft as the program build path — a debug compile has to see
       // the identical POU set or the debug map won't match the firmware.
-      const archives = (await window.bridge.loadAllLibraries()) as StlibArchiveDTO[]
+      const { archives: loaded } = await window.bridge.loadBuildLibraries(
+        listedLibraryNames(args.projectData.libraries),
+      )
+      const archives = buildLibraryArchives(loaded)
 
       const missingSources = findLibrariesMissingNativeSources(args.projectData, archives)
       if (missingSources.length > 0) {
