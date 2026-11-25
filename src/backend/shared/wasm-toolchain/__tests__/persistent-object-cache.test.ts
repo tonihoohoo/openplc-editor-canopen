@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals'
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals'
 
 import type { WasmObjectStore } from '@root/middleware/shared/ports/wasm-toolchain-mechanisms'
 
@@ -42,7 +42,27 @@ class MemoryStore implements WasmObjectStore {
   }
 }
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+/** Digests still running: Node computes them off the main thread, so a timer tick alone may end first. */
+const pendingDigests = new Set<Promise<ArrayBuffer>>()
+const subtle = globalThis.crypto.subtle
+const digest = subtle.digest.bind(subtle)
+beforeAll(() => {
+  jest.spyOn(subtle, 'digest').mockImplementation((algorithm: AlgorithmIdentifier, data: BufferSource) => {
+    const running = digest(algorithm, data)
+    pendingDigests.add(running)
+    void running.finally(() => pendingDigests.delete(running))
+    return running
+  })
+})
+afterAll(() => jest.restoreAllMocks())
+
+/** Waits until every digest has ended and the writes that follow them have run. */
+const settle = async () => {
+  do {
+    await Promise.allSettled([...pendingDigests])
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  } while (pendingDigests.size > 0)
+}
 
 describe('object records', () => {
   it('round-trips an entry and its key for the toolchain that wrote it, and nothing else', async () => {
