@@ -6,6 +6,7 @@
 
 import type {
   CanopenAnswer,
+  CanopenCanInterface,
   CanopenLssDeviceFields,
   CanopenNmtCommand,
   CanopenRequest,
@@ -197,6 +198,8 @@ export interface CanopenOnline {
   /** Scans node IDs 1-127 in service mode for commissioning; @p onProgress gets the IDs found so far. */
   scan(network: number, onProgress?: (devices: ScanDevice[]) => void): Promise<ScanResult>
   closeService(): Promise<CanopenOnlineResult>
+  /** The CAN links of the runtime's computer, sorted by name; a runtime without the request refuses it. */
+  interfaces(): Promise<CanInterfacesResult>
   /** Removes the node ID and bit rate an LSS master stored for the slave; the slave restarts. */
   forgetSlaveLss(slave: string): Promise<CanopenOnlineResult>
   /** Removes the settings a master saved into the slave; it restarts with the project's values. */
@@ -207,6 +210,8 @@ export interface CanopenOnline {
   /** Sets and stores the device's bit rate; only while the PLC is stopped. */
   lssSetBitrate(network: number, device: LssDevice, bitrate: number): Promise<LssSetBitrateResult>
 }
+
+export type CanInterfacesResult = { ok: true; interfaces: CanopenCanInterface[] } | ReasonFailure
 
 type JobEnd = Extract<CanopenAnswer, { state: 'done' } | { state: 'failed' }>
 type Pending = Extract<CanopenAnswer, { state: 'pending' }>
@@ -312,6 +317,12 @@ export function createCanopenOnline(send: CanopenRequestFn, options: CanopenOnli
         ...(takeOver ? { take_over: true } : {}),
       }),
     closeService: () => simple({ op: 'service_close' }),
+    interfaces: async () => {
+      const r = await ask({ op: 'interfaces' })
+      if (r.error) return r.error
+      if (!('interfaces' in r.answer)) return failed('error', 'the runtime gave an unexpected answer')
+      return { ok: true, interfaces: r.answer.interfaces }
+    },
     scan: async (network, onProgress) => {
       const r = await lssJob({ op: 'scan', network }, SCAN_TIMEOUT_MS, (a) => {
         if (onProgress && a.devices) onProgress(toScanDevices(a.devices))

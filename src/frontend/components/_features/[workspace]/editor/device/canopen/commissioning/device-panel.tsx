@@ -49,6 +49,10 @@ type DevicePanelProps = {
   /** The device file in use: matched, picked, or null for none. */
   file: CommissionFile | null
   onPickFile: (file: CommissionFile | null) => void
+  /** The vendor's name from a device file with its vendor ID, null when none names it. */
+  vendorName: string | null
+  /** The name the device reports in 0x1008, null when not read. */
+  reportedName: string | null
   online: CanopenOnlineContext
   networks: readonly CanopenConfig[]
   iface: string
@@ -75,6 +79,16 @@ export const DevicePanel = (props: DevicePanelProps) => {
           <h3 className={cn(headingClassName, 'mb-0')}>
             {nodeId === null ? 'Device without a node ID' : `Node ${nodeId}`}
           </h3>
+          {added ? (
+            <p
+              className='min-w-0 flex-1 truncate text-right text-xs text-neutral-850 dark:text-neutral-200'
+              role='status'
+              title={added}
+              data-testid='canopen-com-added'
+            >
+              {added}
+            </p>
+          ) : null}
           {device.kind !== 'heard' ? (
             <button
               type='button'
@@ -96,17 +110,14 @@ export const DevicePanel = (props: DevicePanelProps) => {
             </button>
           ) : null}
         </div>
-        {added ? (
-          <p
-            className='mb-2 text-xs text-neutral-850 dark:text-neutral-200'
-            role='status'
-            data-testid='canopen-com-added'
-          >
-            {added}
-          </p>
-        ) : null}
         <dl className='grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-xs'>
-          <IdentityRow label='Vendor ID' value={identity.vendorId} />
+          {props.reportedName ? (
+            <>
+              <dt className='text-neutral-500 dark:text-neutral-400'>Device name</dt>
+              <dd className='text-neutral-850 dark:text-neutral-200'>{props.reportedName}</dd>
+            </>
+          ) : null}
+          <IdentityRow label='Vendor ID' value={identity.vendorId} name={props.vendorName} />
           <IdentityRow label='Product code' value={identity.productCode} />
           <IdentityRow label='Revision' value={identity.revision} />
           <IdentityRow label='Serial number' value={identity.serialNumber} />
@@ -172,10 +183,13 @@ const PanelTab = ({ value, label, active }: { value: string; label: string; acti
   </Tabs.Trigger>
 )
 
-const IdentityRow = ({ label, value }: { label: string; value: number | null }) => (
+const IdentityRow = ({ label, value, name }: { label: string; value: number | null; name?: string | null }) => (
   <>
     <dt className='text-neutral-500 dark:text-neutral-400'>{label}</dt>
-    <dd className='font-mono text-neutral-850 dark:text-neutral-200'>{value === null ? 'not read' : hex(value, 8)}</dd>
+    <dd className='font-mono text-neutral-850 dark:text-neutral-200'>
+      {value === null ? 'not read' : hex(value, 8)}
+      {name ? <span className='ml-2 font-sans'>{name}</span> : null}
+    </dd>
   </>
 )
 
@@ -245,8 +259,15 @@ const DeviceFileField = ({ device, files, file, onPickFile }: DevicePanelProps) 
             : 'From the project, matched by vendor ID and product code.'
           : 'No device file: objects are read and written by index, sub-index and data type.'}
       </span>
-      {warning ? <span className='text-xs text-amber-700 dark:text-amber-400'>{warning}</span> : null}
-      {error ? <span className='text-xs text-red-600 dark:text-red-400'>{error}</span> : null}
+      <span
+        className={cn(
+          'min-h-4 text-xs',
+          error ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-400',
+        )}
+        role='status'
+      >
+        {error ?? warning}
+      </span>
     </div>
   )
 }
@@ -254,7 +275,7 @@ const DeviceFileField = ({ device, files, file, onPickFile }: DevicePanelProps) 
 type Outcome = { text: string; error: boolean; offer?: 'reset' | 'reopen' }
 
 /** Node ID and bit rate over LSS (CiA 305). */
-const LssCard = ({ device, list, file, online, bitrate, onReopen }: DevicePanelProps) => {
+const LssCard = ({ device, list, file, online, bitrate, onReopen, vendorName }: DevicePanelProps) => {
   const support = lssSupportOf(file?.eds ?? null)
   const address = deviceLssAddress(device)
   const oldId = device.kind === 'unconfigured' ? null : device.nodeId
@@ -396,26 +417,34 @@ const LssCard = ({ device, list, file, online, bitrate, onReopen }: DevicePanelP
           </p>
         ) : null}
         {noAddress && !off ? <p className={hintClassName}>{noAddress}</p> : null}
-        {outcome ? (
-          <div className='flex flex-wrap items-center gap-2' role='status' data-testid='canopen-com-lss-outcome'>
-            <span
-              className={outcome.error ? 'text-red-600 dark:text-red-400' : 'text-neutral-850 dark:text-neutral-200'}
-            >
-              {outcome.text}
-            </span>
-            {outcome.offer === 'reset' ? (
-              <button type='button' className={secondaryButtonClassName} onClick={() => void reset()}>
-                Reset device
-              </button>
-            ) : null}
-            {outcome.offer === 'reopen' ? (
-              <button type='button' className={secondaryButtonClassName} onClick={() => onReopen(rate)}>
-                Open the bus at {kbit(rate)}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        {address ? <p className={hintClassName}>LSS address: {lssAddressText(address)}</p> : null}
+        <div
+          className='flex min-h-[30px] flex-wrap items-center gap-2'
+          role='status'
+          data-testid='canopen-com-lss-outcome'
+        >
+          {outcome ? (
+            <>
+              <span
+                className={outcome.error ? 'text-red-600 dark:text-red-400' : 'text-neutral-850 dark:text-neutral-200'}
+              >
+                {outcome.text}
+              </span>
+              {outcome.offer === 'reset' ? (
+                <button type='button' className={secondaryButtonClassName} onClick={() => void reset()}>
+                  Reset device
+                </button>
+              ) : null}
+              {outcome.offer === 'reopen' ? (
+                <button type='button' className={secondaryButtonClassName} onClick={() => onReopen(rate)}>
+                  Open the bus at {kbit(rate)}
+                </button>
+              ) : null}
+            </>
+          ) : busy ? (
+            <span className='text-neutral-850 dark:text-neutral-200'>Waiting for the device...</span>
+          ) : null}
+        </div>
+        {address ? <p className={hintClassName}>LSS address: {lssAddressText(address, vendorName)}</p> : null}
       </div>
     </div>
   )

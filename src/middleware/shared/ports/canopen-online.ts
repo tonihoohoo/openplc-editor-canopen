@@ -28,6 +28,8 @@ export type CanopenRequest =
       take_over?: boolean
     }
   | { op: 'service_close' }
+  /** The runtime computer's CAN links. */
+  | { op: 'interfaces' }
   | { op: 'slave_lss_forget'; slave: string }
   | { op: 'slave_settings_forget'; slave: string }
   | { op: 'scan'; network: number }
@@ -68,6 +70,14 @@ const lssResult = {
   stored: z.boolean().optional(),
 }
 
+/** One CAN link of the runtime's computer: name, kind (can, vcan...), up, bit rate (0: none set or reported). */
+const CanInterfaceSchema = z.object({
+  name: z.string().min(1),
+  kind: z.string(),
+  up: z.boolean(),
+  bitrate: count,
+})
+
 /** Every answer the route gives: a job id, ok, a job's state, a refusal, or "the plugin is not loaded". */
 export const CanopenAnswerSchema = z.union([
   z.object({ job: count }),
@@ -83,6 +93,7 @@ export const CanopenAnswerSchema = z.union([
   z.object({ state: z.literal('failed'), abort_code: count }),
   z.object({ state: z.literal('failed'), reason: z.string(), ...lssResult }),
   z.object({ ok: z.literal(true), network: count.optional() }),
+  z.object({ interfaces: z.array(CanInterfaceSchema) }),
   /** `name`: the network or slave on the interface that refused a commissioning service mode. */
   z.object({ error: z.string(), name: z.string().optional() }),
   z.object({ active: z.literal(false) }),
@@ -91,6 +102,7 @@ export const CanopenAnswerSchema = z.union([
 export type CanopenAnswer = z.infer<typeof CanopenAnswerSchema>
 export type CanopenScanDeviceFields = z.infer<typeof ScanDeviceSchema>
 export type CanopenLssDeviceFields = z.infer<typeof LssDeviceSchema>
+export type CanopenCanInterface = z.infer<typeof CanInterfaceSchema>
 
 /** The route's answer, or null when the body is none of the known answers. */
 export function parseCanopenAnswer(body: unknown): CanopenAnswer | null {

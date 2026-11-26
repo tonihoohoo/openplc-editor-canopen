@@ -170,3 +170,18 @@ describe('PDO direction of a read-write XDD object', () => {
     for (const index of [0x2100, 0x2101, 0x2102, 0x2103]) expect(access(back, index)).toBe(access(eds, index))
   })
 })
+
+describe('Empty limits of an XDD object', () => {
+  it('leaves out a lowLimit or highLimit that is empty or blank', () => {
+    const { eds } = parseXdd(
+      xdd(
+        '<CANopenObject index="2010" objectType="8" name="Cfg"><CANopenSubObject subIndex="01" dataType="0005" name="Pin" lowLimit="" highLimit=" "/></CANopenObject>',
+      ),
+      'limits.xdd',
+    )
+    const o = eds.objects.find((x) => x.index === 0x2010 && x.subIndex === 1)
+    expect(o).toBeDefined()
+    expect(o?.lowLimit).toBeUndefined()
+    expect(o?.highLimit).toBeUndefined()
+  })
+})

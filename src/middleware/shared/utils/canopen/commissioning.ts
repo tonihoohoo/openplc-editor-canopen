@@ -4,6 +4,7 @@
  * restore scopes of a device without a device file, and adding a device to the project.
  */
 
+import type { CanopenCanInterface } from '../../ports/canopen-online'
 import type { CanopenConfig, CanopenEdsInfo, CanopenNode, CanopenStoredFile } from '../../ports/canopen-types'
 import { withFreePdoCobIds } from './check-fix'
 import { withStoredFile } from './device-import'
@@ -96,8 +97,34 @@ export function sameDeviceKey(device: CommissionDevice, list: readonly Commissio
 }
 
 /** A device's LSS address in one line. */
-export function lssAddressText(d: LssDevice): string {
-  return `Vendor ${hex8(d.vendorId)}, product ${hex8(d.productCode)}, revision ${hex8(d.revision)}, serial ${hex8(d.serialNumber)}`
+export function lssAddressText(d: LssDevice, vendorName: string | null = null): string {
+  const vendor = vendorName ? `${vendorName} (${hex8(d.vendorId)})` : hex8(d.vendorId)
+  return `Vendor ${vendor}, product ${hex8(d.productCode)}, revision ${hex8(d.revision)}, serial ${hex8(d.serialNumber)}`
+}
+
+/** The vendor's name from a device file with this vendor ID (any product), else null. */
+export function vendorNameOf(files: readonly CommissionFile[], vendorId: number | null): string | null {
+  if (vendorId === null) return null
+  for (const f of files) {
+    const name = f.eds.vendorName.trim()
+    if (f.eds.vendorId === vendorId && name !== '') return name
+  }
+  return null
+}
+
+/** The vendor as the window shows it: its name with the ID, or the ID alone. */
+export function vendorText(files: readonly CommissionFile[], vendorId: number): string {
+  const name = vendorNameOf(files, vendorId)
+  return name ? `${name} (${hex8(vendorId)})` : hex8(vendorId)
+}
+
+/** A VISIBLE_STRING read from a device (such as 0x1008): printable text up to its first NUL, trimmed. */
+export function visibleString(bytes: readonly number[]): string {
+  const end = bytes.indexOf(0)
+  const chars = (end < 0 ? bytes : bytes.slice(0, end)).map((b) =>
+    b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : ' ',
+  )
+  return chars.join('').replace(/\s+/g, ' ').trim()
 }
 
 /** A device file the window can use: one of the project's, or one the user picked for a device. */
@@ -216,6 +243,37 @@ export function projectInterfaces(configs: readonly CanopenConfig[]): string[] {
 }
 
 const kbit = (bitrate: number): string => `${bitrate / 1000} kbit/s`
+
+/** One entry of the window's CAN interface list. */
+export interface InterfaceChoice {
+  name: string
+  /** What the list says after the name: state and bit rate on the runtime, or where it comes from. */
+  note: string
+  /** The link's bit rate on the runtime, 0 when none is set or reported. */
+  bitrate: number
+}
+
+/**
+ * The CAN interface list: the runtime computer's CAN links (when it lists them), then the project's
+ * networks' interfaces it does not have. Without the runtime's list, only the project's interfaces.
+ */
+export function interfaceChoices(
+  configs: readonly CanopenConfig[],
+  links: readonly CanopenCanInterface[] | null,
+): InterfaceChoice[] {
+  const project = projectInterfaces(configs)
+  if (links === null) return project.map((name) => ({ name, note: 'used in the project', bitrate: 0 }))
+  const own: InterfaceChoice[] = links.map((l) => {
+    const virtual = l.kind === 'vcan'
+    const state = l.up ? 'up' : 'down'
+    const rate = !virtual && l.bitrate > 0 ? `, ${kbit(l.bitrate)}` : ''
+    return { name: l.name, note: virtual ? `virtual, ${state}` : `${state}${rate}`, bitrate: virtual ? 0 : l.bitrate }
+  })
+  const missing = project
+    .filter((name) => (configs.length > 0 || links.length === 0) && !links.some((l) => l.name === name))
+    .map((name) => ({ name, note: 'not on the runtime', bitrate: 0 }))
+  return [...own, ...missing]
+}
 
 /** What adding the device to a network says: an error that refuses it, or a warning. */
 export interface AddCheck {

@@ -14,6 +14,7 @@
  *
  * Needs a production build plus the preload copy; see "Electron e2e" in CLAUDE.md. Port 8443 must be free.
  */
+import { readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -91,6 +92,8 @@ class FakeBus {
     { nodeId: 127, serial: 0x7f7f, operational: true, given: null },
   ]
   kept = true
+  /** The name each node reports in 0x1008, as hex bytes. */
+  names: Record<number, string> = {}
   requests: Array<Record<string, unknown>> = []
   private jobs = new Map<number, unknown>()
   private next = 1
@@ -113,6 +116,14 @@ class FakeBus {
         return { ok: true, network: 0 }
       case 'service_close':
         return { ok: true }
+      case 'interfaces':
+        return {
+          interfaces: [
+            { name: 'can0', kind: 'can', up: true, bitrate: 250000 },
+            { name: 'can1', kind: 'can', up: false, bitrate: 0 },
+            { name: 'vcan0', kind: 'vcan', up: true, bitrate: 0 },
+          ],
+        }
       case 'scan':
         return job({
           state: 'done',
@@ -138,7 +149,8 @@ class FakeBus {
       case 'sdo_read': {
         const k = `${String(request.index)}:${String(request.subindex)}`
         const values: Record<string, string> = { '4112:0': '01', '4113:0': '01', '4112:1': '01000000' }
-        const v = this.at(request.node) ? values[k] : undefined
+        const name = Number(request.index) === 0x1008 ? this.names[Number(request.node)] : undefined
+        const v = this.at(request.node) ? (name ?? values[k]) : undefined
         return job(v === undefined ? { state: 'failed', abort_code: 0x06020000 } : { state: 'done', data: v })
       }
       case 'sdo_write': {
@@ -256,9 +268,133 @@ test('commissioning: a new device gets node ID 10, saves its parameters and is a
     await expect(dialog).toHaveCount(0)
     await expect(win.getByTestId('canopen-com-added')).toContainText('as node 10: Generic_I_O_module_2.')
     await page.keyboard.press('Escape')
+    await win.getByTestId('canopen-com-close-confirm').getByRole('button', { name: 'Close the window' }).click()
     await expect(win).toHaveCount(0)
     await expect.poll(() => bus.requests.some((r) => r.op === 'service_close')).toBe(true)
     await expect(page.getByText('10: Generic_I_O_module_2', { exact: true })).toBeVisible({ timeout: 15000 })
+  } finally {
+    await quitApp(app, page)
+    runtime.close()
+  }
+})
+
+const hexText = (text: string) => Buffer.from(`${text}\0`, 'latin1').toString('hex')
+
+/** The generic I/O module's XDD with a configuration array whose parameter labels differ from its object names. */
+function labelledXdd(): string {
+  const base = readFileSync(
+    join(__dirname, '..', 'src/middleware/shared/utils/canopen/__tests__/fixtures/cia311/generic-io-module.xdd'),
+    'utf8',
+  )
+  const params = [1, 2]
+    .map(
+      (n) =>
+        `<parameter uniqueID="PAR_2040_0${n}" access="readWrite"><label lang="en">IO configuration - signal ${n}</label><USINT/></parameter>`,
+    )
+    .join('')
+  const subs = [
+    ['01', 'X1_11_Config'],
+    ['02', 'X1_9_Config'],
+  ]
+    .map(
+      ([sub, name]) =>
+        `<CANopenSubObject subIndex="${sub}" name="${name}" objectType="7" dataType="0005" accessType="rw" defaultValue="0" lowLimit="" highLimit="" PDOmapping="no" uniqueIDRef="PAR_2040_${sub}"/>`,
+    )
+    .join('\n')
+  return base
+    .replace(
+      '</c:DeviceFunction>',
+      `</c:DeviceFunction>\n<c:ApplicationProcess><parameterList>${params}</parameterList></c:ApplicationProcess>`,
+    )
+    .replace(
+      '<CANopenObject index="6200"',
+      `<CANopenObject index="2040" name="IO_Configuration_Parameter" objectType="8" subNumber="3">\n<CANopenSubObject subIndex="00" name="Number of signals" objectType="7" dataType="0005" accessType="ro" defaultValue="2" PDOmapping="no"/>\n${subs}\n</CANopenObject>\n<CANopenObject index="6200"`,
+    )
+}
+
+test('commissioning: interface list, plain names, no-file objects, reserved result lines and a guarded close', async () => {
+  test.setTimeout(240000)
+  const bus = new FakeBus()
+  bus.kept = false
+  bus.names = { 1: hexText('IO module A'), 127: hexText('IO module B') }
+  const runtime = fakeRuntime({
+    features: [...FEATURES, 'interfaces'],
+    configVersions: [15],
+    plcState: () => 'STOPPED',
+    status: () => ({ active: false }),
+    request: (body) => bus.answer(body),
+  })
+  const { userData } = writeEthercatProject(
+    join(tmpdir(), 'openplc-e2e-canopen-commission-usability'),
+    '127.0.0.1',
+    EMPTY_STATION,
+  )
+  const xdd = writeEds(join(userData, 'labelled-module.xdd'), labelledXdd())
+  const { app, page } = await launch(userData)
+  await windowSize(app, 1600, 1000)
+  try {
+    await openNetwork(page, () => connectRuntime(page, 'e2e', 'e2e'))
+    await openCommissioning(app)
+    const win = page.getByTestId('canopen-commissioning')
+    const picker = win.getByTestId('canopen-com-interface')
+    await expect(picker.locator('option')).toHaveText(
+      ['can0 (up, 250 kbit/s)', 'can1 (down)', 'vcan0 (virtual, up)', 'Type a name...'],
+      { timeout: 15000 },
+    )
+    await expect(win.getByLabel('Bit rate')).toHaveValue('250000')
+    await picker.selectOption('__type__')
+    await win.getByTestId('canopen-com-interface-name').fill('can5')
+    await shot(page, 'usability-interface-typed')
+    await win.getByRole('button', { name: 'Back to the list' }).click()
+    await expect(picker).toHaveValue('can0')
+
+    // A click outside the window does not close it.
+    await page.mouse.click(5, 5)
+    await expect(win).toBeVisible()
+
+    await win.getByTestId('canopen-com-open').click()
+    await expect(win.getByTestId('canopen-com-bus-state')).toContainText('Open on can0', { timeout: 15000 })
+    await win.getByTestId('canopen-com-find-button').click()
+    await expect(win.getByTestId('canopen-com-device-node:1')).toContainText('Node 1: IO module A', { timeout: 15000 })
+    await expect(win.getByTestId('canopen-com-device-node:127')).toContainText('Node 127: IO module B')
+    await win.getByTestId('canopen-com-device-node:127').click()
+    const lss = win.getByTestId('canopen-com-lss')
+    const before = await lss.boundingBox()
+    await lss.getByLabel('New node ID').fill('1')
+    await lss.getByTestId('canopen-com-set-id').click()
+    await expect(lss.getByTestId('canopen-com-lss-outcome')).toContainText('Node 1 is already on the bus.', { timeout: 15000 })
+    expect((await lss.boundingBox())?.height).toBe(before?.height)
+    await shot(page, 'usability-find-names-lss-outcome')
+
+    await win.getByRole('tab', { name: 'Objects' }).click()
+    await expect(win.getByRole('button', { name: 'Read all' })).toBeDisabled()
+    await expect(win).toContainText('No objects without a device file.')
+    await shot(page, 'usability-no-file-objects')
+
+    await win.getByTestId('canopen-com-file-input').setInputFiles(xdd)
+    await expect(win.getByTestId('canopen-com-file')).toContainText('labelled-module.xdd', { timeout: 15000 })
+    await win.getByRole('tab', { name: 'Objects' }).click()
+    await win.getByLabel('Search objects').fill('2040')
+    const row = win.getByTestId('canopen-online-row-8256:1')
+    await expect(row).toContainText('X1_11_Config')
+    await expect(row).toContainText('IO configuration - signal 1')
+    await row.getByRole('button', { name: 'Details of 0x2040:01' }).click()
+    await expect(win.getByTestId('canopen-online-details-8256:1')).not.toContainText('Range')
+    await shot(page, 'usability-xdd-names')
+
+    await win.getByRole('tab', { name: 'Node ID and memory' }).click()
+    await expect(lss).toContainText('Vendor Simulated (0x00000001)')
+
+    await page.keyboard.press('Escape')
+    const ask = win.getByTestId('canopen-com-close-confirm')
+    await expect(ask).toContainText('Close the window? The bus closes')
+    await shot(page, 'usability-close-confirm')
+    await ask.getByRole('button', { name: 'Keep it open' }).click()
+    await expect(ask).toHaveCount(0)
+    await win.getByTestId('canopen-com-window-close').click()
+    await ask.getByRole('button', { name: 'Close the window' }).click()
+    await expect(win).toHaveCount(0)
+    await expect.poll(() => bus.requests.some((r) => r.op === 'service_close')).toBe(true)
   } finally {
     await quitApp(app, page)
     runtime.close()

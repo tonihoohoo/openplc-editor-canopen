@@ -8,6 +8,7 @@ import {
   objectFileNameTitle,
   objectLabel,
   objectOwnFileNameTitle,
+  objectOwnFileName,
   objectOwnLabel,
   objectParameterState,
   objectParentLabel,
@@ -140,6 +141,8 @@ describe('object search and labels', () => {
     expect(objectFileName(sub)).toBe('Analogue inputs / Input 1')
     expect(objectOwnFileNameTitle(sub)).toBe('Name in the device file: Input 1')
     expect(objectOwnFileNameTitle(object(0x6401, 1))).toBeUndefined()
+    expect(objectOwnFileName(sub)).toBe('Input 1')
+    expect(objectOwnFileName(object(0x6401, 1))).toBeUndefined()
     expect(matchesObjectQuery(sub, 'tank')).toBe(true)
     expect(matchesObjectQuery(sub, 'analogue input 1')).toBe(true)
   })

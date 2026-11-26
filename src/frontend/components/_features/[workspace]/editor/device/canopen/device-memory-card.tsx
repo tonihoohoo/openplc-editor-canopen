@@ -80,7 +80,7 @@ export const DeviceMemoryCard = ({ eds, nodeId, online }: DeviceMemoryCardProps)
   const [offer, setOffer] = useState<NvmOffer | null>(null)
   const [saveSub, setSaveSub] = useState<number | null>(null)
   const [restoreSub, setRestoreSub] = useState<number | null>(restores[0]?.subIndex ?? null)
-  const feedback = useCardFeedback(online.ready)
+  const feedback = useCardFeedback(online.ready, true)
   /** True while a save, restore or the NMT command before a retry waits for the device. */
   const [busy, setBusy] = useState(false)
   useEffect(() => {
