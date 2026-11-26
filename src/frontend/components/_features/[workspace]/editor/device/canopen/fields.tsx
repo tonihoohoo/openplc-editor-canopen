@@ -165,6 +165,7 @@ const TextField = ({ label, value, onCommit, hint, placeholder, className, hideL
         type='text'
         aria-label={label}
         value={text}
+        title={text === '' ? undefined : text}
         placeholder={placeholder}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}

@@ -532,8 +532,8 @@ const PdoCard = ({
             <th className='py-1 font-medium'>Name</th>
             <th className='w-[100px] py-1 font-medium'>Type</th>
             <th className='w-[90px] py-1 font-medium'>Address</th>
-            <th className='w-[150px] py-1 font-medium'>Alias</th>
-            <th className='w-[100px] py-1' />
+            <th className='w-[clamp(7.5rem,calc(54cqw_-_404px),18rem)] py-1 font-medium'>Alias</th>
+            <th className='w-[136px] py-1' />
           </tr>
         </thead>
         <SortableBody
