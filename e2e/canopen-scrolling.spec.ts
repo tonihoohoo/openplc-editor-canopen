@@ -49,7 +49,7 @@ test('the CANopen editor scrolls as one area with the tab bar and node list in v
   try {
     const editor = page.getByLabel('CANopen editor container')
     const tabBar = page.getByTestId('canopen-node-panel').getByRole('tablist')
-    await expect(page.getByText('Console', { exact: true }).first()).toBeVisible()
+    await expect(editor).toBeVisible()
 
     await page.getByRole('tab', { name: 'Online' }).click()
     await page.getByRole('button', { name: 'Read all' }).click()

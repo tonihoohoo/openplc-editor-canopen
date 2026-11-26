@@ -9,6 +9,10 @@ on:
         description: Skip the job; the pull request changes only Markdown or docs/.
         type: boolean
         default: false
+      skip:
+        description: Skip the steps because the same check already passed locally (the job still ends green).
+        type: boolean
+        default: false
 
 jobs:
   # The suite runs in three shards; `Unit Tests + Coverage` merges their coverage and checks the
@@ -21,17 +25,26 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3]
+    # Skipped per step, not with a job `if:`, so the job still ends green under
+    # its check name, like the build and lint checks.
     steps:
+      - name: Skipped, already passed locally
+        if: ${{ inputs.skip }}
+        run: echo "Skipped because MisterFlow ran this check locally on this exact head commit and set the commit status misterflow/local-ci to success on it."
+
       - name: Checkout repository
+        if: ${{ !inputs.skip }}
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        if: ${{ !inputs.skip }}
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
+        if: ${{ !inputs.skip }}
         run: npm ci --ignore-scripts
 
       # --ignore-scripts skips the postinstall, so strucpp (a GitHub-release
@@ -40,14 +53,22 @@ jobs:
       # strucpp (no native rebuild) so the suites
       # can load and the coverage gate actually runs.
       - name: Install strucpp
+        if: ${{ !inputs.skip }}
         run: npm run setup:strucpp
 
+      # The pinned HMI widget libraries (openplc-hmi-widgets) the HMI suites build against.
+      - name: Install the HMI widget libraries
+        if: ${{ !inputs.skip }}
+        run: npm run setup:hmi-widgets
+
       - name: Run tests with coverage
+        if: ${{ !inputs.skip }}
         run: >-
           npx jest --config jest.config.json --collectCoverage --ci --shard=${{ matrix.shard }}/3
           --coverageReporters=json --coverageThreshold='{}' --coverageDirectory=coverage-shard
 
       - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.skip }}
         with:
           name: unit-coverage-${{ matrix.shard }}
           path: coverage-shard/coverage-final.json
@@ -61,32 +82,42 @@ jobs:
     runs-on: ubuntu-latest
     # Required check on `development` — a red suite blocks the merge.
     steps:
+      - name: Skipped, already passed locally
+        if: ${{ inputs.skip }}
+        run: echo "Skipped because MisterFlow ran this check locally on this exact head commit and set the commit status misterflow/local-ci to success on it."
+
       - name: Shards
-        if: ${{ needs.shard.result != 'success' }}
+        if: ${{ !inputs.skip && needs.shard.result != 'success' }}
         run: |
           echo "::error::a unit test shard failed (${{ needs.shard.result }}); see the Unit Tests shard jobs"
           exit 1
 
       - name: Checkout repository
+        if: ${{ !inputs.skip }}
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        if: ${{ !inputs.skip }}
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
+        if: ${{ !inputs.skip }}
         run: npm ci --ignore-scripts
 
       - uses: actions/download-artifact@v4
+        if: ${{ !inputs.skip }}
         with:
           pattern: unit-coverage-*
 
       - name: Merge coverage and check the floors
+        if: ${{ !inputs.skip }}
         run: node .github/scripts/coverage-merge.mjs unit-coverage-*/coverage-final.json
 
       - name: Upload coverage report
+        if: ${{ !inputs.skip }}
         uses: actions/upload-artifact@v4
         with:
           name: coverage

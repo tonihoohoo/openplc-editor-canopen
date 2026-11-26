@@ -137,4 +137,27 @@ describe('useKeepInPlace', () => {
     fireEvent.click(view.getByRole('button'))
     expect(scroller.scrollTop).toBe(0)
   })
+  it('scrolls even when a filler stretches the content to the view and takes up the slack', () => {
+    const scroller = document.createElement('div')
+    scroller.setAttribute(SCROLLER_ATTRIBUTE, '')
+    document.body.appendChild(scroller)
+    const content = () => (scroller.querySelector('[data-testid="banner"]') ? 770 : 700)
+    const slack = () => Number.parseFloat(scroller.style.getPropertyValue('--canopen-keep-slack')) || 0
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 890 })
+    Object.defineProperty(scroller, 'scrollHeight', {
+      configurable: true,
+      get: () => Math.max(890, content() + slack()),
+    })
+    jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const banner = scroller.querySelector('[data-testid="banner"]') ? 70 : 0
+      return this === scroller ? rect(0) : rect(300 + banner - scroller.scrollTop)
+    })
+    const view = render(<Toggle />, { container: scroller })
+    fireEvent.click(view.getByRole('button'))
+    expect(scroller.scrollTop).toBe(70)
+    expect(scroller.scrollHeight - scroller.clientHeight).toBeGreaterThanOrEqual(70)
+    fireEvent.click(view.getByRole('button'))
+    expect(scroller.scrollTop).toBe(0)
+    expect(slack()).toBe(0)
+  })
 })

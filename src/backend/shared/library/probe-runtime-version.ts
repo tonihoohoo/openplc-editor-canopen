@@ -115,6 +115,8 @@ export interface ProbeRuntimeVersionResult {
    * `GET /api/capabilities`, or `null` when the runtime reports no CANopen support.
    */
   canopenConfigVersions: number[] | null
+  /** Whether uploads may carry an `hmi/` folder, as declared by `hmi` at `GET /api/capabilities`; false otherwise. */
+  supportsHmi: boolean
 }
 
 /**
@@ -135,7 +137,13 @@ export async function probeRuntimeVersion(opts: ProbeRuntimeVersionOptions): Pro
     const result = await opts.fetchVersion()
     if (!result.success) {
       opts.log(`Could not reach runtime: ${result.error}`, 'warning')
-      return { version: null, minEditorVersion: null, supportsProjectSnapshot: false, canopenConfigVersions: null }
+      return {
+        version: null,
+        minEditorVersion: null,
+        supportsProjectSnapshot: false,
+        canopenConfigVersions: null,
+        supportsHmi: false,
+      }
     }
     return {
       version: extractVersionFromBody(result.body),
@@ -143,11 +151,18 @@ export async function probeRuntimeVersion(opts: ProbeRuntimeVersionOptions): Pro
       // `/api/version` predates the capability, so there is nothing to read.
       supportsProjectSnapshot: false,
       canopenConfigVersions: null,
+      supportsHmi: false,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     opts.log(`Runtime version probe failed: ${message}`, 'warning')
-    return { version: null, minEditorVersion: null, supportsProjectSnapshot: false, canopenConfigVersions: null }
+    return {
+      version: null,
+      minEditorVersion: null,
+      supportsProjectSnapshot: false,
+      canopenConfigVersions: null,
+      supportsHmi: false,
+    }
   }
 }
 
@@ -194,6 +209,7 @@ async function tryFetchCapabilities(opts: ProbeRuntimeVersionOptions): Promise<P
       // Absent or non-boolean means no: a runtime that stores snapshots says so.
       supportsProjectSnapshot: extractBooleanField(result.body, 'projectSnapshot') === true,
       canopenConfigVersions: extractCanopenConfigVersions(result.body),
+      supportsHmi: extractBooleanField(result.body, 'hmi') === true,
     }
   } catch {
     return null

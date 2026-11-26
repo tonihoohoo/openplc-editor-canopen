@@ -1541,26 +1541,41 @@
       {
         "name": "CANOPEN_KERNEL_ERROR",
         "kind": "alias",
+        "aliasOf": {
+          "type": "USINT"
+        },
         "documentation": "The ERROR of the blocks (USINT): CANOPEN_KERNEL_NO_ERROR, _OTHER_ERROR (the node aborted, see ERRORINFO), _TIMEOUT, _BUS_OFF, _ERROR_PASSIVE, _INTERNAL, _WRONG_PARAMETER, _NODE_ID_UNKNOWN, _NET_ID_UNKNOWN, _REQUEST_ERROR, _NO_DRIVER."
       },
       {
         "name": "DEVICE_STATE",
         "kind": "alias",
+        "aliasOf": {
+          "type": "USINT"
+        },
         "documentation": "The STATE of GET_STATE and CANOPEN_SLAVE_STATUS (USINT): INIT, RESET_COMM, RESET_APP, PRE_OPERATIONAL, STOPPED, OPERATIONAL, UNKNOWN, NOT_AVAIL."
       },
       {
         "name": "TRANSITION_STATE",
         "kind": "alias",
+        "aliasOf": {
+          "type": "USINT"
+        },
         "documentation": "The STATE of NMT (USINT): START_REMOTE_NODE, STOP_REMOTE_NODE, ENTER_PRE_OPERATIONAL, RESET_NODE, RESET_COMMUNICATION. CANOPEN_SLAVE_NMT takes the first three."
       },
       {
         "name": "CANOPEN_RUN_STATE",
         "kind": "alias",
+        "aliasOf": {
+          "type": "USINT"
+        },
         "documentation": "The RUNSTATE of CANOPEN_NODE_STATUS (USINT): RUN_NOT_FOUND (not booted yet), RUN_BOOTING, RUN_FAILED (the last boot failed, retried in the background), RUN_WAITING_START (configured, waits for the program's NMT start), RUN_OPERATIONAL, RUN_MANUAL (stopped or pre-operational by an NMT command), RUN_LOST, RUN_HELD (lost and stopped until the next PLC start), RUN_DISABLED (off), RUN_STOPPED (the PLC stopped)."
       },
       {
         "name": "CANOPEN_BUS_STATE",
         "kind": "alias",
+        "aliasOf": {
+          "type": "USINT"
+        },
         "documentation": "The BUSSTATE of CANOPEN_SLAVE_STATUS (USINT): BUS_ERROR_ACTIVE (the link is fine), BUS_ERROR_PASSIVE, BUS_OFF, BUS_UNKNOWN."
       },
       {
@@ -1577,7 +1592,14 @@
           },
           {
             "name": "MANUFACTURERERROR",
-            "type": "__INLINE_ARRAY_BYTE"
+            "type": "__INLINE_ARRAY_BYTE",
+            "arrayDimensions": [
+              {
+                "start": 0,
+                "end": 4
+              }
+            ],
+            "elementTypeName": "BYTE"
           }
         ],
         "documentation": "One emergency message: ERRORCODE, ERRORREGISTER and the five MANUFACTURERERROR bytes."
@@ -2153,14 +2175,14 @@
       "name": "CANOPEN_DWORD_TO_REAL",
       "kind": "function",
       "header": "IEC_REAL CANOPEN_DWORD_TO_REAL(IEC_DWORD IN);",
-      "cpp": "IEC_REAL CANOPEN_DWORD_TO_REAL(IEC_DWORD IN) {\n    IEC_REAL CANOPEN_DWORD_TO_REAL_result;\n    uint32_t canopen_bits = IN;\n      float canopen_value;\n      __builtin_memcpy(&canopen_value, &canopen_bits, sizeof canopen_value);\n      CANOPEN_DWORD_TO_REAL_result = canopen_value;\n    return CANOPEN_DWORD_TO_REAL_result;\n}\n",
+      "cpp": "IEC_REAL CANOPEN_DWORD_TO_REAL([[maybe_unused]] IEC_DWORD IN) {\n    IEC_REAL CANOPEN_DWORD_TO_REAL_result;\n    uint32_t canopen_bits = IN;\n      float canopen_value;\n      __builtin_memcpy(&canopen_value, &canopen_bits, sizeof canopen_value);\n      CANOPEN_DWORD_TO_REAL_result = canopen_value;\n    return CANOPEN_DWORD_TO_REAL_result;\n}\n",
       "deps": []
     },
     {
       "name": "CANOPEN_REAL_TO_DWORD",
       "kind": "function",
       "header": "IEC_DWORD CANOPEN_REAL_TO_DWORD(IEC_REAL IN);",
-      "cpp": "IEC_DWORD CANOPEN_REAL_TO_DWORD(IEC_REAL IN) {\n    IEC_DWORD CANOPEN_REAL_TO_DWORD_result;\n    float canopen_value = IN;\n      uint32_t canopen_bits;\n      __builtin_memcpy(&canopen_bits, &canopen_value, sizeof canopen_bits);\n      CANOPEN_REAL_TO_DWORD_result = canopen_bits;\n    return CANOPEN_REAL_TO_DWORD_result;\n}\n",
+      "cpp": "IEC_DWORD CANOPEN_REAL_TO_DWORD([[maybe_unused]] IEC_REAL IN) {\n    IEC_DWORD CANOPEN_REAL_TO_DWORD_result;\n    float canopen_value = IN;\n      uint32_t canopen_bits;\n      __builtin_memcpy(&canopen_bits, &canopen_value, sizeof canopen_bits);\n      CANOPEN_REAL_TO_DWORD_result = canopen_bits;\n    return CANOPEN_REAL_TO_DWORD_result;\n}\n",
       "deps": []
     }
   ],
