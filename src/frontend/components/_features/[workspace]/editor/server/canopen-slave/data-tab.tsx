@@ -259,7 +259,7 @@ const ObjectRow = ({
         <td className={cn(cellClassName, 'w-[104px]')}>
           <ObjectNumberField config={config} object={object} onPlace={(place) => change(place)} />
         </td>
-        <td className={cn(cellClassName, 'min-w-[180px]')}>
+        <td className={cn(cellClassName, 'min-w-[120px]')}>
           <div className='flex items-start gap-1'>
             {packed ? (
               <button
@@ -366,7 +366,7 @@ const ObjectRow = ({
         {fromMaster ? (
           <>
             {(['min', 'max'] as const).map((field) => (
-              <td key={field} className={cn(cellClassName, 'w-[80px]')}>
+              <td key={field} className={cn(cellClassName, 'w-[76px]')}>
                 {constant || packed ? null : (
                   <TextField
                     hideLabel
@@ -892,7 +892,7 @@ const ObjectTable = ({
         <p className={cn(hintClassName, 'py-2 text-xs')}>No objects yet.</p>
       ) : (
         <div className='overflow-x-auto'>
-          <table className={cn('w-full border-collapse', fromMaster ? 'min-w-[1180px]' : 'min-w-[980px]')}>
+          <table className={cn('w-full border-collapse', fromMaster ? 'min-w-[1100px]' : 'min-w-[950px]')}>
             <thead>
               <tr>
                 <th className={headClassName}>Object</th>
