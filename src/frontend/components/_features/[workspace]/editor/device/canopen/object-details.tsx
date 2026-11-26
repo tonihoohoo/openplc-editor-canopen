@@ -53,9 +53,13 @@ export const ObjectDetails = ({
         ? `${d} (0x${(nodeId + Number(m[1])).toString(16).toUpperCase()} for node ${nodeId})`
         : describeValue(object, d),
     ])
-  const low = info?.min ?? object.lowLimit
-  const high = info?.max ?? object.highLimit
-  if (low !== undefined || high !== undefined) rows.push(['Range', `${low ?? '...'} to ${high ?? '...'}`])
+  const low = (info?.min ?? object.lowLimit)?.trim() || undefined
+  const high = (info?.max ?? object.highLimit)?.trim() || undefined
+  if (low !== undefined || high !== undefined)
+    rows.push([
+      'Range',
+      low === undefined ? `up to ${high}` : high === undefined ? `${low} or more` : `${low} to ${high}`,
+    ])
   if (info?.unit)
     rows.push(['Unit', info.multiplier !== undefined ? `${info.unit}, ${info.multiplier} per step` : info.unit])
   if (info?.offset !== undefined) rows.push(['Offset', String(info.offset)])

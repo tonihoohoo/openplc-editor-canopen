@@ -233,10 +233,10 @@ function readParameters(ap: XmlNode | undefined, lang: string): Map<string, Para
       .filter((v) => v.label !== '')
     const range = children(allowed, 'range')[0]
     if (range) {
-      const min = attr(child(range, 'minValue'), 'value')
-      const max = attr(child(range, 'maxValue'), 'value')
-      if (min !== undefined) info.min = min
-      if (max !== undefined) info.max = max
+      const min = attr(child(range, 'minValue'), 'value')?.trim()
+      const max = attr(child(range, 'maxValue'), 'value')?.trim()
+      if (min) info.min = min
+      if (max) info.max = max
     }
     const typeRef = attr(child(p, 'dataTypeIDRef'), 'uniqueIDRef')
     const enumValues = typeRef ? types.enums.get(typeRef) : undefined
@@ -365,10 +365,10 @@ export function parseXdd(textIn: string, fileName: string, lang = 'en'): XddRead
     const def = attr(el, 'defaultValue') ?? p?.defaultValue
     if (def !== undefined && def !== '') o.defaultValue = def
     if (parentName) o.parentName = parentName
-    const low = attr(el, 'lowLimit') ?? p?.info.min
-    const high = attr(el, 'highLimit') ?? p?.info.max
-    if (low !== undefined) o.lowLimit = low
-    if (high !== undefined) o.highLimit = high
+    const low = (attr(el, 'lowLimit') ?? p?.info.min)?.trim()
+    const high = (attr(el, 'highLimit') ?? p?.info.max)?.trim()
+    if (low) o.lowLimit = low
+    if (high) o.highLimit = high
     if (p && Object.keys(p.info).length > 0) o.info = p.info
     const actual = attr(el, 'actualValue') ?? p?.actualValue
     if (actual !== undefined) xdc.actualValues.set(key(index, subIndex), actual)

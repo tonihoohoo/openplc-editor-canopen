@@ -43,6 +43,8 @@ export interface CanopenCommissioning {
   /** The online tools for the open bus, as the object list uses them; null while closed. */
   online: CanopenOnlineContext | null
   client: CanopenOnline | null
+  /** Whether the runtime lists its computer's CAN links (`interfaces` feature). */
+  listsInterfaces: boolean
 }
 
 /** Why the bus is closed when service mode ended on the runtime. */
@@ -203,5 +205,6 @@ export function useCanopenCommissioning(): CanopenCommissioning {
     }
   }, [client, bus, feed.features])
 
-  return { block, plcRunning, bus, error, open, cancelTakeOver, close, find, runFind, online, client }
+  const listsInterfaces = feed.features.includes('interfaces')
+  return { block, plcRunning, bus, error, open, cancelTakeOver, close, find, runFind, online, client, listsInterfaces }
 }

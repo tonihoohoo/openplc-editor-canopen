@@ -53,6 +53,11 @@ class FakeBus {
   /** Service mode ended on the runtime: requests answer that no network runs. */
   gone = false
   operational = true
+  links = [
+    { name: 'can0', kind: 'can', up: true, bitrate: 125000 },
+    { name: 'can1', kind: 'can', up: false, bitrate: 0 },
+    { name: 'vcan0', kind: 'vcan', up: true, bitrate: 0 },
+  ]
   private jobs = new Map<number, unknown>()
   private next = 1
 
@@ -72,6 +77,8 @@ class FakeBus {
           return { ok: true, network: 0 }
         case 'service_close':
           return { ok: true }
+        case 'interfaces':
+          return { interfaces: this.links }
         case 'scan':
           return job({
             state: 'done',
@@ -391,5 +398,67 @@ describe('CANopen device commissioning window', () => {
     await pick('node:10')
     expect(screen.getByTestId('canopen-com-add')).toHaveProperty('disabled', true)
     expect(screen.getByTestId('canopen-com-set-id')).toHaveProperty('disabled', false)
+  })
+
+  it("lists the runtime computer's CAN interfaces and lets the user type one", async () => {
+    await renderWindow({ features: [...FEATURES.canopen.features, 'interfaces'] })
+    const select = screen.getByTestId('canopen-com-interface')
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['can0 (up, 125 kbit/s)', 'can1 (down)', 'vcan0 (virtual, up)', 'Type a name...'])
+    fireEvent.change(select, { target: { value: '__type__' } })
+    fireEvent.change(screen.getByTestId('canopen-com-interface-name'), { target: { value: 'can7' } })
+    fireEvent.click(screen.getByTestId('canopen-com-open'))
+    await settle()
+    expect(bus.sent.find((r) => r.op === 'service_open')).toMatchObject({ interface: 'can7' })
+  })
+
+  it("keeps the project's interfaces on a runtime that does not list its own", async () => {
+    await renderWindow()
+    expect(bus.sent.some((r) => r.op === 'interfaces')).toBe(false)
+    const options = within(screen.getByTestId('canopen-com-interface')).getAllByRole('option')
+    expect(options.map((o) => o.textContent)).toEqual(['can0 (used in the project)', 'Type a name...'])
+  })
+
+  it('stays open on a click outside and asks before closing while the bus is open', async () => {
+    await renderWindow()
+    fireEvent.pointerDown(document.body)
+    fireEvent.click(document.body)
+    expect(screen.queryByTestId('canopen-commissioning')).not.toBeNull()
+    fireEvent.click(screen.getByTestId('canopen-com-open'))
+    await settle()
+    fireEvent.click(screen.getByTestId('canopen-com-window-close'))
+    const ask = screen.getByTestId('canopen-com-close-confirm')
+    fireEvent.click(within(ask).getByRole('button', { name: 'Keep it open' }))
+    expect(screen.queryByTestId('canopen-com-close-confirm')).toBeNull()
+    expect(store.getState().modals['canopen-commissioning']?.open).toBe(true)
+    fireEvent.click(screen.getByTestId('canopen-com-window-close'))
+    fireEvent.click(
+      within(screen.getByTestId('canopen-com-close-confirm')).getByRole('button', { name: 'Close the window' }),
+    )
+    await settle()
+    expect(store.getState().modals['canopen-commissioning']?.open).toBe(false)
+    expect(bus.sent.some((r) => r.op === 'service_close')).toBe(true)
+  })
+
+  it('closes at once while the bus is closed', async () => {
+    await renderWindow()
+    fireEvent.click(screen.getByTestId('canopen-com-window-close'))
+    await settle()
+    expect(store.getState().modals['canopen-commissioning']?.open).toBe(false)
+  })
+
+  it('names a device without a device file by the name it reports and greys out Read all', async () => {
+    await renderWindow({ noProjectFile: true, setup: (b) => b.values.set('4104:0', '47656e6572696320494f00') })
+    await openAndFind()
+    expect(bus.sent.filter((r) => r.op === 'sdo_read').map((r) => r.op === 'sdo_read' && r.node)).toEqual([10, 127])
+    expect(screen.getByTestId('canopen-com-device-node:10').textContent).toContain('Node 10: Generic IO')
+    await pick('node:10')
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Objects' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Objects' }))
+    expect(screen.getByRole('button', { name: 'Read all' })).toHaveProperty('disabled', true)
+    expect(screen.getByText(/No objects without a device file/)).toBeTruthy()
   })
 })

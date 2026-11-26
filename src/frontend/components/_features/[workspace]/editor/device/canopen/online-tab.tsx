@@ -25,6 +25,7 @@ import {
   nodeStateLabel,
   objectInfo,
   objectLabel,
+  objectOwnFileName,
   objectOwnLabel,
   objectParentLabel,
   type OnlineObject,
@@ -138,8 +139,11 @@ export const WithFeedback = ({ children, feedback }: { children: ReactNode; feed
   </div>
 )
 
-/** A card's own confirmation and result line, cleared when @p ready turns false so no stale result stays. */
-export function useCardFeedback(ready: boolean) {
+/**
+ * A card's own confirmation and result line, cleared when @p ready turns false so no stale result stays.
+ * With @p reserve the result line keeps its height while empty, so a result does not resize the card.
+ */
+export function useCardFeedback(ready: boolean, reserve = false) {
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null)
   const [message, setFeedback] = useState<{ text: string; error: boolean } | null>(null)
   useEffect(() => {
@@ -151,12 +155,15 @@ export function useCardFeedback(ready: boolean) {
   const view: ReactNode = (
     <>
       <ConfirmBar confirm={confirm} onClose={() => setConfirm(null)} />
-      {message ? (
+      {message || reserve ? (
         <p
           role='status'
-          className={cn('mt-2 text-xs', message.error ? errorTextClassName : 'text-neutral-850 dark:text-neutral-200')}
+          className={cn(
+            'mt-2 min-h-4 text-xs',
+            message?.error ? errorTextClassName : 'text-neutral-850 dark:text-neutral-200',
+          )}
         >
-          {message.text}
+          {message?.text}
         </p>
       ) : null}
     </>
@@ -446,7 +453,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert, varian
   const [display, setDisplay] = useState<ValueDisplay>('decimal')
   // Without a device file the window opens raw access, the only way to its objects.
   const [anyObject, setAnyObject] = useState(device && node.eds.objects.length === 0)
-  const nmtFeedback = useCardFeedback(online.ready)
+  const nmtFeedback = useCardFeedback(online.ready, device)
   const [allNodes, setAllNodes] = useState(false)
   const { client, networkIndex, ready } = online
   const nodeId = node.nodeId
@@ -622,7 +629,12 @@ export const OnlineTab = ({ node, network, online, reads, status, expert, varian
               <button
                 type='button'
                 className={smallButtonClassName}
-                disabled={!ready}
+                disabled={!ready || readable.length === 0}
+                title={
+                  readable.length === 0
+                    ? 'No objects to read: the list is empty without a device file. Use Any object… to read by index.'
+                    : undefined
+                }
                 onClick={() => reads.readAll(nodeId, readable)}
               >
                 Read all
@@ -719,13 +731,14 @@ export const OnlineTab = ({ node, network, online, reads, status, expert, varian
                         >
                           <span className='w-2.5 shrink-0 text-[9px] text-neutral-400'>{open.has(k) ? '▼' : '▶'}</span>
                           <span className={cn('min-w-0', compact ? '' : 'truncate')}>
-                            {breakable(object.parentName && !compact ? objectOwnLabel(object) : objectLabel(object))}
+                            {breakable(rowName(object, compact))}
                           </span>
                         </button>
-                        {(object.parentName && !compact) || shortDescription(object) ? (
+                        {(object.parentName && !compact) || shortDescription(object) || objectOwnFileName(object) ? (
                           <span className={cn(hintClassName, 'block truncate pl-3.5')}>
                             {[
                               compact ? undefined : (objectParentLabel(object) ?? object.parentName),
+                              objectOwnFileName(object) ? objectOwnLabel(object) : undefined,
                               shortDescription(object),
                             ]
                               .filter(Boolean)
@@ -733,7 +746,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert, varian
                           </span>
                         ) : null}
                         {compact ? (
-                          <span className={cn(hintClassName, 'block')}>
+                          <span className={cn(hintClassName, 'block pl-3.5')}>
                             {dataTypeLabel(object.dataType)}, {object.access}
                           </span>
                         ) : null}
@@ -817,13 +830,29 @@ export const OnlineTab = ({ node, network, online, reads, status, expert, varian
             </tbody>
           </table>
         </div>
-        {shown.length === 0 ? <p className={cn(hintClassName, 'mt-2')}>No object matches.</p> : null}
+        {shown.length === 0 ? (
+          <p className={cn(hintClassName, 'mt-2')}>
+            {rows.length === 0
+              ? 'No objects without a device file. Pick a device file, or use Any object… to read and write by index.'
+              : 'No object matches.'}
+          </p>
+        ) : null}
         {rows.some((r) => r.masterWrites) ? (
           <p className={cn(hintClassName, 'mt-2')}>* The master writes this value at boot.</p>
         ) : null}
       </div>
     </div>
   )
+}
+
+/**
+ * The row's main name: the device file's own name, with its label below, when the label differs;
+ * else the label. The array or record goes in front only in the compact table.
+ */
+function rowName(object: CanopenObject, compact: boolean): string {
+  const own = objectOwnFileName(object) ?? objectOwnLabel(object)
+  if (!object.parentName || object.parentName === object.name || !compact) return own
+  return `${objectParentLabel(object) ?? object.parentName} / ${own}`
 }
 
 const RowGroup = ({ children }: { children: ReactNode }) => <>{children}</>

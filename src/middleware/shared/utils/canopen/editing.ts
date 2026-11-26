@@ -177,6 +177,11 @@ export function objectLabel(object: CanopenObject): string {
   return parent ? `${parent} / ${objectOwnLabel(object)}` : objectOwnLabel(object)
 }
 
+/** The object's own name in the file when its label differs from it (ignoring case and spaces), else undefined. */
+export function objectOwnFileName(object: CanopenObject): string | undefined {
+  return sameName(objectOwnLabel(object), object.name) ? undefined : object.name
+}
+
 /** The file's name of the object when the shown label differs from it, ignoring case and spaces. */
 export function objectFileName(object: CanopenObject): string | undefined {
   const file = objectFileLabel(object)
@@ -185,7 +190,8 @@ export function objectFileName(object: CanopenObject): string | undefined {
 
 /** Hover text with the object's own name in the device file, when its own label differs (no array or record part). */
 export function objectOwnFileNameTitle(object: CanopenObject): string | undefined {
-  return sameName(objectOwnLabel(object), object.name) ? undefined : `Name in the device file: ${object.name}`
+  const name = objectOwnFileName(object)
+  return name === undefined ? undefined : `Name in the device file: ${name}`
 }
 
 /** Hover text that names the object as the device file does, when its label differs. */

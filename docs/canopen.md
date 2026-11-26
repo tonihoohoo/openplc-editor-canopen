@@ -204,7 +204,8 @@ when the file's bit rate differs from the network's.
 **XDD and XDC files (CiA 311).** An XDD is the XML counterpart of an EDS and an XDC that of a DCF.
 The editor reads CiA 311 version 1.1 and 1.0 files (`parseXdd`): the identity, the object list of the
 communication network profile and, from the device profile, each object's label and description (in
-English when the file has it, else its first language), unit and multiplier, range, value meanings,
+English when the file has it, else its first language), unit and multiplier, range (an empty
+`lowLimit` or `highLimit` is no limit), value meanings,
 bit fields (`struct` data types) and parameter group, and for the device the order number, product
 text, file version and dates, languages and characteristics. An object's type, access and default
 come from its parameter when the object list leaves them out. A DOMAIN is read like a VAR, and a VAR
@@ -223,7 +224,8 @@ the object pickers show group, unit and description, find objects by them, and s
 object's details in a pane beside the list; a startup SDO shows the file default with its meaning and
 offers the file's value list; the Online tab shows a read value's meaning, scaled value and unit, or
 its set bits and fields, below the value. Clicking the name of a startup SDO or an Online row opens
-all of it. Where the file says nothing, the editor shows the meanings of the CiA 301 communication
+all of it. An XDD object is named by its label; an Online row (also in device commissioning) shows
+the file's own name first with the label below it when the two differ. Where the file says nothing, the editor shows the meanings of the CiA 301 communication
 objects and the CiA 401 generic I/O objects (`standard-meanings.ts`, in our own words), marked with
 the standard's name.
 
@@ -401,21 +403,27 @@ needs a runtime that lists `"commission"` in `canopen.features` and a stopped PL
 why it offers nothing. While a network is in a debug session, everything but **Add to project...**
 works.
 
-- **The bus.** Pick the **CAN interface** (the project's interfaces are offered, can0 when there is
-  none) and the **Bit rate** (the rate of the project's network on that interface, else 125 kbit/s;
-  there is no automatic detection), then **Open the bus**. The runtime opens service mode for
+- **The bus.** Pick the **CAN interface** and the **Bit rate** (the rate of the project's network on
+  that interface, else the interface's own rate, else 125 kbit/s; there is no automatic detection),
+  then **Open the bus**. A runtime that lists `"interfaces"` in `canopen.features` gives the list its
+  computer's CAN links, with their state and bit rate, followed by project interfaces it does not have;
+  an older runtime gets the project's interfaces (can0 when there is none). **Type a name...** takes any
+  other name. The runtime opens service mode for
   commissioning: the master sends nothing of its own and reaches any node ID 1 to 127. When a network the
   runtime keeps on the bus at PLC stop runs on the interface, the window asks first: **Leave the bus
   and open** takes the interface over until the next PLC start, which boots all the network's nodes
   again. The bus closes when the window closes, when the PLC starts, and after 5 minutes without a
   request. When the runtime closes it by itself, for example after a link reset or bus-off, the window
-  says so and offers **Open the bus** again.
+  says so and offers **Open the bus** again. A click outside the window does not close it; its close
+  button and Escape close it at once while the bus is closed, and ask first while it is open.
 - **Find devices** reads 0x1000 and 0x1018 of node IDs 1 to 127 (a few seconds), listening for
   heartbeats, boot-ups and emergencies meanwhile, and then searches for devices without a node ID by
   LSS fastscan (about 7 s per device). The list shows the devices with a node ID in order, then the
   IDs that were only heard (they sent but did not answer SDO reads: a wrong bit rate or no SDO server),
   then the devices without a node ID by their LSS address. Each row names the device by the device file
-  it matches.
+  it matches; a device with a node ID and no matching file is then read for its 0x1008 (manufacturer
+  device name) and named by it. A vendor is named in plain text, next to its hex ID, when any device
+  file of the project or one picked in the window has that vendor ID.
 - **Device file.** A device gets the project's device file (any CANopen network) with its vendor ID
   and product code, the same revision first, else the newest. **Choose file...** takes another EDS,
   DCF, XDD or XDC for this window session, with a warning when it is for another device; **None**
@@ -436,7 +444,8 @@ works.
   the device took in the state it was in offers nothing. After a restore it offers the reset that makes
   it take effect.
 - **Objects** is the node's Online tab for this device, from its device file: Read all, filters,
-  **Any object...**, and in the expert view writes and the NMT buttons. Its "Default" column is the
+  **Any object...**, and in the expert view writes and the NMT buttons. Without a device file the list
+  is empty and **Read all** is greyed: use **Any object...**. Its "Default" column is the
   device file's default, and the filter "Differs from default" shows the objects that differ.
 - **Add to project...** adds the device as a node of a CANopen network of the project with the node
   ID it has now, its device file (a picked file is imported with the node) and the file's default

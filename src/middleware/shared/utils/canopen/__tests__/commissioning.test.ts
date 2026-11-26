@@ -9,6 +9,8 @@ import {
   commissionList,
   commissionNodeName,
   defaultCommissionBitrate,
+  interfaceChoices,
+  lssAddressText,
   deviceLssAddress,
   matchingFiles,
   newCommissionNetwork,
@@ -19,6 +21,9 @@ import {
   projectInterfaces,
   sameDeviceKey,
   scopesFromCount,
+  vendorNameOf,
+  vendorText,
+  visibleString,
 } from '../commissioning'
 import { createCanopenOnline, type ScanDevice } from '../online'
 import { configWith, genericNode } from './fixtures/helpers'
@@ -265,5 +270,74 @@ describe('the commissioning requests', () => {
       }),
     ).not.toBeNull()
     expect(parseCanopenAnswer({ state: 'done', devices: [{ node_id: 0, answered: true }] })).toBeNull()
+  })
+})
+
+describe("the window's CAN interface list and plain-text names", () => {
+  const config = configWith(genericNode(2))
+  const on = (iface: string) => ({ ...config, network: { ...config.network, interface: iface } })
+
+  it("lists the runtime's CAN links, then project interfaces it lacks", () => {
+    const links = [
+      { name: 'can0', kind: 'can', up: true, bitrate: 250000 },
+      { name: 'vcan0', kind: 'vcan', up: false, bitrate: 0 },
+    ]
+    expect(interfaceChoices([on('can0'), on('can3')], links)).toEqual([
+      { name: 'can0', note: 'up, 250 kbit/s', bitrate: 250000 },
+      { name: 'vcan0', note: 'virtual, down', bitrate: 0 },
+      { name: 'can3', note: 'not on the runtime', bitrate: 0 },
+    ])
+  })
+
+  it('does not add the default can0 when the project has no network and the runtime lists links', () => {
+    expect(interfaceChoices([], [{ name: 'can1', kind: 'can', up: false, bitrate: 0 }])).toEqual([
+      { name: 'can1', note: 'down', bitrate: 0 },
+    ])
+    expect(interfaceChoices([], [])).toEqual([{ name: 'can0', note: 'not on the runtime', bitrate: 0 }])
+  })
+
+  it("falls back to the project's interfaces without the runtime's list", () => {
+    expect(interfaceChoices([on('can2')], null)).toEqual([{ name: 'can2', note: 'used in the project', bitrate: 0 }])
+  })
+
+  it('names the vendor from any device file with its vendor ID', () => {
+    const files = projectDeviceFiles([config])
+    const { vendorId, vendorName } = files[0].eds
+    expect(vendorNameOf(files, vendorId)).toBe(vendorName.trim() || null)
+    expect(vendorNameOf(files, vendorId + 1)).toBeNull()
+    expect(vendorNameOf(files, null)).toBeNull()
+    expect(vendorText(files, vendorId + 1)).toBe(`0x${(vendorId + 1).toString(16).toUpperCase().padStart(8, '0')}`)
+    const named = [{ ...files[0], eds: { ...files[0].eds, vendorName: 'Example Oy' } }]
+    expect(vendorText(named, vendorId)).toMatch(/^Example Oy \(0x[0-9A-F]{8}\)$/)
+    expect(lssAddressText({ vendorId: 1, productCode: 2, revision: 3, serialNumber: 4 }, 'Example Oy')).toBe(
+      'Vendor Example Oy (0x00000001), product 0x00000002, revision 0x00000003, serial 0x00000004',
+    )
+  })
+
+  it('reads a VISIBLE_STRING up to its first NUL, printable characters only', () => {
+    expect(visibleString([0x49, 0x4f, 0x20, 0x20, 0x31, 0x00, 0x41])).toBe('IO 1')
+    expect(visibleString([0x09, 0x41, 0x0a])).toBe('A')
+    expect(visibleString([])).toBe('')
+  })
+
+  it("reads the runtime's interfaces answer", () => {
+    expect(parseCanopenAnswer({ interfaces: [{ name: 'can0', kind: 'can', up: true, bitrate: 0 }] })).toEqual({
+      interfaces: [{ name: 'can0', kind: 'can', up: true, bitrate: 0 }],
+    })
+    expect(parseCanopenAnswer({ interfaces: [{ name: '', kind: 'can', up: true, bitrate: 0 }] })).toBeNull()
+  })
+
+  it('asks the runtime for its interfaces and passes a refusal on', async () => {
+    const answer = { interfaces: [{ name: 'can0', kind: 'can', up: false, bitrate: 500000 }] }
+    const client = createCanopenOnline((r: CanopenRequest) =>
+      Promise.resolve<CanopenRuntimeFetch>({ success: true, body: r.op === 'interfaces' ? answer : {} }),
+    )
+    expect(await client.interfaces()).toEqual({ ok: true, ...answer })
+    const old = createCanopenOnline(() =>
+      Promise.resolve<CanopenRuntimeFetch>({ success: true, body: { error: 'unknown_op' } }),
+    )
+    expect(await old.interfaces()).toMatchObject({ ok: false, reason: 'unknown_op' })
+    const odd = createCanopenOnline(() => Promise.resolve<CanopenRuntimeFetch>({ success: true, body: { ok: true } }))
+    expect(await odd.interfaces()).toMatchObject({ ok: false, reason: 'error' })
   })
 })
