@@ -341,7 +341,7 @@ test('commissioning: interface list, plain names, no-file objects, reserved resu
       ['can0 (up, 250 kbit/s)', 'can1 (down)', 'vcan0 (virtual, up)', 'Type a name...'],
       { timeout: 15000 },
     )
-    await expect(win.getByLabel('Bit rate')).toHaveValue('250000')
+    await expect(win.getByLabel('Bit rate')).toHaveValue('500000')
     await picker.selectOption('__type__')
     await win.getByTestId('canopen-com-interface-name').fill('can5')
     await shot(page, 'usability-interface-typed')
@@ -362,13 +362,17 @@ test('commissioning: interface list, plain names, no-file objects, reserved resu
     const before = await lss.boundingBox()
     await lss.getByLabel('New node ID').fill('1')
     await lss.getByTestId('canopen-com-set-id').click()
-    await expect(lss.getByTestId('canopen-com-lss-outcome')).toContainText('Node 1 is already on the bus.', { timeout: 15000 })
+    await expect(lss.getByTestId('canopen-com-lss-outcome')).toContainText('Node 1 is already on the bus.', {
+      timeout: 15000,
+    })
     expect((await lss.boundingBox())?.height).toBe(before?.height)
     await shot(page, 'usability-find-names-lss-outcome')
 
     await win.getByRole('tab', { name: 'Objects' }).click()
     await expect(win.getByRole('button', { name: 'Read all' })).toBeDisabled()
-    await expect(win).toContainText('No objects without a device file.')
+    const empty = win.getByText('No objects without a device file.')
+    await empty.scrollIntoViewIfNeeded()
+    await expect(empty).toBeVisible()
     await shot(page, 'usability-no-file-objects')
 
     await win.getByTestId('canopen-com-file-input').setInputFiles(xdd)

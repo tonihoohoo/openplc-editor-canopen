@@ -746,7 +746,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert, varian
                           </span>
                         ) : null}
                         {compact ? (
-                          <span className={cn(hintClassName, 'block')}>
+                          <span className={cn(hintClassName, 'block pl-3.5')}>
                             {dataTypeLabel(object.dataType)}, {object.access}
                           </span>
                         ) : null}
@@ -833,7 +833,7 @@ export const OnlineTab = ({ node, network, online, reads, status, expert, varian
         {shown.length === 0 ? (
           <p className={cn(hintClassName, 'mt-2')}>
             {rows.length === 0
-              ? 'No objects without a device file. Pick a device file, or read and write by index with Any object….'
+              ? 'No objects without a device file. Pick a device file, or use Any object… to read and write by index.'
               : 'No object matches.'}
           </p>
         ) : null}

@@ -100,7 +100,7 @@ export const CanopenCommissioningWindow = () => {
         className='flex h-[88vh] max-h-[88vh] w-[1180px] max-w-[96vw] flex-col gap-3 p-5'
         data-testid='canopen-commissioning'
       >
-        <div className='flex items-start justify-between gap-3'>
+        <div className='relative flex items-start justify-between gap-3'>
           <ModalTitle className='text-lg font-semibold text-neutral-1000 dark:text-neutral-100'>
             CANopen device commissioning
           </ModalTitle>
@@ -113,26 +113,26 @@ export const CanopenCommissioningWindow = () => {
           >
             <CloseIcon className='h-4 w-4 stroke-brand hover:cursor-pointer' />
           </button>
+          {asking ? (
+            <div
+              role='alertdialog'
+              aria-label='Close the window?'
+              className='absolute inset-x-0 top-full z-10 mt-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-neutral-850 shadow-md dark:border-amber-700 dark:bg-amber-950 dark:text-neutral-200'
+              data-testid='canopen-com-close-confirm'
+            >
+              <span className='min-w-0 flex-1'>
+                Close the window? The bus closes and the devices found are cleared. Devices keep what was written and
+                stored in them.
+              </span>
+              <button type='button' className={primaryButtonClassName} onClick={close}>
+                Close the window
+              </button>
+              <button type='button' className={secondaryButtonClassName} onClick={() => setAsking(false)}>
+                Keep it open
+              </button>
+            </div>
+          ) : null}
         </div>
-        {asking ? (
-          <div
-            role='alertdialog'
-            aria-label='Close the window?'
-            className='flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-neutral-850 dark:border-amber-700 dark:bg-amber-900/20 dark:text-neutral-200'
-            data-testid='canopen-com-close-confirm'
-          >
-            <span className='min-w-0 flex-1'>
-              Close the window? The bus closes and the devices found are cleared. Devices keep what was written and
-              stored in them.
-            </span>
-            <button type='button' className={primaryButtonClassName} onClick={close}>
-              Close the window
-            </button>
-            <button type='button' className={secondaryButtonClassName} onClick={() => setAsking(false)}>
-              Keep it open
-            </button>
-          </div>
-        ) : null}
         <p className={hintClassName}>
           One device at a time: find it, give it a node ID or bit rate, read and write its objects, save its parameters,
           and add it to the project. Works while the PLC is stopped, apart from the project's networks.
